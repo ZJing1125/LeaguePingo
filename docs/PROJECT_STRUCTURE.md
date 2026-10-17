@@ -6,6 +6,9 @@
 
 ```text
 league-pingo/
+├── AGENTS.md           项目开发/审批/构建/交付约定
+├── AGENTS.local.md     可选本机约定（忽略 Git，显式阅读）
+├── .leaguepingo/       可选可信本机工具环境（忽略 Git）
 ├── main.go / appservice.go / overlay.go / preferences.go
 │   └── 桌面启动、Wails 服务入口、快览和设置桥接
 ├── internal/
@@ -26,6 +29,8 @@ league-pingo/
 │   └── Taskfile.yml / config.yml / 图标源文件
 ├── cmd/perfprobe/     Windows 离线资源采样工具
 ├── scripts/           统一验证、构建与游戏资源维护脚本
+├── bin/               当前/回退程序及本机产物清单（忽略 Git）
+├── artifacts/         按对应版本保存的测试证据（忽略 Git）
 ├── docs/              架构、设计、验收、性能与问题记录
 └── BUGFIX_LOG.md       追加维护的修复与工程问题记录
 ```
@@ -37,11 +42,15 @@ league-pingo/
 | 入口 / 资源 | 当前用途 |
 | --- | --- |
 | `scripts/verify.sh` | 绑定、前端构建、Go 测试/静态检查与离线浏览器回归 |
-| `scripts/build.sh <输出路径>` | Windows 本地测试程序；先统一验证，再嵌入提交号和构建时间 |
-| 根目录 `Taskfile.yml` | Wails 桌面任务入口，仅引用 common、windows、darwin |
-| `build/windows/` | 原生构建资源，保留 NSIS/MSIX/签名任务；正式安装器与签名仍待配置验收 |
-| `build/darwin/` | 保留 macOS 模板；尚未完成客户端适配及实机验收 |
-| `build/docker/Dockerfile.cross` | Windows/macOS 任务仍引用的可选交叉编译辅助工具；Windows 本机构建不依赖 Docker |
+| `scripts/build.sh [输出路径]` | Windows 本地测试程序；验证/编译成功后登记并清理旧产物，默认唯一文件名 |
+| `scripts/artifacts.mjs` | 双版本清单、默认只读预览、显式验收登记与受保护清理；见 [产物管理](ARTIFACTS.md) |
+| `scripts/workflow.mjs` | 项目规则/任务路由一致性检查、环境限制；标准入口必须通过 |
+| `scripts/env.sh` / `scripts/environment.mjs` | 显式加载可选本机配置 / 只读工具能力与浏览器发现；见 [环境说明](ENVIRONMENTS.md) |
+| `scripts/run.sh` / `scripts/dev.sh` | 审计后运行当前交付版 / 独立临时热重载；后者不轮换交付版本 |
+| 根目录 `Taskfile.yml` | 只引用 common、windows；Windows build 转统一脚本，不再动态执行 macOS 模板 |
+| `build/windows/` | 原生资源及安装器资源保留；旧直接编译任务、安装器/签名任务改为明确拒绝入口 |
+| `build/darwin/` | 保留未接入的 macOS 模板资源，不在根任务 includes 中；尚未适配验收 |
+| `build/docker/Dockerfile.cross` | 仅保留未来跨平台辅助资源，标准 Docker 入口当前禁用 |
 
 Docker 交叉编译模板内部沿用上游的通用编译器支持，不代表提供 Linux 产品目标；本轮没有安装 Docker、构建镜像或验证交叉编译。已移除服务端 Dockerfile 与服务端构建/运行入口。
 
@@ -49,7 +58,7 @@ Docker 交叉编译模板内部沿用上游的通用编译器支持，不代表�
 
 - 维护源码：Go 业务代码、前端源码、测试、构建任务及说明文档。
 - 生成且跟踪：`frontend/bindings/` 通过固定版本 Wails CLI 生成，代码审查中核对接口变化；`.gitattributes` 标记为 `linguist-generated`，不手工修改。
-- 本地且忽略：`.tools/`、`.task/`、`bin/`、`frontend/node_modules/`、`frontend/dist/`、Windows 临时 `.syso`、安装器输出及 WebView2 引导程序。
+- 本地且忽略：`.tools/`、`.task/`、`bin/`、`artifacts/`、`frontend/node_modules/`、`frontend/dist/`、Windows 临时 `.syso`、安装器输出及 WebView2 引导程序。
 - 构建资源不是构建产物：`build/windows/` 的 manifest、安装脚本和 `build/darwin/` 的 plist/图标仍需纳入版本控制。
 - 查询到的玩家身份、战绩、客户端凭据不属于工程文件，不落盘、不提交。
 

@@ -209,12 +209,6 @@ tasks:
       - bun run dev --port {{.VITE_PORT}} --strictPort
 
   setup:docker:
-    summary: Optional Docker image for desktop cross-compilation (~800MB download)
-    desc: |
-      Builds the optional image used by the retained Windows/macOS tasks.
-      Native Windows builds and scripts/build.sh do not require Docker.
+    summary: Disabled until cross-platform delivery is supported
     cmds:
-      - docker build -t wails-cross -f build/docker/Dockerfile.cross build/docker/
-    preconditions:
-      - sh: docker info > /dev/null 2>&1
-        msg: "Docker is required. Please install Docker first."
+      - node scripts/workflow.mjs unsupported

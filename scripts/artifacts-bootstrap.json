@@ -1,0 +1,53 @@
+{
+  "builds": [
+    { "file": "bin/leaguepingo.exe" },
+    { "file": "bin/leaguepingo-fixed.exe" },
+    { "file": "bin/leaguepingo-dev.exe" },
+    { "file": "bin/leaguepingo-dev-20261016.exe" },
+    { "file": "bin/leaguepingo-dev-20261016-v2.exe" },
+    { "file": "bin/leaguepingo-dev-20261016-v3.exe" },
+    { "file": "bin/leaguepingo-dev-20261016-v4.exe" },
+    { "file": "bin/leaguepingo-dev-20261017-v5.exe" },
+    { "file": "bin/leaguepingo-dev-20261018-v6.exe" },
+    { "file": "bin/leaguepingo-dev-20261018-v7.exe" },
+    { "file": "bin/leaguepingo-engineering-check-20261018.exe" },
+    {
+      "file": "bin/leaguepingo-dev-20261018-v8.exe", "accepted": true, "commit": "c9fa6f4",
+      "sha256": "5bd2768562d0947a59122d0ee8ea31f2f5aff30152e1d5d4abb20af21b428736",
+      "evidence": [
+        "bin/ui-selection-20261018-analysis.png", "bin/ui-selection-20261018-compact.png",
+        "bin/ui-selection-20261018-jump.png", "bin/ui-selection-20261018-match.png",
+        "bin/ui-selection-20261018-minimum.png", "bin/ui-selection-20261018-overlay.png",
+        "bin/ui-selection-20261018-players.png", "bin/ui-selection-20261018-selection.png"
+      ]
+    },
+    {
+      "file": "bin/leaguepingo-dev-20261018-v9.exe", "accepted": true, "commit": "c3b7849",
+      "sha256": "e7f48c8a8c59cbbafcf81e98e8102d64f8e5f032338e437b1cb6260db87bc890",
+      "evidence": [
+        "bin/ui-profile-20261018-analysis.png", "bin/ui-profile-20261018-compact.png",
+        "bin/ui-profile-20261018-jump.png", "bin/ui-profile-20261018-match.png",
+        "bin/ui-profile-20261018-minimum.png", "bin/ui-profile-20261018-overlay.png",
+        "bin/ui-profile-20261018-players.png", "bin/ui-profile-20261018-selection.png"
+      ]
+    }
+  ],
+  "retired": [
+    "bin/overlay-ingame-smoke.png", "bin/overlay-smoke.png", "bin/review-overlay.png", "bin/review-workspace.png",
+    "bin/ui-feedback-20261017-analysis.png", "bin/ui-feedback-20261017-compact.png", "bin/ui-feedback-20261017-match.png",
+    "bin/ui-feedback-20261017-overlay.png", "bin/ui-feedback-20261017-players.png",
+    "bin/ui-final-match.png", "bin/ui-final-overlay.png", "bin/ui-final-players.png",
+    "bin/ui-paging-20261017-analysis.png", "bin/ui-paging-20261017-compact.png", "bin/ui-paging-20261017-jump.png",
+    "bin/ui-paging-20261017-match.png", "bin/ui-paging-20261017-minimum.png", "bin/ui-paging-20261017-overlay.png",
+    "bin/ui-paging-20261017-players.png", "bin/ui-redesign-match.png", "bin/ui-redesign-overlay.png", "bin/ui-redesign-players.png",
+    "bin/workspace-batch4.png", "bin/workspace-batch5.png",
+    "bin/performance-batch6-lazy/process-tree-20261016-062306.csv",
+    "bin/performance-batch6-overlay/process-tree-20261016-062520.csv",
+    "bin/performance-batch6/process-tree-20261016-062107.csv",
+    "bin/performance-review-v3/process-tree-20261016-085009.csv",
+    "bin/performance-ui-v4-final-overlay/process-tree-20261016-194157.csv",
+    "bin/performance-ui-v4-final/process-tree-20261016-194122.csv",
+    "bin/performance-ui-v4-overlay/process-tree-20261016-193825.csv",
+    "bin/performance-ui-v4/process-tree-20261016-193742.csv"
+  ]
+}

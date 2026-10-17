@@ -1,6 +1,7 @@
 .task
 .tools/
 bin
+/artifacts/
 frontend/dist
 frontend/node_modules
 build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
@@ -8,3 +9,5 @@ build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
 /wails_windows_*.syso
 build/windows/nsis/*-installer.exe
 .DS_Store
+/AGENTS.local.md
+/.leaguepingo/

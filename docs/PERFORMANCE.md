@@ -1,5 +1,7 @@
 # 性能验证与边界
 
+2026-10-18 产物治理说明：按用户批准的双版本规则，以下旧版原始性能 CSV 已永久清理，历史数值与验证范围保留作为当时记录，不再提供原始文件复核。v9/v8 当前仅保留对应合成界面截图，不能用旧记录代表新版性能。8 份隔离实例配置未改动。
+
 ## UI 重构测试版短基线
 
 2026-10-16，最终本地 `leaguepingo-dev-20261016-v4.exe`，功能提交 `d312852`，SHA-256 `7cf4b6a27928bfe5e342fe245cc85183899975f494e7199cb9a2c5658cbe55ea`。隐藏隔离实例、不发现 LCU、不注册快捷键，四秒预热后每秒采样；包含可读 WebView2 后代，12 个逻辑处理器。两个场景依次执行，各 22 个样本，并正常自退出，没有终止用户进程。
@@ -9,13 +11,13 @@
 | 主窗口隐藏，快览未创建，无 LCU | 180.40 | 319.81 | 该短测未观察到可分辨增长 |
 | 主窗口/已创建快览均隐藏，无 LCU | 220.73 | 393.25 | 约 0.0059% |
 
-原始 CSV 位于本地 `bin/performance-ui-v4-final` 和 `bin/performance-ui-v4-final-overlay`，不提交 Git。更早的 `performance-ui-v4`/`performance-ui-v4-overlay` 对应最小窗口修复前的候选文件，不混作最终文件证据。
+原始 CSV 曾位于本地 `bin/performance-ui-v4-final` 和 `bin/performance-ui-v4-final-overlay`，现已清理。更早的 `performance-ui-v4`/`performance-ui-v4-overlay` 对应最小窗口修复前的候选文件，也已清理，不混作最终文件证据。
 
 这两项都是一次短时离线观察，不是游戏性能验收或稳定优化幅度。工作集共享页可能重复计数；采样粒度看不到短峰，“无可分辨增长”不等于零 CPU。快览创建后隐藏仍有常驻成本，当前实现没有在隐藏时销毁 WebView；不能声称后台零开销。无 FPS、帧时间、网络 RTT 及真实阶段通知负载测量。界面改造后仍需进行以下游戏 A/B 和长时测试。
 
 ## 旧版 Review 后补测（不是当前 UI 版）
 
-2026-10-16，提交 9f97097 的 v3 候选版（SHA-256 `61259ccc9cbd23cc2bd476ffc0eb1bf4bd8778586277d7ac06f940aa64d9e9ed`），隐藏主窗口/未创建快览/无 LCU，预热四秒后每秒采样，共 22 个样本、12 逻辑处理器：私有内存峰值 **188.27 MiB**、工作集加总峰值 **373.96 MiB**、平均整机归一 CPU **约 0.018%**。原始 CSV/汇总在本地 `bin/performance-review-v3`，不提交身份数据或产物。
+2026-10-16，提交 9f97097 的 v3 候选版（SHA-256 `61259ccc9cbd23cc2bd476ffc0eb1bf4bd8778586277d7ac06f940aa64d9e9ed`），隐藏主窗口/未创建快览/无 LCU，预热四秒后每秒采样，共 22 个样本、12 逻辑处理器：私有内存峰值 **188.27 MiB**、工作集加总峰值 **373.96 MiB**、平均整机归一 CPU **约 0.018%**。原始 CSV 曾在本地 `bin/performance-review-v3`，现已清理；不提交身份数据或产物。
 
 这是当时提交构建的短时离线证据，不是当前 UI 版二进制的逐字节认证。后续还有 BUG-0019–0027 的状态、UI、资料与通知改动。每场景仍只有一次短测，不能与旧版不同时间采样推导稳定提升；工作集共享页和 CPU 粒度限制仍适用。真实游戏 FPS、帧时间和网络延迟本轮均未测量。
 
@@ -33,7 +35,7 @@
 
 工作集包含共享页，加总可能重复计数，不能当作唯一占用的物理内存。CPU 接口有粒度限制，“未观察到增长”不表示零 CPU。采样遗漏短命进程，不能覆盖启动尖峰。私有内存约 193 MiB 的结果也说明当前原型不是零成本后台工具。Go 堆只是一部分，不可替代上述进程树数据。
 
-原始 CSV 保留在本地 `bin/performance-batch6*`，不上传 Git。测试隔离实例使用单独应用标识和设置目录，不读取真实 LCU、不注册快捷键，35 秒自退出；没有终止现有助手或游戏。原生接口测试另验证 CPU 时间确实能观察到忙循环增长。
+原始 CSV 曾保留在本地 `bin/performance-batch6*`，现已清理，从未上传 Git。测试隔离实例使用单独应用标识和设置目录，不读取真实 LCU、不注册快捷键，35 秒自退出；没有终止现有助手或游戏。原生接口测试另验证 CPU 时间确实能观察到忙循环增长。
 
 ## 可复现工具
 
@@ -41,10 +43,10 @@
 
 ```bash
 # 启动隔离隐藏离线实例，并采集整个进程树
-go run ./cmd/perfprobe -exe bin/leaguepingo-dev-20261016-v4.exe -out bin/performance-offline
+go run ./cmd/perfprobe -exe bin/leaguepingo-dev-20261018-v9.exe -out bin/performance-offline
 
 # 包含已创建但保持隐藏的快览
-go run ./cmd/perfprobe -exe bin/leaguepingo-dev-20261016-v4.exe -open-overlay -out bin/performance-overlay
+go run ./cmd/perfprobe -exe bin/leaguepingo-dev-20261018-v9.exe -open-overlay -out bin/performance-overlay
 
 # 对现有助手做只读采样，替换 12345 为实际助手 PID，不是游戏 PID
 go run ./cmd/perfprobe -pid 12345 -seconds 120 -scenario champ-select -out bin/performance-pregame

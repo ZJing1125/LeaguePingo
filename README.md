@@ -4,6 +4,8 @@ LeaguePingo 是面向《英雄联盟》腾讯国服的桌面战绩助手原型�
 
 工程目录、平台边界及构建资源维护方式见 [工程结构](docs/PROJECT_STRUCTURE.md)。当前仓库仅保留 Windows/macOS 桌面目标；Android、iOS、Linux 产品模板及服务端部署模板已清理。
 
+开发前先阅读根目录 [AGENTS.md](AGENTS.md)：审批、架构边界、测试、交付与版本留存约定统一在仓库内维护。Windows 交付构建入口已收敛到 `scripts/build.sh`；这是一套可检查的开发流程，不是阻止手动调用编译器的安全沙箱。
+
 ## 当前功能
 
 - 复制客户端完整 ID 时自动清理已知不可见方向标记和边缘空白，非法输入不发请求。身份查询使用客户端结构化“名称＋标签”接口并核验返回账号；超时/取消单独提示，不显示含玩家身份的原始请求 URL。
@@ -30,16 +32,15 @@ LeaguePingo 是面向《英雄联盟》腾讯国服的桌面战绩助手原型�
 
 ## 运行与构建
 
-在 Windows Git Bash 中进入 `E:/league-pingo`。需要 Go 1.25+、Node.js 22+、Wails 3 CLI beta.29 和依赖安装。当前机器上开发工具暂存在项目 `.tools/` 中（已忽略，不纳入源码）。
+在项目目录使用 Bash（Windows 上使用 Git Bash）。Windows 完整验证/交付需要 Go 1.25+、Node.js 22+、Wails 3 CLI beta.29 和锁定的前端依赖；其他开发主机可显式运行通用验证子集。工具通过 PATH/环境变量或不提交的本机配置提供，见 [多主机环境说明](docs/ENVIRONMENTS.md)。
 
 ```bash
-export PATH=/e/league-pingo/.tools/go/bin:/e/league-pingo/.tools/gopath/bin:/e/nodejs:$PATH
-export GOPROXY=https://goproxy.cn
-export GOSUMDB=sum.golang.google.cn
-export GOPATH=/e/league-pingo/.tools/gopath
-export GOCACHE=/e/league-pingo/.tools/gocache
+# 在配置好依赖的 Windows amd64 主机交付构建
+# 入口会加载经检查的 .leaguepingo/environment.sh（若存在）
+bash scripts/build.sh
 
-bash scripts/build.sh bin/leaguepingo-dev-20261018-v9.exe
+# 远程或非 Windows 开发主机的显式子集，不等于交付验证
+bash scripts/verify.sh portable
 ```
 
 开发运行可用 `wails3 dev`。首次运行需已安装 Microsoft Edge WebView2。启动国服 League 客户端后，LeaguePingo 会发现 `LeagueClient.exe` / `LeagueClientUx.exe`，先尝试同目录的 `lockfile`，文件为空或不可用时改用 Windows 提供的客户端启动参数。也可设置 `LEAGUEPINGO_LOCKFILE` 指向测试用 lockfile。切勿提交、发送或记录 lockfile 内容或完整客户端启动参数，其中包含本地客户端密码。
@@ -48,7 +49,13 @@ bash scripts/build.sh bin/leaguepingo-dev-20261018-v9.exe
 
 本轮测试文件 SHA-256：`e7f48c8a8c59cbbafcf81e98e8102d64f8e5f032338e437b1cb6260db87bc890`。此值仅核对上述本地文件；自行重建会嵌入新的时间，校验值可能不同。`scripts/verify.sh` 与干净提交上的 `scripts/build.sh` 均已通过；当前账号基础资料/头像的显式实机读取通过，但新版桌面显示、其他账号及游戏性能仍待验收。此前选人事件探测因不在选人阶段跳过，不把合成回归计为真实表现。重点复验步骤见 [实机验收](docs/ACCEPTANCE.md)。
 
-统一验证：`bash scripts/verify.sh`。推荐上述 `build.sh`，运行绑定生成/构建/测试/静态检查与浏览器回归，嵌入当前提交号和 UTC 时间并输出 SHA-256。若系统 npm 缓存不可写，可用 `npm --cache E:/league-pingo/.tools/npm-cache --prefix frontend ci`。避免覆盖被占用的旧版程序。可执行文件、诊断文件和测试截图不提交 Git。`main` 不改动，各改进批次单独提交推送 `dev`。
+Windows 完整验证：`bash scripts/verify.sh`。推荐上述 `build.sh`，运行绑定生成/构建/测试/静态检查与浏览器回归，嵌入当前提交号和 UTC 时间并输出 SHA-256。若系统 npm 缓存不可写，可用 `npm --cache .tools/npm-cache --prefix frontend ci`。避免覆盖被占用的旧版程序。可执行文件、诊断文件和测试截图不提交 Git。`main` 不改动，各改进批次单独提交推送 `dev`。通用子集明确列出未执行范围，不自动降级；所有进程检查/清理仅针对执行主机，不能清理另一台游戏电脑。
+
+本地产物采用双版本留存：当前 v9 已完成本批用户验收，v8 作为回退版。后续 `build.sh` 默认使用唯一文件名，完整验证/编译成功后登记当前待验收版，自动永久清理更早的受管程序及证据；未验收版本的修复构建仍保留最近已验收版。运行中的旧程序跳过，不结束进程、不覆盖文件；构建失败不淘汰旧版。预览可运行 `node scripts/artifacts.mjs`。详细规则、验收登记和异常恢复见 [产物管理](docs/ARTIFACTS.md)。
+
+`wails3 build`、`wails3 task build` 与 `wails3 task windows:build` 均调用统一交付脚本。`wails3 task run` 只读审计后运行清单中的当前程序，不再运行固定名称的旧文件。`node scripts/artifacts.mjs audit` 检查文件校验值、证据完整性、未知二进制和超额留存；未知文件只报错，不擅自删除。交付流程不支持 `DEV=true`、非 Windows/amd64 或额外编译标签；Wails 架构参数使用 `GOARCH`，不要使用会被其包装器覆盖的 `ARCH`。
+
+热重载使用 `wails3 task dev` 或 `wails3 dev -config ./build/config.yml`，固定临时输出 `artifacts/hot-reload/leaguepingo-hot-reload.exe`，不登记或清理交付版本，与交付构建共享编译锁。该文件不可作为验收版。安装器/签名/Docker 和未适配平台入口当前明确拒绝，macOS 资源仍保留。工作流回归通过不代表热重载桌面或安装器已经实测；本批没有启动新助手。
 
 关闭主窗口后助手会留在系统托盘；点击托盘图标可重新打开，托盘菜单提供“退出”。
 
@@ -86,7 +93,7 @@ LEAGUEPINGO_LIVE_PAGING_TEST=1 go test ./internal/source -run '^TestLiveHistoryP
 LEAGUEPINGO_LIVE_ROSTER_TEST=1 go test ./internal/source -run '^TestLiveRoster$' -count=1 -v
 ```
 
-浏览器交互测试：在 frontend 目录执行 `npm ci` 安装锁定的依赖（包含 Playwright），设置 `BROWSER_EXECUTABLE` 为本地 Edge/Chromium 路径后，运行 `npm run test:smoke`。覆盖原有工作区/快览及分页/样本专项测试。也可用 `PLAYWRIGHT_MODULE` 指定已有 Playwright 包；不自动下载浏览器。需先构建前端，使用模拟绑定及合成玩家，不等同于真实游戏。`UI_SCREENSHOT_PREFIX=E:/league-pingo/bin/ui-feedback-20261017` 可保存战绩、当前对局、快览、模式分析和窄窗口抽屉截图；`WORKSPACE_SCREENSHOT` 可另存工作区交互状态。
+浏览器交互测试：在 frontend 目录执行 `npm ci` 安装锁定的依赖（包含 Playwright），设置 `BROWSER_EXECUTABLE` 为本机已安装的 Edge/Chromium 路径后，运行 `npm run test:smoke`。覆盖原有工作区/快览及分页/样本专项测试。也可用 `PLAYWRIGHT_MODULE` 指定已有 Playwright 包；不自动下载浏览器。需先构建前端，使用模拟绑定及合成玩家，不等同于真实游戏。统一构建自动将截图输出到对应版本的 `artifacts` 目录；单独测试时可指定 `UI_SCREENSHOT_PREFIX`、`WORKSPACE_SCREENSHOT`，路径按当前主机设置，后补证据需登记到对应版本，见产物管理说明。
 
 默认 `go test ./...` 不连接真实客户端；上述实机检查必须显式启用。完整 ID 自账号查询已返回 20 场战绩；新版 `TestLiveRoster` 当时因对局结束而跳过，仍需下一局验证，不能将其计为通过。已经采集包含 WebView2 的短时离线内存/CPU 基线，详见 [性能验证](docs/PERFORMANCE.md)；未测游戏 FPS/延迟，不承诺零开销。
 

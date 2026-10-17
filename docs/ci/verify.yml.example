@@ -35,8 +35,6 @@ jobs:
       - name: Matching Wails CLI
         run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.29
       - name: Bindings, build, tests and browser interaction (no League account)
-        env:
-          BROWSER_EXECUTABLE: C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe
         run: bash scripts/verify.sh && git diff --exit-code -- frontend/bindings
       - name: Compile production binary (not a release)
-        run: go build -tags production -trimpath -buildvcs=false -o bin/leaguepingo-ci.exe .
+        run: bash scripts/build.sh bin/leaguepingo-ci.exe

@@ -1,0 +1,137 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
+import { checkWorkflow, checkEnvironment, policyFiles } from './workflow.mjs';
+import { manager } from './artifacts.mjs';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const files = Object.fromEntries(policyFiles.map(f => [f, fs.readFileSync(path.join(root, f), 'utf8')]));
+const nativeOnly = { skip: process.platform !== 'win32' || process.env.LEAGUEPINGO_VERIFY_SCOPE === 'portable' };
+test('repository workflow policy is consistent', () => {
+  assert.equal(checkWorkflow(f => files[f]).ok, true);
+});
+test('policy regression mutations are rejected', () => {
+  for (const [file, before, after] of [
+    ['Taskfile.yml', 'task: windows:build', 'go build -o bin/leaguepingo.exe .'],
+    ['Taskfile.yml', '  windows: ./build/windows/Taskfile.yml', '  windows: ./build/windows/Taskfile.yml\n  darwin: ./build/darwin/Taskfile.yml'],
+    ['build/windows/Taskfile.yml', 'bash scripts/build.sh', 'go build -o bin/leaguepingo.exe .'],
+    ['build/windows/Taskfile.yml', '  run:', '  surprise:\n    cmds:\n      - go build .\n  run:'],
+    ['build/windows/Taskfile.yml', '      - bash scripts/build.sh', '      - bash scripts/build.sh\n      - go build .'],
+    ['build/config.yml', 'cmd: wails3 task windows:dev:build', 'cmd: wails3 build DEV=true'],
+    ['scripts/build.sh', 'bash scripts/verify.sh', 'echo skipped verification'],
+    ['scripts/build.sh', 'node scripts/artifacts.mjs audit\n', 'echo no audit\n'],
+    ['scripts/dev.sh', '-o artifacts/hot-reload/leaguepingo-hot-reload.exe', '-o bin/leaguepingo.exe'],
+    ['scripts/verify.sh', 'scripts/workflow.test.mjs', ''],
+    ['AGENTS.md', 'node scripts/artifacts.mjs audit', 'skip audit'],
+    ['docs/ci/verify.yml.example', 'bash scripts/build.sh bin/leaguepingo-ci.exe', 'go build .'],
+  ]) {
+    assert.ok(files[file].includes(before), file);
+    const changed = files[file].replace(before, after);
+    assert.throws(() => checkWorkflow(f => f === file ? changed : files[f]), undefined, file);
+  }
+});
+test('unsupported environment flags fail instead of silently changing the target', () => {
+  assert.doesNotThrow(() => checkEnvironment({}, 'win32', 'x64'));
+  for (const env of [{ GOOS: 'darwin' }, { GOARCH: 'arm64' }, { LEAGUEPINGO_TASK_DEV: 'true' },
+    { LEAGUEPINGO_TASK_OS: 'linux' }, { EXTRA_TAGS: 'foo' }, { GOFLAGS: '-tags=test' }, { OBFUSCATED: 'true' }]) {
+    assert.throws(() => checkEnvironment(env, 'win32', 'x64'));
+  }
+  assert.throws(() => checkEnvironment({}, 'darwin', 'arm64'));
+});
+
+test('real Wails dry task expansion uses managed delivery or isolated dev; disabled tasks have no compiler deps', nativeOnly, () => {
+  for (const [name, expected] of [
+    ['build', 'bash scripts/build.sh'], ['windows:build', 'bash scripts/build.sh'],
+    ['run', 'bash scripts/run.sh'], ['windows:run', 'bash scripts/run.sh'],
+    ['windows:dev:build', 'bash scripts/dev.sh build'], ['windows:dev:run', 'bash scripts/dev.sh run'],
+    ['dev', 'wails3 dev -config ./build/config.yml'],
+    ...['package', 'windows:package', 'windows:build:native', 'windows:build:docker',
+      'windows:create:nsis:installer', 'windows:create:msix:package', 'windows:sign',
+      'windows:sign:installer', 'install:msix:tools', 'setup:docker', 'common:setup:docker']
+      .map(n => [n, 'node scripts/workflow.mjs unsupported']),
+  ]) {
+    const result = spawnSync('wails3', ['task', '-dry', name], { cwd: root, encoding: 'utf8', timeout: 15000 });
+    assert.equal(result.status, 0, `${name}: ${result.error ?? ''} ${result.stderr}`);
+    const output = result.stdout + result.stderr;
+    assert.ok(output.includes(expected), output);
+    assert.doesNotMatch(output, /\bgo build\b|\bgarble\b|\bdocker (?:run|build)\b|\bmakensis\b|go mod tidy|npm install/);
+  }
+});
+test('disabled package command fails before any build/dependency writes', nativeOnly, () => {
+  const result = spawnSync('wails3', ['task', 'package'], { cwd: root, encoding: 'utf8', timeout: 15000 });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stdout + result.stderr, /entry disabled/);
+});
+test('Wails alias and flags route correctly in an isolated mock workspace', nativeOnly, t => {
+  const { folder } = fixture(t);
+  for (const file of ['Taskfile.yml', 'build/Taskfile.yml', 'build/windows/Taskfile.yml', 'build/config.yml', 'scripts/workflow.mjs', 'scripts/artifacts.mjs']) {
+    fs.mkdirSync(path.dirname(path.join(folder, file)), { recursive: true });
+    fs.copyFileSync(path.join(root, file), path.join(folder, file));
+  }
+  // Never execute the real build script from a task-routing test.
+  fs.writeFileSync(path.join(folder, 'scripts/build.sh'), 'set -e\nnode scripts/workflow.mjs environment\necho MOCK_DELIVERY_REACHED\n');
+  for (const args of [['build'], ['task', 'build'], ['task', 'windows:build']]) {
+    const result = spawnSync('wails3', args, { cwd: folder, encoding: 'utf8', timeout: 15000 });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout, /MOCK_DELIVERY_REACHED/);
+  }
+  for (const flag of ['DEV=true', 'GOOS=darwin', 'GOARCH=arm64']) {
+    const result = spawnSync('wails3', ['build', flag], { cwd: folder, encoding: 'utf8', timeout: 15000 });
+    assert.notEqual(result.status, 0, `${flag}: ${result.stdout} ${result.stderr}`);
+    assert.match(result.stdout + result.stderr, /Unsupported build override/);
+  }
+});
+
+function fixture(t, running = () => []) {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'leaguepingo-workflow-test-'));
+  t.after(() => {
+    assert.ok(path.basename(folder).startsWith('leaguepingo-workflow-test-'));
+    fs.rmSync(folder, { recursive: true, force: true });
+  });
+  fs.mkdirSync(path.join(folder, 'bin'));
+  const m = manager(folder, () => running(folder));
+  const builds = [1, 2].map(n => {
+    const file = `bin/leaguepingo-v${n}.exe`;
+    fs.writeFileSync(path.join(folder, file), `synthetic-${n}`);
+    return { file, accepted: true };
+  });
+  m.bootstrap({ builds, retired: [] });
+  return { folder, m };
+}
+test('delivery audit verifies hashes and detects unregistered nested binaries without deleting them', t => {
+  const { folder, m } = fixture(t);
+  assert.equal(m.audit().current.file, 'bin/leaguepingo-v2.exe');
+  fs.mkdirSync(path.join(folder, 'bin/rogue'));
+  const rogue = path.join(folder, 'bin/rogue/custom.EXE');
+  fs.writeFileSync(rogue, 'unknown');
+  assert.throws(() => m.audit(), /Unmanaged binaries/);
+  assert.ok(fs.existsSync(rogue));
+  fs.unlinkSync(rogue);
+  fs.appendFileSync(path.join(folder, 'bin/leaguepingo-v2.exe'), 'changed');
+  assert.throws(() => m.audit(), /Changed file/);
+});
+test('audit allows excess only while the registered old program is running', t => {
+  let busy = true;
+  const { folder, m } = fixture(t, p => busy ? [path.join(p, 'bin/leaguepingo-v1.exe')] : []);
+  const file = 'bin/leaguepingo-v3.exe';
+  m.prepare(file);
+  const pe = Buffer.alloc(256); pe.write('MZ'); pe.writeUInt32LE(128, 60); pe.set([80,69,0,0], 128);
+  fs.writeFileSync(path.join(folder, file), pe);
+  m.register(file, 'abcdef1');
+  assert.deepEqual(m.audit().skippedRunning, ['bin/leaguepingo-v1.exe']);
+  busy = false;
+  assert.throws(() => m.audit(), /pending cleanup/);
+  m.clean(true);
+  assert.equal(m.audit().retained.length, 2);
+});
+test('audit supports an empty clone only explicitly, without creating a manifest', t => {
+  const { folder, m } = fixture(t);
+  for (const file of fs.readdirSync(path.join(folder, 'bin'))) fs.unlinkSync(path.join(folder, 'bin', file));
+  assert.equal(m.audit(true).current, null);
+  assert.throws(() => m.audit(), /Missing manifest/);
+  assert.ok(!fs.existsSync(path.join(folder, 'bin/artifacts.json')));
+});
