@@ -4,13 +4,16 @@ LeaguePingo 是面向《英雄联盟》腾讯国服的 Windows 桌面战绩助�
 
 ## 当前功能
 
-- 局内外均可输入完整 `玩家名#标签`，首次读取至多 20 场混合模式战绩；可显式加载更多至最多 1000 条，按比赛 ID 去重。筛选与统计只作用已加载样本。
+- 局内外均可输入完整 `玩家名#标签`，首次读取至多 20 场混合模式战绩；列表每页 20 场，面板内嵌上一页/下一页与指定页码跳转，按需读取并复用去重缓存，来源范围最多 1000 条。固定提供单双排、灵活排位、极地大乱斗、海克斯大乱斗等筛选，其他实际出现的模式补充展示。
 - 大厅、排队、接受确认阶段准备客户端提供的房间成员；选人阶段读取可提供的本局名单，单路串行准备已知 PUUID。未知身份保留占位，不构造尚未确定的对手。
 - 进入 `GameStart`、`InProgress` 或 `Reconnect` 时取消自动战绩预取，最多尝试三次本地名单刷新，补全客户端已提供的双方身份；取得完整十人名单和对局 ID 后停止自动名单刷新。
 - 主窗口可“刷新对局名单”，也可选中已知身份玩家后“手动查询此玩家”。局内不自动补查新识别玩家的战绩，只有用户主动查询才发起请求；手动入口一次只处理一个操作，超时上限 12 秒。
 - 全局 `Ctrl+Shift+P` 显示或隐藏快览。快览可拖动、隐藏、切换置顶，不提供鼠标穿透；资料查询和名单刷新在主窗口进行。
 - 不注入游戏进程、不读取游戏内存、不拦截或代理游戏流量。
-- 玩家战绩与当前对局分开；最多保留八个内存玩家标签、模式筛选和展开状态。未知字段显示 `—`，胜率/KDA 按有效样本统计，样本排除会提示；筛选不等同于该模式最近 20 场。
+- 玩家战绩与当前对局分开；最多保留八个内存玩家标签、模式、分析场数、页码和展开状态。分析默认最近 20 场，可选 10/20/30/40/50，联动当前模式；胜率/KDA、近况、常用英雄共用分析样本，翻页不改变分析范围。未知字段显示 `—`，按有效分母统计，实际不足显示实际/目标数量，不冒称已取得完整目标场数。
+- 切换模式、样本数或翻页时才按需补取；一次操作最多五次分页请求，15 秒后不再启动下一次请求，提供继续、停止与重试入口。战绩刷新使用已确认身份，只刷新首批历史，不重复名称查询或更新资料；刷新后样本不足可显式“补齐样本”，不会自动扫描历史。
+- 页码支持输入后回车或点击跳转，非法输入不发请求；尚未查询的远页遵守同样的单轮限制，暂停后可继续目标页。页数只表示已找到范围，来源停止或离线时只能跳已有页；来源受限不等于账号没有更多战绩。
+- 显式后续分页使用腾讯当前大区的 SGP 战绩服务；已在真实客户端核验 120 场不同比赛，新增记录包含灵活排位。LCU 在部分国服客户端会忽略起始位置，不能作为完整分页来源；SGP 不可用时降级为至多 50 场客户端混合记录，并明确提示受限，不误报账号无此模式战绩。首次显式远端分页另需核验大区、服务配置和当前会话，授权只在内存短时复用。
 - 数据优先的深色桌面 UI：可收起导航、集中玩家资料、默认战绩行展示七个装备槽/两个技能；当前对局与快览双列对齐，十人快览常显胜率/KDA、样本数及五场近况。设计和布局验收见 [界面规范](docs/UI_DESIGN.md)。
 - 本地中文英雄/装备/技能资源及符文名称；本玩家摘要包括时长、装备、技能、补刀、金币与伤害，展开可见客户端明确返回的地图/位置/符文/提前结束信号。后者不冒称确认重开，不自动排除统计。可点击“读取双方详情”请求整场参与者和装备技能；标准完整 5v5 且相关字段齐全时计算团队占比，接口兼容待国服实测。
 - 可独立更新头像/等级/段位/隐私，不重拉历史。头像通过本地资源端点按已核验编号读取，失败显示占位；仅身份匹配且客户端明确返回 PUBLIC/PRIVATE 时显示公开/生涯不公开。资料按字段记录时间，更新失败保留的旧值明确标记，不推断隐私或未定级。
@@ -31,14 +34,14 @@ export GOSUMDB=sum.golang.google.cn
 export GOPATH=/e/league-pingo/.tools/gopath
 export GOCACHE=/e/league-pingo/.tools/gocache
 
-bash scripts/build.sh bin/leaguepingo-dev-20261016-v4.exe
+bash scripts/build.sh bin/leaguepingo-dev-20261018-v6.exe
 ```
 
 开发运行可用 `wails3 dev`。首次运行需已安装 Microsoft Edge WebView2。启动国服 League 客户端后，LeaguePingo 会发现 `LeagueClient.exe` / `LeagueClientUx.exe`，先尝试同目录的 `lockfile`，文件为空或不可用时改用 Windows 提供的客户端启动参数。也可设置 `LEAGUEPINGO_LOCKFILE` 指向测试用 lockfile。切勿提交、发送或记录 lockfile 内容或完整客户端启动参数，其中包含本地客户端密码。
 
-本批已生成 UI 重构测试版 `bin/leaguepingo-dev-20261016-v4.exe`，内嵌功能提交 `d312852`，仅本地交付，不创建 GitHub release。本轮后续交付记录提交仅更新文档，不更换该文件。使用前请从托盘菜单退出当前运行的旧版助手，包括 `leaguepingo-dev.exe`；不需要退出游戏。新版采用固定应用标识的单实例策略：如果旧版未退出，启动新版只会唤起旧实例，不能热替换旧进程。更早的 `leaguepingo.exe`、`leaguepingo-fixed.exe` 没有该约束，也需手动退出。实际版本/提交号见“设置与诊断”。已进入对局时，新版会有限刷新本地名单，不会自动补查战绩；缺少战绩时在主窗口主动查询。
+本次已生成实机反馈修复测试版 `bin/leaguepingo-dev-20261018-v6.exe`，从干净工作区构建，内嵌功能提交 `aa59417`，包含真实 SGP 后续分页、重复页拦截、模式/样本按需补取，以及内嵌分页和指定页码跳转。旧 v5 不包含本轮真实数据源修复。仅本地交付，不创建 GitHub release；后续校验记录提交只更新文档，不更换该文件。使用前请从托盘菜单退出当前运行的旧版助手，包括 `leaguepingo-dev.exe`；不需要退出游戏。新版采用固定应用标识的单实例策略：如果旧版未退出，启动新版只会唤起旧实例，不能热替换旧进程。更早的 `leaguepingo.exe`、`leaguepingo-fixed.exe` 没有该约束，也需手动退出。实际版本/提交号见“设置与诊断”。已进入对局时，新版会有限刷新本地名单，不会自动补查战绩；缺少战绩时在主窗口主动查询。
 
-本轮测试文件 SHA-256：`7cf4b6a27928bfe5e342fe245cc85183899975f494e7199cb9a2c5658cbe55ea`。此值仅核对上述本地文件；自行重建会嵌入新的时间，校验值可能不同。
+本轮测试文件 SHA-256：`d65e4a377e80961d63ecf59dddb481d525ada2a9a71b1aba5bb4850b97fa0a75`。此值仅核对上述本地文件；自行重建会嵌入新的时间，校验值可能不同。`scripts/verify.sh` 与干净提交上的 `scripts/build.sh` 均已通过；不把合成测试计为真实对局验收。重点复验步骤见 [实机验收](docs/ACCEPTANCE.md)。
 
 统一验证：`bash scripts/verify.sh`。推荐上述 `build.sh`，运行绑定生成/构建/测试/静态检查与浏览器回归，嵌入当前提交号和 UTC 时间并输出 SHA-256。若系统 npm 缓存不可写，可用 `npm --cache E:/league-pingo/.tools/npm-cache --prefix frontend ci`。避免覆盖被占用的旧版程序。可执行文件、诊断文件和测试截图不提交 Git。`main` 不改动，各改进批次单独提交推送 `dev`。
 
@@ -62,11 +65,14 @@ LEAGUEPINGO_DESKTOP_TEST=1 go test . -run '^TestNativeDesktopSingleInstance$' -c
 # 显式选择执行：用当前账号验证完整 ID 到战绩，不输出账号数据
 LEAGUEPINGO_LIVE_LOOKUP_TEST=1 go test ./internal/source -run '^TestLiveManualLookup$' -count=1 -v
 
+# 仅非选人/非正式对局阶段：有界验证真实后续页，输出计数而非玩家数据
+LEAGUEPINGO_LIVE_PAGING_TEST=1 go test ./internal/source -run '^TestLiveHistoryPagination$' -count=1 -v
+
 # 仅处于正在进行的标准 5v5 对局时执行：检查本地名单数量，不请求战绩
 LEAGUEPINGO_LIVE_ROSTER_TEST=1 go test ./internal/source -run '^TestLiveRoster$' -count=1 -v
 ```
 
-浏览器交互测试：在 frontend 目录执行 `npm ci` 安装锁定的依赖（包含 Playwright），设置 `BROWSER_EXECUTABLE` 为本地 Edge/Chromium 路径后，运行 `npm run test:smoke`。也可用 `PLAYWRIGHT_MODULE` 指定已有 Playwright 包；不自动下载浏览器。需先构建前端，使用模拟绑定及合成玩家，不等同于真实游戏。`UI_SCREENSHOT_PREFIX=E:/league-pingo/bin/ui-final` 可保存战绩、当前对局和快览三张截图；`WORKSPACE_SCREENSHOT` 可另存工作区交互状态。
+浏览器交互测试：在 frontend 目录执行 `npm ci` 安装锁定的依赖（包含 Playwright），设置 `BROWSER_EXECUTABLE` 为本地 Edge/Chromium 路径后，运行 `npm run test:smoke`。覆盖原有工作区/快览及分页/样本专项测试。也可用 `PLAYWRIGHT_MODULE` 指定已有 Playwright 包；不自动下载浏览器。需先构建前端，使用模拟绑定及合成玩家，不等同于真实游戏。`UI_SCREENSHOT_PREFIX=E:/league-pingo/bin/ui-feedback-20261017` 可保存战绩、当前对局、快览、模式分析和窄窗口抽屉截图；`WORKSPACE_SCREENSHOT` 可另存工作区交互状态。
 
 默认 `go test ./...` 不连接真实客户端；上述实机检查必须显式启用。完整 ID 自账号查询已返回 20 场战绩；新版 `TestLiveRoster` 当时因对局结束而跳过，仍需下一局验证，不能将其计为通过。已经采集包含 WebView2 的短时离线内存/CPU 基线，详见 [性能验证](docs/PERFORMANCE.md)；未测游戏 FPS/延迟，不承诺零开销。
 
@@ -75,5 +81,7 @@ LEAGUEPINGO_LIVE_ROSTER_TEST=1 go test ./internal/source -run '^TestLiveRoster$'
 “身份不可获取”仅表示当前客户端数据没有可用 PUUID，不能把它等同于玩家主动隐藏生涯。“查询失败”也不能作为生涯不公开的证据。界面把无法核验的生涯隐私状态标为“未核验”；识别“生涯不公开但身份已知”的可靠国服信号仍待实机验证，未完成前不会擅自贴标签。助手不持久保存查询到的战绩或玩家 ID，数据只保存在当前进程内。
 
 非敏感窗口/快捷键设置存储在 Windows 用户配置目录的 `LeaguePingo/settings.json`；手动导出的诊断位于其 `diagnostics` 子目录，只包含固定类别计数/耗时/状态码与运行时信息。无自动遥测、上传或战绩落盘。静态游戏资源来源及发布前政策核验要求见 [第三方声明](THIRD_PARTY_NOTICES.md)。
+
+显式后续查询会向已核验的腾讯当前大区 `*-sgp.lol.qq.com:21019` HTTPS 服务提交目标玩家标识和当前会话授权，这是战绩查询本身，不是遥测；不向第三方发送凭据。仅支持当前大区，不绕过服务端权限。自动准备仍使用 LCU，SGP 只用于主动分页；会话授权不传入 WebView、不存文件，换号清除。
 
 架构与扩展边界见 [架构说明](docs/ARCHITECTURE.md)。

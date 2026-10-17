@@ -13,6 +13,7 @@ import GameIcon from "./components/GameIcon.vue";
 import SettingsPanel from "./components/SettingsPanel.vue";
 import AppIcon from "./components/AppIcon.vue";
 import RecentForm from "./components/RecentForm.vue";
+import { historyBrowseBusy } from "./historyBrowser";
 import {
   errorMessage,
   percent,
@@ -41,6 +42,22 @@ const tabs = ref<Participant[]>([]),
   selectedResult = ref<Participant | null>(null);
 const viewStates = reactive<Record<string, PlayerViewState>>({});
 const playerErrors = reactive<Record<string, string>>({});
+const playerOperation = ref<{
+  key: string;
+  kind: "history" | "profile" | "lookup";
+} | null>(null);
+const manualBusy = computed(
+  () =>
+    searching.value ||
+    playerOperation.value !== null ||
+    historyBrowseBusy.value,
+);
+function refreshing(player: Participant) {
+  return (
+    playerOperation.value?.key === operationKey(player) &&
+    playerOperation.value.kind === "history"
+  );
+}
 function operationKey(player: Participant) {
   return `${player.connectionId ?? 0}:${player.key}`;
 }
@@ -175,7 +192,7 @@ function closeTab(key: string) {
     activeKey.value = tabs.value[Math.min(i, tabs.value.length - 1)]?.key ?? "";
 }
 async function search() {
-  if (searching.value) return;
+  if (manualBusy.value) return;
   const id = query.value.trim();
   if (!/^[^#]+#[^#]+$/.test(id)) {
     searchError.value = "请输入完整的 玩家名#标签";
@@ -192,20 +209,21 @@ async function search() {
   }
 }
 async function refreshPlayer(player: Participant) {
-  if (searching.value) return;
-  searching.value = true;
+  if (manualBusy.value) return;
   const requestKey = operationKey(player);
+  playerOperation.value = { key: requestKey, kind: "history" };
   playerErrors[requestKey] = "";
   try {
-    const result = await (player.displayName.includes("#")
-      ? Service.RefreshLookup(player.displayName)
-      : Service.RefreshPlayer(player.key));
+    const result = await Service.RefreshHistory(
+      player.key,
+      player.connectionId,
+    );
     if (selectedKey.value === player.key) selectedResult.value = result;
     openPlayer(result, false);
   } catch (reason) {
     playerErrors[requestKey] = errorMessage(reason);
   } finally {
-    searching.value = false;
+    playerOperation.value = null;
   }
 }
 function selectPlayer(player: Participant) {
@@ -214,10 +232,10 @@ function selectPlayer(player: Participant) {
   void Service.PrioritizePlayer(player.key);
 }
 async function lookupSelected() {
-  if (!selected.value || searching.value) return;
+  if (!selected.value || manualBusy.value) return;
   const target = selected.value;
   const requestKey = operationKey(target);
-  searching.value = true;
+  playerOperation.value = { key: requestKey, kind: "lookup" };
   playerErrors[requestKey] = "";
   try {
     const result = await Service.LookupPlayer(target.key);
@@ -226,7 +244,7 @@ async function lookupSelected() {
   } catch (reason) {
     playerErrors[requestKey] = errorMessage(reason);
   } finally {
-    searching.value = false;
+    playerOperation.value = null;
   }
 }
 async function refreshRoster() {
@@ -242,9 +260,9 @@ async function refreshRoster() {
   }
 }
 async function loadProfile(player: Participant) {
-  if (searching.value) return;
-  searching.value = true;
+  if (manualBusy.value) return;
   const requestKey = operationKey(player);
+  playerOperation.value = { key: requestKey, kind: "profile" };
   playerErrors[requestKey] = "";
   try {
     const result = await Service.LoadProfile(player.key, player.connectionId);
@@ -253,7 +271,7 @@ async function loadProfile(player: Participant) {
   } catch (reason) {
     playerErrors[requestKey] = errorMessage(reason);
   } finally {
-    searching.value = false;
+    playerOperation.value = null;
   }
 }
 function acceptOverlay(state: OverlayState) {
@@ -402,7 +420,7 @@ onUnmounted(() => {
             aria-label="玩家完整 ID"
             placeholder="搜索 玩家名#标签"
             autocomplete="off"
-          /><button class="primary" :disabled="searching">
+          /><button class="primary" :disabled="manualBusy">
             {{ searching ? "查询中…" : "查询战绩" }}
           </button>
         </form>
@@ -466,7 +484,8 @@ onUnmounted(() => {
           v-if="active"
           :player="active"
           :state="stateFor(active.key)"
-          :busy="searching"
+          :busy="manualBusy"
+          :refreshing="refreshing(active)"
           :connected="snapshot?.connected"
           :error="playerErrors[operationKey(active)] || active.error"
           @refresh="refreshPlayer"
@@ -594,10 +613,15 @@ onUnmounted(() => {
             <button
               v-else-if="!['ready', 'empty'].includes(selected.historyState)"
               class="primary drawer-query"
-              :disabled="searching"
+              :disabled="manualBusy"
               @click="lookupSelected"
             >
-              {{ searching ? "查询中…" : "手动查询此玩家" }}
+              {{
+                playerOperation?.key === operationKey(selected) &&
+                playerOperation?.kind === "lookup"
+                  ? "查询中…"
+                  : "手动查询此玩家"
+              }}
             </button>
             <p
               v-if="!players.some((p) => p.key === selectedKey)"
@@ -608,7 +632,8 @@ onUnmounted(() => {
             <PlayerView
               :player="selected"
               :state="stateFor(selected.key)"
-              :busy="searching"
+              :busy="manualBusy"
+              :refreshing="refreshing(selected)"
               :connected="snapshot?.connected"
               :error="playerErrors[operationKey(selected)] || selected.error"
               compact

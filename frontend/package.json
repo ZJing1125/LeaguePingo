@@ -7,7 +7,7 @@
     "dev": "vite",
     "build:dev": "vue-tsc && vite build --minify false --mode development",
     "build": "vue-tsc && vite build --mode production",
-    "test:smoke": "node tests/overlay-smoke.cjs",
+    "test:smoke": "node tests/overlay-smoke.cjs && node tests/history-browser.cjs",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -605,7 +605,7 @@ func (e *Engine) lookup(ctx context.Context, riotID string, force bool) (core.Pa
 	if err != nil {
 		return core.Participant{}, err
 	}
-	return e.loadManualHistory(ctx, client, generation, version, player, force)
+	return e.loadManualHistory(ctx, client, generation, version, player, force, true)
 }
 
 func (e *Engine) LookupPlayer(ctx context.Context, key string) (core.Participant, error) {
@@ -650,7 +650,7 @@ func (e *Engine) lookupPlayer(ctx context.Context, key string, force bool) (core
 			player.DisplayName = name
 		}
 	}
-	return e.loadManualHistory(ctx, client, snapshot.Generation, version, player, force)
+	return e.loadManualHistory(ctx, client, snapshot.Generation, version, player, force, true)
 }
 
 func (e *Engine) beginLookup(ctx context.Context) (context.Context, func(), error) {
@@ -663,7 +663,7 @@ func (e *Engine) beginLookup(ctx context.Context) (context.Context, func(), erro
 	}
 }
 
-func (e *Engine) loadManualHistory(ctx context.Context, client Client, generation uint64, version uint64, player core.Participant, force bool) (core.Participant, error) {
+func (e *Engine) loadManualHistory(ctx context.Context, client Client, generation uint64, version uint64, player core.Participant, force, enrich bool) (core.Participant, error) {
 	e.mu.RLock()
 	cached, ok := e.cache[player.PUUID]
 	sameClient := e.clientVersion == version
@@ -688,7 +688,7 @@ func (e *Engine) loadManualHistory(ctx context.Context, client Client, generatio
 	player.ConnectionID = version
 	// Enrich only explicit lookups, sharing the request lane and a short budget.
 	// Unsupported optional APIs cannot discard successfully fetched history.
-	if profiles, ok := client.(source.ProfileSource); ok {
+	if profiles, ok := client.(source.ProfileSource); ok && enrich {
 		profileCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		if release, err := e.scheduler.acquire(profileCtx, true); err == nil {
 			profile := profiles.Profile(profileCtx, player.PUUID)

@@ -84,7 +84,7 @@ export function date(value: string | null | undefined) {
 const queues: Record<number, string> = {
   0: "自定义 / 其他",
   400: "匹配征召",
-  420: "单人 / 双人排位",
+  420: "单双排",
   430: "匹配",
   440: "灵活排位",
   450: "极地大乱斗",
@@ -92,6 +92,7 @@ const queues: Record<number, string> = {
   700: "冠军杯赛",
   1700: "斗魂竞技场",
   1900: "无限火力",
+  2400: "海克斯大乱斗",
 };
 export function queueName(id: number) {
   return queues[id] ?? `模式 ${id}`;
@@ -158,4 +159,10 @@ export interface PlayerViewState {
   hasMore?: boolean;
   pageBusy?: boolean;
   pageError?: string;
+  page?: number;
+  sampleSize?: number;
+  browseNotice?: string;
+  browseTarget?: number;
+  stopRequested?: boolean;
+  sourceLimit?: string;
 }

@@ -24,6 +24,7 @@ export interface HistoryPage {
     "offset": number;
     "nextOffset": number;
     "hasMore": boolean;
+    "limitReason"?: string;
 }
 
 export enum HistoryState {

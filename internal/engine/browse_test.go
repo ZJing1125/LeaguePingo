@@ -41,6 +41,23 @@ func TestProfileOnlyUpdateUsesCachedPlayerWithoutHistoryRefresh(t *testing.T) {
 	}
 }
 
+func TestHistoryOnlyRefreshDoesNotRepeatIdentityOrProfileRequests(t *testing.T) {
+	fake := &profileClient{fakeClient: &fakeClient{}}
+	e := New(nil, nil)
+	e.client = fake
+	p := fullTestRoster()[0]
+	p.Profile = &core.Profile{PrivacyState: "private", RankState: "ready", Ranks: []core.Rank{{Tier: "GOLD"}}}
+	core.ApplyHistory(&p, core.HistoryResult{Matches: []core.Match{{GameID: 99}}})
+	e.cache[p.Key] = p
+	got, err := e.RefreshHistory(context.Background(), p.Key, 0)
+	if err != nil || len(fake.calls) != 1 || fake.calls[0] != "history" || got.Profile != p.Profile || got.Profile.PrivacyState != "private" {
+		t.Fatal("history refresh repeated identity/profile requests or lost profile", err)
+	}
+	if _, err := e.RefreshHistory(context.Background(), p.Key, 1); err == nil || len(fake.calls) != 1 {
+		t.Fatal("stale connection reached history source")
+	}
+}
+
 func TestPartialProfileUpdatePreservesFieldAgeWithoutReplacingHistory(t *testing.T) {
 	level := 100
 	old := mergeProfile(core.Profile{Level: &level, RankState: "ready", PrivacyState: "private", Ranks: []core.Rank{{Tier: "GOLD"}}}, nil)

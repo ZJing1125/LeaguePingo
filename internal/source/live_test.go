@@ -102,3 +102,73 @@ func TestLiveRoster(t *testing.T) {
 	}
 	t.Logf("live local roster: allies=%d enemies=%d valid identities=%d; no history requested", allies, enemies, known)
 }
+
+// Explicit developer opt-in only. Never stores response bodies/IDs or continues
+// scanning if the user enters selection/gameplay during this bounded check.
+func TestLiveHistoryPagination(t *testing.T) {
+	if os.Getenv("LEAGUEPINGO_LIVE_PAGING_TEST") != "1" {
+		t.Skip("opt in with LEAGUEPINGO_LIVE_PAGING_TEST=1")
+	}
+	c, err := lcu.Discover()
+	if err != nil {
+		t.Fatal("client connection unavailable (redacted)")
+	}
+	defer c.HTTP.CloseIdleConnections()
+	s := &TencentLCU{client: c}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	checkPhase := func() {
+		t.Helper()
+		phase, err := s.Phase(ctx)
+		if err != nil {
+			t.Fatal("phase unavailable")
+		}
+		if phase == "ChampSelect" || phase == "GameStart" || phase == "InProgress" || phase == "Reconnect" {
+			t.Skip("selection/gameplay active; diagnostic scan stopped")
+		}
+	}
+	checkPhase()
+	self, err := s.currentPUUID(ctx)
+	if err != nil {
+		t.Fatal("self identity unavailable (redacted)")
+	}
+	initial, err := s.History(ctx, self)
+	if err != nil {
+		t.Fatal("initial history unavailable (redacted)")
+	}
+	seen := map[int64]bool{}
+	for _, m := range initial.Matches {
+		seen[m.GameID] = true
+	}
+	added, flex, requests := 0, 0, 0
+	for offset := 20; offset < 200; offset += 20 {
+		checkPhase()
+		page, err := s.HistoryPage(ctx, self, offset)
+		if err != nil || page.LimitReason != "" {
+			t.Fatal("full remote paging unavailable (redacted)")
+		}
+		newCount := 0
+		for _, m := range page.Matches {
+			if seen[m.GameID] {
+				t.Fatal("remote returned an earlier page (identities redacted)")
+			}
+			seen[m.GameID] = true
+			newCount++
+			if m.QueueID == 440 {
+				flex++
+			}
+		}
+		if newCount == 0 {
+			break
+		}
+		added += newCount
+		requests++
+		if (len(seen) >= 50 && flex >= 20) || !page.HasMore {
+			break
+		}
+	}
+	if len(seen) < 50 || added < 30 || flex == 0 {
+		t.Fatalf("insufficient verified evidence: unique=%d new=%d flex=%d", len(seen), added, flex)
+	}
+	t.Logf("verified real paging: initial=%d unique=%d additional=%d flex=%d pages=%d; no raw identities/bodies retained", len(initial.Matches), len(seen), added, flex, requests)
+}

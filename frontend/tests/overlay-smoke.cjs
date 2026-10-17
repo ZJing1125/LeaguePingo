@@ -229,8 +229,12 @@ async function main() {
               participation: 40,
             })),
           };
-        else if (method === "Lookup" || method === "RefreshLookup") {
-          if (method === "RefreshLookup" && args[0] === "Alpha#TEST") {
+        else if (
+          method === "Lookup" ||
+          method === "RefreshLookup" ||
+          method === "RefreshHistory"
+        ) {
+          if (method === "RefreshHistory" && args[0] === "Alpha#TEST") {
             await new Promise((resolve) => {
               releasePlayerAction = resolve;
             });
@@ -239,7 +243,7 @@ async function main() {
               json: { kind: "RuntimeError", message: "Alpha history failed" },
             });
           }
-          if (method === "RefreshLookup" && args[0] === "测试玩家5#TEST") {
+          if (method === "RefreshHistory" && args[0] === "test-5") {
             await new Promise((resolve) => {
               releaseRefresh = resolve;
             });
@@ -296,6 +300,12 @@ async function main() {
       .getByRole("heading", { name: "Alpha#TEST", exact: true })
       .waitFor();
     assert.equal(await page.locator(".match-card").count(), 20);
+    const queueOptions = await page
+      .getByLabel("战绩模式筛选")
+      .locator("option")
+      .allTextContents();
+    for (const label of ["单双排", "灵活排位", "海克斯大乱斗", "极地大乱斗"])
+      assert(queueOptions.includes(label), `missing queue: ${label}`);
     assert.equal(
       await page
         .locator(".match-main")
@@ -364,6 +374,9 @@ async function main() {
       .filter({ hasText: "未纳入统计" })
       .waitFor();
     await page.getByLabel("战绩模式筛选").selectOption("420");
+    await page.waitForFunction(
+      () => !document.querySelector('[aria-label="战绩模式筛选"]').disabled,
+    );
     assert.equal(await page.locator(".match-card").count(), 10);
     await page.locator(".history-notice summary").click();
     assert(
@@ -440,11 +453,27 @@ async function main() {
       .getByRole("heading", { name: "Beta#TEST", exact: true })
       .waitFor();
     await page.getByRole("tab", { name: "Alpha#TEST", exact: true }).click();
+    const identityCalls = calls.filter(
+      (c) => c === "Lookup" || c === "RefreshLookup",
+    ).length;
     await page.getByRole("button", { name: "刷新战绩", exact: true }).click();
+    assert.equal(
+      await page
+        .locator(".global-search button")
+        .textContent()
+        .then((t) => t.trim()),
+      "查询战绩",
+      "refresh must not animate top-level search",
+    );
     await page.getByRole("tab", { name: "Beta#TEST", exact: true }).click();
     for (let i = 0; !releasePlayerAction && i < 500; i++)
       await new Promise((resolve) => setTimeout(resolve, 10));
     assert(releasePlayerAction, "history refresh did not reach bridge");
+    assert.equal(
+      calls.filter((c) => c === "Lookup" || c === "RefreshLookup").length,
+      identityCalls,
+      "refresh repeated a name lookup",
+    );
     releasePlayerAction();
     releasePlayerAction = undefined;
     await page.waitForFunction(
@@ -489,12 +518,12 @@ async function main() {
     assert.equal(await page.getByLabel("战绩模式筛选").inputValue(), "420");
     assert.equal(await page.locator(".match-expanded").count(), 1);
     await page.getByLabel("战绩模式筛选").selectOption("all");
-    await page
-      .getByRole("button", { name: "加载更多战绩", exact: true })
-      .click();
+    await page.getByRole("button", { name: "下一页", exact: true }).click();
     await page.waitForFunction(
-      () => document.querySelectorAll(".match-card").length === 21,
+      () => document.querySelectorAll(".match-card").length === 1,
     );
+    await page.getByRole("button", { name: "上一页", exact: true }).click();
+    assert.equal(await page.locator(".match-card").count(), 20);
     assert(
       (await page
         .locator(".match-card")

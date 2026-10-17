@@ -615,6 +615,90 @@ small {
   font-size: 11px;
   color: var(--muted);
 }
+.section-heading > select,
+.compact-stats > select {
+  padding: 4px 6px;
+  font-size: 11px;
+  max-width: 100px;
+}
+.sample-scope {
+  margin-top: 9px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.history-pagination {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-height: 54px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+  background: #151a22;
+  font-size: 11px;
+  color: var(--muted);
+}
+.history-pagination .page-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.history-pagination small {
+  display: block;
+  font-size: 10px;
+  margin-top: 3px;
+}
+.history-pagination button {
+  padding: 5px 8px;
+  font-size: 11px;
+}
+.page-jump,
+.page-jump label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.page-jump {
+  margin: 0;
+}
+.page-jump input {
+  width: 42px;
+  padding: 5px 4px;
+  font-size: 11px;
+  text-align: center;
+}
+.page-jump input[aria-invalid="true"] {
+  border-color: var(--loss);
+}
+.page-jump-error {
+  width: 100%;
+  margin: 0;
+  color: var(--loss);
+}
+.page-indicator {
+  text-align: center;
+  min-width: 60px;
+  color: var(--text);
+}
+.browse-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex: none;
+  padding: 8px 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.browse-status button {
+  flex: none;
+  color: var(--accent);
+}
 .winrate-display {
   display: flex;
   gap: 12px;
@@ -732,7 +816,20 @@ small {
   min-width: 0;
   min-height: 0;
   flex-direction: column;
-  padding: 0 18px;
+  padding: 0 18px 14px;
+}
+.history-panel {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.history-panel > .history-scroll {
+  padding: 8px 8px 4px;
 }
 .history-toolbar {
   display: flex;
@@ -804,8 +901,8 @@ small {
   align-items: center;
   gap: 12px;
   width: 100%;
-  min-height: 87px;
-  padding: 10px 12px;
+  min-height: 77px;
+  padding: 8px 12px;
   color: inherit;
   text-align: left;
   border: 0;
@@ -1127,7 +1224,15 @@ small {
   padding: 4px;
 }
 .compact .history-column {
-  padding: 0 10px;
+  padding: 0 10px 10px;
+}
+.compact .history-pagination {
+  gap: 6px;
+  padding: 7px 8px;
+}
+.compact .history-pagination .page-jump {
+  width: 100%;
+  justify-content: flex-end;
 }
 .compact .history-toolbar {
   min-height: 48px;

@@ -17,10 +17,21 @@ type TencentLCU struct {
 	client    *lcu.Client
 	selfMu    sync.Mutex
 	selfPUUID string
+	sgpMu     sync.Mutex
+	sgp       *sgpHistory
 }
 
-func (*TencentLCU) Region() string   { return "CN" }
-func (s *TencentLCU) ResetIdentity() { s.selfMu.Lock(); s.selfPUUID = ""; s.selfMu.Unlock() }
+func (*TencentLCU) Region() string { return "CN" }
+func (s *TencentLCU) ResetIdentity() {
+	s.selfMu.Lock()
+	s.selfPUUID = ""
+	s.selfMu.Unlock()
+	s.sgpMu.Lock()
+	if s.sgp != nil {
+		s.sgp.token, s.sgp.origin, s.sgp.platform = "", "", ""
+	}
+	s.sgpMu.Unlock()
+}
 
 func DiscoverTencent() (Source, error) {
 	client, err := lcu.Discover()
@@ -149,7 +160,8 @@ func (s *TencentLCU) Name(ctx context.Context, puuid string) (string, error) {
 }
 
 func (s *TencentLCU) History(ctx context.Context, puuid string) (core.HistoryResult, error) {
-	page, err := s.HistoryPage(ctx, puuid, 0)
+	// Automatic preparation stays on LCU; remote paging is explicit only.
+	page, err := s.lcuHistoryPage(ctx, puuid, 0, 20)
 	return core.HistoryResult{Matches: page.Matches, Meta: page.Meta}, err
 }
 
@@ -157,15 +169,55 @@ func (s *TencentLCU) HistoryPage(ctx context.Context, puuid string, offset int) 
 	if !core.IsKnownPUUID(puuid) || offset < 0 || offset > 980 {
 		return core.HistoryPage{}, errors.New("战绩分页参数无效（最多浏览 1000 条）")
 	}
-	raw, err := s.client.Get(ctx, lcu.HistoryPagePath(puuid, offset, 20))
+	page, err := s.sgpHistoryPage(ctx, puuid, offset)
+	if err == nil {
+		return page, nil
+	}
+	if ctx.Err() != nil {
+		return core.HistoryPage{}, errors.New("战绩补取超时或已取消，已有记录保留")
+	}
+	// Some CN clients ignore begIndex. A single verified prefix is a limited
+	// fallback, never evidence that the account only has 50 lifetime games.
+	page, fallbackErr := s.lcuHistoryPage(ctx, puuid, offset, 50)
+	if fallbackErr != nil {
+		return core.HistoryPage{}, errors.New("完整战绩服务暂不可用，客户端也未提供有效后续页；已有记录保留，请稍后重试")
+	}
+	page.LimitReason = "完整战绩服务暂不可用，当前仅展示客户端最近至多 50 场混合模式记录；不能据此判断该模式无战绩。"
+	page.HasMore = false
+	return page, nil
+}
+
+func (s *TencentLCU) lcuHistoryPage(ctx context.Context, puuid string, offset, count int) (core.HistoryPage, error) {
+	if !core.IsKnownPUUID(puuid) || offset < 0 || (count != 20 && count != 50) || offset >= count {
+		return core.HistoryPage{}, errors.New("客户端历史参数无效")
+	}
+	// Prefix retrieval is deliberate: do not trust begIndex on CN clients.
+	raw, err := s.client.Get(ctx, fmt.Sprintf("/lol-match-history/v1/products/lol/%s/matches?begIndex=0&endIndex=%d", url.PathEscape(puuid), count-1))
 	if err != nil {
 		return core.HistoryPage{}, err
 	}
+	var envelope struct {
+		Games struct {
+			Begin *int              `json:"gameIndexBegin"`
+			Games []json.RawMessage `json:"games"`
+		} `json:"games"`
+	}
+	if json.Unmarshal(raw, &envelope) != nil || envelope.Games.Games == nil || (envelope.Games.Begin != nil && *envelope.Games.Begin != 0) {
+		return core.HistoryPage{}, errors.New("客户端战绩页范围异常")
+	}
+	if len(envelope.Games.Games) > count {
+		return core.HistoryPage{}, errors.New("客户端有限历史范围不能提供此页")
+	}
+	if offset > len(envelope.Games.Games) {
+		return core.HistoryPage{}, errors.New("客户端未提供所请求的后续记录")
+	}
+	envelope.Games.Games = envelope.Games.Games[offset:]
+	raw, _ = json.Marshal(envelope)
 	result, err := core.ParseHistory(raw, puuid)
 	if err != nil {
 		return core.HistoryPage{}, err
 	}
-	result.Meta.Scope = fmt.Sprintf("客户端混合模式样本，第 %d 条起；筛选只作用于已加载记录", offset+1)
+	result.Meta.Scope = fmt.Sprintf("客户端已核验混合模式记录，第 %d 条起", offset+1)
 	return core.HistoryPage{Matches: result.Matches, Meta: result.Meta, Offset: offset, NextOffset: offset + result.Meta.Returned, HasMore: result.Meta.Returned >= 20 && offset+result.Meta.Returned <= 980}, nil
 }
 

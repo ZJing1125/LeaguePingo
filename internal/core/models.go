@@ -103,11 +103,12 @@ type HistoryResult struct {
 }
 
 type HistoryPage struct {
-	Matches    []Match     `json:"matches"`
-	Meta       HistoryMeta `json:"meta"`
-	Offset     int         `json:"offset"`
-	NextOffset int         `json:"nextOffset"`
-	HasMore    bool        `json:"hasMore"`
+	Matches     []Match     `json:"matches"`
+	Meta        HistoryMeta `json:"meta"`
+	Offset      int         `json:"offset"`
+	NextOffset  int         `json:"nextOffset"`
+	HasMore     bool        `json:"hasMore"`
+	LimitReason string      `json:"limitReason,omitempty"`
 }
 
 type MatchPlayer struct {

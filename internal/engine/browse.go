@@ -82,6 +82,24 @@ func (e *Engine) LoadProfile(ctx context.Context, key string, connectionID uint6
 	return player, nil
 }
 
+// RefreshHistory uses an already verified identity and preserves independent
+// profile data. It must not repeat ID lookup or optional enrichment requests.
+func (e *Engine) RefreshHistory(ctx context.Context, key string, connectionID uint64) (core.Participant, error) {
+	ctx, done, err := e.beginLookup(ctx)
+	if err != nil {
+		return core.Participant{}, err
+	}
+	defer done()
+	client, player, err := e.browsePlayer(key, connectionID)
+	if err != nil {
+		return core.Participant{}, err
+	}
+	e.mu.RLock()
+	generation := e.snapshot.Generation
+	e.mu.RUnlock()
+	return e.loadManualHistory(ctx, client, generation, connectionID, player, true, false)
+}
+
 func mergeProfile(next core.Profile, previous *core.Profile) core.Profile {
 	now := time.Now()
 	next.UpdatedAt = &now
