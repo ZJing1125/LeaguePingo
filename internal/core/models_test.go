@@ -22,3 +22,14 @@ func TestStatsUseOnlyReturnedMatches(t *testing.T) {
 		t.Fatalf("unexpected stats: %+v", got)
 	}
 }
+
+func TestGameflowUsesCurrentPlayersTeamAndProvidedNames(t *testing.T) {
+	data := []byte(`{"gameData":{"gameId":42,"teamOne":[{"puuid":"opponent","summonerName":"Opponent#TEST"}],"teamTwo":[{"puuid":"self","summonerName":"Me#TEST"}]}}`)
+	_, players, err := ParseGameflowRosterForPlayer(data, "self")
+	if err != nil || len(players) != 2 || players[0].PUUID != "self" || players[0].Team != "ally" || players[1].Team != "enemy" || players[1].DisplayName != "Opponent#TEST" {
+		t.Fatalf("wrong local team: %+v %v", players, err)
+	}
+	if _, _, err := ParseGameflowRosterForPlayer(data, "not-in-match"); err == nil {
+		t.Fatal("unknown local team was guessed")
+	}
+}

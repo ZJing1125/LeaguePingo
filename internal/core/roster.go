@@ -7,8 +7,9 @@ import (
 )
 
 type rosterMember struct {
-	PUUID      string `json:"puuid"`
-	ChampionID int    `json:"championId"`
+	PUUID        string `json:"puuid"`
+	ChampionID   int    `json:"championId"`
+	SummonerName string `json:"summonerName"`
 }
 
 type gameflowSession struct {
@@ -30,11 +31,37 @@ func IsKnownPUUID(value string) bool {
 }
 
 func ParseGameflowRoster(data []byte) (int64, []Participant, error) {
+	return ParseGameflowRosterForPlayer(data, "")
+}
+
+// teamOne/teamTwo are map sides, not necessarily the local player's team.
+func ParseGameflowRosterForPlayer(data []byte, selfPUUID string) (int64, []Participant, error) {
 	var session gameflowSession
 	if err := json.Unmarshal(data, &session); err != nil {
 		return 0, nil, err
 	}
-	return session.GameData.GameID, mergeRoster(session.GameData.TeamOne, session.GameData.TeamTwo), nil
+	allies, enemies := session.GameData.TeamOne, session.GameData.TeamTwo
+	if selfPUUID != "" {
+		found := false
+		for _, p := range allies {
+			if p.PUUID == selfPUUID {
+				found = true
+			}
+		}
+		if !found {
+			for _, p := range enemies {
+				if p.PUUID == selfPUUID {
+					found = true
+					allies, enemies = enemies, allies
+					break
+				}
+			}
+		}
+		if !found {
+			return session.GameData.GameID, nil, fmt.Errorf("当前账号不在本局名单中，无法确认双方阵营")
+		}
+	}
+	return session.GameData.GameID, mergeRoster(allies, enemies), nil
 }
 
 func ParseChampSelectRoster(data []byte) ([]Participant, error) {
@@ -64,6 +91,9 @@ func mergeRoster(allies, enemies []rosterMember) []Participant {
 			if known {
 				identity = IdentityKnown
 				name = "玩家资料加载中"
+				if member.SummonerName != "" {
+					name = member.SummonerName
+				}
 			}
 			out = append(out, Participant{
 				Key: key, PUUID: member.PUUID, DisplayName: name,

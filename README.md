@@ -1,15 +1,17 @@
 # LeaguePingo
 
-LeaguePingo 是面向《英雄联盟》腾讯国服的 Windows 桌面战绩助手原型，使用 Wails 3 beta、Go、Vue 3 和 TypeScript。当前仅在本地开发，未创建远程仓库或推送代码。
+LeaguePingo 是面向《英雄联盟》腾讯国服的 Windows 桌面战绩助手原型，使用 Wails 3 beta、Go、Vue 3 和 TypeScript。代码托管于私有 GitHub 仓库，仍处于原型开发与国服实机联调阶段。
 
 ## 当前功能
 
-- 对局外输入完整 `玩家名#标签`，通过本机 League 客户端查询该玩家最近至多 20 场可核验的战绩。
+- 局内外均可输入完整 `玩家名#标签`，通过本机 League 客户端查询该玩家最近至多 20 场可核验的战绩；本局已有战绩优先使用缓存。
 - 选人阶段自动读取客户端可提供的名单，单路串行准备已知 PUUID 的名称和战绩；无法获取身份的位置标为“身份不可获取”。
-- 进入 `GameStart` 或 `InProgress` 等正式对局阶段后冻结现有资料，不再自动请求历史战绩；全局 `Ctrl+Shift+P` 显示或隐藏只读快览窗口。
+- 进入 `GameStart`、`InProgress` 或 `Reconnect` 时取消自动战绩预取，最多尝试三次本地名单刷新，补全客户端已提供的双方身份；取得完整十人名单和对局 ID 后停止自动名单刷新。
+- 主窗口可“刷新对局名单”，也可选中已知身份玩家后“手动查询此玩家”。局内不自动补查新识别玩家的战绩，只有用户主动查询才发起请求；手动入口一次只处理一个操作，超时上限 12 秒。
+- 全局 `Ctrl+Shift+P` 显示或隐藏快览。快览可拖动、隐藏、切换置顶，不提供鼠标穿透；资料查询和名单刷新在主窗口进行。
 - 不注入游戏进程、不读取游戏内存、不拦截或代理游戏流量。
 
-当前是可构建原型，**不是已完成国服实机联调的正式产品**。尤其是国服客户端端点、隐私状态信号、不同模式的名单结构，以及悬浮窗在游戏中的兼容性仍需实测。详见 [待解决问题](docs/OPEN_ISSUES.md)。
+当前是可构建原型，**不是已完成国服实机联调的正式产品**。本机已验证客户端自动发现、阶段接口、自账号完整 ID 查询及 20 场战绩解析；曾在真实对局中确认本地 gameflow 接口提供双方各五个有效身份。新版从名单刷新到界面展示的整局流程、其他玩家的战绩可用性、隐私信号、不同模式，以及游戏内悬浮兼容性仍待实测。详见 [待解决问题](docs/OPEN_ISSUES.md) 与 [Bug 修复记录](BUGFIX_LOG.md)。
 
 ## 运行与构建
 
@@ -28,9 +30,39 @@ go test ./...
 go build -tags production -trimpath -buildvcs=false -ldflags='-H windowsgui' -o bin/leaguepingo.exe .
 ```
 
-开发运行可用 `wails3 dev`。首次运行需已安装 Microsoft Edge WebView2。启动国服 League 客户端后，LeaguePingo 会自行发现 `LeagueClient.exe` 同目录的 `lockfile`；也可设置 `LEAGUEPINGO_LOCKFILE` 指向测试用 lockfile。切勿提交、发送或记录 lockfile 内容，其中包含本地客户端密码。
+开发运行可用 `wails3 dev`。首次运行需已安装 Microsoft Edge WebView2。启动国服 League 客户端后，LeaguePingo 会发现 `LeagueClient.exe` / `LeagueClientUx.exe`，先尝试同目录的 `lockfile`，文件为空或不可用时改用 Windows 提供的客户端启动参数。也可设置 `LEAGUEPINGO_LOCKFILE` 指向测试用 lockfile。切勿提交、发送或记录 lockfile 内容或完整客户端启动参数，其中包含本地客户端密码。
+
+本批独立测试版为 `bin/leaguepingo-dev-20261016.exe`。使用前请从托盘菜单退出当前运行的旧版助手，包括 `leaguepingo-dev.exe`；不需要退出游戏。新版采用固定应用标识的单实例策略：如果旧 `leaguepingo-dev.exe` 未退出，启动新版只会唤起旧实例，不能热替换旧进程。更早的 `leaguepingo.exe`、`leaguepingo-fixed.exe` 没有该约束，也需手动退出。已进入对局时，新版会有限刷新本地名单，不会自动补查战绩；缺少战绩时在主窗口主动查询。
+
+构建本批测试版时，把上述构建命令的输出改成 `-o bin/leaguepingo-dev-20261016.exe`，避免覆盖被占用的旧版程序。可执行文件与测试截图不提交 Git。
 
 关闭主窗口后助手会留在系统托盘；点击托盘图标可重新打开，托盘菜单提供“退出”。
+
+## 快览窗口操作
+
+- 拖动标题栏移动窗口；× 隐藏快览，窗口获焦时也可按 Esc；标题栏可切换置顶。
+- `Ctrl+Shift+P` 显示/隐藏；主窗口与托盘也可隐藏快览，不依赖快捷键。
+- 已删除鼠标穿透、恢复鼠标的按钮/托盘项和 `Ctrl+Shift+O` 注册；快览一直接受鼠标操作。
+- 快捷键注册失败会提示，可继续使用主窗口、关闭按钮和托盘。
+
+## 本批验证
+
+除 `go test ./...`、`go vet ./...` 与前端构建外，可按需执行：
+
+```bash
+# 隔离的隐藏原生窗口与双进程验证，不连接 League 客户端
+LEAGUEPINGO_DESKTOP_TEST=1 go test . -run '^TestNativeDesktopSingleInstance$' -count=1 -v
+
+# 显式选择执行：用当前账号验证完整 ID 到战绩，不输出账号数据
+LEAGUEPINGO_LIVE_LOOKUP_TEST=1 go test ./internal/source -run '^TestLiveManualLookup$' -count=1 -v
+
+# 仅处于正在进行的标准 5v5 对局时执行：检查本地名单数量，不请求战绩
+LEAGUEPINGO_LIVE_ROSTER_TEST=1 go test ./internal/source -run '^TestLiveRoster$' -count=1 -v
+```
+
+浏览器交互测试：设置 `PLAYWRIGHT_MODULE` 为本地 Playwright 包路径，`BROWSER_EXECUTABLE` 为本地 Edge/Chromium 路径后，运行 `node frontend/tests/overlay-smoke.cjs`。需先构建前端，使用模拟 Wails 接口及合成玩家，不等同于真实游戏内验证，也不会自动下载浏览器。可选 `OVERLAY_SCREENSHOT` 指定截图输出。
+
+默认 `go test ./...` 不连接真实客户端；上述实机检查必须显式启用。完整 ID 自账号查询已返回 20 场战绩；新版 `TestLiveRoster` 当时因对局结束而跳过，仍需下一局验证，不能将其计为通过。当前没有 CPU、内存、FPS 或网络延迟基准数据，不能承诺零开销。
 
 ## 数据与隐私边界
 

@@ -78,12 +78,24 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .empty-roster span { font-size: 28px; color: #4abda9; }.empty-roster strong { font-size: 12px; margin-top: 6px; }.empty-roster p { max-width: 260px; color: #7892a6; line-height: 1.6; font-size: 10px; }
 .detail-panel { margin-top: 20px; }.detail-panel .match-list { max-height: 190px; }
 .workspace-footer { font-size: 10px; color: #5d7589; margin-top: 23px; text-align: center; }
-.overlay-shell { min-height: 100vh; padding: 20px 22px; background: #0d1b2d; color: #eaf4f5; border: 1px solid #4c9d9e; border-radius: 12px; }
+.overlay-shell { height: 100dvh; overflow: hidden; display: flex; flex-direction: column; padding: 14px 18px; background: #0d1b2d; color: #eaf4f5; border: 1px solid #4c9d9e; border-radius: 12px; }
 .overlay-head, .overlay-head > div { display: flex; align-items: center; gap: 9px; }.overlay-head { justify-content: space-between; }
+.overlay-head { --wails-draggable: drag; cursor: move; user-select: none; flex: none; padding-bottom: 12px; border-bottom: 1px solid #284357; }
+.overlay-title { min-width: 0; flex-wrap: wrap; }
+.overlay-controls { --wails-draggable: no-drag; flex: none; }
+.overlay-controls button, .overlay-footer button, .quick-controls button { --wails-draggable: no-drag; border: 1px solid #3b6376; background: #183446; color: #d8f3ed; border-radius: 7px; padding: 7px 9px; font-size: 10px; }
+.overlay-controls .overlay-close { font-size: 20px; line-height: 20px; padding: 3px 10px; }
+.overlay-close:hover { background: #60323e; }
+.overlay-content { min-height: 0; flex: 1; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
+.overlay-content, .overlay-content * { --wails-draggable: no-drag; }
+.overlay-groups > div { min-width: 0; }
+.overlay-shell .overlay-footer { flex: none; margin-top: 12px; border-top: 1px solid #284357; padding-top: 10px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; font-size: 10px; line-height: 1.6; }
+.quick-controls { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; }
 .overlay-head .brand-dot { width: 14px; height: 14px; border-radius: 4px; }.overlay-head strong { font-size: 15px; }.overlay-head small { font-size: 10px; color: #8da7b8; margin-left: 7px; }
 .overlay-status { font-size: 11px; color: #6fd2ba; margin: 14px 0 16px; }
 .overlay-groups { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }.overlay-groups h2 { font-size: 11px; color: #8aa8b6; margin: 0 0 9px; }
 .overlay-player { padding: 9px 10px; border: 1px solid #2c4b60; border-radius: 8px; margin-bottom: 7px; background: #12283b; min-height: 53px; }.overlay-player span { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .player-name { font-size: 11px; font-weight: 700; }.player-summary { font-size: 9px; color: #8eb4bd; margin-top: 5px; }.overlay-empty { font-size: 12px; line-height: 1.7; color: #9fb4c2; padding: 40px 12px; }.overlay-shell footer { font-size: 9px; color: #688797; text-align: center; margin-top: 18px; }
 @media (max-width: 1000px) { .sidebar { width: 185px; }.workspace { padding: 25px; }.content-grid { grid-template-columns: 1fr; }.intro-card h2 { font-size: 29px; } }
-@media (max-width: 680px) { .sidebar { display: none; }.workspace { padding: 20px; }.intro-card { display: block; }.intro-actions { text-align: left; margin-top: 22px; }.roster, .overlay-groups { grid-template-columns: 1fr; } }
+@media (max-width: 680px) { .sidebar { display: none; }.workspace { padding: 20px; }.intro-card { display: block; }.intro-actions { text-align: left; margin-top: 22px; }.roster { grid-template-columns: 1fr; }.quick-controls { justify-content: flex-start; } }
+@media (max-width: 440px) { .overlay-groups { grid-template-columns: 1fr; }.overlay-head small { display: none; } }

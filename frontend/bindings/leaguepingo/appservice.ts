@@ -14,8 +14,32 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 // @ts-ignore: Unused imports
 import * as core$0 from "./internal/core/models.js";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as $models from "./models.js";
+
+export function HideOverlay(): $CancellablePromise<$models.OverlayState> {
+    return $Call.ByID(4237697434);
+}
+
 export function Lookup(riotID: string): $CancellablePromise<core$0.Participant> {
     return $Call.ByID(1792296300, riotID);
+}
+
+export function LookupPlayer(key: string): $CancellablePromise<core$0.Participant> {
+    return $Call.ByID(4170391553, key);
+}
+
+export function OverlayStatus(): $CancellablePromise<$models.OverlayState> {
+    return $Call.ByID(2104693908);
+}
+
+export function RefreshRoster(): $CancellablePromise<core$0.Snapshot> {
+    return $Call.ByID(3264360598);
+}
+
+export function SetOverlayPinned(pinned: boolean): $CancellablePromise<$models.OverlayState> {
+    return $Call.ByID(517636436, pinned);
 }
 
 export function Snapshot(): $CancellablePromise<core$0.Snapshot> {
