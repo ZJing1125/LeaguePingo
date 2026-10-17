@@ -7,8 +7,14 @@ export {
 } from "./models.js";
 
 export type {
+    HistoryMeta,
+    HistoryPage,
     Match,
+    MatchDetail,
+    MatchPlayer,
     Participant,
+    Profile,
+    Rank,
     Snapshot,
     Stats
 } from "./models.js";

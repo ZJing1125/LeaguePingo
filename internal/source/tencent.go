@@ -19,7 +19,8 @@ type TencentLCU struct {
 	selfPUUID string
 }
 
-func (*TencentLCU) Region() string { return "CN" }
+func (*TencentLCU) Region() string   { return "CN" }
+func (s *TencentLCU) ResetIdentity() { s.selfMu.Lock(); s.selfPUUID = ""; s.selfMu.Unlock() }
 
 func DiscoverTencent() (Source, error) {
 	client, err := lcu.Discover()
@@ -65,6 +66,14 @@ func (s *TencentLCU) Roster(ctx context.Context) (int64, []core.Participant, err
 		return gameID, roster, nil
 	}
 	return gameID, roster, firstErr
+}
+
+func (s *TencentLCU) Lobby(ctx context.Context) ([]core.Participant, error) {
+	raw, err := s.client.Get(ctx, "/lol-lobby/v2/lobby")
+	if err != nil {
+		return nil, err
+	}
+	return core.ParseLobbyRoster(raw)
 }
 
 func knownCount(players []core.Participant) int {
@@ -118,12 +127,25 @@ func (s *TencentLCU) Name(ctx context.Context, puuid string) (string, error) {
 	return profile.GameName + "#" + profile.TagLine, nil
 }
 
-func (s *TencentLCU) History(ctx context.Context, puuid string) ([]core.Match, error) {
-	raw, err := s.client.Get(ctx, lcu.HistoryPath(puuid, 20))
-	if err != nil {
-		return nil, err
+func (s *TencentLCU) History(ctx context.Context, puuid string) (core.HistoryResult, error) {
+	page, err := s.HistoryPage(ctx, puuid, 0)
+	return core.HistoryResult{Matches: page.Matches, Meta: page.Meta}, err
+}
+
+func (s *TencentLCU) HistoryPage(ctx context.Context, puuid string, offset int) (core.HistoryPage, error) {
+	if !core.IsKnownPUUID(puuid) || offset < 0 || offset > 980 {
+		return core.HistoryPage{}, errors.New("战绩分页参数无效（最多浏览 1000 条）")
 	}
-	return core.ParseHistory(raw, puuid)
+	raw, err := s.client.Get(ctx, lcu.HistoryPagePath(puuid, offset, 20))
+	if err != nil {
+		return core.HistoryPage{}, err
+	}
+	result, err := core.ParseHistory(raw, puuid)
+	if err != nil {
+		return core.HistoryPage{}, err
+	}
+	result.Meta.Scope = fmt.Sprintf("客户端混合模式样本，第 %d 条起；筛选只作用于已加载记录", offset+1)
+	return core.HistoryPage{Matches: result.Matches, Meta: result.Meta, Offset: offset, NextOffset: offset + result.Meta.Returned, HasMore: result.Meta.Returned >= 20 && offset+result.Meta.Returned <= 980}, nil
 }
 
 func (s *TencentLCU) FindByRiotID(ctx context.Context, riotID string) (core.Participant, error) {
@@ -153,4 +175,15 @@ func (s *TencentLCU) FindByRiotID(ctx context.Context, riotID string) (core.Part
 	return core.Participant{Key: profile.PUUID, PUUID: profile.PUUID,
 		DisplayName: profile.GameName + "#" + profile.TagLine, IdentityState: core.IdentityKnown,
 		PrivacyState: "unknown", HistoryState: core.HistoryPending}, nil
+}
+
+func (s *TencentLCU) MatchDetail(ctx context.Context, gameID int64, target string) (core.MatchDetail, error) {
+	if gameID <= 0 || !core.IsKnownPUUID(target) {
+		return core.MatchDetail{}, errors.New("对局详情参数无效")
+	}
+	raw, err := s.client.Get(ctx, fmt.Sprintf("/lol-match-history/v1/games/%d", gameID))
+	if err != nil {
+		return core.MatchDetail{}, fmt.Errorf("当前客户端未能提供对局详情：%w", err)
+	}
+	return core.ParseMatchDetail(raw, gameID, target)
 }

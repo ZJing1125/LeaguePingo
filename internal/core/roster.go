@@ -72,6 +72,27 @@ func ParseChampSelectRoster(data []byte) ([]Participant, error) {
 	return mergeRoster(session.MyTeam, session.TheirTeam), nil
 }
 
+func ParseLobbyRoster(data []byte) ([]Participant, error) {
+	var lobby struct {
+		Members []struct {
+			PUUID     string `json:"puuid"`
+			Name      string `json:"summonerName"`
+			Bot       bool   `json:"isBot"`
+			Spectator bool   `json:"isSpectator"`
+		} `json:"members"`
+	}
+	if json.Unmarshal(data, &lobby) != nil || lobby.Members == nil {
+		return nil, fmt.Errorf("房间成员格式不可用")
+	}
+	members := []rosterMember{}
+	for _, p := range lobby.Members {
+		if !p.Bot && !p.Spectator {
+			members = append(members, rosterMember{PUUID: p.PUUID, SummonerName: p.Name})
+		}
+	}
+	return mergeRoster(members, nil), nil
+}
+
 func mergeRoster(allies, enemies []rosterMember) []Participant {
 	seen := make(map[string]struct{}, len(allies)+len(enemies))
 	out := make([]Participant, 0, len(allies)+len(enemies))

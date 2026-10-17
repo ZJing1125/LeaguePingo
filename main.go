@@ -3,14 +3,19 @@ package main
 import (
 	"context"
 	"embed"
+	"fmt"
 	"log"
-	"strings"
+	"os"
+	"path/filepath"
+	"sync"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"leaguepingo/internal/core"
 	"leaguepingo/internal/engine"
+	"leaguepingo/internal/settings"
 	"leaguepingo/internal/source"
 )
 
@@ -20,27 +25,58 @@ var assets embed.FS
 func main() {
 	var mainWindow *application.WebviewWindow
 	windowReady := make(chan struct{})
-	backend := &AppService{}
+	configRoot, err := os.UserConfigDir()
+	if err != nil {
+		log.Fatal("无法找到用户设置目录")
+	}
+	configDir := filepath.Join(configRoot, "LeaguePingo")
+	offlineSmoke := os.Getenv("LEAGUEPINGO_OFFLINE_SMOKE") == "1"
+	if offlineSmoke {
+		configDir = os.Getenv("LEAGUEPINGO_SMOKE_DIR")
+		if configDir == "" {
+			log.Fatal("离线测试必须指定隔离设置目录")
+		}
+	}
+	store, settingsErr := settings.Open(filepath.Join(configDir, "settings.json"))
+	backend := &AppService{settings: store, configDir: configDir}
+	backend.configureShortcut = func(string) error { return fmt.Errorf("应用尚未准备好注册快捷键") }
+	if settingsErr != nil {
+		backend.settingsWarning = settingsErr.Error()
+	}
+	instance := singleInstanceOptions(func() {
+		<-windowReady
+		mainWindow.Show()
+		mainWindow.UnMinimise()
+		mainWindow.Focus()
+	})
+	if offlineSmoke {
+		instance.UniqueID = fmt.Sprintf("com.leaguepingo.offline.p%d", os.Getpid())
+	}
 	app := application.New(application.Options{
-		Name:        "LeaguePingo",
-		Description: "低干扰的英雄联盟战绩助手",
-		Services:    []application.Service{application.NewService(backend)},
-		Assets:      application.AssetOptions{Handler: application.AssetFileServerFS(assets)},
-		Mac:         application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
-		SingleInstance: singleInstanceOptions(func() {
-			<-windowReady
-			mainWindow.Show()
-			mainWindow.UnMinimise()
-			mainWindow.Focus()
-		}),
+		Name:           "LeaguePingo",
+		Description:    "低干扰的英雄联盟战绩助手",
+		Services:       []application.Service{application.NewService(backend)},
+		Assets:         application.AssetOptions{Handler: application.AssetFileServerFS(assets)},
+		Mac:            application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
+		SingleInstance: instance,
+		OnShutdown: func() {
+			if err := store.Save(); err != nil {
+				log.Print("无法保存窗口设置")
+			}
+		},
 	})
 	// New exits duplicate instances before any LCU worker or tray is created.
-	backend.engine = engine.New(source.DiscoverTencent, func(snapshot core.Snapshot) {
+	discover := source.DiscoverTencent
+	if offlineSmoke {
+		discover = func() (source.Source, error) { return nil, source.ErrNotConnected }
+	}
+	backend.engine = engine.New(discover, func(snapshot core.Snapshot) {
 		app.Event.Emit("leaguepingo:snapshot", snapshot)
 	})
 	mainWindow = app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name: "main", Title: "LeaguePingo", Width: 1100, Height: 760,
 		MinWidth: 880, MinHeight: 620, URL: "/",
+		Hidden:           offlineSmoke,
 		BackgroundColour: application.NewRGB(10, 16, 29),
 	})
 	// Closing the main window keeps the lightweight helper available in the tray.
@@ -58,42 +94,98 @@ func main() {
 	})
 	tray.SetMenu(menu)
 	tray.OnClick(func() { mainWindow.Show(); mainWindow.Focus() })
-	overlay := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Name: "overlay", Title: "LeaguePingo · 对局快览", Width: 540, Height: 660,
-		MinWidth: 400, MinHeight: 360,
-		URL: "/?view=overlay", Hidden: true, Frameless: true, AlwaysOnTop: true,
-		BackgroundColour: application.NewRGB(10, 16, 29),
-	})
 	controller := &overlayController{
-		window: overlay, dispatch: application.InvokeSync,
-		state: OverlayState{Pinned: true},
-		emit:  func(state OverlayState) { app.Event.Emit("leaguepingo:overlay", state) },
+		dispatch: application.InvokeSync,
+		state:    OverlayState{Pinned: store.Snapshot().Pinned, Shortcut: store.Snapshot().Shortcut},
+		emit:     func(state OverlayState) { app.Event.Emit("leaguepingo:overlay", state) },
 	}
 	backend.overlay = controller
-	overlay.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
-		event.Cancel()
-		controller.hide()
-	})
+	// Geometry changes only update memory. Disk writes occur on explicit setting
+	// changes or normal exit, never on each drag frame or engine poll.
+	geometryReady := false
+	watchGeometry := func(w *application.WebviewWindow, isMain bool) {
+		capture := func(*application.WindowEvent) {
+			if !geometryReady || w.IsMinimised() || w.IsMaximised() {
+				return
+			}
+			r := w.Bounds()
+			store.SetBounds(isMain, settings.Rect{X: r.X, Y: r.Y, Width: r.Width, Height: r.Height})
+		}
+		w.OnWindowEvent(events.Common.WindowDidMove, capture)
+		w.OnWindowEvent(events.Common.WindowDidResize, capture)
+	}
+	restoreGeometry := func(w *application.WebviewWindow, r settings.Rect, mw, mh int) {
+		var areas []settings.Rect
+		for _, screen := range app.Screen.GetAll() {
+			a := screen.WorkArea
+			areas = append(areas, settings.Rect{X: a.X, Y: a.Y, Width: a.Width, Height: a.Height})
+		}
+		r = settings.Clamp(r, areas, mw, mh)
+		w.SetBounds(application.Rect{X: r.X, Y: r.Y, Width: r.Width, Height: r.Height})
+	}
+	watchGeometry(mainWindow, true)
+	// No second WebView until the user first requests the overlay. Later hides
+	// retain it for quick reopen; no per-frame polling or animated background.
+	controller.create = func() overlayWindow {
+		cfg := store.Snapshot()
+		w := app.Window.NewWithOptions(application.WebviewWindowOptions{
+			Name: "overlay", Title: "LeaguePingo · 对局快览", Width: 540, Height: 660, MinWidth: 400, MinHeight: 360,
+			URL: "/?view=overlay", Hidden: true, Frameless: true, AlwaysOnTop: cfg.Pinned, BackgroundColour: application.NewRGB(10, 16, 29),
+		})
+		restoreGeometry(w, cfg.Overlay, 400, 360)
+		watchGeometry(w, false)
+		w.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) { event.Cancel(); controller.hide() })
+		return w
+	}
 	menu.Add("隐藏对局快览").OnClick(func(*application.Context) { controller.hide() })
 	menu.Add("退出").OnClick(func(*application.Context) { app.Quit() })
 	// Before Run, Wails only queues registration and cannot report OS conflicts.
 	// Register after startup so the UI reflects actual OS results.
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		defer close(windowReady)
-		var warnings []string
-		var shortcutAvailable bool
-		if err := app.GlobalShortcut.Register("Ctrl+Shift+P", func() {
-			controller.toggle()
-		}); err != nil {
-			log.Printf("无法注册 Ctrl+Shift+P 快捷键: %v", err)
-			warnings = append(warnings, "Ctrl+Shift+P 注册失败，请使用主窗口或托盘控制快览；检查是否仍有旧版助手运行")
-		} else {
-			shortcutAvailable = true
+		cfg := store.Snapshot()
+		restoreGeometry(mainWindow, cfg.Main, 880, 620)
+		geometryReady = true
+		if offlineSmoke {
+			if os.Getenv("LEAGUEPINGO_SMOKE_OPEN_OVERLAY") == "1" {
+				controller.window = controller.create()
+				controller.hide()
+			}
+			go func() { time.Sleep(35 * time.Second); app.Quit() }()
+			return
 		}
-		controller.update(func() {
-			controller.state.ShortcutAvailable = shortcutAvailable
-			controller.state.Warning = strings.Join(warnings, "；")
-		})
+		registered := ""
+		var shortcutMu sync.Mutex
+		backend.configureShortcut = func(key string) error {
+			shortcutMu.Lock()
+			defer shortcutMu.Unlock()
+			if key == registered {
+				return nil
+			}
+			if err := app.GlobalShortcut.Register(key, func() { controller.toggle() }); err != nil {
+				return fmt.Errorf("%s 注册失败，可能被占用；原设置保留，可用按钮或托盘控制", key)
+			}
+			old := store.Snapshot().Shortcut
+			store.SetShortcut(key)
+			if err := store.Save(); err != nil {
+				store.SetShortcut(old)
+				_ = app.GlobalShortcut.Unregister(key)
+				return err
+			}
+			if registered != "" {
+				_ = app.GlobalShortcut.Unregister(registered)
+			}
+			registered = key
+			controller.update(func() {
+				controller.state.Shortcut = key
+				controller.state.ShortcutAvailable = true
+				controller.state.Warning = ""
+			})
+			return nil
+		}
+		if err := backend.configureShortcut(cfg.Shortcut); err != nil {
+			controller.update(func() { controller.state.Warning = err.Error() })
+		}
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

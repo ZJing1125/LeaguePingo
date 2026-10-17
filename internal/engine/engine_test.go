@@ -16,13 +16,36 @@ type fakeClient struct {
 	mu        sync.Mutex
 	phase     string
 	phaseErr  error
+	phaseFn   func() (string, error)
 	champion  int
 	calls     []string
 	roster    []core.Participant
 	rosterErr error
 	gameID    int64
-	historyFn func(context.Context, string) ([]core.Match, error)
+	historyFn func(context.Context, string) (core.HistoryResult, error)
 	rosterFn  func()
+}
+
+type optionalProfileClient struct {
+	*fakeClient
+	cancelled bool
+}
+
+func (f *optionalProfileClient) Profile(ctx context.Context, _ string) core.Profile {
+	<-ctx.Done()
+	f.cancelled = true
+	return core.Profile{RankState: "unavailable"}
+}
+func TestOptionalProfileTimeoutKeepsSuccessfulHistory(t *testing.T) {
+	fake := &optionalProfileClient{fakeClient: &fakeClient{phase: "Lobby"}}
+	e := New(func() (Client, error) { return fake, nil }, nil)
+	e.poll(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	p, err := e.Lookup(ctx, "Player#TEST")
+	if err != nil || !historyCached(p) || !fake.cancelled {
+		t.Fatalf("optional profile lost history: %v", err)
+	}
 }
 
 func (*fakeClient) Region() string { return "CN" }
@@ -37,6 +60,9 @@ func (f *fakeClient) Phase(context.Context) (string, error) {
 	f.record("phase")
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.phaseFn != nil {
+		return f.phaseFn()
+	}
 	return f.phase, f.phaseErr
 }
 
@@ -149,12 +175,12 @@ func (f *fakeClient) Name(context.Context, string) (string, error) {
 	f.record("name")
 	return "Alice#TEST", nil
 }
-func (f *fakeClient) History(ctx context.Context, puuid string) ([]core.Match, error) {
+func (f *fakeClient) History(ctx context.Context, puuid string) (core.HistoryResult, error) {
 	f.record("history")
 	if f.historyFn != nil {
 		return f.historyFn(ctx, puuid)
 	}
-	return []core.Match{}, nil
+	return core.HistoryResult{Matches: []core.Match{}}, nil
 }
 func (f *fakeClient) FindByRiotID(context.Context, string) (core.Participant, error) {
 	f.record("find")
@@ -358,7 +384,7 @@ func TestSelectedPlayerLookupUpdatesInGameCacheAndReusesIt(t *testing.T) {
 	if len(fake.calls) != before {
 		t.Fatal("cached player triggered another request")
 	}
-	if _, err := e.Lookup(context.Background(), "Alice#TEST"); err != nil {
+	if _, err := e.Lookup(context.Background(), "player-5#TEST"); err != nil {
 		t.Fatal(err)
 	}
 	if len(fake.calls) != before {
@@ -419,7 +445,7 @@ func TestManualLookupDoesNotPublishIntoAnotherGeneration(t *testing.T) {
 	e := New(func() (Client, error) { return fake, nil }, nil)
 	e.client = fake
 	e.snapshot = core.Snapshot{Generation: 5, Stage: "in-game", Frozen: true, Participants: fullTestRoster()}
-	fake.historyFn = func(ctx context.Context, _ string) ([]core.Match, error) {
+	fake.historyFn = func(ctx context.Context, _ string) (core.HistoryResult, error) {
 		deadline, ok := ctx.Deadline()
 		if !ok || time.Until(deadline) > 12*time.Second {
 			t.Fatal("manual request has no bounded deadline")
@@ -427,7 +453,7 @@ func TestManualLookupDoesNotPublishIntoAnotherGeneration(t *testing.T) {
 		e.mu.Lock()
 		e.snapshot.Generation++
 		e.mu.Unlock()
-		return []core.Match{{GameID: 99}}, nil
+		return core.HistoryResult{Matches: []core.Match{{GameID: 99}}}, nil
 	}
 	player, err := e.LookupPlayer(context.Background(), "player-5")
 	if err != nil || len(player.History) != 1 {
@@ -486,5 +512,53 @@ func TestPollDiscardsRosterFromSupersededGeneration(t *testing.T) {
 	e.poll(context.Background())
 	if snapshot := e.Snapshot(); snapshot.Generation != 10 || snapshot.Phase != "Lobby" || len(snapshot.Participants) != 0 {
 		t.Fatal("an obsolete roster overwrote a newer snapshot")
+	}
+}
+
+func TestManualCacheExpiryRefreshAndFailurePreservesData(t *testing.T) {
+	fake := &fakeClient{}
+	e := New(nil, nil)
+	e.client = fake
+	if _, err := e.Lookup(context.Background(), "Manual#TEST"); err != nil {
+		t.Fatal(err)
+	}
+	before := len(fake.calls)
+	p, err := e.Lookup(context.Background(), " Manual # TEST ")
+	if err != nil || !p.Cached || len(fake.calls) != before {
+		t.Fatal("normalized manual result was not cached")
+	}
+	old := time.Now().Add(-6 * time.Minute)
+	e.cache["manual"] = func() core.Participant { p := e.cache["manual"]; p.HistoryMeta.FetchedAt = &old; return p }()
+	if _, err = e.Lookup(context.Background(), "Manual#TEST"); err != nil || len(fake.calls) == before {
+		t.Fatal("expired cache prevented refresh")
+	}
+	fake.historyFn = func(context.Context, string) (core.HistoryResult, error) {
+		return core.HistoryResult{}, errors.New("temporary failure")
+	}
+	if _, err = e.RefreshLookup(context.Background(), "Manual#TEST"); err == nil {
+		t.Fatal("forced refresh failure not reported")
+	}
+	e.client = nil
+	p, err = e.Lookup(context.Background(), "Manual#TEST")
+	if err != nil || !p.Cached || !p.Stale {
+		t.Fatal("failed refresh destroyed offline cache")
+	}
+}
+
+func TestManualResultFromOldConnectionCannotEnterNewCache(t *testing.T) {
+	fake := &fakeClient{}
+	e := New(nil, nil)
+	e.client = fake
+	fake.historyFn = func(context.Context, string) (core.HistoryResult, error) {
+		e.mu.Lock()
+		e.clientVersion++
+		e.mu.Unlock()
+		return core.HistoryResult{}, nil
+	}
+	if _, err := e.Lookup(context.Background(), "Manual#TEST"); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.cache) != 0 {
+		t.Fatal("old connection populated new connection cache")
 	}
 }

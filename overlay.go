@@ -16,10 +16,12 @@ type OverlayState struct {
 	Pinned            bool   `json:"pinned"`
 	ShortcutAvailable bool   `json:"shortcutAvailable"`
 	Warning           string `json:"warning"`
+	Shortcut          string `json:"shortcut"`
 }
 
 type overlayController struct {
 	window   overlayWindow
+	create   func() overlayWindow
 	dispatch func(func())
 	emit     func(OverlayState)
 	state    OverlayState
@@ -47,7 +49,9 @@ func (o *overlayController) hide() OverlayState {
 }
 
 func (o *overlayController) hideOnUI() {
-	o.window.Hide()
+	if o.window != nil {
+		o.window.Hide()
+	}
 	o.state.Visible = false
 }
 
@@ -57,6 +61,13 @@ func (o *overlayController) toggle() OverlayState {
 			o.hideOnUI()
 			return
 		}
+		if o.window == nil && o.create != nil {
+			o.window = o.create()
+		}
+		if o.window == nil {
+			o.state.Warning = "快览窗口尚未准备好"
+			return
+		}
 		o.window.Show()
 		o.state.Visible = true
 	})
@@ -64,7 +75,9 @@ func (o *overlayController) toggle() OverlayState {
 
 func (o *overlayController) setPinned(pinned bool) OverlayState {
 	return o.update(func() {
-		o.window.SetAlwaysOnTop(pinned)
+		if o.window != nil {
+			o.window.SetAlwaysOnTop(pinned)
+		}
 		o.state.Pinned = pinned
 	})
 }

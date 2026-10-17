@@ -20,6 +20,7 @@ const (
 )
 
 type Participant struct {
+	ConnectionID  uint64        `json:"connectionId"`
 	Key           string        `json:"key"`
 	PUUID         string        `json:"puuid,omitempty"`
 	DisplayName   string        `json:"displayName"`
@@ -29,29 +30,104 @@ type Participant struct {
 	PrivacyState  string        `json:"privacyState"`
 	HistoryState  HistoryState  `json:"historyState"`
 	History       []Match       `json:"history,omitempty"`
+	HistoryMeta   HistoryMeta   `json:"historyMeta"`
+	Cached        bool          `json:"cached"`
+	Stale         bool          `json:"stale"`
 	Stats         Stats         `json:"stats"`
 	Error         string        `json:"error,omitempty"`
+	Profile       *Profile      `json:"profile,omitempty"`
+}
+
+// Optional capabilities: absent fields are never presented as unranked or zero.
+type Profile struct {
+	PrivacyState  string `json:"privacyState"`
+	ProfileIconID *int   `json:"profileIconId"`
+	Level         *int   `json:"level"`
+	RankState     string `json:"rankState"`
+	Ranks         []Rank `json:"ranks"`
+}
+type Rank struct {
+	Queue    string `json:"queue"`
+	Tier     string `json:"tier"`
+	Division string `json:"division"`
+	LP       *int   `json:"lp"`
+	Wins     *int   `json:"wins"`
+	Losses   *int   `json:"losses"`
 }
 
 type Match struct {
-	GameID     int64     `json:"gameId"`
-	PlayedAt   time.Time `json:"playedAt"`
-	QueueID    int       `json:"queueId"`
-	ChampionID int       `json:"championId"`
-	Win        bool      `json:"win"`
-	Kills      int       `json:"kills"`
-	Deaths     int       `json:"deaths"`
-	Assists    int       `json:"assists"`
+	GameID     int64      `json:"gameId"`
+	PlayedAt   *time.Time `json:"playedAt"`
+	QueueID    int        `json:"queueId"`
+	ChampionID int        `json:"championId"`
+	Win        *bool      `json:"win"`
+	Kills      *int       `json:"kills"`
+	Deaths     *int       `json:"deaths"`
+	Assists    *int       `json:"assists"`
+	Duration   *int       `json:"duration"`
+	Gold       *int       `json:"gold"`
+	Damage     *int       `json:"damage"`
+	CS         *int       `json:"cs"`
+	Items      []*int     `json:"items"`
+	Spell1     *int       `json:"spell1"`
+	Spell2     *int       `json:"spell2"`
+}
+
+type HistoryMeta struct {
+	Returned  int            `json:"returned"`
+	Parsed    int            `json:"parsed"`
+	Excluded  int            `json:"excluded"`
+	Reasons   map[string]int `json:"reasons,omitempty"`
+	FetchedAt *time.Time     `json:"fetchedAt"`
+	Scope     string         `json:"scope"`
+}
+type HistoryResult struct {
+	Matches []Match     `json:"matches"`
+	Meta    HistoryMeta `json:"meta"`
+}
+
+type HistoryPage struct {
+	Matches    []Match     `json:"matches"`
+	Meta       HistoryMeta `json:"meta"`
+	Offset     int         `json:"offset"`
+	NextOffset int         `json:"nextOffset"`
+	HasMore    bool        `json:"hasMore"`
+}
+
+type MatchPlayer struct {
+	ParticipantID int      `json:"participantId"`
+	DisplayName   string   `json:"displayName"`
+	TeamID        int      `json:"teamId"`
+	Target        bool     `json:"target"`
+	Summary       Match    `json:"summary"`
+	DamageShare   *float64 `json:"damageShare"`
+	GoldShare     *float64 `json:"goldShare"`
+	Participation *float64 `json:"participation"`
+}
+
+type MatchDetail struct {
+	ConnectionID uint64        `json:"connectionId"`
+	GameID       int64         `json:"gameId"`
+	Players      []MatchPlayer `json:"players"`
+	Partial      bool          `json:"partial"`
+	FetchedAt    time.Time     `json:"fetchedAt"`
 }
 
 type Stats struct {
-	Games   int     `json:"games"`
-	Wins    int     `json:"wins"`
-	WinRate float64 `json:"winRate"`
-	KDA     float64 `json:"kda"`
+	Games        int      `json:"games"`
+	Wins         int      `json:"wins"`
+	Losses       int      `json:"losses"`
+	OutcomeGames int      `json:"outcomeGames"`
+	KDAGames     int      `json:"kdaGames"`
+	WinRate      *float64 `json:"winRate"`
+	KDA          *float64 `json:"kda"`
 }
 
 type Snapshot struct {
+	ConnectionID uint64        `json:"connectionId"`
+	KnownCount   int           `json:"knownCount"`
+	ReadyCount   int           `json:"readyCount"`
+	RosterError  string        `json:"rosterError"`
 	Generation   uint64        `json:"generation"`
 	Phase        string        `json:"phase"`
 	Stage        string        `json:"stage"`
@@ -69,20 +145,47 @@ func CalculateStats(matches []Match) Stats {
 	var kills, deaths, assists int
 	for _, match := range matches {
 		out.Games++
-		if match.Win {
-			out.Wins++
+		if match.Win != nil {
+			out.OutcomeGames++
+			if *match.Win {
+				out.Wins++
+			} else {
+				out.Losses++
+			}
 		}
-		kills += match.Kills
-		deaths += match.Deaths
-		assists += match.Assists
+		if match.Kills != nil && match.Deaths != nil && match.Assists != nil {
+			out.KDAGames++
+			kills += *match.Kills
+			deaths += *match.Deaths
+			assists += *match.Assists
+		}
 	}
-	if out.Games > 0 {
-		out.WinRate = float64(out.Wins) * 100 / float64(out.Games)
+	if out.OutcomeGames > 0 {
+		value := float64(out.Wins) * 100 / float64(out.OutcomeGames)
+		out.WinRate = &value
 	}
-	if deaths == 0 {
-		out.KDA = float64(kills + assists)
-	} else {
-		out.KDA = float64(kills+assists) / float64(deaths)
+	if out.KDAGames > 0 {
+		denominator := deaths
+		if denominator == 0 {
+			denominator = 1
+		}
+		value := float64(kills+assists) / float64(denominator)
+		out.KDA = &value
 	}
 	return out
+}
+
+func ApplyHistory(player *Participant, result HistoryResult) {
+	if result.Meta.FetchedAt == nil {
+		now := time.Now()
+		result.Meta.FetchedAt = &now
+	}
+	player.History, player.HistoryMeta = result.Matches, result.Meta
+	player.Cached, player.Stale = false, false
+	player.Stats = CalculateStats(result.Matches)
+	player.Error = ""
+	player.HistoryState = HistoryReady
+	if len(result.Matches) == 0 {
+		player.HistoryState = HistoryEmpty
+	}
 }

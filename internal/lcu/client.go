@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"leaguepingo/internal/diagnostics"
 )
 
 var ErrNotFound = errors.New("League 客户端未连接")
@@ -130,7 +132,9 @@ func NewClient(cred Credentials) *Client {
 	}}
 }
 
-func (c *Client) Get(ctx context.Context, path string) ([]byte, error) {
+func (c *Client) Get(ctx context.Context, path string) (data []byte, resultErr error) {
+	started, status := time.Now(), 0
+	defer func() { diagnostics.Default.Record(path, time.Since(started), status, resultErr != nil) }()
 	if !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") {
 		return nil, errors.New("invalid LCU path")
 	}
@@ -145,10 +149,11 @@ func (c *Client) Get(ctx context.Context, path string) ([]byte, error) {
 		return nil, err
 	}
 	defer response.Body.Close()
+	status = response.StatusCode
 	if response.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("LCU HTTP %d", response.StatusCode)
 	}
-	data, err := io.ReadAll(io.LimitReader(response.Body, 8<<20))
+	data, err = io.ReadAll(io.LimitReader(response.Body, 8<<20))
 	if err != nil {
 		return nil, err
 	}
@@ -156,11 +161,15 @@ func (c *Client) Get(ctx context.Context, path string) ([]byte, error) {
 }
 
 func HistoryPath(puuid string, count int) string {
+	return HistoryPagePath(puuid, 0, count)
+}
+
+func HistoryPagePath(puuid string, offset, count int) string {
 	if count < 1 {
 		count = 1
 	}
 	if count > 20 {
 		count = 20
 	}
-	return fmt.Sprintf("/lol-match-history/v1/products/lol/%s/matches?begIndex=0&endIndex=%d", url.PathEscape(puuid), count-1)
+	return fmt.Sprintf("/lol-match-history/v1/products/lol/%s/matches?begIndex=%d&endIndex=%d", url.PathEscape(puuid), offset, offset+count-1)
 }

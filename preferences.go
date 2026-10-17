@@ -1,0 +1,73 @@
+package main
+
+import (
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"runtime"
+	"time"
+
+	"leaguepingo/internal/diagnostics"
+	"leaguepingo/internal/settings"
+)
+
+var Version = "0.2.0-dev"
+var Commit = "source-build"
+var BuildTime = "unrecorded"
+
+type AppInfo struct {
+	Version          string                        `json:"version"`
+	Commit           string                        `json:"commit"`
+	BuildTime        string                        `json:"buildTime"`
+	Shortcut         string                        `json:"shortcut"`
+	SettingsWarning  string                        `json:"settingsWarning"`
+	GoHeapBytes      uint64                        `json:"goHeapBytes"`
+	Goroutines       int                           `json:"goroutines"`
+	Requests         map[string]diagnostics.Metric `json:"requests"`
+	PerformanceScope string                        `json:"performanceScope"`
+}
+
+func (s *AppService) Info() AppInfo {
+	var mem runtime.MemStats
+	runtime.ReadMemStats(&mem)
+	return AppInfo{Version: Version, Commit: Commit, BuildTime: BuildTime, Shortcut: s.settings.Snapshot().Shortcut, SettingsWarning: s.settingsWarning,
+		GoHeapBytes: mem.HeapAlloc, Goroutines: runtime.NumGoroutine(), Requests: diagnostics.Default.Snapshot(), PerformanceScope: "仅 Go 堆；不包含 WebView2，不代表总内存、游戏 FPS 或网络延迟"}
+}
+func (s *AppService) ConfigureShortcut(key string) (AppInfo, error) {
+	key, err := settings.NormalizeShortcut(key)
+	if err != nil {
+		return AppInfo{}, err
+	}
+	if err = s.configureShortcut(key); err != nil {
+		return AppInfo{}, err
+	}
+	return s.Info(), nil
+}
+func (s *AppService) ExportDiagnostics() (string, error) {
+	// Explicit local export; no player snapshot, error text, paths or credentials.
+	report := struct {
+		Created time.Time `json:"created"`
+		Info    AppInfo   `json:"info"`
+	}{time.Now().UTC(), s.Info()}
+	b, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return "", errors.New("无法编码诊断摘要")
+	}
+	dir := filepath.Join(s.configDir, "diagnostics")
+	if os.MkdirAll(dir, 0700) != nil {
+		return "", errors.New("无法创建诊断目录")
+	}
+	f, err := os.CreateTemp(dir, "leaguepingo-*.json")
+	if err != nil {
+		return "", errors.New("无法创建诊断文件")
+	}
+	name := f.Name()
+	_, err = f.Write(b)
+	closeErr := f.Close()
+	if err != nil || closeErr != nil {
+		_ = os.Remove(name)
+		return "", errors.New("无法保存诊断摘要")
+	}
+	return name, nil
+}

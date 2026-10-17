@@ -7,13 +7,15 @@
     "dev": "vite",
     "build:dev": "vue-tsc && vite build --minify false --mode development",
     "build": "vue-tsc && vite build --mode production",
+    "test:smoke": "node tests/overlay-smoke.cjs",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@wailsio/runtime": "latest",
+    "@wailsio/runtime": "3.0.0-beta.29",
     "vue": "^3.2.45"
   },
   "devDependencies": {
+    "playwright": "1.62.1",
     "@vitejs/plugin-vue": "^6.0.0",
     "typescript": "~5.9.3",
     "vite": "^8.0.5",

@@ -7,5 +7,6 @@ export {
 };
 
 export type {
+    AppInfo,
     OverlayState
 } from "./models.js";

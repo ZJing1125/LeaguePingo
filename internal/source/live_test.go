@@ -60,7 +60,7 @@ func TestLiveManualLookup(t *testing.T) {
 	if err != nil {
 		t.Fatal("history lookup failed (details redacted)")
 	}
-	t.Logf("live complete-ID lookup matched self-account; history parsed, games=%d (identities redacted)", len(history))
+	t.Logf("live complete-ID lookup matched self-account; history parsed, games=%d excluded=%d (identities redacted)", len(history.Matches), history.Meta.Excluded)
 }
 
 func TestLiveRoster(t *testing.T) {

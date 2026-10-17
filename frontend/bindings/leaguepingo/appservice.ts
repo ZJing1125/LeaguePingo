@@ -18,8 +18,28 @@ import * as core$0 from "./internal/core/models.js";
 // @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
+export function ConfigureShortcut(key: string): $CancellablePromise<$models.AppInfo> {
+    return $Call.ByID(4027411068, key);
+}
+
+export function ExportDiagnostics(): $CancellablePromise<string> {
+    return $Call.ByID(407729836);
+}
+
 export function HideOverlay(): $CancellablePromise<$models.OverlayState> {
     return $Call.ByID(4237697434);
+}
+
+export function HistoryPage(key: string, connectionID: number, offset: number): $CancellablePromise<core$0.HistoryPage> {
+    return $Call.ByID(536984513, key, connectionID, offset);
+}
+
+export function Info(): $CancellablePromise<$models.AppInfo> {
+    return $Call.ByID(3943185810);
+}
+
+export function LoadProfile(key: string, connectionID: number): $CancellablePromise<core$0.Participant> {
+    return $Call.ByID(915890303, key, connectionID);
 }
 
 export function Lookup(riotID: string): $CancellablePromise<core$0.Participant> {
@@ -30,8 +50,24 @@ export function LookupPlayer(key: string): $CancellablePromise<core$0.Participan
     return $Call.ByID(4170391553, key);
 }
 
+export function MatchDetail(key: string, connectionID: number, gameID: number): $CancellablePromise<core$0.MatchDetail> {
+    return $Call.ByID(2263217354, key, connectionID, gameID);
+}
+
 export function OverlayStatus(): $CancellablePromise<$models.OverlayState> {
     return $Call.ByID(2104693908);
+}
+
+export function PrioritizePlayer(key: string): $CancellablePromise<void> {
+    return $Call.ByID(4255655626, key);
+}
+
+export function RefreshLookup(riotID: string): $CancellablePromise<core$0.Participant> {
+    return $Call.ByID(4227659015, riotID);
+}
+
+export function RefreshPlayer(key: string): $CancellablePromise<core$0.Participant> {
+    return $Call.ByID(4008602412, key);
 }
 
 export function RefreshRoster(): $CancellablePromise<core$0.Snapshot> {

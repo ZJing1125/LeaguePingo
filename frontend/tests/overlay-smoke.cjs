@@ -1,88 +1,170 @@
-// Run with PLAYWRIGHT_MODULE pointing to an installed Playwright package and
-// BROWSER_EXECUTABLE to a local Chromium/Edge. No downloads or live player data.
+// No real accounts or downloads. Uses a locally installed Edge and Playwright.
 const assert = require('node:assert/strict')
 const fs = require('node:fs/promises')
 const path = require('node:path')
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
 
 async function main() {
-  const browser = await chromium.launch({ headless: true, executablePath: process.env.BROWSER_EXECUTABLE })
-  try {
-    const context = await browser.newContext({ viewport: { width: 540, height: 660 } })
-    const page = await context.newPage()
-    const errors = []
-    page.on('pageerror', error => errors.push(error.message))
-    const bindings = await fs.readFile(path.join(__dirname, '../bindings/leaguepingo/appservice.ts'), 'utf8')
-    const methods = Object.fromEntries([...bindings.matchAll(/export function (\w+)\([^]*?\$Call.ByID\((\d+)/g)].map(match => [match[2], match[1]]))
-    const stats = { games: 20, winRate: 55, kda: 3.1 }
-    const snapshot = { connected: true, stage: 'in-game', phase: 'InProgress', frozen: true, message: '', participants: Array.from({ length: 10 }, (_, i) => ({ key: `test-${i}`, displayName: `测试玩家${i}#TEST`, team: i < 5 ? 'ally' : 'enemy', identityState: 'known', historyState: i < 5 ? 'ready' : 'pending', history: [], stats })) }
-    let state = { revision: 0, visible: true, pinned: true, shortcutAvailable: true, warning: '' }
-    const calls = []
-    await page.route('http://127.0.0.1:43199/**', async route => {
-      const url = new URL(route.request().url())
-      if (url.pathname === '/wails/custom.js') return route.fulfill({ contentType: 'text/javascript', body: '' })
-      if (url.pathname === '/wails/runtime') {
-        const request = route.request().postDataJSON()
-        const method = methods[request.args?.methodID]
-        calls.push(method)
-        let result = null
-        if (method === 'Snapshot') result = snapshot
-        else if (method === 'OverlayStatus') result = state
-        else if (method === 'SetOverlayPinned') result = state = { ...state, revision: state.revision + 1, pinned: request.args.args[0] }
-        else if (method === 'HideOverlay') result = state = { ...state, revision: state.revision + 1, visible: false }
-        else if (method === 'RefreshRoster') result = snapshot
-        else if (method === 'LookupPlayer') {
-          const player = snapshot.participants.find(p => p.key === request.args.args[0])
-          player.historyState = 'ready'
-          result = player
-        }
-        else if (method === 'Lookup') return route.fulfill({ status: 400, json: { kind: 'RuntimeError', message: '玩家身份查询失败：LCU HTTP 400' } })
-        return route.fulfill({ json: result })
-      }
-      const relative = url.pathname === '/' ? 'index.html' : url.pathname.slice(1)
-      if (relative.includes('..')) return route.abort()
-      const body = await fs.readFile(path.join(__dirname, '../dist', relative))
-      const contentType = relative.endsWith('.js') ? 'text/javascript' : relative.endsWith('.css') ? 'text/css' : 'text/html'
-      return route.fulfill({ body, contentType })
-    })
-    await page.goto('http://127.0.0.1:43199/?view=overlay')
-    await page.getByRole('button', { name: '取消置顶', exact: true }).waitFor()
-    assert.equal(await page.locator('.overlay-player').count(), 10)
-    assert.equal(await page.locator('.overlay-head').evaluate(el => getComputedStyle(el).getPropertyValue('--wails-draggable').trim()), 'drag')
-    assert.equal(await page.getByRole('button', { name: '关闭对局快览' }).evaluate(el => getComputedStyle(el).getPropertyValue('--wails-draggable').trim()), 'no-drag')
-    const bounds = await page.locator('.overlay-footer').boundingBox()
-    assert(bounds && bounds.y + bounds.height <= 660, 'footer/escape controls must stay within viewport')
-    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false)
-    await page.getByRole('button', { name: '取消置顶', exact: true }).click()
-    await page.getByRole('button', { name: '置顶', exact: true }).waitFor()
-    assert.equal(state.pinned, false)
-    assert.equal(await page.getByRole('button', { name: /穿透|恢复鼠标/ }).count(), 0)
-    await page.getByRole('button', { name: '关闭对局快览' }).click()
-    await page.waitForTimeout(100)
-    assert.equal(state.visible, false)
-    await page.keyboard.press('Escape')
-    await page.waitForTimeout(100)
-    assert(calls.filter(name => name === 'HideOverlay').length >= 2)
-    state = { ...state, revision: state.revision + 1, warning: '快捷键注册失败，请使用关闭按钮或托盘' }
-    await page.evaluate(state => window._wails.dispatchWailsEvent({ name: 'leaguepingo:overlay', data: state }), state)
-    await page.getByText(state.warning).waitFor()
-    if (process.env.OVERLAY_SCREENSHOT) await page.screenshot({ path: process.env.OVERLAY_SCREENSHOT })
-    await page.setViewportSize({ width: 1100, height: 760 })
-    await page.goto('http://127.0.0.1:43199/')
-    await page.getByRole('button', { name: '隐藏快览', exact: true }).click()
-    assert.equal(await page.getByRole('button', { name: /穿透|恢复鼠标/ }).count(), 0)
-    await page.getByRole('button', { name: '刷新对局名单', exact: true }).click()
-    await page.locator('.player-row').nth(5).click()
-    await page.getByRole('button', { name: '手动查询此玩家', exact: true }).click()
-    await page.waitForFunction(() => !document.querySelector('.detail-panel button'))
-    assert(calls.includes('LookupPlayer'))
-    assert(calls.includes('RefreshRoster'))
-    await page.getByLabel('玩家完整 ID').fill('TestPlayer#TEST')
-    await page.getByRole('button', { name: '查询战绩', exact: true }).click()
-    await page.getByText('玩家身份查询失败：LCU HTTP 400', { exact: true }).waitFor()
-    assert.equal(await page.getByText('RuntimeError:', { exact: false }).count(), 0)
-    assert.deepEqual(errors, [])
-    console.log('PASS: interactive overlay without click-through, drag/close/pin/Escape; in-game ID lookup, selected-enemy lookup, roster refresh and errors (mock bridge).')
-  } finally { await browser.close() }
+ const browser = await chromium.launch({ headless: true, executablePath: process.env.BROWSER_EXECUTABLE })
+ try {
+  const page = await browser.newPage({ viewport: { width: 1100, height: 760 } })
+  const errors = [], calls = [], external = []
+  page.on('pageerror', e => errors.push(e.message))
+  await page.route('**/*', route => { external.push(route.request().url()); return route.abort() })
+  const binding = await fs.readFile(path.join(__dirname, '../bindings/leaguepingo/appservice.ts'), 'utf8')
+  const methods = Object.fromEntries([...binding.matchAll(/export function (\w+)\([^]*?\$Call.ByID\((\d+)/g)].map(m => [m[2], m[1]]))
+  const history = Array.from({ length: 20 }, (_, i) => ({ gameId: i + 1, queueId: i % 2 ? 450 : 420, championId: 23 + i % 3, win: i === 0 ? null : i % 3 !== 0, playedAt: i === 0 ? null : new Date(Date.now() - i * 3600000).toISOString(), kills: i === 0 ? null : i, deaths: 2, assists: 8, duration: 1800, cs: 152, gold: 12345, damage: null, items: [3006, 0, null, 3078, 0, 0, 3364], spell1: 4, spell2: 14 }))
+  const stats = { games: 20, wins: 12, losses: 7, outcomeGames: 19, kdaGames: 19, winRate: 63.16, kda: 4.2 }
+  function player(name, key = name) { return { key, puuid: key, displayName: name, identityState: 'known', privacyState: 'unknown', historyState: 'ready', history, stats, historyMeta: { returned: 21, parsed: 20, excluded: 1, fetchedAt: new Date().toISOString(), scope: '最近获取的至多 20 场，所有模式' } } }
+  let snapshot = { connected: true, stage: 'in-game', phase: 'InProgress', frozen: true, knownCount: 10, readyCount: 5, participants: Array.from({ length: 10 }, (_, i) => ({ ...player(`测试玩家${i}#TEST`, `test-${i}`), team: i < 5 ? 'ally' : 'enemy', championId: 23, historyState: i < 5 ? 'ready' : 'pending', history: i < 5 ? history : [] })) }
+  let state = { revision: 0, visible: true, pinned: true, shortcutAvailable: true, warning: '' }
+  let releaseRefresh
+  let info = { version: '0.2.0-dev', commit: 'synthetic', buildTime: 'test', shortcut: 'Ctrl+Shift+P', settingsWarning: '', goHeapBytes: 10485760, goroutines: 20, requests: { history: { calls: 10, failed: 1, totalMs: 500, maxMs: 100, lastStatus: 200 } }, performanceScope: '仅 Go 堆，不包含 WebView2' }
+  await page.route('http://127.0.0.1:43199/**', async route => {
+   const url = new URL(route.request().url())
+   if (url.pathname === '/wails/custom.js') return route.fulfill({ contentType: 'text/javascript', body: '' })
+   if (url.pathname === '/wails/runtime') {
+    const request = route.request().postDataJSON(), method = methods[request.args?.methodID], args = request.args?.args ?? []
+    calls.push(method)
+    let result = null
+    if (method === 'Snapshot') result = snapshot
+    else if (method === 'Info') result = info
+    else if (method === 'ConfigureShortcut') {
+     if (args[0] === 'Ctrl+Shift+X') return route.fulfill({ status: 400, json: { kind: 'RuntimeError', message: '快捷键注册失败，可能被占用；原设置保留' } })
+     result = info = { ...info, shortcut: args[0] }
+    }
+    else if (method === 'ExportDiagnostics') result = 'C:/synthetic/diagnostics/summary.json'
+    else if (method === 'OverlayStatus') result = state
+    else if (method === 'SetOverlayPinned') result = state = { ...state, revision: state.revision + 1, pinned: args[0] }
+    else if (method === 'HideOverlay') result = state = { ...state, revision: state.revision + 1, visible: false }
+    else if (method === 'RefreshRoster') result = snapshot
+    else if (method === 'LoadProfile') result = {...player('Alpha#TEST',args[0]),privacyState:'private',profile:{level:100,rankState:'unavailable',privacyState:'private',ranks:[]}}
+    else if (method === 'HistoryPage') {
+     if (args[2] !== 21) throw new Error('pagination must advance by raw returned count')
+     result = {matches:[history[19],{...history[1],gameId:101}],meta:{returned:2,parsed:2,excluded:0,fetchedAt:new Date().toISOString()},offset:21,nextOffset:23,hasMore:false}
+    }
+    else if (method === 'MatchDetail') result = {gameId:args[2],partial:false,fetchedAt:new Date().toISOString(),players:Array.from({length:10},(_,i)=>({participantId:i+1,teamId:i<5?100:200,displayName:`详情玩家${i}#TEST`,target:i===0,summary:history[1],damageShare:20,goldShare:20,participation:40}))}
+    else if (method === 'Lookup' || method === 'RefreshLookup') {
+     if (method === 'RefreshLookup' && args[0] === '测试玩家5#TEST') {
+      await new Promise(resolve => { releaseRefresh = resolve })
+      return route.fulfill({ status: 400, json: { kind: 'RuntimeError', message: 'A query failed' } })
+     }
+     if (args[0] === 'Missing#TEST') return route.fulfill({ status: 400, json: { kind: 'RuntimeError', message: '无法确认此 ID 对应的账号' } })
+     result = player(args[0])
+    } else if (method === 'LookupPlayer' || method === 'RefreshPlayer') {
+     result = player('测试玩家5#TEST', args[0])
+     snapshot = { ...snapshot, participants: [] }
+     await page.evaluate(s => window._wails.dispatchWailsEvent({ name: 'leaguepingo:snapshot', data: s }), snapshot)
+    }
+    return route.fulfill({ json: result })
+   }
+   const relative = url.pathname === '/' ? 'index.html' : url.pathname.slice(1)
+   if (relative.includes('..')) return route.abort()
+   const body = await fs.readFile(path.join(__dirname, '../dist', relative))
+   return route.fulfill({ body, contentType: relative.endsWith('.js') ? 'text/javascript' : relative.endsWith('.css') ? 'text/css' : relative.endsWith('.png') ? 'image/png' : 'text/html' })
+  })
+  await page.goto('http://127.0.0.1:43199/')
+  async function search(id) { await page.getByLabel('玩家完整 ID', { exact: true }).fill(id); await page.getByRole('button', { name: '查询战绩', exact: true }).click() }
+  await search('Alpha#TEST')
+  await page.getByRole('heading', { name: 'Alpha#TEST', exact: true }).waitFor()
+  assert.equal(await page.locator('.match-card').count(), 20)
+  await page.getByRole('button',{name:'更新玩家资料',exact:true}).click()
+  await page.getByText('生涯不公开（客户端明确返回）',{exact:false}).waitFor()
+  const visibleRows = await page.locator('.match-card').evaluateAll(rows => rows.filter(row => { const b = row.getBoundingClientRect(); return b.top >= 0 && b.bottom <= innerHeight }).length)
+  assert(visibleRows >= 4, `expected at least four complete rows in first viewport, got ${visibleRows}`)
+  await page.locator('.quality-warning').filter({ hasText: '数据不完整' }).waitFor()
+  await page.getByLabel('战绩模式筛选').selectOption('420')
+  assert.equal(await page.locator('.match-card').count(), 10)
+  await page.locator('.history-notice summary').click()
+  assert((await page.locator('.history-notice').textContent()).includes('胜率按 9 场'), 'notice must use the filtered denominator')
+  await page.locator('.match-main').first().click()
+  assert.equal(await page.locator('.match-expanded').count(), 1)
+  await page.locator('.match-expanded').getByText('金币 12345', { exact: true }).waitFor()
+  assert(!calls.includes('MatchDetail'),'expanding a match must not fetch full detail automatically')
+  await page.getByRole('button',{name:'读取双方详情',exact:true}).click()
+  await page.waitForFunction(()=>document.querySelectorAll('.full-match-detail tbody tr').length===10)
+  assert.equal(await page.locator('.full-match-detail tr.target').count(),1)
+  assert.equal(await page.locator('.match-loadout .game-icon').count(), 9)
+  assert(await page.locator('.match-hero .game-icon').first().evaluate(el => getComputedStyle(el).backgroundImage.includes('/assets/')))
+  await search('Beta#TEST')
+  await page.getByRole('heading', { name: 'Beta#TEST', exact: true }).waitFor()
+  await page.getByRole('tab', { name: 'Alpha#TEST', exact: true }).click()
+  assert.equal(await page.getByLabel('战绩模式筛选').inputValue(), '420')
+  assert.equal(await page.locator('.match-expanded').count(), 1)
+  await page.getByLabel('战绩模式筛选').selectOption('all')
+  await page.getByRole('button',{name:'加载更多战绩',exact:true}).click()
+  await page.waitForFunction(()=>document.querySelectorAll('.match-card').length===21)
+  assert.equal(await page.getByRole('button',{name:'加载更多战绩',exact:true}).count(),0)
+  await page.getByLabel('战绩模式筛选').selectOption('420')
+  await search('Missing#TEST')
+  await page.getByRole('alert').filter({ hasText: '无法确认' }).waitFor()
+  assert.equal(await page.getByRole('heading', { name: 'Alpha#TEST', exact: true }).count(), 1)
+  if (process.env.WORKSPACE_SCREENSHOT) await page.screenshot({ path: process.env.WORKSPACE_SCREENSHOT })
+  await page.setViewportSize({ width: 880, height: 620 })
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false)
+  await page.setViewportSize({ width: 1100, height: 760 })
+  for (let i = 0; i < 6; i++) { await search(`Extra${i}#TEST`); await page.getByRole('heading', { name: `Extra${i}#TEST`, exact: true }).waitFor() }
+  assert.equal(await page.getByRole('tab').count(), 8)
+  await page.getByRole('tab', { name: 'Alpha#TEST', exact: true }).click()
+  snapshot = { ...snapshot, generation: 10, updatedAt: new Date().toISOString() }
+  await page.evaluate(s => {
+   window._wails.dispatchWailsEvent({ name: 'leaguepingo:snapshot', data: s })
+   window._wails.dispatchWailsEvent({ name: 'leaguepingo:snapshot', data: { ...s, generation: 9, phase: 'Lobby' } })
+  }, snapshot)
+  assert((await page.locator('.sidebar-bottom').textContent()).includes('对局中'), 'old snapshots must not overwrite new game state')
+  await page.getByRole('navigation', { name: '工作区' }).getByRole('button', { name: /当前对局/ }).click()
+  await page.getByRole('button', { name: '刷新对局名单', exact: true }).click()
+  await page.locator('.player-row').nth(5).click()
+  await page.getByRole('button', { name: '手动查询此玩家', exact: true }).click()
+  await page.locator('.player-drawer').getByRole('heading', { name: '测试玩家5#TEST' }).waitFor()
+  assert.equal(await page.locator('.player-drawer .match-card').count(), 20, 'successful selected-player result must survive roster replacement')
+  snapshot = { ...snapshot, generation: 11, updatedAt: new Date().toISOString(), participants: [
+   {...player('测试玩家5#TEST', 'test-5'), team:'enemy', history:history.slice(0,1), historyMeta:{fetchedAt:new Date(Date.now()+1000).toISOString()}},
+   {...player('测试玩家6#TEST', 'test-6'), team:'enemy'}
+  ] }
+  await page.evaluate(s => window._wails.dispatchWailsEvent({name:'leaguepingo:snapshot',data:s}), snapshot)
+  await page.waitForFunction(() => document.querySelectorAll('.player-drawer .match-card').length === 1)
+  await page.locator('.player-drawer').getByRole('button', {name:'刷新战绩',exact:true}).click()
+  await page.waitForFunction(() => document.querySelector('.player-drawer button.primary')?.disabled)
+  await page.locator('.player-row').nth(1).click()
+  while (!releaseRefresh) await new Promise(resolve=>setTimeout(resolve,10))
+  releaseRefresh()
+  await page.waitForFunction(() => !document.querySelector('.player-drawer button.primary')?.disabled)
+  assert(!(await page.locator('.player-drawer').textContent()).includes('A query failed'), 'A failure must not appear on B')
+  await page.getByRole('navigation', { name: '工作区' }).getByRole('button', { name: /玩家战绩/ }).click()
+  assert.equal(await page.locator('.players-workspace .player-profile h1').textContent(), 'Beta#TEST', 'background ninth result must keep a valid active tab')
+  assert(calls.includes('LookupPlayer') && calls.includes('RefreshRoster'))
+  await page.getByRole('button', { name: '设置与诊断', exact: true }).click()
+  await page.getByRole('dialog', { name: '设置与诊断' }).waitFor()
+  await page.getByText(/0.2.0-dev · synthetic/).waitFor()
+  await page.getByLabel('快览快捷键', { exact: true }).selectOption('Ctrl+Shift+X')
+  await page.getByRole('button', { name: '保存快捷键' }).click()
+  await page.getByRole('alert').filter({ hasText: '原设置保留' }).waitFor()
+  assert.equal(info.shortcut, 'Ctrl+Shift+P')
+  await page.getByLabel('快览快捷键', { exact: true }).selectOption('Ctrl+Shift+L')
+  await page.getByRole('button', { name: '保存快捷键' }).click()
+  await page.getByText('快捷键已保存；窗口位置和置顶状态也会记住。').waitFor()
+  await page.getByRole('button', { name: '导出脱敏诊断' }).click()
+  await page.getByText(/已保存本地诊断/).waitFor()
+  await page.getByRole('button', { name: '关闭设置' }).click()
+  snapshot = {...snapshot,knownCount:10,readyCount:5,participants:Array.from({length:10},(_,i)=>({...player(`快览玩家${i}#TEST`,`overlay-${i}`),team:i<5?'ally':'enemy',championId:23,historyState:i<5?'ready':'pending',history:i<5?history:[]}))}
+  await page.goto('http://127.0.0.1:43199/?view=overlay')
+  await page.setViewportSize({ width: 540, height: 660 })
+  await page.getByRole('button', { name: '取消置顶', exact: true }).waitFor()
+  assert.equal(await page.locator('.overlay-head').evaluate(el => getComputedStyle(el).getPropertyValue('--wails-draggable').trim()), 'drag')
+  assert.equal(await page.getByRole('button', { name: '关闭对局快览' }).evaluate(el => getComputedStyle(el).getPropertyValue('--wails-draggable').trim()), 'no-drag')
+  await page.getByRole('button', { name: '取消置顶', exact: true }).click()
+  await page.getByRole('button', { name: '置顶', exact: true }).waitFor()
+  assert.equal(await page.getByRole('button', { name: /穿透|恢复鼠标/ }).count(), 0)
+  const bounds = await page.locator('.overlay-footer').boundingBox(); assert(bounds.y + bounds.height <= 660)
+  if (process.env.OVERLAY_SCREENSHOT) await page.screenshot({path:process.env.OVERLAY_SCREENSHOT})
+  await page.getByRole('button', { name: '关闭对局快览' }).click()
+  await page.waitForFunction(() => !document.querySelector('.overlay-close').disabled)
+  await page.keyboard.press('Escape'); await page.waitForTimeout(100)
+  assert(calls.filter(c => c === 'HideOverlay').length >= 2)
+  assert.deepEqual(errors, [])
+  assert.deepEqual(external, [], 'game icons must not use remote runtime requests')
+  console.log('PASS: 20-match rendering/density, filtering/tab state, failure retention, roster transition, local game icons/details, settings/shortcut conflict/diagnostic export, minimum layout and overlay controls (mock bridge).')
+ } finally { await browser.close() }
 }
-main().catch(error => { console.error(error); process.exitCode = 1 })
+main().catch(e => { console.error(e); process.exitCode = 1 })

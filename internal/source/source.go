@@ -9,13 +9,35 @@ import (
 
 var ErrNotConnected = errors.New("战绩数据源未连接")
 
-// Source is the game-data boundary. A future Riot international implementation
-// can supply its own identity and history API without changing the engine.
-type Source interface {
+// SessionSource owns local client state; remote player data can be composed separately.
+type SessionSource interface {
 	Region() string
 	Phase(context.Context) (string, error)
 	Roster(context.Context) (int64, []core.Participant, error)
+}
+type PlayerSource interface {
 	Name(context.Context, string) (string, error)
-	History(context.Context, string) ([]core.Match, error)
+	History(context.Context, string) (core.HistoryResult, error)
 	FindByRiotID(context.Context, string) (core.Participant, error)
+}
+type Source interface {
+	SessionSource
+	PlayerSource
+}
+
+// Optional enrichment must not make a valid history lookup fail.
+type ProfileSource interface {
+	Profile(context.Context, string) core.Profile
+}
+
+type HistoryPager interface {
+	HistoryPage(context.Context, string, int) (core.HistoryPage, error)
+}
+
+type MatchDetailSource interface {
+	MatchDetail(context.Context, int64, string) (core.MatchDetail, error)
+}
+
+type LobbySource interface {
+	Lobby(context.Context) ([]core.Participant, error)
 }

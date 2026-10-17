@@ -1,0 +1,42 @@
+# Draft only. Copy to .github/workflows/verify.yml after the repository owner
+# authorizes workflow updates using an appropriate GitHub credential.
+name: Verify Windows prototype
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [dev]
+permissions:
+  contents: read
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Locked frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Matching Wails CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.29
+      - name: Bindings, build, tests and browser interaction (no League account)
+        env:
+          BROWSER_EXECUTABLE: C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe
+        run: bash scripts/verify.sh && git diff --exit-code -- frontend/bindings
+      - name: Compile production binary (not a release)
+        run: go build -tags production -trimpath -buildvcs=false -o bin/leaguepingo-ci.exe .

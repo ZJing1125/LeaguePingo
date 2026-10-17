@@ -50,3 +50,20 @@ func TestStableSingleInstanceConfiguration(t *testing.T) {
 		t.Fatal("duplicate launch did not activate the first instance")
 	}
 }
+
+func TestOverlayIsCreatedOnlyOnFirstShow(t *testing.T) {
+	count := 0
+	w := &fakeOverlay{}
+	o := &overlayController{dispatch: func(fn func()) { fn() }, create: func() overlayWindow { count++; return w }}
+	o.hide()
+	o.setPinned(true)
+	if count != 0 {
+		t.Fatal("hidden controls created unused WebView")
+	}
+	o.toggle()
+	o.hide()
+	o.toggle()
+	if count != 1 || !w.visible {
+		t.Fatal("overlay creation was not lazy and reusable")
+	}
+}

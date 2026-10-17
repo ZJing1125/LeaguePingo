@@ -56,7 +56,7 @@ func TestTencentLCUAdapter(t *testing.T) {
 		t.Fatalf("name=%q err=%v", name, err)
 	}
 	matches, err := s.History(ctx, "p1")
-	if err != nil || len(matches) != 1 || matches[0].ChampionID != 12 {
+	if err != nil || len(matches.Matches) != 1 || matches.Matches[0].ChampionID != 12 {
 		t.Fatalf("matches=%+v err=%v", matches, err)
 	}
 	player, err := s.FindByRiotID(ctx, "Player#CN1")

@@ -17,9 +17,25 @@ func TestRosterKeepsUnavailableSlotsWithoutDuplicatingKnownPlayers(t *testing.T)
 }
 
 func TestStatsUseOnlyReturnedMatches(t *testing.T) {
-	got := CalculateStats([]Match{{Win: true, Kills: 5, Deaths: 1, Assists: 5}, {Win: false, Kills: 2, Deaths: 3, Assists: 4}})
-	if got.Games != 2 || got.Wins != 1 || got.WinRate != 50 || got.KDA != 4 {
+	got := CalculateStats([]Match{{Win: ptr(true), Kills: ptr(5), Deaths: ptr(1), Assists: ptr(5)}, {Win: ptr(false), Kills: ptr(2), Deaths: ptr(3), Assists: ptr(4)}})
+	if got.Games != 2 || got.Wins != 1 || got.WinRate == nil || *got.WinRate != 50 || got.KDA == nil || *got.KDA != 4 {
 		t.Fatalf("unexpected stats: %+v", got)
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
+
+func TestStatsDistinguishEmptyUnknownAndZero(t *testing.T) {
+	if got := CalculateStats(nil); got.WinRate != nil || got.KDA != nil {
+		t.Fatal("empty sample has numeric statistics")
+	}
+	got := CalculateStats([]Match{{Win: ptr(false), Kills: ptr(0), Deaths: ptr(0), Assists: ptr(0)}, {}})
+	if got.Games != 2 || got.OutcomeGames != 1 || got.KDAGames != 1 || got.WinRate == nil || *got.WinRate != 0 || got.KDA == nil || *got.KDA != 0 {
+		t.Fatalf("valid zero lost or unknown included: %+v", got)
+	}
+	got = CalculateStats([]Match{{Kills: ptr(10), Deaths: ptr(1), Assists: ptr(0)}, {Kills: ptr(0), Deaths: ptr(9), Assists: ptr(0)}})
+	if *got.KDA != 1 {
+		t.Fatal("KDA must use aggregate totals")
 	}
 }
 
