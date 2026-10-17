@@ -40,11 +40,20 @@ type Participant struct {
 
 // Optional capabilities: absent fields are never presented as unranked or zero.
 type Profile struct {
-	PrivacyState  string `json:"privacyState"`
-	ProfileIconID *int   `json:"profileIconId"`
-	Level         *int   `json:"level"`
-	RankState     string `json:"rankState"`
-	Ranks         []Rank `json:"ranks"`
+	UpdatedAt       *time.Time                `json:"updatedAt"`
+	Fields          map[string]FieldFreshness `json:"fields"`
+	PrivacyState    string                    `json:"privacyState"`
+	ProfileIconID   *int                      `json:"profileIconId"`
+	ProfileIconData string                    `json:"profileIconData"`
+	Level           *int                      `json:"level"`
+	RankState       string                    `json:"rankState"`
+	Ranks           []Rank                    `json:"ranks"`
+}
+
+// A retained value remains useful but is not verified by the latest request.
+type FieldFreshness struct {
+	State     string     `json:"state"`
+	FetchedAt *time.Time `json:"fetchedAt"`
 }
 type Rank struct {
 	Queue    string `json:"queue"`
@@ -56,21 +65,28 @@ type Rank struct {
 }
 
 type Match struct {
-	GameID     int64      `json:"gameId"`
-	PlayedAt   *time.Time `json:"playedAt"`
-	QueueID    int        `json:"queueId"`
-	ChampionID int        `json:"championId"`
-	Win        *bool      `json:"win"`
-	Kills      *int       `json:"kills"`
-	Deaths     *int       `json:"deaths"`
-	Assists    *int       `json:"assists"`
-	Duration   *int       `json:"duration"`
-	Gold       *int       `json:"gold"`
-	Damage     *int       `json:"damage"`
-	CS         *int       `json:"cs"`
-	Items      []*int     `json:"items"`
-	Spell1     *int       `json:"spell1"`
-	Spell2     *int       `json:"spell2"`
+	GameID        int64      `json:"gameId"`
+	PlayedAt      *time.Time `json:"playedAt"`
+	QueueID       int        `json:"queueId"`
+	ChampionID    int        `json:"championId"`
+	Win           *bool      `json:"win"`
+	Kills         *int       `json:"kills"`
+	Deaths        *int       `json:"deaths"`
+	Assists       *int       `json:"assists"`
+	Duration      *int       `json:"duration"`
+	Gold          *int       `json:"gold"`
+	Damage        *int       `json:"damage"`
+	CS            *int       `json:"cs"`
+	Items         []*int     `json:"items"`
+	Spell1        *int       `json:"spell1"`
+	Spell2        *int       `json:"spell2"`
+	MapID         *int       `json:"mapId"`
+	Position      string     `json:"position"`
+	Lane          string     `json:"lane"`
+	EarlyEnd      *bool      `json:"earlyEnd"`
+	RuneIDs       []int      `json:"runeIds"`
+	RunePrimary   *int       `json:"runePrimary"`
+	RuneSecondary *int       `json:"runeSecondary"`
 }
 
 type HistoryMeta struct {

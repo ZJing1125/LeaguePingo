@@ -1,14 +1,28 @@
 package source
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"leaguepingo/internal/core"
+	"net/http"
 	"net/url"
 )
 
-func (s *TencentLCU) Profile(ctx context.Context, puuid string) core.Profile {
-	out := core.Profile{RankState: "unavailable", PrivacyState: "unknown", Ranks: []core.Rank{}}
+func (s *TencentLCU) Profile(ctx context.Context, puuid string) (out core.Profile) {
+	out = core.Profile{RankState: "unavailable", PrivacyState: "unknown", Ranks: []core.Rank{}}
+	// This optional local asset shares the explicit profile request's budget.
+	// Never load profile pictures from the game loop or arbitrary remote URLs.
+	defer func() {
+		if out.ProfileIconID != nil && ctx.Err() == nil {
+			out.ProfileIconData = s.profileIcon(ctx, *out.ProfileIconID)
+		}
+	}()
 	if raw, err := s.client.Get(ctx, "/lol-summoner/v2/summoners/puuid/"+url.PathEscape(puuid)); err == nil {
 		var p struct {
 			PUUID   string `json:"puuid"`
@@ -58,6 +72,25 @@ func (s *TencentLCU) Profile(ctx context.Context, puuid string) core.Profile {
 		out.RankState = "ready"
 	}
 	return out
+}
+
+func (s *TencentLCU) profileIcon(ctx context.Context, id int) string {
+	if id < 0 {
+		return ""
+	}
+	raw, err := s.client.Get(ctx, fmt.Sprintf("/lol-game-data/assets/v1/profile-icons/%d.jpg", id))
+	if err != nil || len(raw) > 256<<10 {
+		return ""
+	}
+	mime := http.DetectContentType(raw)
+	if mime != "image/jpeg" && mime != "image/png" {
+		return ""
+	}
+	config, _, err := image.DecodeConfig(bytes.NewReader(raw))
+	if err != nil || config.Width < 1 || config.Height < 1 || config.Width > 512 || config.Height > 512 {
+		return ""
+	}
+	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(raw)
 }
 func validCount(p *int) *int {
 	if p != nil && *p < 0 {

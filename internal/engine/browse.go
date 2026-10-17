@@ -53,12 +53,10 @@ func (e *Engine) LoadProfile(ctx context.Context, key string, connectionID uint6
 	}
 	defer release()
 	profile := profiles.Profile(profileCtx, player.PUUID)
-	if profile.Level == nil && profile.RankState != "ready" && profile.PrivacyState != "public" && profile.PrivacyState != "private" {
+	if !profileAvailable(profile) && (player.Profile == nil || !profileAvailable(*player.Profile)) {
 		return core.Participant{}, errors.New("当前客户端未提供可核验资料，保留上次结果")
 	}
-	if player.Profile != nil {
-		profile = mergeProfile(profile, player.Profile)
-	}
+	profile = mergeProfile(profile, player.Profile)
 	player.Profile = &profile
 	player.PrivacyState = profile.PrivacyState
 	e.mu.Lock()
@@ -85,23 +83,50 @@ func (e *Engine) LoadProfile(ctx context.Context, key string, connectionID uint6
 }
 
 func mergeProfile(next core.Profile, previous *core.Profile) core.Profile {
-	if previous == nil {
-		return next
+	now := time.Now()
+	next.UpdatedAt = &now
+	next.Fields = make(map[string]core.FieldFreshness)
+	track := func(field string, verified, hadValue bool) {
+		meta := core.FieldFreshness{State: "unavailable"}
+		if verified {
+			meta.State, meta.FetchedAt = "ready", &now
+		} else if hadValue && previous != nil {
+			meta = previous.Fields[field]
+			meta.State = "retained"
+		}
+		next.Fields[field] = meta
 	}
+	old := core.Profile{}
+	if previous != nil {
+		old = *previous
+	}
+	track("level", next.Level != nil, old.Level != nil)
+	track("icon", next.ProfileIconID != nil, old.ProfileIconID != nil)
+	track("rank", next.RankState == "ready", old.RankState == "ready")
+	privacyKnown := func(p core.Profile) bool { return p.PrivacyState == "public" || p.PrivacyState == "private" }
+	track("privacy", privacyKnown(next), privacyKnown(old))
 	if next.Level == nil {
-		next.Level = previous.Level
+		next.Level = old.Level
 	}
 	if next.ProfileIconID == nil {
-		next.ProfileIconID = previous.ProfileIconID
+		next.ProfileIconID = old.ProfileIconID
 	}
-	if next.RankState != "ready" {
-		next.Ranks = previous.Ranks
-		next.RankState = previous.RankState
+	sameIcon := next.ProfileIconID != nil && old.ProfileIconID != nil && *next.ProfileIconID == *old.ProfileIconID
+	track("avatar", next.ProfileIconData != "", sameIcon && old.ProfileIconData != "")
+	if next.ProfileIconData == "" && sameIcon {
+		next.ProfileIconData = old.ProfileIconData
 	}
-	if next.PrivacyState != "public" && next.PrivacyState != "private" {
-		next.PrivacyState = previous.PrivacyState
+	if next.RankState != "ready" && old.RankState == "ready" {
+		next.Ranks, next.RankState = old.Ranks, old.RankState
+	}
+	if !privacyKnown(next) && privacyKnown(old) {
+		next.PrivacyState = old.PrivacyState
 	}
 	return next
+}
+
+func profileAvailable(p core.Profile) bool {
+	return p.Level != nil || p.ProfileIconID != nil || p.RankState == "ready" || p.PrivacyState == "public" || p.PrivacyState == "private"
 }
 
 func (e *Engine) MatchDetail(ctx context.Context, key string, connectionID uint64, gameID int64) (core.MatchDetail, error) {

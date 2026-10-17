@@ -11,11 +11,20 @@ import PlayerView from "./components/PlayerView.vue";
 import OverlayView from "./components/OverlayView.vue";
 import GameIcon from "./components/GameIcon.vue";
 import SettingsPanel from "./components/SettingsPanel.vue";
-import { errorMessage, percent, recentOutcomes, preparationLabel, type PlayerViewState } from "./presentation";
+import AppIcon from "./components/AppIcon.vue";
+import RecentForm from "./components/RecentForm.vue";
+import {
+  errorMessage,
+  percent,
+  decimal,
+  preparationLabel,
+  type PlayerViewState,
+} from "./presentation";
 
 const isOverlay =
   new URLSearchParams(location.search).get("view") === "overlay";
 const settingsOpen = ref(false);
+const navCollapsed = ref(true);
 const snapshot = ref<SnapshotModel | null>(null),
   overlay = ref<OverlayState | null>(null);
 const view = ref<"players" | "match">("players"),
@@ -29,9 +38,12 @@ const rosterBusy = ref(false),
 const tabs = ref<Participant[]>([]),
   activeKey = ref(""),
   selectedKey = ref(""),
-  selectedResult = ref<Participant | null>(null),
-  selectedError = ref("");
+  selectedResult = ref<Participant | null>(null);
 const viewStates = reactive<Record<string, PlayerViewState>>({});
+const playerErrors = reactive<Record<string, string>>({});
+function operationKey(player: Participant) {
+  return `${player.connectionId ?? 0}:${player.key}`;
+}
 const players = computed(() => snapshot.value?.participants ?? []);
 const active = computed(
   () => tabs.value.find((p) => p.key === activeKey.value) ?? null,
@@ -39,17 +51,36 @@ const active = computed(
 const selected = computed(() =>
   newestPlayer(
     players.value.find((p) => p.key === selectedKey.value) ?? null,
-    selectedResult.value?.key === selectedKey.value ? selectedResult.value : null,
+    selectedResult.value?.key === selectedKey.value
+      ? selectedResult.value
+      : null,
   ),
 );
-function newestPlayer(current: Participant | null, retained: Participant | null) {
+function newestPlayer(
+  current: Participant | null,
+  retained: Participant | null,
+) {
   if (!retained) return current;
   if (!current) return retained;
   if ((current.connectionId ?? 0) !== (retained.connectionId ?? 0))
-    return (current.connectionId ?? 0) > (retained.connectionId ?? 0) ? current : retained;
+    return (current.connectionId ?? 0) > (retained.connectionId ?? 0)
+      ? current
+      : retained;
   const currentTime = Date.parse(current.historyMeta?.fetchedAt ?? "") || 0;
   const retainedTime = Date.parse(retained.historyMeta?.fetchedAt ?? "") || 0;
-  return currentTime >= retainedTime ? current : retained;
+  const history = currentTime >= retainedTime ? current : retained;
+  const currentProfileTime = Date.parse(current.profile?.updatedAt ?? "") || 0;
+  const retainedProfileTime =
+    Date.parse(retained.profile?.updatedAt ?? "") || 0;
+  const profile =
+    (currentProfileTime >= retainedProfileTime
+      ? current.profile
+      : retained.profile) ??
+    current.profile ??
+    retained.profile;
+  return profile
+    ? { ...history, profile, privacyState: profile.privacyState }
+    : history;
 }
 function acceptSnapshot(next: SnapshotModel) {
   const current = snapshot.value;
@@ -62,21 +93,34 @@ function acceptSnapshot(next: SnapshotModel) {
     return;
   snapshot.value = next;
   for (const tab of tabs.value) {
-    if (!next.connected || (tab.connectionId ?? 0) !== (next.connectionId ?? 0)) tab.stale = true;
+    if (!next.connected || (tab.connectionId ?? 0) !== (next.connectionId ?? 0))
+      tab.stale = true;
   }
-  if (selectedResult.value && (!next.connected || (selectedResult.value.connectionId ?? 0) !== (next.connectionId ?? 0))) selectedResult.value.stale = true;
+  if (
+    selectedResult.value &&
+    (!next.connected ||
+      (selectedResult.value.connectionId ?? 0) !== (next.connectionId ?? 0))
+  )
+    selectedResult.value.stale = true;
   // Update only newer verified histories; a stage change cannot erase tabs.
   for (const player of next.participants ?? []) {
     const index = tabs.value.findIndex((p) => p.key === player.key);
-    if (index >= 0) tabs.value[index] = newestPlayer(player, tabs.value[index]!)!;
+    if (index >= 0)
+      tabs.value[index] = newestPlayer(player, tabs.value[index]!)!;
   }
 }
 const canRefresh = computed(
   () =>
     snapshot.value?.connected &&
-    ["Lobby", "Matchmaking", "ReadyCheck", "ChampSelect", "GameStart", "InProgress", "Reconnect"].includes(
-      snapshot.value.phase,
-    ),
+    [
+      "Lobby",
+      "Matchmaking",
+      "ReadyCheck",
+      "ChampSelect",
+      "GameStart",
+      "InProgress",
+      "Reconnect",
+    ].includes(snapshot.value.phase),
 );
 const status = computed(() => {
   const s = snapshot.value;
@@ -107,7 +151,9 @@ function openPlayer(player: Participant, activate = true) {
       const removed = tabs.value.shift();
       if (removed) {
         delete viewStates[removed.key];
-        if (activeKey.value === removed.key) activeKey.value = tabs.value[0]?.key ?? '';
+        delete playerErrors[operationKey(removed)];
+        if (activeKey.value === removed.key)
+          activeKey.value = tabs.value[0]?.key ?? "";
       }
     }
     tabs.value.push(player);
@@ -120,6 +166,8 @@ function openPlayer(player: Participant, activate = true) {
   }
 }
 function closeTab(key: string) {
+  const old = tabs.value.find((p) => p.key === key);
+  if (old) delete playerErrors[operationKey(old)];
   const i = tabs.value.findIndex((p) => p.key === key);
   tabs.value = tabs.value.filter((p) => p.key !== key);
   delete viewStates[key];
@@ -145,21 +193,17 @@ async function search() {
 }
 async function refreshPlayer(player: Participant) {
   if (searching.value) return;
-  const workspace = view.value;
   searching.value = true;
-  searchError.value = "";
-  selectedError.value = "";
+  const requestKey = operationKey(player);
+  playerErrors[requestKey] = "";
   try {
     const result = await (player.displayName.includes("#")
       ? Service.RefreshLookup(player.displayName)
       : Service.RefreshPlayer(player.key));
-    if (workspace === "match" && selectedKey.value === player.key)
-      selectedResult.value = result;
+    if (selectedKey.value === player.key) selectedResult.value = result;
     openPlayer(result, false);
   } catch (reason) {
-    if (workspace === "match") {
-      if (selectedKey.value === player.key) selectedError.value = errorMessage(reason);
-    } else searchError.value = errorMessage(reason);
+    playerErrors[requestKey] = errorMessage(reason);
   } finally {
     searching.value = false;
   }
@@ -167,20 +211,20 @@ async function refreshPlayer(player: Participant) {
 function selectPlayer(player: Participant) {
   selectedKey.value = player.key;
   selectedResult.value = null;
-  selectedError.value = "";
   void Service.PrioritizePlayer(player.key);
 }
 async function lookupSelected() {
   if (!selected.value || searching.value) return;
   const target = selected.value;
+  const requestKey = operationKey(target);
   searching.value = true;
-  selectedError.value = "";
+  playerErrors[requestKey] = "";
   try {
     const result = await Service.LookupPlayer(target.key);
     if (selectedKey.value === target.key) selectedResult.value = result;
     openPlayer(result, false);
   } catch (reason) {
-    if (selectedKey.value === target.key) selectedError.value = errorMessage(reason);
+    playerErrors[requestKey] = errorMessage(reason);
   } finally {
     searching.value = false;
   }
@@ -197,19 +241,20 @@ async function refreshRoster() {
     rosterBusy.value = false;
   }
 }
-async function loadProfile(player:Participant) {
-  if(searching.value) return;
-  searching.value=true;
-  selectedError.value='';searchError.value='';
-  const workspace=view.value;
+async function loadProfile(player: Participant) {
+  if (searching.value) return;
+  searching.value = true;
+  const requestKey = operationKey(player);
+  playerErrors[requestKey] = "";
   try {
-    const result=await Service.LoadProfile(player.key,player.connectionId);
-    openPlayer(result,false);
-    if(selectedKey.value===player.key) selectedResult.value=result;
-  } catch(reason) {
-    if(workspace==='match') {if(selectedKey.value===player.key) selectedError.value=errorMessage(reason);}
-    else searchError.value=errorMessage(reason);
-  } finally {searching.value=false;}
+    const result = await Service.LoadProfile(player.key, player.connectionId);
+    openPlayer(result, false);
+    if (selectedKey.value === player.key) selectedResult.value = result;
+  } catch (reason) {
+    playerErrors[requestKey] = errorMessage(reason);
+  } finally {
+    searching.value = false;
+  }
 }
 function acceptOverlay(state: OverlayState) {
   if (!overlay.value || state.revision >= overlay.value.revision)
@@ -287,7 +332,7 @@ onUnmounted(() => {
     @hide="hideOverlay"
     @pin="pinOverlay"
   />
-  <main v-else class="desktop-app">
+  <main v-else class="desktop-app" :class="{ 'nav-collapsed': navCollapsed }">
     <aside class="app-sidebar">
       <div class="app-brand">
         <span class="brand-mark">P</span>
@@ -297,36 +342,61 @@ onUnmounted(() => {
         <button
           :class="{ active: view === 'players' }"
           :aria-current="view === 'players' ? 'page' : undefined"
+          aria-label="玩家战绩"
+          title="玩家战绩"
           @click="view = 'players'"
         >
-          ◷ <span>玩家战绩</span></button
+          <AppIcon name="history" /><span>玩家战绩</span></button
         ><button
           :class="{ active: view === 'match' }"
           :aria-current="view === 'match' ? 'page' : undefined"
+          aria-label="当前对局"
+          title="当前对局"
           @click="view = 'match'"
         >
-          ◈ <span>当前对局</span
+          <AppIcon name="match" /><span>当前对局</span
           ><i v-if="players.length">{{ players.length }}</i>
         </button>
       </nav>
       <div class="sidebar-bottom">
         <button
+          class="icon-button nav-toggle square"
+          :aria-label="navCollapsed ? '展开导航' : '收起导航'"
+          :title="navCollapsed ? '展开导航' : '收起导航'"
+          :aria-expanded="!navCollapsed"
+          @click="navCollapsed = !navCollapsed"
+        >
+          <AppIcon name="panel" />
+        </button>
+        <button
           class="text-button settings-trigger"
+          aria-label="设置与诊断"
+          title="设置与诊断"
           @click="settingsOpen = true"
         >
-          设置与诊断
+          <AppIcon name="settings" /><span>设置与诊断</span>
         </button>
-        <span
-          class="connection-light"
-          :class="{ online: snapshot?.connected }"
-        ></span
-        >{{ status }}<small>局内仅主动查询战绩</small>
+        <div class="sidebar-connection">
+          <span
+            class="connection-light"
+            :class="{ online: snapshot?.connected }"
+          ></span
+          >{{ status }}<small>局内仅主动查询战绩</small>
+        </div>
       </div>
     </aside>
     <div class="app-main">
       <header class="app-toolbar">
         <strong>{{ view === "players" ? "玩家战绩" : "当前对局" }}</strong>
+        <span class="toolbar-status" :title="status"
+          ><span
+            class="connection-light"
+            :class="{ online: snapshot?.connected }"
+          ></span
+          >{{ status.split(" · ")[0] }}</span
+        >
         <form class="global-search" @submit.prevent="search">
+          <AppIcon name="search" :size="16" />
           <input
             v-model="query"
             aria-label="玩家完整 ID"
@@ -336,8 +406,13 @@ onUnmounted(() => {
             {{ searching ? "查询中…" : "查询战绩" }}
           </button>
         </form>
-        <button class="icon-button" @click="toggleOverlay">
-          显示／隐藏快览</button
+        <button
+          class="icon-button"
+          aria-label="显示／隐藏快览"
+          title="显示／隐藏快览"
+          @click="toggleOverlay"
+        >
+          <AppIcon name="panel" /><span>对局快览</span></button
         ><button class="icon-button small-control" @click="hideOverlay">
           隐藏快览
         </button>
@@ -393,11 +468,12 @@ onUnmounted(() => {
           :state="stateFor(active.key)"
           :busy="searching"
           :connected="snapshot?.connected"
+          :error="playerErrors[operationKey(active)] || active.error"
           @refresh="refreshPlayer"
           @profile="loadProfile"
         />
         <div v-else class="empty-state initial-empty">
-          <span class="empty-icon">⌕</span>
+          <AppIcon name="search" :size="42" />
           <h1>查看玩家近期表现</h1>
           <p>输入完整 ID 查询战绩，或从当前对局中选择玩家。</p>
           <button class="secondary" @click="view = 'match'">
@@ -449,7 +525,14 @@ onUnmounted(() => {
               class="team-section"
             >
               <h2>
-                {{ team === "ally" ? "我方" : "对方"
+                {{
+                  snapshot?.stage === "party"
+                    ? team === "ally"
+                      ? "房间成员"
+                      : "对手未确定"
+                    : team === "ally"
+                      ? "我方"
+                      : "对方"
                 }}<small
                   >{{ players.filter((p) => p.team === team).length }} 人</small
                 >
@@ -466,26 +549,26 @@ onUnmounted(() => {
                   ><strong :title="player.displayName">{{
                     player.displayName
                   }}</strong
-                  ><small>{{
+                  ><small
+                    >{{ preparationLabel(player)
+                    }}<template v-if="player.historyState === 'ready'">
+                      · {{ player.stats.games }} 场样本</template
+                    ></small
+                  ><RecentForm
+                    v-if="player.historyState === 'ready'"
+                    :matches="player.history"
+                /></span>
+                <span class="roster-metrics" :title="preparationLabel(player)"
+                  ><template v-if="player.historyState === 'ready'"
+                    ><b>{{ percent(player.stats.winRate) }}</b
+                    ><small
+                      >{{ decimal(player.stats.kda) }} KDA</small
+                    ></template
+                  ><span v-else class="status-badge">{{
                     player.identityState === "unavailable"
-                      ? "身份不可获取"
-                      : player.historyState === "ready"
-                        ? `${player.stats.games} 场 · ${percent(player.stats.winRate)} 胜率`
-                        : player.historyState === "empty"
-                          ? "暂无战绩"
-                          : player.historyState === "loading"
-                            ? "正在准备"
-                            : player.historyState === "failed"
-                              ? "准备失败 · 可手动重试"
-                              : "尚未准备"
-                  }}</small></span
-                ><span :title="preparationLabel(player)"
-                  >{{
-                    player.historyState === "ready"
-                      ? recentOutcomes(player)
-                      : preparationLabel(player)
-                  }}
-                  ›</span
+                      ? "身份未知"
+                      : "待准备"
+                  }}</span></span
                 >
               </button>
             </section>
@@ -527,7 +610,7 @@ onUnmounted(() => {
               :state="stateFor(selected.key)"
               :busy="searching"
               :connected="snapshot?.connected"
-              :error="selectedError || selected.error"
+              :error="playerErrors[operationKey(selected)] || selected.error"
               compact
               @refresh="refreshPlayer"
               @profile="loadProfile"

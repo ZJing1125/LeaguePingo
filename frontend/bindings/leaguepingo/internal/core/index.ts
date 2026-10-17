@@ -7,6 +7,7 @@ export {
 } from "./models.js";
 
 export type {
+    FieldFreshness,
     HistoryMeta,
     HistoryPage,
     Match,

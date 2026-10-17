@@ -4,6 +4,33 @@ import type {
   Participant,
   HistoryMeta,
 } from "../bindings/leaguepingo/internal/core/models";
+import runeCatalog from "./assets/game/rune-names.json";
+export function runeName(id: number) {
+  return (runeCatalog.names as Record<string, string>)[id] ?? `符文 #${id}`;
+}
+export function mapName(id: number | null | undefined) {
+  return id == null
+    ? "地图未知"
+    : ((
+        { 11: "召唤师峡谷", 12: "嚎哭深渊", 30: "斗魂竞技场" } as Record<
+          number,
+          string
+        >
+      )[id] ?? `地图 #${id}`);
+}
+export function positionName(position: string | undefined) {
+  return (
+    (
+      {
+        TOP: "上路",
+        JUNGLE: "打野",
+        MIDDLE: "中路",
+        BOTTOM: "下路",
+        UTILITY: "辅助",
+      } as Record<string, string>
+    )[position ?? ""] ?? "位置未获取"
+  );
+}
 
 export function percent(value: number | null | undefined) {
   return value == null ? "—" : `${Math.round(value)}%`;
@@ -97,20 +124,29 @@ export function errorMessage(reason: unknown) {
   return text.slice(0, 220);
 }
 export function preparationLabel(p: Participant) {
-  if (p.identityState === 'unavailable') return '身份未提供';
-  if (p.stale) return '旧资料 · 可主动更新';
-  if (p.historyState === 'loading') return '正在准备';
-  if (p.historyState === 'failed') return '准备失败 · 可重试';
-  if (p.historyState === 'pending') return p.error ? '准备已暂停' : '尚未准备';
-  if (p.historyState === 'empty') return '暂无战绩';
-  return p.cached ? '缓存资料' : '已准备';
+  if (p.identityState === "unavailable") return "身份未提供";
+  if (p.stale) return "旧资料 · 可主动更新";
+  if (p.historyState === "loading") return "正在准备";
+  if (p.historyState === "failed") return "准备失败 · 可重试";
+  if (p.historyState === "pending") return p.error ? "准备已暂停" : "尚未准备";
+  if (p.historyState === "empty") return "暂无战绩";
+  return p.cached ? "缓存资料" : "已准备";
 }
 export function recentOutcomes(p: Participant) {
-  return (p.history ?? []).slice(0,5).map(m => m.win == null ? '?' : m.win ? '胜' : '负').join(' · ') || '暂无样本';
+  return (
+    (p.history ?? [])
+      .slice(0, 5)
+      .map((m) => (m.win == null ? "?" : m.win ? "胜" : "负"))
+      .join(" · ") || "暂无样本"
+  );
 }
-export function championSample(p:Participant) {
-  const matches=(p.history ?? []).filter(m=>m.championId===p.championId);
-  return !p.championId || !matches.length ? '当前英雄暂无样本' : `当前英雄 ${matches.length} 场 · ${percent(sampleStats(matches).winRate)}`;
+export function championSample(p: Participant) {
+  const matches = (p.history ?? []).filter(
+    (m) => m.championId === p.championId,
+  );
+  return !p.championId || !matches.length
+    ? "当前英雄暂无样本"
+    : `当前英雄 ${matches.length} 场 · ${percent(sampleStats(matches).winRate)}`;
 }
 export interface PlayerViewState {
   queue: string;

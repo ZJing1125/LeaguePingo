@@ -2,6 +2,7 @@ package source
 
 import (
 	"context"
+	"encoding/base64"
 	"io"
 	"leaguepingo/internal/lcu"
 	"net/http"
@@ -22,6 +23,36 @@ func TestProfileOptionalAndUnknownRanks(t *testing.T) {
 		p := s.Profile(context.Background(), "target")
 		if p.RankState != "unavailable" || len(p.Ranks) != 0 || p.Level != nil {
 			t.Fatal("unknown or mismatched profile accepted")
+		}
+	}
+}
+
+func TestProfileIconUsesVerifiedIDAndRejectsNonImage(t *testing.T) {
+	icon, _ := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aP1sAAAAASUVORK5CYII=")
+	for _, good := range []bool{true, false} {
+		s := &TencentLCU{client: lcu.NewClient(lcu.Credentials{})}
+		iconCalls := 0
+		s.client.HTTP.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			body := `{"queues":[]}`
+			if strings.Contains(r.URL.Path, "summoners") {
+				body = `{"puuid":"target","profileIconId":123}`
+			}
+			if strings.Contains(r.URL.Path, "profile-icons") {
+				iconCalls++
+				if r.URL.Path != "/lol-game-data/assets/v1/profile-icons/123.jpg" {
+					t.Fatal("unexpected asset endpoint")
+				}
+				if good {
+					body = string(icon)
+				} else {
+					body = "<html>error</html>"
+				}
+			}
+			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body))}, nil
+		})
+		p := s.Profile(context.Background(), "target")
+		if iconCalls != 1 || (p.ProfileIconData != "") != good {
+			t.Fatal("verified icon handling failed")
 		}
 	}
 }

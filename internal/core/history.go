@@ -17,6 +17,7 @@ type historyGame struct {
 	GameCreation          int64             `json:"gameCreation"`
 	GameDate              int64             `json:"gameDate"`
 	QueueID               int               `json:"queueId"`
+	MapID                 *int              `json:"mapId"`
 	Duration              *int              `json:"gameDuration"`
 	Participants          []json.RawMessage `json:"participants"`
 	ParticipantIdentities []struct {
@@ -36,7 +37,21 @@ type historyParticipant struct {
 	ChampionID    int    `json:"championId"`
 	Spell1        *int   `json:"spell1Id"`
 	Spell2        *int   `json:"spell2Id"`
-	Stats         struct {
+	TeamPosition  string `json:"teamPosition"`
+	Timeline      struct {
+		Lane string `json:"lane"`
+		Role string `json:"role"`
+	} `json:"timeline"`
+	Stats struct {
+		EarlyEnd   *bool `json:"gameEndedInEarlySurrender"`
+		Perk0      *int  `json:"perk0"`
+		Perk1      *int  `json:"perk1"`
+		Perk2      *int  `json:"perk2"`
+		Perk3      *int  `json:"perk3"`
+		Perk4      *int  `json:"perk4"`
+		Perk5      *int  `json:"perk5"`
+		Primary    *int  `json:"perkPrimaryStyle"`
+		Secondary  *int  `json:"perkSubStyle"`
 		Win        *bool `json:"win"`
 		ChampionID int   `json:"championId"`
 		Kills      *int  `json:"kills"`
@@ -145,7 +160,21 @@ func matchSummary(game historyGame, p historyParticipant, now time.Time) Match {
 		value := *p.Stats.Minions + *p.Stats.Neutral
 		cs = &value
 	}
-	return Match{GameID: game.GameID, QueueID: game.QueueID, ChampionID: champion, PlayedAt: playedAt, Win: p.Stats.Win, Kills: nonNegative(p.Stats.Kills), Deaths: nonNegative(p.Stats.Deaths), Assists: nonNegative(p.Stats.Assists), Duration: nonNegative(game.Duration), Gold: nonNegative(p.Stats.Gold), Damage: nonNegative(p.Stats.Damage), CS: cs, Spell1: nonNegative(p.Spell1), Spell2: nonNegative(p.Spell2), Items: []*int{nonNegative(p.Stats.Item0), nonNegative(p.Stats.Item1), nonNegative(p.Stats.Item2), nonNegative(p.Stats.Item3), nonNegative(p.Stats.Item4), nonNegative(p.Stats.Item5), nonNegative(p.Stats.Item6)}}
+	runes := []int{}
+	for _, id := range []*int{p.Stats.Perk0, p.Stats.Perk1, p.Stats.Perk2, p.Stats.Perk3, p.Stats.Perk4, p.Stats.Perk5} {
+		if id != nil && *id > 0 {
+			runes = append(runes, *id)
+		}
+	}
+	return Match{
+		GameID: game.GameID, QueueID: game.QueueID, ChampionID: champion, PlayedAt: playedAt,
+		Win: p.Stats.Win, Kills: nonNegative(p.Stats.Kills), Deaths: nonNegative(p.Stats.Deaths), Assists: nonNegative(p.Stats.Assists),
+		Duration: nonNegative(game.Duration), Gold: nonNegative(p.Stats.Gold), Damage: nonNegative(p.Stats.Damage), CS: cs,
+		Spell1: nonNegative(p.Spell1), Spell2: nonNegative(p.Spell2),
+		Items: []*int{nonNegative(p.Stats.Item0), nonNegative(p.Stats.Item1), nonNegative(p.Stats.Item2), nonNegative(p.Stats.Item3), nonNegative(p.Stats.Item4), nonNegative(p.Stats.Item5), nonNegative(p.Stats.Item6)},
+		MapID: nonNegative(game.MapID), Position: p.TeamPosition, Lane: p.Timeline.Lane, EarlyEnd: p.Stats.EarlyEnd,
+		RuneIDs: runes, RunePrimary: nonNegative(p.Stats.Primary), RuneSecondary: nonNegative(p.Stats.Secondary),
+	}
 }
 func nonNegative(value *int) *int {
 	if value != nil && *value < 0 {

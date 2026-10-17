@@ -11,9 +11,11 @@ LeaguePingo 是面向《英雄联盟》腾讯国服的 Windows 桌面战绩助�
 - 全局 `Ctrl+Shift+P` 显示或隐藏快览。快览可拖动、隐藏、切换置顶，不提供鼠标穿透；资料查询和名单刷新在主窗口进行。
 - 不注入游戏进程、不读取游戏内存、不拦截或代理游戏流量。
 - 玩家战绩与当前对局分开；最多保留八个内存玩家标签、模式筛选和展开状态。未知字段显示 `—`，胜率/KDA 按有效样本统计，样本排除会提示；筛选不等同于该模式最近 20 场。
-- 本地中文英雄/装备/技能资源；本玩家摘要包括时长、装备、技能、补刀、金币与伤害。可点击“读取双方详情”请求整场参与者，标准完整 5v5 且相关字段齐全时计算团队占比；接口兼容待国服实测。
-- 可独立更新等级/段位/隐私，不重拉历史。仅身份匹配且客户端明确返回 PUBLIC/PRIVATE 时显示公开/生涯不公开；失败不推断隐私或未定级。真实头像尚未显示。
-- 五分钟缓存、连接隔离、失败保留；选人整次会话最多 45 秒、每人两次，短暂阶段失败有界恢复，英雄变化不重置预算。分页/双方详情仅显式请求，与查询共享调度。
+- 数据优先的深色桌面 UI：可收起导航、集中玩家资料、默认战绩行展示七个装备槽/两个技能；当前对局与快览双列对齐，十人快览常显胜率/KDA、样本数及五场近况。设计和布局验收见 [界面规范](docs/UI_DESIGN.md)。
+- 本地中文英雄/装备/技能资源及符文名称；本玩家摘要包括时长、装备、技能、补刀、金币与伤害，展开可见客户端明确返回的地图/位置/符文/提前结束信号。后者不冒称确认重开，不自动排除统计。可点击“读取双方详情”请求整场参与者和装备技能；标准完整 5v5 且相关字段齐全时计算团队占比，接口兼容待国服实测。
+- 可独立更新头像/等级/段位/隐私，不重拉历史。头像通过本地资源端点按已核验编号读取，失败显示占位；仅身份匹配且客户端明确返回 PUBLIC/PRIVATE 时显示公开/生涯不公开。资料按字段记录时间，更新失败保留的旧值明确标记，不推断隐私或未定级。
+- 五分钟缓存、连接隔离、失败保留；首次已核验身份但历史失败也可保留玩家重试，不把错误带到其他标签。赛前轮询核验同连接账号变化并使旧缓存失效，局内不增加账号核验。
+- 选人整次会话最多 45 秒、每人两次，短暂阶段失败有界恢复，英雄变化不重置预算。仅订阅本地阶段变化以取消准备/唤醒核验，失败后有冷却且仍保留有限轮询；不订阅全量事件或增加局内自动历史。分页/双方详情仅显式请求，与查询共享调度。
 - 设置与诊断：窗口位置/大小和置顶记忆，可配置快览快捷键，显示版本/提交号；按需本地导出脱敏汇总，不上传。快览首次打开才创建第二个 WebView。
 
 当前是可构建原型，**不是已完成国服实机联调的正式产品**。本机已验证客户端自动发现、阶段接口、自账号完整 ID 查询及 20 场战绩解析；曾在真实对局中确认本地 gameflow 接口提供双方各五个有效身份。新版从名单刷新到界面展示的整局流程、其他玩家的战绩可用性、隐私信号、不同模式，以及游戏内悬浮兼容性仍待实测。详见 [待解决问题](docs/OPEN_ISSUES.md) 与 [Bug 修复记录](BUGFIX_LOG.md)。
@@ -29,17 +31,16 @@ export GOSUMDB=sum.golang.google.cn
 export GOPATH=/e/league-pingo/.tools/gopath
 export GOCACHE=/e/league-pingo/.tools/gocache
 
-wails3 generate bindings -clean=true -ts -i
-npm --prefix frontend run build
-go test ./...
-go build -tags production -trimpath -buildvcs=false -ldflags='-H windowsgui' -o bin/leaguepingo.exe .
+bash scripts/build.sh bin/leaguepingo-dev-20261016-v4.exe
 ```
 
 开发运行可用 `wails3 dev`。首次运行需已安装 Microsoft Edge WebView2。启动国服 League 客户端后，LeaguePingo 会发现 `LeagueClient.exe` / `LeagueClientUx.exe`，先尝试同目录的 `lockfile`，文件为空或不可用时改用 Windows 提供的客户端启动参数。也可设置 `LEAGUEPINGO_LOCKFILE` 指向测试用 lockfile。切勿提交、发送或记录 lockfile 内容或完整客户端启动参数，其中包含本地客户端密码。
 
-本批独立测试版为 `bin/leaguepingo-dev-20261016-v3.exe`。使用前请从托盘菜单退出当前运行的旧版助手，包括 `leaguepingo-dev.exe`；不需要退出游戏。新版采用固定应用标识的单实例策略：如果旧版未退出，启动新版只会唤起旧实例，不能热替换旧进程。更早的 `leaguepingo.exe`、`leaguepingo-fixed.exe` 没有该约束，也需手动退出。实际版本/提交号见“设置与诊断”。已进入对局时，新版会有限刷新本地名单，不会自动补查战绩；缺少战绩时在主窗口主动查询。
+本批已生成 UI 重构测试版 `bin/leaguepingo-dev-20261016-v4.exe`，内嵌功能提交 `d312852`，仅本地交付，不创建 GitHub release。本轮后续交付记录提交仅更新文档，不更换该文件。使用前请从托盘菜单退出当前运行的旧版助手，包括 `leaguepingo-dev.exe`；不需要退出游戏。新版采用固定应用标识的单实例策略：如果旧版未退出，启动新版只会唤起旧实例，不能热替换旧进程。更早的 `leaguepingo.exe`、`leaguepingo-fixed.exe` 没有该约束，也需手动退出。实际版本/提交号见“设置与诊断”。已进入对局时，新版会有限刷新本地名单，不会自动补查战绩；缺少战绩时在主窗口主动查询。
 
-统一验证：`bash scripts/verify.sh`。推荐构建：`bash scripts/build.sh bin/leaguepingo-dev-20261016-v3.exe`，运行绑定生成/构建/测试/静态检查与浏览器回归，嵌入当前提交号和 UTC 时间并输出 SHA-256。若系统 npm 缓存不可写，可用 `npm --cache E:/league-pingo/.tools/npm-cache --prefix frontend ci`。避免覆盖被占用的旧版程序。可执行文件、诊断文件和测试截图不提交 Git。`main` 不改动，各改进批次单独提交推送 `dev`。
+本轮测试文件 SHA-256：`7cf4b6a27928bfe5e342fe245cc85183899975f494e7199cb9a2c5658cbe55ea`。此值仅核对上述本地文件；自行重建会嵌入新的时间，校验值可能不同。
+
+统一验证：`bash scripts/verify.sh`。推荐上述 `build.sh`，运行绑定生成/构建/测试/静态检查与浏览器回归，嵌入当前提交号和 UTC 时间并输出 SHA-256。若系统 npm 缓存不可写，可用 `npm --cache E:/league-pingo/.tools/npm-cache --prefix frontend ci`。避免覆盖被占用的旧版程序。可执行文件、诊断文件和测试截图不提交 Git。`main` 不改动，各改进批次单独提交推送 `dev`。
 
 关闭主窗口后助手会留在系统托盘；点击托盘图标可重新打开，托盘菜单提供“退出”。
 
@@ -65,7 +66,7 @@ LEAGUEPINGO_LIVE_LOOKUP_TEST=1 go test ./internal/source -run '^TestLiveManualLo
 LEAGUEPINGO_LIVE_ROSTER_TEST=1 go test ./internal/source -run '^TestLiveRoster$' -count=1 -v
 ```
 
-浏览器交互测试：在 frontend 目录执行 `npm ci` 安装锁定的依赖（包含 Playwright），设置 `BROWSER_EXECUTABLE` 为本地 Edge/Chromium 路径后，运行 `npm run test:smoke`。也可用 `PLAYWRIGHT_MODULE` 指定已有 Playwright 包；不自动下载浏览器。需先构建前端，使用模拟绑定及合成玩家，不等同于真实游戏。`WORKSPACE_SCREENSHOT` 可保存玩家工作区截图。
+浏览器交互测试：在 frontend 目录执行 `npm ci` 安装锁定的依赖（包含 Playwright），设置 `BROWSER_EXECUTABLE` 为本地 Edge/Chromium 路径后，运行 `npm run test:smoke`。也可用 `PLAYWRIGHT_MODULE` 指定已有 Playwright 包；不自动下载浏览器。需先构建前端，使用模拟绑定及合成玩家，不等同于真实游戏。`UI_SCREENSHOT_PREFIX=E:/league-pingo/bin/ui-final` 可保存战绩、当前对局和快览三张截图；`WORKSPACE_SCREENSHOT` 可另存工作区交互状态。
 
 默认 `go test ./...` 不连接真实客户端；上述实机检查必须显式启用。完整 ID 自账号查询已返回 20 场战绩；新版 `TestLiveRoster` 当时因对局结束而跳过，仍需下一局验证，不能将其计为通过。已经采集包含 WebView2 的短时离线内存/CPU 基线，详见 [性能验证](docs/PERFORMANCE.md)；未测游戏 FPS/延迟，不承诺零开销。
 

@@ -23,6 +23,8 @@ var Default = &Collector{values: map[string]Metric{}}
 // Fixed allow-list: never retain paths, player IDs, credentials or error text.
 func Category(path string) string {
 	switch {
+	case path == "/phase-events":
+		return "phase-events"
 	case path == "/lol-gameflow/v1/gameflow-phase":
 		return "phase"
 	case path == "/lol-gameflow/v1/session":

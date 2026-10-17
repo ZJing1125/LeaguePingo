@@ -41,3 +41,14 @@ type MatchDetailSource interface {
 type LobbySource interface {
 	Lobby(context.Context) ([]core.Participant, error)
 }
+
+// Optional local account check, used only outside active gameplay.
+type AccountSource interface {
+	AccountIdentity(context.Context) (string, error)
+}
+
+// Optional phase-only notifications. The callback is a wake-up hint; the engine
+// still verifies state through Phase. Implementations block until cancelled or failed.
+type PhaseEventSource interface {
+	WatchPhase(context.Context, func(string)) error
+}

@@ -40,6 +40,10 @@ func (s *TencentLCU) Phase(ctx context.Context) (string, error) {
 	return phase, err
 }
 
+func (s *TencentLCU) WatchPhase(ctx context.Context, notify func(string)) error {
+	return s.client.WatchPhase(ctx, notify)
+}
+
 func (s *TencentLCU) Roster(ctx context.Context) (int64, []core.Participant, error) {
 	var gameID int64
 	var roster []core.Participant
@@ -104,6 +108,23 @@ func (s *TencentLCU) currentPUUID(ctx context.Context) (string, error) {
 	}
 	s.selfPUUID = profile.PUUID
 	return profile.PUUID, nil
+}
+
+func (s *TencentLCU) AccountIdentity(ctx context.Context) (string, error) {
+	raw, err := s.client.Get(ctx, "/lol-summoner/v1/current-summoner")
+	if err != nil {
+		return "", err
+	}
+	var p struct {
+		PUUID string `json:"puuid"`
+	}
+	if json.Unmarshal(raw, &p) != nil || !core.IsKnownPUUID(p.PUUID) {
+		return "", errors.New("客户端当前账号身份暂不可核验")
+	}
+	s.selfMu.Lock()
+	s.selfPUUID = p.PUUID
+	s.selfMu.Unlock()
+	return p.PUUID, nil
 }
 
 func (s *TencentLCU) Name(ctx context.Context, puuid string) (string, error) {

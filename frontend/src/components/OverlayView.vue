@@ -2,9 +2,16 @@
 import { computed } from "vue";
 import type { Snapshot } from "../../bindings/leaguepingo/internal/core/models";
 import type { OverlayState } from "../../bindings/leaguepingo/models";
-import { percent, decimal, preparationLabel, recentOutcomes, championSample, date } from "../presentation";
+import {
+  percent,
+  decimal,
+  preparationLabel,
+  championSample,
+  date,
+} from "../presentation";
+import AppIcon from "./AppIcon.vue";
 import GameIcon from "./GameIcon.vue";
-import { championName } from "../gameAssets";
+import RecentForm from "./RecentForm.vue";
 const props = defineProps<{
   snapshot: Snapshot | null;
   state: OverlayState | null;
@@ -13,100 +20,125 @@ const props = defineProps<{
   error: string;
 }>();
 const players = computed(() => props.snapshot?.participants ?? []);
+const newest = computed(() =>
+  players.value
+    .map((p) => p.historyMeta?.fetchedAt)
+    .filter(Boolean)
+    .sort()
+    .at(-1),
+);
 defineEmits<{ hide: []; pin: [] }>();
 </script>
 <template>
   <main class="overlay-shell">
-    <header class="overlay-head" title="按住标题栏拖动窗口">
+    <header class="overlay-head">
       <div class="overlay-title">
-        <span class="brand-mark">P</span><strong>LeaguePingo</strong
-        ><small>对局快览</small>
+        <span class="brand-mark">P</span>
+        <div><strong>LeaguePingo</strong><small>对局快览</small></div>
       </div>
       <div class="overlay-controls">
         <button
           :disabled="busy || !state"
+          :aria-label="state?.pinned ? '取消置顶' : '置顶'"
+          :title="state?.pinned ? '取消置顶' : '置顶'"
           :aria-pressed="state?.pinned"
           @click="$emit('pin')"
         >
-          {{ state?.pinned ? "取消置顶" : "置顶" }}</button
+          <AppIcon name="pin" :size="16" /></button
         ><button
           class="overlay-close"
           aria-label="关闭对局快览"
           :disabled="busy"
           @click="$emit('hide')"
         >
-          ×
+          <AppIcon name="close" :size="18" />
         </button>
       </div>
     </header>
     <div class="overlay-content">
-      <p class="overlay-status">{{ status }}</p>
-      <p v-if="state?.warning" class="error-banner">{{ state.warning }}</p>
-      <p v-if="error" class="error-banner">{{ error }}</p>
-      <p class="muted">
-        身份 {{ snapshot?.knownCount ?? 0 }}/{{ players.length }} · 战绩
-        {{ snapshot?.readyCount ?? 0 }}/{{ players.length }}
+      <div class="overlay-status">
+        <span
+          class="connection-light"
+          :class="{ online: snapshot?.connected }"
+        ></span
+        >{{ status }}
+      </div>
+      <p v-if="state?.warning || error" class="error-banner" role="status">
+        {{ error || state?.warning }}
       </p>
+      <div class="overlay-readiness">
+        <span
+          >已识别
+          <b>{{ snapshot?.knownCount ?? 0 }} / {{ players.length }}</b></span
+        ><span
+          >战绩就绪
+          <b>{{ snapshot?.readyCount ?? 0 }} / {{ players.length }}</b></span
+        >
+      </div>
       <div v-if="!players.length" class="empty-state">
-        等待客户端提供本局名单
+        <AppIcon name="match" :size="30" />
+        <p>等待本局名单</p>
       </div>
       <div v-else class="overlay-groups">
         <section v-for="team in ['ally', 'enemy']" :key="team">
           <h2>
             {{
-              team === "ally"
-                ? snapshot?.stage === "party"
+              snapshot?.stage === "party"
+                ? team === "ally"
                   ? "房间成员"
-                  : "我方"
-                : snapshot?.stage === "party"
-                  ? "其他玩家未确定"
+                  : "对手未确定"
+                : team === "ally"
+                  ? "我方"
                   : "对方"
-            }}
+            }}<span>{{ players.filter((p) => p.team === team).length }}</span>
           </h2>
           <div
-            class="overlay-player"
             v-for="p in players.filter((p) => p.team === team)"
             :key="p.key"
+            class="overlay-player"
+            :class="{
+              unavailable: p.identityState === 'unavailable',
+              outdated: p.stale,
+            }"
           >
             <div class="overlay-player-heading">
               <GameIcon :id="p.championId" :size="28" /><strong
-                :title="p.displayName"
+                :title="`${p.displayName} · ${championSample(p)} · ${date(p.historyMeta?.fetchedAt)}`"
                 >{{ p.displayName }}</strong
-              >
+              ><small
+                v-if="p.historyState === 'ready'"
+                class="overlay-count"
+                :title="`已加载 ${p.stats.games} 场；胜负有效 ${p.stats.outcomeGames} 场，KDA 有效 ${p.stats.kdaGames} 场`"
+                >{{ p.stats.games }}场</small
+              ><span v-if="p.stale" class="status-badge warning">旧</span>
             </div>
-            <small class="overlay-champion">{{
-              championName(p.championId ?? 0)
-            }}</small
-            ><span>{{
-              p.identityState === "unavailable"
-                ? "身份不可获取"
-                : p.historyState === "ready"
-                  ? `${p.stats.games} 场 · 胜率 ${percent(p.stats.winRate)}`
-                  : p.historyState === "empty"
-                    ? "暂无战绩"
-                    : preparationLabel(p)
-            }}</span>
-            <small v-if="p.historyState === 'ready'" class="overlay-kda"
-              >KDA {{ decimal(p.stats.kda) }} · {{ preparationLabel(p) }}</small
-            >
-            <small v-if="p.historyState === 'ready'" class="overlay-recent"
-              >{{ recentOutcomes(p) }}<br />{{ championSample(p) }}</small
-            >
-            <small v-if="p.historyMeta?.fetchedAt" class="overlay-time"
-              >资料 {{ date(p.historyMeta.fetchedAt) }}</small
-            >
-            <small v-if="p.error" class="warning-text">{{ p.error }}</small>
+            <div v-if="p.historyState === 'ready'" class="overlay-data">
+              <div class="overlay-metrics">
+                <span :title="`${p.stats.games} 场样本胜率`"
+                  ><small>胜率</small
+                  ><b>{{ percent(p.stats.winRate) }}</b></span
+                ><span :title="'汇总 KDA'"
+                  ><small>KDA</small><b>{{ decimal(p.stats.kda) }}</b></span
+                >
+              </div>
+              <RecentForm :matches="p.history" />
+            </div>
+            <p v-else class="overlay-pending">{{ preparationLabel(p) }}</p>
+            <small v-if="p.error" class="warning-text" :title="p.error">{{
+              p.error
+            }}</small>
           </div>
         </section>
       </div>
     </div>
     <footer class="overlay-footer">
-      拖动标题栏移动 · × 隐藏 · 可取消置顶<br />
-      {{ state?.shortcut || "Ctrl+Shift+P" }}
-      {{
-        state?.shortcutAvailable === false ? "未注册，请用主窗口按钮" : "显隐"
-      }}
-      · 获焦时 Esc 隐藏
+      <span
+        >{{ state?.shortcut || "Ctrl+Shift+P" }}
+        {{ state?.shortcutAvailable === false ? "未注册" : "显隐" }} · Esc
+        隐藏</span
+      ><span :title="'各玩家获取时间以主窗口为准'"
+        >最近资料 {{ date(newest) }}</span
+      >
     </footer>
   </main>
 </template>

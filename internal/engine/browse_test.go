@@ -36,8 +36,48 @@ func TestProfileOnlyUpdateUsesCachedPlayerWithoutHistoryRefresh(t *testing.T) {
 		t.Fatal("profile-only update fetched or lost history")
 	}
 	fake.profile = core.Profile{RankState: "unavailable", PrivacyState: "unknown"}
-	if _, err := e.LoadProfile(context.Background(), p.Key, 0); err == nil || e.cache[p.Key].PrivacyState != "private" {
-		t.Fatal("failed profile request discarded known privacy")
+	if got, err := e.LoadProfile(context.Background(), p.Key, 0); err != nil || got.PrivacyState != "private" || got.Profile.Fields["privacy"].State != "retained" {
+		t.Fatal("failed profile request discarded known privacy or labeled it fresh")
+	}
+}
+
+func TestPartialProfileUpdatePreservesFieldAgeWithoutReplacingHistory(t *testing.T) {
+	level := 100
+	old := mergeProfile(core.Profile{Level: &level, RankState: "ready", PrivacyState: "private", Ranks: []core.Rank{{Tier: "GOLD"}}}, nil)
+	fake := &profileClient{fakeClient: &fakeClient{}, profile: core.Profile{Level: &level, RankState: "unavailable", PrivacyState: "unknown"}}
+	e := New(nil, nil)
+	e.client = fake
+	p := fullTestRoster()[0]
+	core.ApplyHistory(&p, core.HistoryResult{Matches: []core.Match{{GameID: 99}}})
+	p.Profile = &old
+	e.cache[p.Key] = p
+	got, err := e.LoadProfile(context.Background(), p.Key, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Profile.Fields["level"].State != "ready" || got.Profile.Fields["rank"].State != "retained" || got.Profile.Fields["privacy"].State != "retained" {
+		t.Fatal("partial failure not exposed per field")
+	}
+	if !got.Profile.Fields["rank"].FetchedAt.Equal(*old.Fields["rank"].FetchedAt) || !got.HistoryMeta.FetchedAt.Equal(*p.HistoryMeta.FetchedAt) {
+		t.Fatal("profile retry changed original field/history timestamp")
+	}
+	fake.profile = core.Profile{RankState: "ready", PrivacyState: "public", Ranks: []core.Rank{{Tier: "NONE"}}}
+	got, err = e.LoadProfile(context.Background(), p.Key, 0)
+	if err != nil || got.Profile.Fields["privacy"].State != "ready" || got.PrivacyState != "public" || got.Profile.Ranks[0].Tier != "NONE" {
+		t.Fatal("explicit new state not replacing retained state")
+	}
+}
+
+func TestProfileIconChangeCannotRetainPreviousPlayersPicture(t *testing.T) {
+	a, b := 123, 456
+	old := mergeProfile(core.Profile{ProfileIconID: &a, ProfileIconData: "old-picture"}, nil)
+	retained := mergeProfile(core.Profile{}, &old)
+	if retained.ProfileIconData != "old-picture" || retained.Fields["avatar"].State != "retained" {
+		t.Fatal("same icon was not retained honestly")
+	}
+	changed := mergeProfile(core.Profile{ProfileIconID: &b}, &old)
+	if changed.ProfileIconData != "" || changed.Fields["avatar"].State != "unavailable" {
+		t.Fatal("old picture mislabeled as new icon")
 	}
 }
 
