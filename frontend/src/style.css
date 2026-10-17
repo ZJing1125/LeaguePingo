@@ -89,6 +89,7 @@
   --loss: #f092a4;
   --warning: #e4bf7f;
   --radius: 8px;
+  --selection: #203b3c;
   font-variant-numeric: tabular-nums;
 }
 * {
@@ -901,7 +902,8 @@ small {
   align-items: center;
   gap: 12px;
   width: 100%;
-  min-height: 77px;
+  min-height: 74px;
+  line-height: 1.35;
   padding: 8px 12px;
   color: inherit;
   text-align: left;

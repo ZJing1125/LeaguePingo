@@ -1,6 +1,6 @@
 # 工程结构与维护约定
 
-更新时间：2026-10-18。产品先完成 Windows，macOS 待 Windows 成熟后适配。本轮只整理工程，不扩展功能或开展实机验收。
+更新时间：2026-10-18。产品先完成 Windows，macOS 待 Windows 成熟后适配。本文记录当前工程结构；前端组件预览及迭代约定见 [FRONTEND_GUIDE.md](FRONTEND_GUIDE.md)，不等同于实机验收。
 
 ## 目录与职责
 
@@ -20,7 +20,9 @@ league-pingo/
 │   └── diagnostics/   脱敏诊断汇总
 ├── frontend/
 │   ├── src/           Vue / TypeScript / CSS 和游戏资源
+│   │   └── composables/ 快照、玩家工作区、手动操作与快览状态
 │   ├── bindings/      Wails 生成的接口与模型
+│   ├── preview/       独立 Histoire 工具链、锁文件及合成组件变体
 │   └── tests/         合成数据浏览器回归
 ├── build/
 │   ├── windows/       Windows 资源与打包任务
@@ -59,6 +61,7 @@ Docker 交叉编译模板内部沿用上游的通用编译器支持，不代表�
 - 维护源码：Go 业务代码、前端源码、测试、构建任务及说明文档。
 - 生成且跟踪：`frontend/bindings/` 通过固定版本 Wails CLI 生成，代码审查中核对接口变化；`.gitattributes` 标记为 `linguist-generated`，不手工修改。
 - 本地且忽略：`.tools/`、`.task/`、`bin/`、`artifacts/`、`frontend/node_modules/`、`frontend/dist/`、Windows 临时 `.syso`、安装器输出及 WebView2 引导程序。
+- 预览工具：`frontend/preview/package-lock.json` 与样例源码跟踪；该目录的 `node_modules/`、`.histoire/` 及 `artifacts/component-preview` 生成输出忽略，不覆盖产品 `frontend/dist`。
 - 构建资源不是构建产物：`build/windows/` 的 manifest、安装脚本和 `build/darwin/` 的 plist/图标仍需纳入版本控制。
 - 查询到的玩家身份、战绩、客户端凭据不属于工程文件，不落盘、不提交。
 

@@ -4,6 +4,8 @@ LeaguePingo 是面向《英雄联盟》腾讯国服的桌面战绩助手原型�
 
 工程目录、平台边界及构建资源维护方式见 [工程结构](docs/PROJECT_STRUCTURE.md)。当前仓库仅保留 Windows/macOS 桌面目标；Android、iOS、Linux 产品模板及服务端部署模板已清理。
 
+`dev` 已补充前端职责拆分、玩家标签键盘导航、设置焦点恢复及独立组件状态预览，使用方式和参考来源见 [前端迭代指南](docs/FRONTEND_GUIDE.md)。本批为源码改进，尚未生成新的 Windows 交付程序；下文 v9/v8 仍指此前已登记的本地程序。
+
 开发前先阅读根目录 [AGENTS.md](AGENTS.md)：审批、架构边界、测试、交付与版本留存约定统一在仓库内维护。Windows 交付构建入口已收敛到 `scripts/build.sh`；这是一套可检查的开发流程，不是阻止手动调用编译器的安全沙箱。
 
 ## 当前功能

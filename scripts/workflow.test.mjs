@@ -42,6 +42,19 @@ test('unsupported environment flags fail instead of silently changing the target
   }
   assert.throws(() => checkEnvironment({}, 'darwin', 'arm64'));
 });
+test('component preview routes cannot become product or desktop delivery entry points', () => {
+  for (const [file, change] of [
+    ['frontend/package.json', json => { json.scripts['build:components'] = 'wails3 build'; }],
+    ['frontend/preview/package.json', json => { json.scripts.build = 'vite build --outDir ../dist'; }],
+    ['frontend/preview/package.json', json => { json.scripts.package = 'go build -o bin/preview.exe'; }],
+  ]) {
+    const json = JSON.parse(files[file]);
+    change(json);
+    assert.throws(() => checkWorkflow(f => f === file ? JSON.stringify(json) : files[f]));
+  }
+  assert.throws(() => checkWorkflow(f => f === 'frontend/preview/histoire.config.ts'
+    ? files[f].replace('../../artifacts/component-preview', '../dist') : files[f]));
+});
 
 test('real Wails dry task expansion uses managed delivery or isolated dev; disabled tasks have no compiler deps', nativeOnly, () => {
   for (const [name, expected] of [

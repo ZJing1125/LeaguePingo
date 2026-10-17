@@ -163,13 +163,13 @@ caption {
   text-align: left;
   font-weight: 700;
   padding: 8px;
-  color: #c6d8ea;
+  color: var(--text);
 }
 th,
 td {
   text-align: left;
   padding: 7px 6px;
-  border-bottom: 1px solid #263a50;
+  border-bottom: 1px solid var(--border);
 }
 td:first-child {
   display: flex;
@@ -180,10 +180,10 @@ td:first-child {
 }
 small {
   display: block;
-  color: #92aac3;
+  color: var(--muted);
   margin-top: 3px;
 }
 .target {
-  background: #123344;
+  background: var(--selection);
 }
 </style>

@@ -455,14 +455,14 @@ async function main() {
           return b.top >= viewport.top && b.bottom <= viewport.bottom;
         }).length,
     );
-    assert(
-      standardRows >= 5,
-      `1280x800 must show five complete matches, got ${standardRows}`,
-    );
     if (process.env.UI_SCREENSHOT_PREFIX)
       await page.screenshot({
         path: process.env.UI_SCREENSHOT_PREFIX + "-players.png",
       });
+    assert(
+      standardRows >= 5,
+      `1280x800 must show five complete matches, got ${standardRows}`,
+    );
     await page.getByRole("button", { name: "展开导航", exact: true }).click();
     await page.getByRole("button", { name: "收起导航", exact: true }).click();
     await page.setViewportSize({ width: 1100, height: 760 });
@@ -684,6 +684,41 @@ async function main() {
         .waitFor();
     }
     assert.equal(await page.getByRole("tab").count(), 8);
+    const navigationCalls = calls.length;
+    async function assertFocusedTab(index) {
+      await page.waitForFunction((i) => {
+        const tabs = document.querySelectorAll('[role="tab"]');
+        const tab = tabs[i];
+        const panel = document.getElementById("player-panel");
+        return (
+          tab?.getAttribute("aria-selected") === "true" &&
+          document.activeElement === tab &&
+          tab.tabIndex === 0 &&
+          panel?.getAttribute("aria-labelledby") === tab.id &&
+          [...tabs].filter((t) => t.tabIndex === 0).length === 1
+        );
+      }, index);
+    }
+    await page.getByRole("tab", { selected: true }).press("Home");
+    await assertFocusedTab(0);
+    await page.getByRole("tab", { selected: true }).press("ArrowLeft");
+    await assertFocusedTab(7);
+    await page.getByRole("tab", { selected: true }).press("ArrowRight");
+    await assertFocusedTab(0);
+    await page.getByRole("tab", { selected: true }).press("End");
+    await assertFocusedTab(7);
+    assert.equal(
+      calls.length,
+      navigationCalls,
+      "keyboard navigation must only switch cached views",
+    );
+    await page.getByRole("tab", { selected: true }).press("Delete");
+    assert.equal(await page.getByRole("tab").count(), 7);
+    await assertFocusedTab(6);
+    await search("Extra5#TEST");
+    await page
+      .getByRole("heading", { name: "Extra5#TEST", exact: true })
+      .waitFor();
     await page.getByRole("tab", { name: "Alpha#TEST", exact: true }).click();
     snapshot = {
       ...snapshot,
@@ -827,6 +862,21 @@ async function main() {
     assert(calls.includes("LookupPlayer") && calls.includes("RefreshRoster"));
     await page.getByRole("button", { name: "设置与诊断", exact: true }).click();
     await page.getByRole("dialog", { name: "设置与诊断" }).waitFor();
+    assert.equal(await page.locator(".app-main").getAttribute("inert"), "");
+    await page.getByRole("dialog", { name: "设置与诊断" }).press("Shift+Tab");
+    assert.equal(
+      await page
+        .getByRole("button", { name: "导出脱敏诊断" })
+        .evaluate((el) => el === document.activeElement),
+      true,
+    );
+    await page.keyboard.press("Tab");
+    assert.equal(
+      await page
+        .getByRole("button", { name: "关闭设置" })
+        .evaluate((el) => el === document.activeElement),
+      true,
+    );
     await page.getByText(/0.2.0-dev · synthetic/).waitFor();
     await page
       .getByLabel("快览快捷键", { exact: true })
@@ -844,6 +894,16 @@ async function main() {
     await page.getByRole("button", { name: "导出脱敏诊断" }).click();
     await page.getByText(/已保存本地诊断/).waitFor();
     await page.getByRole("button", { name: "关闭设置" }).click();
+    await page.waitForFunction(
+      () => document.activeElement?.getAttribute("aria-label") === "设置与诊断",
+    );
+    await page.getByRole("button", { name: "设置与诊断", exact: true }).click();
+    await page.getByRole("dialog", { name: "设置与诊断" }).press("Escape");
+    await page.waitForFunction(
+      () =>
+        !document.querySelector('[role="dialog"]') &&
+        document.activeElement?.getAttribute("aria-label") === "设置与诊断",
+    );
     const avatarCalls = calls.filter((c) =>
       /Lookup|History|Profile/.test(c),
     ).length;

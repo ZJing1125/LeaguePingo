@@ -6,7 +6,8 @@ import { manager, runningExecutables } from './artifacts.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const policyFiles = ['AGENTS.md', 'Taskfile.yml', 'build/windows/Taskfile.yml',
   'build/Taskfile.yml', 'build/config.yml', 'scripts/build.sh', 'scripts/run.sh',
-  'scripts/dev.sh', 'scripts/verify.sh', 'docs/ci/verify.yml.example'];
+  'scripts/dev.sh', 'scripts/verify.sh', 'docs/ci/verify.yml.example',
+  'frontend/package.json', 'frontend/preview/package.json', 'frontend/preview/histoire.config.ts'];
 
 // A deliberately restricted policy check, not a general YAML parser. Keep
 // entry tasks simple and also test their expansion with the real Wails runner.
@@ -83,6 +84,21 @@ export function checkWorkflow(read) {
     requireText(file, 'source "$task_root/scripts/env.sh"');
   }
   requireText('docs/ci/verify.yml.example', 'bash scripts/build.sh bin/leaguepingo-ci.exe');
+  const frontendScripts = JSON.parse(contents['frontend/package.json']).scripts;
+  const previewScripts = JSON.parse(contents['frontend/preview/package.json']).scripts;
+  const previewRoutes = {
+    'preview:components': 'npm --prefix preview run dev',
+    'build:components': 'npm --prefix preview run build',
+    'test:components': 'node tests/component-preview.cjs',
+  };
+  for (const [name, command] of Object.entries(previewRoutes)) {
+    if (frontendScripts[name] !== command) throw new Error(`Unsafe component preview route: ${name}`);
+  }
+  if (JSON.stringify(Object.keys(previewScripts).sort()) !== JSON.stringify(['build', 'dev']) ||
+      previewScripts.build !== 'histoire build' || previewScripts.dev !== 'histoire dev --host 127.0.0.1') {
+    throw new Error('Component preview must remain isolated from desktop delivery');
+  }
+  requireText('frontend/preview/histoire.config.ts', 'outDir: "../../artifacts/component-preview"');
   return { ok: true, checked: policyFiles.length };
 }
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
 import * as Service from "../../bindings/leaguepingo/appservice";
 import type { AppInfo } from "../../bindings/leaguepingo/models";
 import { errorMessage } from "../presentation";
@@ -16,6 +16,7 @@ const metrics = computed(() =>
   ),
 );
 const panel = ref<HTMLElement | null>(null);
+const opener = document.activeElement;
 function trapFocus(event: KeyboardEvent) {
   if (event.key !== "Tab" || !panel.value) return;
   const controls = Array.from(
@@ -72,6 +73,13 @@ async function exportReport() {
 onMounted(() => {
   panel.value?.focus();
   void load();
+});
+onUnmounted(() => {
+  // Wait until the parent removes inert from the underlying workspace.
+  void nextTick(() => {
+    if (opener instanceof HTMLElement && opener.isConnected)
+      opener.focus({ preventScroll: true });
+  });
 });
 </script>
 <template>

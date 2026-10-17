@@ -1,22 +1,16 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref } from "vue";
 import type { Participant } from "../../bindings/leaguepingo/internal/core/models";
 import {
   date,
   decimal,
-  duration,
-  number,
-  tierName,
-  kda,
-  outcome,
   percent,
   queueName,
-  mapName,
-  positionName,
-  runeName,
   sampleStats,
   type PlayerViewState,
 } from "../presentation";
+import PlayerProfileHeader from "./PlayerProfileHeader.vue";
+import MatchHistoryRow from "./MatchHistoryRow.vue";
 import HistoryNotice from "./HistoryNotice.vue";
 import GameIcon from "./GameIcon.vue";
 import AppIcon from "./AppIcon.vue";
@@ -76,31 +70,6 @@ const heroes = computed(() =>
     .sort((a, b) => b.stats.games - a.stats.games)
     .slice(0, 5),
 );
-const copyNotice = ref("");
-const avatarBroken = ref(false);
-watch(
-  [() => props.player.key, () => props.player.profile?.profileIconData],
-  () => {
-    avatarBroken.value = false;
-  },
-);
-const hasRetainedProfile = computed(() =>
-  Object.values(props.player.profile?.fields ?? {}).some(
-    (field) => field?.state === "retained",
-  ),
-);
-function fieldTitle(field: string) {
-  const meta = props.player.profile?.fields?.[field];
-  return `${meta?.state === "retained" ? "本次未更新，保留旧值" : "资料获取时间"} · ${date(meta?.fetchedAt)}`;
-}
-async function copyID() {
-  try {
-    await navigator.clipboard.writeText(props.player.displayName);
-    copyNotice.value = "已复制完整 ID";
-  } catch {
-    copyNotice.value = "复制未成功，可选中名称手动复制";
-  }
-}
 function toggle(id: number) {
   const i = props.state.expanded.indexOf(id);
   if (i < 0) props.state.expanded.push(id);
@@ -109,132 +78,13 @@ function toggle(id: number) {
 </script>
 <template>
   <section class="player-view" :class="{ compact }">
-    <header class="player-profile">
-      <div
-        class="profile-avatar"
-        :title="
-          player.profile?.profileIconData
-            ? fieldTitle('avatar')
-            : '玩家头像尚未获取'
-        "
-      >
-        <img
-          v-if="player.profile?.profileIconData && !avatarBroken"
-          :src="player.profile.profileIconData"
-          alt="玩家头像"
-          @error="avatarBroken = true"
-        />
-        <AppIcon v-else name="user" :size="26" />
-      </div>
-      <div class="profile-identity">
-        <div class="identity-title">
-          <h1 :title="player.displayName">{{ player.displayName }}</h1>
-          <button
-            class="icon-button square"
-            aria-label="复制玩家完整 ID"
-            title="复制完整 ID"
-            @click="copyID"
-          >
-            <AppIcon name="copy" :size="15" />
-          </button>
-        </div>
-        <div class="profile-meta">
-          <span :title="fieldTitle('level')"
-            >{{
-              player.profile?.level != null
-                ? `等级 ${player.profile.level}`
-                : "等级 —"
-            }}<small
-              v-if="player.profile?.fields?.level?.state === 'retained'"
-              class="warning-text"
-            >
-              · 旧</small
-            ></span
-          ><span v-if="player.stale" class="status-badge warning">旧资料</span
-          ><span v-else-if="player.cached">缓存资料</span
-          ><span
-            v-if="player.privacyState === 'private'"
-            class="status-badge"
-            :title="fieldTitle('privacy')"
-            >生涯不公开（客户端明确返回）<small
-              v-if="player.profile?.fields?.privacy?.state === 'retained'"
-              class="warning-text"
-            >
-              · 旧</small
-            ></span
-          ><span
-            v-else-if="player.privacyState === 'unknown'"
-            class="privacy-unknown"
-            >隐私未核验</span
-          >
-          <span
-            v-if="player.privacyState === 'public'"
-            :title="fieldTitle('privacy')"
-            >生涯公开<small
-              v-if="player.profile?.fields?.privacy?.state === 'retained'"
-              class="warning-text"
-            >
-              · 旧</small
-            ></span
-          >
-        </div>
-      </div>
-      <div v-if="!compact" class="profile-ranks">
-        <div
-          v-for="queue in ['RANKED_SOLO_5x5', 'RANKED_FLEX_SR']"
-          :key="queue"
-          class="rank-card"
-        >
-          <AppIcon name="shield" :size="24" />
-          <div>
-            <small>{{
-              queue === "RANKED_SOLO_5x5" ? "单双排" : "灵活排位"
-            }}</small
-            ><template
-              v-for="rank in (player.profile?.ranks ?? []).filter(
-                (r) => r.queue === queue,
-              )"
-              :key="rank.queue"
-              ><strong :title="fieldTitle('rank')"
-                >{{ tierName(rank.tier) }} {{ rank.division }}
-                <span>{{ number(rank.lp) }} LP</span
-                ><small
-                  v-if="player.profile?.fields?.rank?.state === 'retained'"
-                  class="warning-text"
-                  >旧段位</small
-                ></strong
-              ><small
-                >{{ number(rank.wins) }} 胜 /
-                {{ number(rank.losses) }} 负</small
-              ></template
-            ><strong
-              v-if="
-                !(player.profile?.ranks ?? []).some((r) => r.queue === queue)
-              "
-              class="muted"
-              >段位未获取</strong
-            >
-          </div>
-        </div>
-      </div>
-      <button
-        class="icon-button profile-update"
-        aria-label="更新玩家资料"
-        title="更新等级、段位与隐私"
-        :disabled="
-          busy || !connected || player.stale || player.identityState !== 'known'
-        "
-        @click="emit('profile', player)"
-      >
-        <AppIcon name="refresh" :size="16" /><span>更新资料</span>
-      </button>
-    </header>
-    <p v-if="hasRetainedProfile" class="profile-freshness" role="status">
-      部分资料未更新，标“旧”的字段保留了上次结果；悬停查看获取时间。
-    </p>
-    <p v-if="copyNotice" class="inline-status" role="status">
-      {{ copyNotice }}
-    </p>
+    <PlayerProfileHeader
+      :player="player"
+      :busy="busy"
+      :connected="connected"
+      :compact="compact"
+      @profile="emit('profile', $event)"
+    />
     <TransientNotice :message="error" banner-class="player-error" />
     <div class="player-columns">
       <aside v-if="!compact" class="player-summary">
@@ -438,124 +288,22 @@ function toggle(id: number) {
                 }}
               </p>
             </div>
-            <article
+            <MatchHistoryRow
               v-for="match in pageMatches"
               :key="match.gameId"
-              class="match-card"
-              :class="
-                match.win == null ? 'unknown' : match.win ? 'won' : 'lost'
-              "
+              :match="match"
+              :expanded="state.expanded.includes(match.gameId)"
+              :compact="compact"
+              @toggle="toggle(match.gameId)"
             >
-              <button
-                class="match-main"
-                :aria-expanded="state.expanded.includes(match.gameId)"
-                @click="toggle(match.gameId)"
-              >
-                <span class="match-context"
-                  ><strong>{{ queueName(match.queueId) }}</strong
-                  ><small>{{ date(match.playedAt) }}</small
-                  ><b class="outcome"
-                    >{{ outcome(match) }}
-                    <span>{{ duration(match.duration) }}</span></b
-                  ></span
-                >
-                <span class="match-hero"
-                  ><GameIcon
-                    :id="match.championId"
-                    :size="compact ? 32 : 40"
-                  /><small>{{
-                    championName(match.championId).split("·")[0]
-                  }}</small></span
-                >
-                <span class="match-spells"
-                  ><GameIcon
-                    kind="spells"
-                    :id="match.spell1"
-                    :size="19" /><GameIcon
-                    kind="spells"
-                    :id="match.spell2"
-                    :size="19"
-                /></span>
-                <span class="match-performance"
-                  ><strong>{{ kda(match) }}</strong
-                  ><small>{{ decimal(sampleStats([match]).kda) }} KDA</small
-                  ><small
-                    >补刀 {{ number(match.cs) }} · 伤害
-                    {{ number(match.damage) }}</small
-                  ></span
-                >
-                <span class="match-items" aria-label="本玩家终局装备"
-                  ><GameIcon
-                    v-for="slot in 7"
-                    :key="slot"
-                    kind="items"
-                    :id="match.items?.[slot - 1]"
-                    :size="compact ? 17 : 24"
-                /></span>
-                <span class="expand-indicator"
-                  ><AppIcon name="chevron" :size="16"
-                /></span>
-              </button>
-              <div
-                v-if="state.expanded.includes(match.gameId)"
-                class="match-expanded"
-              >
-                <div class="detail-metrics">
-                  <span>时长 {{ duration(match.duration) }}</span
-                  ><span>补刀 {{ number(match.cs) }}</span
-                  ><span>金币 {{ number(match.gold) }}</span
-                  ><span>英雄伤害 {{ number(match.damage) }}</span>
-                </div>
-                <div class="match-context-detail" aria-label="对局上下文">
-                  <span>{{ mapName(match.mapId) }}</span>
-                  <span>{{ positionName(match.position) }}</span>
-                  <span v-if="match.lane && !match.position"
-                    >客户端线路：{{ match.lane }}</span
-                  >
-                  <span
-                    v-if="match.earlyEnd === true"
-                    class="early-end"
-                    title="客户端标记提前结束；不等同于确认重开，不自动从统计中排除"
-                    >提前结束</span
-                  >
-                  <span v-else-if="match.earlyEnd == null"
-                    >提前结束信号未获取</span
-                  >
-                </div>
-                <div class="match-runes" aria-label="本玩家符文">
-                  <template v-if="match.runeIds?.length">
-                    <span
-                      v-for="(rune, index) in match.runeIds"
-                      :key="`${rune}:${index}`"
-                      :title="`符文 #${rune}`"
-                      >{{ runeName(rune) }}</span
-                    >
-                    <small v-if="match.runePrimary || match.runeSecondary"
-                      >{{
-                        match.runePrimary
-                          ? runeName(match.runePrimary)
-                          : "主系未知"
-                      }}
-                      /
-                      {{
-                        match.runeSecondary
-                          ? runeName(match.runeSecondary)
-                          : "副系未知"
-                      }}</small
-                    >
-                  </template>
-                  <small v-else>符文未获取</small>
-                </div>
+              <template #details>
                 <MatchDetails
                   :player="player"
                   :game-id="match.gameId"
                   :connected="connected"
-                /><span class="detail-note"
-                  >对局 #{{ match.gameId }} · 双方详情按需读取 · 缺失字段显示
-                  —</span
-                >
-              </div>
-            </article>
+                />
+              </template>
+            </MatchHistoryRow>
             <HistoryNotice
               :player="noticePlayer"
               :stats="stats"

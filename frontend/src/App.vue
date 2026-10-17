@@ -1,401 +1,80 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { Events } from "@wailsio/runtime";
 import * as Service from "../bindings/leaguepingo/appservice";
-import type {
-  Participant,
-  Snapshot as SnapshotModel,
-} from "../bindings/leaguepingo/internal/core/models";
+import type { Snapshot as SnapshotModel } from "../bindings/leaguepingo/internal/core/models";
 import type { OverlayState } from "../bindings/leaguepingo/models";
 import PlayerView from "./components/PlayerView.vue";
+import PlayerTabs from "./components/PlayerTabs.vue";
 import OverlayView from "./components/OverlayView.vue";
 import ParticipantAvatar from "./components/ParticipantAvatar.vue";
 import TransientNotice from "./components/TransientNotice.vue";
 import SettingsPanel from "./components/SettingsPanel.vue";
 import AppIcon from "./components/AppIcon.vue";
 import RecentForm from "./components/RecentForm.vue";
-import { historyBrowseBusy } from "./historyBrowser";
 import { useTransientMessages } from "./transientMessages";
 import {
   errorMessage,
-  normalizeRiotIDInput,
   percent,
   decimal,
   preparationLabel,
-  type PlayerViewState,
 } from "./presentation";
+import { operationKey, playerTabId } from "./playerState";
+import { useLeagueSnapshot } from "./composables/useLeagueSnapshot";
+import { usePlayerWorkspace } from "./composables/usePlayerWorkspace";
+import { usePlayerActions } from "./composables/usePlayerActions";
+import { useOverlayControls } from "./composables/useOverlayControls";
 
 const isOverlay =
   new URLSearchParams(location.search).get("view") === "overlay";
 const settingsOpen = ref(false);
 const navCollapsed = ref(true);
-const snapshot = ref<SnapshotModel | null>(null),
-  overlay = ref<OverlayState | null>(null);
-const view = ref<"players" | "match">("players"),
-  query = ref(""),
-  searching = ref(false);
 const { messages: playerErrors, setMessage } = useTransientMessages();
 const searchError = computed(() => playerErrors.search || "");
 const rosterError = computed(() => playerErrors.roster || "");
-const rosterBusy = ref(false),
-  overlayBusy = ref(false),
-  overlayError = ref("");
-const tabs = ref<Participant[]>([]),
-  activeKey = ref(""),
-  selectedKey = ref(""),
-  selectedResult = ref<Participant | null>(null);
-const viewStates = reactive<Record<string, PlayerViewState>>({});
-const playerOperation = ref<{
-  key: string;
-  kind: "history" | "profile" | "lookup";
-} | null>(null);
-const manualBusy = computed(
-  () =>
-    searching.value ||
-    playerOperation.value !== null ||
-    historyBrowseBusy.value,
-);
-const pendingProfile = ref<Participant | null>(null);
-const profileOpening = ref(false);
-let componentAlive = true;
-const actionBusy = computed(() => manualBusy.value || rosterBusy.value);
-function requestMissingProfile(player: Participant) {
-  pendingProfile.value = null;
-  if (
-    profileOpening.value &&
-    playerOperation.value?.key === operationKey(player)
-  )
-    return;
-  if (
-    player.identityState !== "known" ||
-    player.stale ||
-    !snapshot.value?.connected
-  )
-    return;
-  if (player.profile?.profileIconData && player.profile?.level != null) return;
-  pendingProfile.value = player;
-  void flushMissingProfile();
-}
-function acceptProfile(result: Participant) {
-  if (
-    !componentAlive ||
-    !result?.key ||
-    !snapshot.value?.connected ||
-    (result.connectionId ?? 0) !== (snapshot.value.connectionId ?? 0)
-  )
-    return;
-  const merge = (p: Participant) =>
-    newestPlayer(p, {
-      ...p,
-      profile: result.profile,
-      privacyState: result.privacyState,
-    })!;
-  for (let i = 0; i < tabs.value.length; i++) {
-    if (operationKey(tabs.value[i]!) === operationKey(result))
-      tabs.value[i] = merge(tabs.value[i]!);
-  }
-  if (
-    operationKey(selected.value ?? result) === operationKey(result) &&
-    selectedKey.value === result.key
-  ) {
-    selectedResult.value = merge(selected.value ?? result);
-  }
-  snapshot.value.participants = (snapshot.value.participants ?? []).map((p) =>
-    operationKey(p) === operationKey(result) ? merge(p) : p,
-  );
-}
-async function flushMissingProfile() {
-  if (
-    !componentAlive ||
-    !pendingProfile.value ||
-    actionBusy.value ||
-    profileOpening.value
-  )
-    return;
-  const target = pendingProfile.value;
-  pendingProfile.value = null;
-  if (
-    !snapshot.value?.connected ||
-    (target.connectionId ?? 0) !== (snapshot.value.connectionId ?? 0)
-  )
-    return;
-  profileOpening.value = true;
-  playerOperation.value = { key: operationKey(target), kind: "profile" };
-  try {
-    acceptProfile(await Service.EnsureProfile(target.key, target.connectionId));
-  } catch (reason) {
-    if (
-      componentAlive &&
-      snapshot.value?.connected &&
-      (target.connectionId ?? 0) === (snapshot.value.connectionId ?? 0)
-    )
-      setMessage(operationKey(target), errorMessage(reason));
-  } finally {
-    playerOperation.value = null;
-    profileOpening.value = false;
-    void flushMissingProfile();
-  }
-}
-watch(actionBusy, (busy) => {
-  if (!busy) void flushMissingProfile();
+const league = useLeagueSnapshot();
+const { snapshot, canRefresh, status } = league;
+const workspace = usePlayerWorkspace(snapshot, (player) => {
+  delete playerErrors[operationKey(player)];
 });
-function openPlayerDetails(player: Participant) {
-  openPlayer(player);
-  requestMissingProfile(player);
-}
-function refreshing(player: Participant) {
-  return (
-    playerOperation.value?.key === operationKey(player) &&
-    playerOperation.value.kind === "history"
-  );
-}
-function operationKey(player: Participant) {
-  return `${player.connectionId ?? 0}:${player.key}`;
-}
-const players = computed(() => snapshot.value?.participants ?? []);
-const active = computed(
-  () => tabs.value.find((p) => p.key === activeKey.value) ?? null,
-);
-const selected = computed(() =>
-  newestPlayer(
-    players.value.find((p) => p.key === selectedKey.value) ?? null,
-    selectedResult.value?.key === selectedKey.value
-      ? selectedResult.value
-      : null,
-  ),
-);
-function newestPlayer(
-  current: Participant | null,
-  retained: Participant | null,
-) {
-  if (!retained) return current;
-  if (!current) return retained;
-  if ((current.connectionId ?? 0) !== (retained.connectionId ?? 0))
-    return (current.connectionId ?? 0) > (retained.connectionId ?? 0)
-      ? current
-      : retained;
-  const currentTime = Date.parse(current.historyMeta?.fetchedAt ?? "") || 0;
-  const retainedTime = Date.parse(retained.historyMeta?.fetchedAt ?? "") || 0;
-  const history = currentTime >= retainedTime ? current : retained;
-  const currentProfileTime = Date.parse(current.profile?.updatedAt ?? "") || 0;
-  const retainedProfileTime =
-    Date.parse(retained.profile?.updatedAt ?? "") || 0;
-  const profile =
-    (currentProfileTime >= retainedProfileTime
-      ? current.profile
-      : retained.profile) ??
-    current.profile ??
-    retained.profile;
-  return profile
-    ? { ...history, profile, privacyState: profile.privacyState }
-    : history;
-}
+const {
+  view,
+  tabs,
+  activeKey,
+  selectedKey,
+  active,
+  selected,
+  players,
+  stateFor,
+  closeTab,
+} = workspace;
 function acceptSnapshot(next: SnapshotModel) {
-  const current = snapshot.value;
-  if (
-    current &&
-    ((next.generation ?? 0) < (current.generation ?? 0) ||
-      (next.generation === current.generation &&
-        Date.parse(next.updatedAt) < Date.parse(current.updatedAt)))
-  )
-    return;
-  snapshot.value = next;
-  for (const tab of tabs.value) {
-    if (!next.connected || (tab.connectionId ?? 0) !== (next.connectionId ?? 0))
-      tab.stale = true;
-  }
-  if (
-    selectedResult.value &&
-    (!next.connected ||
-      (selectedResult.value.connectionId ?? 0) !== (next.connectionId ?? 0))
-  )
-    selectedResult.value.stale = true;
-  // Update only newer verified histories; a stage change cannot erase tabs.
-  for (const player of next.participants ?? []) {
-    const index = tabs.value.findIndex((p) => p.key === player.key);
-    if (index >= 0)
-      tabs.value[index] = newestPlayer(player, tabs.value[index]!)!;
-  }
+  if (league.acceptSnapshot(next)) workspace.acceptSnapshot(next);
 }
-const canRefresh = computed(
-  () =>
-    snapshot.value?.connected &&
-    [
-      "Lobby",
-      "Matchmaking",
-      "ReadyCheck",
-      "ChampSelect",
-      "GameStart",
-      "InProgress",
-      "Reconnect",
-    ].includes(snapshot.value.phase),
-);
-const status = computed(() => {
-  const s = snapshot.value;
-  if (!s?.connected) return s?.frozen ? "连接中断 · 保留资料" : "等待客户端";
-  const phases: Record<string, string> = {
-    Lobby: "组队大厅",
-    Matchmaking: "正在排队",
-    ReadyCheck: "确认对局",
-    ChampSelect: "选人 · 准备资料",
-    GameStart: "对局载入 · 自动预取暂停",
-    InProgress: "对局中 · 自动预取暂停",
-    Reconnect: "重连中",
-    WatchInProgress: "观战中",
-    WaitingForStats: "等待结算",
-    PreEndOfGame: "正在结算",
-    EndOfGame: "对局结束",
-  };
-  return phases[s.phase] ?? "客户端已连接";
-});
-function stateFor(key: string) {
-  return viewStates[key] ?? (viewStates[key] = { queue: "all", expanded: [] });
-}
-function openPlayer(player: Participant, activate = true) {
-  const index = tabs.value.findIndex((p) => p.key === player.key);
-  if (index >= 0) tabs.value[index] = newestPlayer(player, tabs.value[index]!)!;
-  else {
-    if (tabs.value.length >= 8) {
-      const removed = tabs.value.shift();
-      if (removed) {
-        delete viewStates[removed.key];
-        delete playerErrors[operationKey(removed)];
-        if (activeKey.value === removed.key)
-          activeKey.value = tabs.value[0]?.key ?? "";
-      }
-    }
-    tabs.value.push(player);
-  }
-  stateFor(player.key);
-  if (!activeKey.value) activeKey.value = player.key;
-  if (activate) {
-    activeKey.value = player.key;
-    view.value = "players";
-  }
-}
-function closeTab(key: string) {
-  const old = tabs.value.find((p) => p.key === key);
-  if (old) delete playerErrors[operationKey(old)];
-  const i = tabs.value.findIndex((p) => p.key === key);
-  tabs.value = tabs.value.filter((p) => p.key !== key);
-  delete viewStates[key];
-  if (activeKey.value === key)
-    activeKey.value = tabs.value[Math.min(i, tabs.value.length - 1)]?.key ?? "";
-}
-async function search() {
-  if (manualBusy.value) return;
-  const id = normalizeRiotIDInput(query.value);
-  query.value = id;
-  if (!/^[^#]+#[^#]+$/.test(id) || /[\u0000-\u001f\u007f-\u009f]/.test(id)) {
-    setMessage("search", "请输入完整的 玩家名#标签");
-    return;
-  }
-  searching.value = true;
-  setMessage("search", "");
-  try {
-    openPlayer(await Service.Lookup(id));
-  } catch (reason) {
-    setMessage("search", errorMessage(reason));
-  } finally {
-    searching.value = false;
-  }
-}
-async function refreshPlayer(player: Participant) {
-  if (manualBusy.value) return;
-  const requestKey = operationKey(player);
-  playerOperation.value = { key: requestKey, kind: "history" };
-  setMessage(requestKey, "");
-  try {
-    const result = await Service.RefreshHistory(
-      player.key,
-      player.connectionId,
-    );
-    if (selectedKey.value === player.key) selectedResult.value = result;
-    openPlayer(result, false);
-  } catch (reason) {
-    setMessage(requestKey, errorMessage(reason));
-  } finally {
-    playerOperation.value = null;
-  }
-}
-function selectPlayer(player: Participant) {
-  selectedKey.value = player.key;
-  selectedResult.value = null;
-  void Service.PrioritizePlayer(player.key);
-  requestMissingProfile(player);
-}
-async function lookupSelected() {
-  if (!selected.value || manualBusy.value) return;
-  const target = selected.value;
-  const requestKey = operationKey(target);
-  playerOperation.value = { key: requestKey, kind: "lookup" };
-  setMessage(requestKey, "");
-  try {
-    const result = await Service.LookupPlayer(target.key);
-    if (selectedKey.value === target.key) selectedResult.value = result;
-    openPlayer(result, false);
-  } catch (reason) {
-    setMessage(requestKey, errorMessage(reason));
-  } finally {
-    playerOperation.value = null;
-  }
-}
-async function refreshRoster() {
-  if (rosterBusy.value) return;
-  rosterBusy.value = true;
-  setMessage("roster", "");
-  try {
-    acceptSnapshot(await Service.RefreshRoster());
-  } catch (reason) {
-    setMessage("roster", errorMessage(reason));
-  } finally {
-    rosterBusy.value = false;
-  }
-}
-async function loadProfile(player: Participant) {
-  if (manualBusy.value) return;
-  const requestKey = operationKey(player);
-  playerOperation.value = { key: requestKey, kind: "profile" };
-  setMessage(requestKey, "");
-  try {
-    const result = await Service.LoadProfile(player.key, player.connectionId);
-    openPlayer(result, false);
-    if (selectedKey.value === player.key) selectedResult.value = result;
-  } catch (reason) {
-    setMessage(requestKey, errorMessage(reason));
-  } finally {
-    playerOperation.value = null;
-  }
-}
-function acceptOverlay(state: OverlayState) {
-  if (!overlay.value || state.revision >= overlay.value.revision)
-    overlay.value = state;
-}
-async function control(action: () => Promise<OverlayState>) {
-  if (overlayBusy.value) return;
-  overlayBusy.value = true;
-  overlayError.value = "";
-  try {
-    acceptOverlay(await action());
-  } catch (reason) {
-    overlayError.value = errorMessage(reason);
-  } finally {
-    overlayBusy.value = false;
-  }
-}
-function hideOverlay() {
-  return control(() => Service.HideOverlay());
-}
-function pinOverlay() {
-  return control(() => Service.SetOverlayPinned(!overlay.value?.pinned));
-}
-async function toggleOverlay() {
-  try {
-    await Service.ToggleOverlay();
-  } catch (reason) {
-    overlayError.value = errorMessage(reason);
-  }
-}
+const {
+  query,
+  searching,
+  rosterBusy,
+  playerOperation,
+  manualBusy,
+  refreshing,
+  openPlayerDetails,
+  search,
+  refreshPlayer,
+  selectPlayer,
+  lookupSelected,
+  refreshRoster,
+  loadProfile,
+} = usePlayerActions(snapshot, workspace, acceptSnapshot, setMessage);
+const {
+  overlay,
+  overlayBusy,
+  overlayError,
+  acceptOverlay,
+  hideOverlay,
+  pinOverlay,
+  toggleOverlay,
+} = useOverlayControls();
 function onKey(event: KeyboardEvent) {
   if (event.key === "Escape") {
     if (settingsOpen.value) {
@@ -406,6 +85,7 @@ function onKey(event: KeyboardEvent) {
     else selectedKey.value = "";
   }
 }
+let componentAlive = true;
 let stopSnapshot: (() => void) | undefined,
   stopOverlay: (() => void) | undefined;
 onMounted(async () => {
@@ -420,6 +100,7 @@ onMounted(async () => {
     Service.Snapshot(),
     Service.OverlayStatus(),
   ]);
+  if (!componentAlive) return;
   if (initial[0].status === "fulfilled") acceptSnapshot(initial[0].value);
   else setMessage("search", errorMessage(initial[0].reason));
   if (initial[1].status === "fulfilled") acceptOverlay(initial[1].value);
@@ -427,7 +108,6 @@ onMounted(async () => {
 });
 onUnmounted(() => {
   componentAlive = false;
-  pendingProfile.value = null;
   stopSnapshot?.();
   stopOverlay?.();
   window.removeEventListener("keydown", onKey);
@@ -446,7 +126,7 @@ onUnmounted(() => {
     @pin="pinOverlay"
   />
   <main v-else class="desktop-app" :class="{ 'nav-collapsed': navCollapsed }">
-    <aside class="app-sidebar">
+    <aside class="app-sidebar" :inert="settingsOpen">
       <div class="app-brand">
         <span class="brand-mark">P</span>
         <div><strong>LeaguePingo</strong><small>战绩助手</small></div>
@@ -498,7 +178,7 @@ onUnmounted(() => {
         </div>
       </div>
     </aside>
-    <div class="app-main">
+    <div class="app-main" :inert="settingsOpen">
       <header class="app-toolbar">
         <strong>{{ view === "players" ? "玩家战绩" : "当前对局" }}</strong>
         <span class="toolbar-status" :title="status"
@@ -548,36 +228,19 @@ onUnmounted(() => {
         banner-class="workspace-message"
       />
       <section v-show="view === 'players'" class="players-workspace">
-        <div
+        <PlayerTabs
           v-if="tabs.length"
-          class="player-tabs"
-          role="tablist"
-          aria-label="已查看玩家"
-        >
-          <div
-            v-for="player in tabs"
-            :key="player.key"
-            class="player-tab"
-            :class="{ active: activeKey === player.key }"
-          >
-            <button
-              role="tab"
-              :aria-selected="activeKey === player.key"
-              :title="player.displayName"
-              @click="activeKey = player.key"
-            >
-              {{ player.displayName }}</button
-            ><button
-              class="tab-close"
-              :aria-label="`关闭 ${player.displayName}`"
-              @click="closeTab(player.key)"
-            >
-              ×
-            </button>
-          </div>
-        </div>
+          :players="tabs"
+          :active-key="activeKey"
+          @select="activeKey = $event"
+          @close="closeTab"
+        />
         <PlayerView
           v-if="active"
+          id="player-panel"
+          role="tabpanel"
+          :aria-labelledby="playerTabId(active.key)"
+          tabindex="0"
           :player="active"
           :state="stateFor(active.key)"
           :busy="manualBusy"

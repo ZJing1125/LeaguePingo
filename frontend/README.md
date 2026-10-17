@@ -4,16 +4,19 @@
 
 ## 目录职责
 
-- `src/App.vue`：玩家工作区、当前对局和主窗口状态。
+- `src/App.vue`：工作区布局与桌面事件组合；快照、玩家标签、手动操作和快览控制分别在 `src/composables/` 管理。
 - `src/components/`：玩家战绩、对局详情、快览、设置与通用组件。
 - `src/historyBrowser.ts`、`src/presentation.ts`：分页/样本状态和展示计算。
 - `src/style.css`：桌面界面样式，使用系统字体。
 - `src/assets/game/`：随程序打包的游戏元数据和图集，来源见 [第三方说明](../THIRD_PARTY_NOTICES.md)。
 - `bindings/`：Wails 从 Go 生成的接口与模型，纳入版本控制，不手工修改。
 - `tests/`：使用合成玩家与模拟 Wails 绑定的浏览器回归，不查询真实账号。
+- `preview/`：独立 Histoire 工具链及 4 组 / 15 个合成状态变体，按其锁文件单独安装；不进入产品运行时。
 - `dist/`、`node_modules/`：本机构建产物和依赖，不提交 Git。
 
 欢迎页模板的 `public/` 背景、标志、独立样式和 Inter 字体已经移除；实际页面使用 `src/style.css`，游戏图集保留在 `src/assets/game/`。
+
+组件拆分、键盘操作、AI 迭代规范、预览命令和外部参考见 [前端迭代指南](../docs/FRONTEND_GUIDE.md)。
 
 ## 常用命令
 
