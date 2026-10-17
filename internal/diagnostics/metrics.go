@@ -27,6 +27,8 @@ func Category(path string) string {
 		return "sgp-history"
 	case path == "/phase-events":
 		return "phase-events"
+	case path == "/champ-select-events":
+		return "champ-select-events"
 	case path == "/lol-gameflow/v1/gameflow-phase":
 		return "phase"
 	case path == "/lol-gameflow/v1/session":

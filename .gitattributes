@@ -19,3 +19,6 @@
 *.ttf binary
 *.jar binary
 *.car binary
+
+# Wails-generated bridge code; regenerate from Go, never edit by hand.
+frontend/bindings/** linguist-generated=true

@@ -1,12 +1,15 @@
 package lcu
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -132,21 +135,41 @@ func NewClient(cred Credentials) *Client {
 	}}
 }
 
-func (c *Client) Get(ctx context.Context, path string) (data []byte, resultErr error) {
+func (c *Client) Get(ctx context.Context, path string) ([]byte, error) {
+	return c.request(ctx, http.MethodGet, path, nil)
+}
+
+// LookupSummonerAlias is a read-only identity lookup despite its POST method.
+// Keep the endpoint fixed: this is not a general client mutation API.
+func (c *Client) LookupSummonerAlias(ctx context.Context, name, tag string) ([]byte, error) {
+	body, err := json.Marshal([]struct {
+		GameName string `json:"gameName"`
+		TagLine  string `json:"tagLine"`
+	}{{GameName: name, TagLine: tag}})
+	if err != nil {
+		return nil, errors.New("客户端查询参数编码失败")
+	}
+	return c.request(ctx, http.MethodPost, "/lol-summoner/v1/summoners/aliases", body)
+}
+
+func (c *Client) request(ctx context.Context, method, path string, body []byte) (data []byte, resultErr error) {
 	started, status := time.Now(), 0
 	defer func() { diagnostics.Default.Record(path, time.Since(started), status, resultErr != nil) }()
 	if !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") {
 		return nil, errors.New("invalid LCU path")
 	}
 	endpoint := fmt.Sprintf("https://127.0.0.1:%d%s", c.Cred.Port, path)
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	request, err := http.NewRequestWithContext(ctx, method, endpoint, bytes.NewReader(body))
 	if err != nil {
-		return nil, err
+		return nil, errors.New("客户端请求构造失败")
 	}
 	request.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("riot:"+c.Cred.Password)))
+	if body != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
 	response, err := c.HTTP.Do(request)
 	if err != nil {
-		return nil, err
+		return nil, safeRequestError(ctx, err, "客户端连接失败，请确认客户端仍在运行后重试")
 	}
 	defer response.Body.Close()
 	status = response.StatusCode
@@ -155,9 +178,33 @@ func (c *Client) Get(ctx context.Context, path string) (data []byte, resultErr e
 	}
 	data, err = io.ReadAll(io.LimitReader(response.Body, 8<<20))
 	if err != nil {
-		return nil, err
+		return nil, safeRequestError(ctx, err, "客户端响应读取失败，请稍后重试")
 	}
 	return data, nil
+}
+
+// Preserve only safe cancellation classifications. The raw net/url error can
+// contain a complete query URL and player identity, so never return or wrap it.
+type requestError struct {
+	message string
+	cause   error
+}
+
+func (e *requestError) Error() string { return e.message }
+func (e *requestError) Unwrap() error { return e.cause }
+
+func safeRequestError(ctx context.Context, err error, fallback string) error {
+	if ctx.Err() != nil {
+		err = ctx.Err()
+	}
+	if errors.Is(err, context.Canceled) {
+		return &requestError{message: "客户端请求已取消", cause: context.Canceled}
+	}
+	var networkError net.Error
+	if errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &networkError) && networkError.Timeout()) {
+		return &requestError{message: "客户端响应超时，请稍后重试", cause: context.DeadlineExceeded}
+	}
+	return errors.New(fallback)
 }
 
 func HistoryPath(puuid string, count int) string {

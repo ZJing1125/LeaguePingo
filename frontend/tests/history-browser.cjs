@@ -164,7 +164,8 @@ async function main() {
               Date.now = () => window.originalDateNow() + 16000;
             });
           }
-        } else throw new Error(`Unexpected bridge method ${method}`);
+        } else if (method === "EnsureProfile") result = player(args[0]);
+        else throw new Error(`Unexpected bridge method ${method}`);
         return route.fulfill({ json: result });
       }
       const relative =

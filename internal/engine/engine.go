@@ -31,6 +31,7 @@ type Engine struct {
 	matchRosterComplete bool
 	cache               map[string]core.Participant
 	aliases             map[string]string
+	profileRetry        map[string]time.Time
 	clientVersion       uint64
 	accountIdentity     string
 	phaseEpoch          uint64
@@ -40,6 +41,12 @@ type Engine struct {
 	phaseWatchVersion   uint64
 	phaseWatchSeq       uint64
 	phaseWatchRetry     time.Time
+	champWake           chan struct{}
+	champWatchCancel    context.CancelFunc
+	champWatchVersion   uint64
+	champWatchSeq       uint64
+	champEpoch          uint64
+	champWatchRetry     time.Time
 	scheduler           *requestScheduler
 	prepareToken        uint64
 	prepareRunning      bool
@@ -51,7 +58,7 @@ type Engine struct {
 }
 
 func New(discover Discoverer, onChange func(core.Snapshot)) *Engine {
-	e := &Engine{discover: discover, onChange: onChange, lookupGate: make(chan struct{}, 1), phaseWake: make(chan struct{}, 1), scheduler: newScheduler(), cache: map[string]core.Participant{}, aliases: map[string]string{}, snapshot: core.Snapshot{Stage: "disconnected", UpdatedAt: time.Now(), Participants: []core.Participant{}}}
+	e := &Engine{discover: discover, onChange: onChange, lookupGate: make(chan struct{}, 1), phaseWake: make(chan struct{}, 1), champWake: make(chan struct{}, 1), scheduler: newScheduler(), cache: map[string]core.Participant{}, aliases: map[string]string{}, snapshot: core.Snapshot{Stage: "disconnected", UpdatedAt: time.Now(), Participants: []core.Participant{}}}
 	if onChange != nil {
 		e.updates = make(chan core.Snapshot, 32)
 		go func() {
@@ -72,8 +79,16 @@ func (e *Engine) Snapshot() core.Snapshot {
 func (e *Engine) Run(ctx context.Context) {
 	e.poll(ctx)
 	e.syncPhaseEvents(ctx)
+	e.syncChampSelectEvents(ctx)
 	timer := time.NewTimer(e.pollInterval())
 	defer timer.Stop()
+	var champTimer *time.Timer
+	var champTick <-chan time.Time
+	defer func() {
+		if champTimer != nil {
+			champTimer.Stop()
+		}
+	}()
 	for {
 		select {
 		case <-ctx.Done():
@@ -82,16 +97,28 @@ func (e *Engine) Run(ctx context.Context) {
 				e.cancel()
 			}
 			e.stopPhaseEventsLocked()
+			e.stopChampSelectEventsLocked()
 			e.mu.Unlock()
 			return
 		case <-timer.C:
 			e.poll(ctx)
 			e.syncPhaseEvents(ctx)
+			e.syncChampSelectEvents(ctx)
 			timer.Reset(e.pollInterval())
 		case <-e.phaseWake:
 			e.poll(ctx)
 			e.syncPhaseEvents(ctx)
+			e.syncChampSelectEvents(ctx)
 			timer.Reset(e.pollInterval())
+		case <-e.champWake:
+			if champTick == nil {
+				champTimer = time.NewTimer(250 * time.Millisecond)
+				champTick = champTimer.C
+			}
+		case <-champTick:
+			champTick = nil
+			e.refreshChampSelect(ctx)
+			e.syncChampSelectEvents(ctx)
 		}
 	}
 }
@@ -139,6 +166,7 @@ func (e *Engine) poll(ctx context.Context) {
 	generation := e.snapshot.Generation
 	version := e.clientVersion
 	epoch := e.phaseEpoch
+	champEpoch := e.champEpoch
 	e.mu.Unlock()
 	if client == nil {
 		return
@@ -211,7 +239,7 @@ func (e *Engine) poll(ctx context.Context) {
 				roster, rosterErr = lobby.Lobby(requestCtx)
 			}
 		} else {
-			gameID, roster, rosterErr = client.Roster(requestCtx)
+			gameID, roster, rosterErr = readRoster(requestCtx, client, stage)
 		}
 		for i := range roster {
 			roster[i].ConnectionID = version
@@ -221,6 +249,12 @@ func (e *Engine) poll(ctx context.Context) {
 	defer e.mu.Unlock()
 	if e.snapshot.Generation != generation || e.clientVersion != version || e.phaseEpoch != epoch {
 		return
+	}
+	if stage == "preparing" && e.champEpoch != champEpoch {
+		return
+	}
+	if stage == "preparing" && e.snapshot.Stage == stage && e.snapshot.ConnectionID == version && gameID == 0 {
+		gameID = e.snapshot.GameID
 	}
 	if stage == "in-game" {
 		// Refresh only local identities at match entry (at most three attempts).
@@ -268,6 +302,8 @@ func (e *Engine) poll(ctx context.Context) {
 // Retained data can still be displayed, but can never become a new connection's cache.
 func (e *Engine) invalidateConnectionLocked() {
 	e.stopPhaseEventsLocked()
+	e.stopChampSelectEventsLocked()
+	e.champWatchRetry = time.Time{}
 	e.phaseHint = ""
 	e.clientVersion++
 	e.accountIdentity = ""
@@ -275,6 +311,7 @@ func (e *Engine) invalidateConnectionLocked() {
 	e.matchRosterComplete = false
 	e.cache = map[string]core.Participant{}
 	e.aliases = map[string]string{}
+	e.profileRetry = nil
 	e.details = nil
 	if e.cancel != nil {
 		e.cancel()
@@ -293,6 +330,7 @@ func (e *Engine) invalidateConnectionLocked() {
 // Keep the frozen match available while exposing why reconnection failed.
 func (e *Engine) disconnectLocked(message string) {
 	e.stopPhaseEventsLocked()
+	e.stopChampSelectEventsLocked()
 	e.client = nil
 	if e.cancel != nil {
 		e.cancel()
@@ -317,6 +355,9 @@ func (e *Engine) disconnectLocked(message string) {
 }
 
 func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.Participant, message string) {
+	if stage != "preparing" {
+		e.stopChampSelectEventsLocked()
+	}
 	sameConnection := e.snapshot.ConnectionID == e.clientVersion
 	samePreparation := sameConnection && preparationStage(stage) && e.snapshot.Stage == stage && (gameID == 0 || e.snapshot.GameID == 0 || gameID == e.snapshot.GameID)
 	if !samePreparation {
@@ -572,6 +613,10 @@ func (e *Engine) RefreshLookup(ctx context.Context, riotID string) (core.Partici
 	return e.lookup(ctx, riotID, true)
 }
 func (e *Engine) lookup(ctx context.Context, riotID string, force bool) (core.Participant, error) {
+	riotID, err := core.NormalizeRiotID(riotID)
+	if err != nil {
+		return core.Participant{}, err
+	}
 	ctx, release, err := e.beginLookup(ctx)
 	if err != nil {
 		return core.Participant{}, err
@@ -586,11 +631,11 @@ func (e *Engine) lookup(ctx context.Context, riotID string, force bool) (core.Pa
 	entry, hasEntry := e.cache[cacheID]
 	e.mu.RUnlock()
 	if !force && hasEntry && (client == nil || cacheFresh(entry)) {
-		return cachedPlayer(entry, client == nil), nil
+		return e.enrichCachedProfile(ctx, cachedPlayer(entry, client == nil)), nil
 	}
 	for _, p := range cached.Participants {
 		if !force && normalizeID(p.DisplayName) == normalizeID(riotID) && historyCached(p) && (client == nil || (p.ConnectionID == version && !p.Stale && cacheFresh(p))) {
-			return cachedPlayer(p, client == nil), nil
+			return e.enrichCachedProfile(ctx, cachedPlayer(p, client == nil)), nil
 		}
 	}
 	if client == nil {
@@ -640,7 +685,7 @@ func (e *Engine) lookupPlayer(ctx context.Context, key string, force bool) (core
 		return core.Participant{}, errors.New("客户端尚未提供该玩家身份，可刷新名单或输入完整 ID 查询")
 	}
 	if !force && historyCached(player) && (client == nil || cacheFresh(player)) {
-		return cachedPlayer(player, client == nil), nil
+		return e.enrichCachedProfile(ctx, cachedPlayer(player, client == nil)), nil
 	}
 	if client == nil {
 		return core.Participant{}, source.ErrNotConnected
@@ -669,6 +714,9 @@ func (e *Engine) loadManualHistory(ctx context.Context, client Client, generatio
 	sameClient := e.clientVersion == version
 	e.mu.RUnlock()
 	if !force && sameClient && ok && cacheFresh(cached) {
+		if enrich {
+			return e.enrichCachedProfile(ctx, cachedPlayer(cached, false)), nil
+		}
 		return cachedPlayer(cached, false), nil
 	}
 	hadHistory := historyCached(player)
@@ -691,6 +739,7 @@ func (e *Engine) loadManualHistory(ctx context.Context, client Client, generatio
 	if profiles, ok := client.(source.ProfileSource); ok && enrich {
 		profileCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		if release, err := e.scheduler.acquire(profileCtx, true); err == nil {
+			e.markProfileAttempt(version, player.Key)
 			profile := profiles.Profile(profileCtx, player.PUUID)
 			previous := player.Profile
 			if previous == nil && sameClient && ok {
@@ -734,11 +783,11 @@ func (e *Engine) loadManualHistory(ctx context.Context, client Client, generatio
 }
 
 func normalizeID(value string) string {
-	parts := strings.SplitN(strings.TrimSpace(value), "#", 2)
-	if len(parts) != 2 {
-		return strings.ToLower(strings.TrimSpace(value))
+	normalized, err := core.NormalizeRiotID(value)
+	if err != nil {
+		return ""
 	}
-	return strings.ToLower(strings.TrimSpace(parts[0]) + "#" + strings.TrimSpace(parts[1]))
+	return strings.ToLower(normalized)
 }
 func cacheFresh(p core.Participant) bool {
 	return p.HistoryMeta.FetchedAt != nil && time.Since(*p.HistoryMeta.FetchedAt) < 5*time.Minute
@@ -753,8 +802,8 @@ func (e *Engine) cachePlayerLocked(p core.Participant) {
 		e.aliases = map[string]string{}
 	}
 	e.cache[p.PUUID] = p
-	if strings.Contains(p.DisplayName, "#") {
-		e.aliases[normalizeID(p.DisplayName)] = p.PUUID
+	if alias := normalizeID(p.DisplayName); alias != "" {
+		e.aliases[alias] = p.PUUID
 	}
 }
 
@@ -768,6 +817,7 @@ func (e *Engine) RefreshRoster(ctx context.Context) (core.Snapshot, error) {
 	client := e.client
 	generation := e.snapshot.Generation
 	version := e.clientVersion
+	epoch, champEpoch := e.phaseEpoch, e.champEpoch
 	e.mu.RUnlock()
 	if client == nil {
 		return e.Snapshot(), source.ErrNotConnected
@@ -789,7 +839,7 @@ func (e *Engine) RefreshRoster(ctx context.Context) (core.Snapshot, error) {
 		}
 		roster, err = lobby.Lobby(ctx)
 	} else {
-		gameID, roster, err = client.Roster(ctx)
+		gameID, roster, err = readRoster(ctx, client, stage)
 	}
 	if err != nil {
 		return e.Snapshot(), fmt.Errorf("本地名单刷新失败：%w", err)
@@ -798,14 +848,17 @@ func (e *Engine) RefreshRoster(ctx context.Context) (core.Snapshot, error) {
 		return e.Snapshot(), errors.New("客户端暂未提供名单，请稍后再试")
 	}
 	e.mu.Lock()
-	if generation != e.snapshot.Generation || version != e.clientVersion {
+	if generation != e.snapshot.Generation || version != e.clientVersion || epoch != e.phaseEpoch || (stage == "preparing" && champEpoch != e.champEpoch) {
 		e.mu.Unlock()
 		return e.Snapshot(), errors.New("对局状态已变化，请重试刷新名单")
 	}
 	for i := range roster {
 		roster[i].ConnectionID = version
 	}
-	if e.snapshot.ConnectionID == version && gameID == e.snapshot.GameID && !rosterImproves(e.snapshot.Participants, roster) {
+	if stage == "preparing" && e.snapshot.Stage == stage && gameID == 0 {
+		gameID = e.snapshot.GameID
+	}
+	if activeMatch(phase) && e.snapshot.ConnectionID == version && gameID == e.snapshot.GameID && !rosterImproves(e.snapshot.Participants, roster) {
 		roster = clone(e.snapshot).Participants
 	}
 	if activeMatch(phase) && (!activeMatch(e.snapshot.Phase) || (phase == "GameStart" && e.snapshot.Phase != "GameStart") || (gameID != 0 && gameID != e.snapshot.GameID)) {
@@ -870,7 +923,7 @@ func rosterChanged(old, current []core.Participant) bool {
 		return true
 	}
 	for i := range old {
-		if old[i].ConnectionID != current[i].ConnectionID || old[i].Key != current[i].Key || old[i].ChampionID != current[i].ChampionID || old[i].Team != current[i].Team {
+		if old[i].ConnectionID != current[i].ConnectionID || old[i].Key != current[i].Key || old[i].ChampionID != current[i].ChampionID || old[i].ChampionState != current[i].ChampionState || old[i].Team != current[i].Team {
 			return true
 		}
 	}

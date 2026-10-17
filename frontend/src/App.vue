@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { Events } from "@wailsio/runtime";
 import * as Service from "../bindings/leaguepingo/appservice";
 import type {
@@ -9,13 +9,16 @@ import type {
 import type { OverlayState } from "../bindings/leaguepingo/models";
 import PlayerView from "./components/PlayerView.vue";
 import OverlayView from "./components/OverlayView.vue";
-import GameIcon from "./components/GameIcon.vue";
+import ParticipantAvatar from "./components/ParticipantAvatar.vue";
+import TransientNotice from "./components/TransientNotice.vue";
 import SettingsPanel from "./components/SettingsPanel.vue";
 import AppIcon from "./components/AppIcon.vue";
 import RecentForm from "./components/RecentForm.vue";
 import { historyBrowseBusy } from "./historyBrowser";
+import { useTransientMessages } from "./transientMessages";
 import {
   errorMessage,
+  normalizeRiotIDInput,
   percent,
   decimal,
   preparationLabel,
@@ -30,10 +33,11 @@ const snapshot = ref<SnapshotModel | null>(null),
   overlay = ref<OverlayState | null>(null);
 const view = ref<"players" | "match">("players"),
   query = ref(""),
-  searching = ref(false),
-  searchError = ref("");
+  searching = ref(false);
+const { messages: playerErrors, setMessage } = useTransientMessages();
+const searchError = computed(() => playerErrors.search || "");
+const rosterError = computed(() => playerErrors.roster || "");
 const rosterBusy = ref(false),
-  rosterError = ref(""),
   overlayBusy = ref(false),
   overlayError = ref("");
 const tabs = ref<Participant[]>([]),
@@ -41,7 +45,6 @@ const tabs = ref<Participant[]>([]),
   selectedKey = ref(""),
   selectedResult = ref<Participant | null>(null);
 const viewStates = reactive<Record<string, PlayerViewState>>({});
-const playerErrors = reactive<Record<string, string>>({});
 const playerOperation = ref<{
   key: string;
   kind: "history" | "profile" | "lookup";
@@ -52,6 +55,94 @@ const manualBusy = computed(
     playerOperation.value !== null ||
     historyBrowseBusy.value,
 );
+const pendingProfile = ref<Participant | null>(null);
+const profileOpening = ref(false);
+let componentAlive = true;
+const actionBusy = computed(() => manualBusy.value || rosterBusy.value);
+function requestMissingProfile(player: Participant) {
+  pendingProfile.value = null;
+  if (
+    profileOpening.value &&
+    playerOperation.value?.key === operationKey(player)
+  )
+    return;
+  if (
+    player.identityState !== "known" ||
+    player.stale ||
+    !snapshot.value?.connected
+  )
+    return;
+  if (player.profile?.profileIconData && player.profile?.level != null) return;
+  pendingProfile.value = player;
+  void flushMissingProfile();
+}
+function acceptProfile(result: Participant) {
+  if (
+    !componentAlive ||
+    !result?.key ||
+    !snapshot.value?.connected ||
+    (result.connectionId ?? 0) !== (snapshot.value.connectionId ?? 0)
+  )
+    return;
+  const merge = (p: Participant) =>
+    newestPlayer(p, {
+      ...p,
+      profile: result.profile,
+      privacyState: result.privacyState,
+    })!;
+  for (let i = 0; i < tabs.value.length; i++) {
+    if (operationKey(tabs.value[i]!) === operationKey(result))
+      tabs.value[i] = merge(tabs.value[i]!);
+  }
+  if (
+    operationKey(selected.value ?? result) === operationKey(result) &&
+    selectedKey.value === result.key
+  ) {
+    selectedResult.value = merge(selected.value ?? result);
+  }
+  snapshot.value.participants = (snapshot.value.participants ?? []).map((p) =>
+    operationKey(p) === operationKey(result) ? merge(p) : p,
+  );
+}
+async function flushMissingProfile() {
+  if (
+    !componentAlive ||
+    !pendingProfile.value ||
+    actionBusy.value ||
+    profileOpening.value
+  )
+    return;
+  const target = pendingProfile.value;
+  pendingProfile.value = null;
+  if (
+    !snapshot.value?.connected ||
+    (target.connectionId ?? 0) !== (snapshot.value.connectionId ?? 0)
+  )
+    return;
+  profileOpening.value = true;
+  playerOperation.value = { key: operationKey(target), kind: "profile" };
+  try {
+    acceptProfile(await Service.EnsureProfile(target.key, target.connectionId));
+  } catch (reason) {
+    if (
+      componentAlive &&
+      snapshot.value?.connected &&
+      (target.connectionId ?? 0) === (snapshot.value.connectionId ?? 0)
+    )
+      setMessage(operationKey(target), errorMessage(reason));
+  } finally {
+    playerOperation.value = null;
+    profileOpening.value = false;
+    void flushMissingProfile();
+  }
+}
+watch(actionBusy, (busy) => {
+  if (!busy) void flushMissingProfile();
+});
+function openPlayerDetails(player: Participant) {
+  openPlayer(player);
+  requestMissingProfile(player);
+}
 function refreshing(player: Participant) {
   return (
     playerOperation.value?.key === operationKey(player) &&
@@ -193,17 +284,18 @@ function closeTab(key: string) {
 }
 async function search() {
   if (manualBusy.value) return;
-  const id = query.value.trim();
-  if (!/^[^#]+#[^#]+$/.test(id)) {
-    searchError.value = "请输入完整的 玩家名#标签";
+  const id = normalizeRiotIDInput(query.value);
+  query.value = id;
+  if (!/^[^#]+#[^#]+$/.test(id) || /[\u0000-\u001f\u007f-\u009f]/.test(id)) {
+    setMessage("search", "请输入完整的 玩家名#标签");
     return;
   }
   searching.value = true;
-  searchError.value = "";
+  setMessage("search", "");
   try {
     openPlayer(await Service.Lookup(id));
   } catch (reason) {
-    searchError.value = errorMessage(reason);
+    setMessage("search", errorMessage(reason));
   } finally {
     searching.value = false;
   }
@@ -212,7 +304,7 @@ async function refreshPlayer(player: Participant) {
   if (manualBusy.value) return;
   const requestKey = operationKey(player);
   playerOperation.value = { key: requestKey, kind: "history" };
-  playerErrors[requestKey] = "";
+  setMessage(requestKey, "");
   try {
     const result = await Service.RefreshHistory(
       player.key,
@@ -221,7 +313,7 @@ async function refreshPlayer(player: Participant) {
     if (selectedKey.value === player.key) selectedResult.value = result;
     openPlayer(result, false);
   } catch (reason) {
-    playerErrors[requestKey] = errorMessage(reason);
+    setMessage(requestKey, errorMessage(reason));
   } finally {
     playerOperation.value = null;
   }
@@ -230,19 +322,20 @@ function selectPlayer(player: Participant) {
   selectedKey.value = player.key;
   selectedResult.value = null;
   void Service.PrioritizePlayer(player.key);
+  requestMissingProfile(player);
 }
 async function lookupSelected() {
   if (!selected.value || manualBusy.value) return;
   const target = selected.value;
   const requestKey = operationKey(target);
   playerOperation.value = { key: requestKey, kind: "lookup" };
-  playerErrors[requestKey] = "";
+  setMessage(requestKey, "");
   try {
     const result = await Service.LookupPlayer(target.key);
     if (selectedKey.value === target.key) selectedResult.value = result;
     openPlayer(result, false);
   } catch (reason) {
-    playerErrors[requestKey] = errorMessage(reason);
+    setMessage(requestKey, errorMessage(reason));
   } finally {
     playerOperation.value = null;
   }
@@ -250,11 +343,11 @@ async function lookupSelected() {
 async function refreshRoster() {
   if (rosterBusy.value) return;
   rosterBusy.value = true;
-  rosterError.value = "";
+  setMessage("roster", "");
   try {
     acceptSnapshot(await Service.RefreshRoster());
   } catch (reason) {
-    rosterError.value = errorMessage(reason);
+    setMessage("roster", errorMessage(reason));
   } finally {
     rosterBusy.value = false;
   }
@@ -263,13 +356,13 @@ async function loadProfile(player: Participant) {
   if (manualBusy.value) return;
   const requestKey = operationKey(player);
   playerOperation.value = { key: requestKey, kind: "profile" };
-  playerErrors[requestKey] = "";
+  setMessage(requestKey, "");
   try {
     const result = await Service.LoadProfile(player.key, player.connectionId);
     openPlayer(result, false);
     if (selectedKey.value === player.key) selectedResult.value = result;
   } catch (reason) {
-    playerErrors[requestKey] = errorMessage(reason);
+    setMessage(requestKey, errorMessage(reason));
   } finally {
     playerOperation.value = null;
   }
@@ -328,11 +421,13 @@ onMounted(async () => {
     Service.OverlayStatus(),
   ]);
   if (initial[0].status === "fulfilled") acceptSnapshot(initial[0].value);
-  else searchError.value = errorMessage(initial[0].reason);
+  else setMessage("search", errorMessage(initial[0].reason));
   if (initial[1].status === "fulfilled") acceptOverlay(initial[1].value);
   else overlayError.value = errorMessage(initial[1].reason);
 });
 onUnmounted(() => {
+  componentAlive = false;
+  pendingProfile.value = null;
   stopSnapshot?.();
   stopOverlay?.();
   window.removeEventListener("keydown", onKey);
@@ -448,9 +543,10 @@ onUnmounted(() => {
       >
         {{ snapshot.message }}
       </p>
-      <p v-if="searchError" class="error-banner workspace-message" role="alert">
-        {{ searchError }}<span v-if="active"> · 已有资料保留</span>
-      </p>
+      <TransientNotice
+        :message="searchError"
+        banner-class="workspace-message"
+      />
       <section v-show="view === 'players'" class="players-workspace">
         <div
           v-if="tabs.length"
@@ -524,12 +620,13 @@ onUnmounted(() => {
             {{ rosterBusy ? "刷新中…" : "刷新对局名单" }}
           </button>
         </header>
+        <TransientNotice :message="rosterError" />
         <p
-          v-if="rosterError || snapshot?.rosterError"
+          v-if="!rosterError && snapshot?.rosterError"
           class="error-banner"
           role="alert"
         >
-          {{ rosterError || snapshot?.rosterError }}
+          {{ snapshot?.rosterError }}
         </p>
         <div class="match-layout">
           <div v-if="!players.length" class="empty-state">
@@ -563,11 +660,18 @@ onUnmounted(() => {
                 :class="{ selected: selectedKey === player.key }"
                 @click="selectPlayer(player)"
               >
-                <GameIcon :id="player.championId" />
+                <ParticipantAvatar :player="player" />
                 <span class="roster-identity"
                   ><strong :title="player.displayName">{{
                     player.displayName
                   }}</strong
+                  ><small v-if="player.championState === 'intent'"
+                    >预选英雄</small
+                  ><small v-if="!player.championId">{{
+                    player.championState === "unselected"
+                      ? "暂未选择英雄"
+                      : "英雄信息暂不可用"
+                  }}</small
                   ><small
                     >{{ preparationLabel(player)
                     }}<template v-if="player.historyState === 'ready'">
@@ -594,7 +698,7 @@ onUnmounted(() => {
           </div>
           <aside v-if="selected" class="player-drawer">
             <div class="drawer-toolbar">
-              <button class="text-button" @click="openPlayer(selected)">
+              <button class="text-button" @click="openPlayerDetails(selected)">
                 在战绩页打开 ↗</button
               ><button
                 class="icon-button"

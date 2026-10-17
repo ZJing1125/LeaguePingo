@@ -30,6 +30,11 @@ type ProfileSource interface {
 	Profile(context.Context, string) core.Profile
 }
 
+// Explicit opening of player details needs the avatar/level, not ranked data.
+type BasicProfileSource interface {
+	BasicProfile(context.Context, string) core.Profile
+}
+
 type HistoryPager interface {
 	HistoryPage(context.Context, string, int) (core.HistoryPage, error)
 }
@@ -51,4 +56,13 @@ type AccountSource interface {
 // still verifies state through Phase. Implementations block until cancelled or failed.
 type PhaseEventSource interface {
 	WatchPhase(context.Context, func(string)) error
+}
+
+// Selection snapshots must come from champ-select, not the gameflow roster.
+type ChampSelectSource interface {
+	ChampSelectRoster(context.Context) (int64, []core.Participant, error)
+}
+
+type ChampSelectEventSource interface {
+	WatchChampSelect(context.Context, func()) error
 }

@@ -8,7 +8,41 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestBasicProfileSkipsRankAndFullProfileGetsAvatarBeforeSlowRank(t *testing.T) {
+	icon, _ := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aP1sAAAAASUVORK5CYII=")
+	for _, full := range []bool{false, true} {
+		s := &TencentLCU{client: lcu.NewClient(lcu.Credentials{})}
+		var calls []string
+		s.client.HTTP.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			calls = append(calls, r.URL.Path)
+			body := `{"puuid":"target","profileIconId":123,"summonerLevel":100}`
+			if strings.Contains(r.URL.Path, "profile-icons") {
+				body = string(icon)
+			}
+			if strings.Contains(r.URL.Path, "ranked-stats") {
+				if len(calls) != 3 || !strings.Contains(calls[1], "profile-icons") {
+					t.Fatal("rank blocked avatar request")
+				}
+				<-r.Context().Done()
+				return nil, r.Context().Err()
+			}
+			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body))}, nil
+		})
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		p := s.BasicProfile(ctx, "target")
+		if full {
+			calls = nil
+			p = s.Profile(ctx, "target")
+		}
+		cancel()
+		if p.ProfileIconData == "" || p.Level == nil || (full && len(calls) != 3) || (!full && len(calls) != 2) {
+			t.Fatal("basic profile lost or unexpected rank call")
+		}
+	}
+}
 
 func TestProfileOptionalAndUnknownRanks(t *testing.T) {
 	for _, body := range []string{`{}`, `{"queues":[]}`, `{"queues":[{"queueType":"RANKED_SOLO_5x5"}]}`, `{"queues":[{"queueType":"RANKED_SOLO_5x5","tier":"UNKNOWN"}]}`} {

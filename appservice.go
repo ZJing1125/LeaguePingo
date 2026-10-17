@@ -68,3 +68,7 @@ func (s *AppService) MatchDetail(ctx context.Context, key string, connectionID u
 func (s *AppService) LoadProfile(ctx context.Context, key string, connectionID uint64) (core.Participant, error) {
 	return s.engine.LoadProfile(ctx, key, connectionID)
 }
+
+func (s *AppService) EnsureProfile(ctx context.Context, key string, connectionID uint64) (core.Participant, error) {
+	return s.engine.EnsureProfile(ctx, key, connectionID)
+}

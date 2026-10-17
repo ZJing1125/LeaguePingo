@@ -10,7 +10,7 @@ import {
   date,
 } from "../presentation";
 import AppIcon from "./AppIcon.vue";
-import GameIcon from "./GameIcon.vue";
+import ParticipantAvatar from "./ParticipantAvatar.vue";
 import RecentForm from "./RecentForm.vue";
 const props = defineProps<{
   snapshot: Snapshot | null;
@@ -102,7 +102,7 @@ defineEmits<{ hide: []; pin: [] }>();
             }"
           >
             <div class="overlay-player-heading">
-              <GameIcon :id="p.championId" :size="28" /><strong
+              <ParticipantAvatar :player="p" :size="28" /><strong
                 :title="`${p.displayName} · ${championSample(p)} · ${date(p.historyMeta?.fetchedAt)}`"
                 >{{ p.displayName }}</strong
               ><small
@@ -112,6 +112,14 @@ defineEmits<{ hide: []; pin: [] }>();
                 >{{ p.stats.games }}场</small
               ><span v-if="p.stale" class="status-badge warning">旧</span>
             </div>
+            <small v-if="p.championState === 'intent'" class="muted"
+              >预选英雄</small
+            >
+            <small v-if="!p.championId" class="muted">{{
+              p.championState === "unselected"
+                ? "暂未选择英雄"
+                : "英雄信息暂不可用"
+            }}</small>
             <div v-if="p.historyState === 'ready'" class="overlay-data">
               <div class="overlay-metrics">
                 <span :title="`${p.stats.games} 场样本胜率`"

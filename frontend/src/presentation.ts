@@ -116,6 +116,18 @@ export function sampleStats(matches: Match[]): Stats {
     kda: complete.length ? (kills + assists) / Math.max(1, deaths) : null,
   };
 }
+// Match core.NormalizeRiotID's clipboard cleanup; keep name-significant
+// joiners, accents, variation selectors and inner spaces unchanged.
+export function normalizeRiotIDInput(value: string) {
+  return value
+    .replace(/[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "")
+    .split("#")
+    .map((part) =>
+      part.replace(/^[\s\u0085\u200b\ufeff]+|[\s\u0085\u200b\ufeff]+$/g, ""),
+    )
+    .join("#");
+}
+
 export function errorMessage(reason: unknown) {
   const text = (
     reason instanceof Error ? reason.message : String(reason)

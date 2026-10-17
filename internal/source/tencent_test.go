@@ -2,6 +2,7 @@ package source
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -35,7 +36,7 @@ func TestTencentLCUAdapter(t *testing.T) {
 		case strings.Contains(request.URL.Path, "match-history"):
 			body = `{"games":{"games":[{"gameId":10,"participants":[{"participantId":1,"championId":12,"stats":{"win":true,"kills":8}}],"participantIdentities":[{"participantId":1,"player":{"puuid":"p1"}}]}]}}`
 		case strings.Contains(request.URL.Path, "summoners"):
-			body = `{"puuid":"p1","gameName":"Player","tagLine":"CN1"}`
+			body = `[{"puuid":"p1","gameName":"Player","tagLine":"CN1"}]`
 		default:
 			t.Fatalf("unexpected path %s", request.URL.Path)
 		}
@@ -71,18 +72,47 @@ func TestTencentLCUAdapter(t *testing.T) {
 	}
 }
 
-func TestLookupUsesCompleteEscapedRiotIDAndOnlyNameParameter(t *testing.T) {
+func TestLookupUsesStructuredAliasWithoutQueryParameters(t *testing.T) {
 	client := lcu.NewClient(lcu.Credentials{Port: 12345, Password: "synthetic"})
 	client.HTTP.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
-		query := r.URL.Query()
-		if r.Method != http.MethodGet || r.URL.Path != "/lol-summoner/v1/summoners" || len(query) != 1 || query.Get("name") != "测试 + 玩家#CN1" || r.URL.Fragment != "" {
-			t.Fatal("lookup does not match the client's single-name-parameter contract")
+		var aliases []map[string]string
+		if r.Method != http.MethodPost || r.URL.Path != "/lol-summoner/v1/summoners/aliases" || r.URL.RawQuery != "" || r.URL.Fragment != "" || r.Header.Get("Content-Type") != "application/json" {
+			t.Fatal("lookup does not match the client's structured alias contract")
 		}
-		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"puuid":"test-account","gameName":"测试 + 玩家","tagLine":"CN1"}`))}, nil
+		if json.NewDecoder(r.Body).Decode(&aliases) != nil || len(aliases) != 1 || len(aliases[0]) != 2 || aliases[0]["gameName"] != "测试 + 玩家" || aliases[0]["tagLine"] != "CN1" {
+			t.Fatal("lookup body must contain exactly one complete alias")
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`[{"puuid":"test-account","gameName":"测试 + 玩家","tagLine":"CN1"}]`))}, nil
 	})
 	player, err := (&TencentLCU{client: client}).FindByRiotID(context.Background(), " 测试 + 玩家 # CN1 ")
 	if err != nil || player.PUUID != "test-account" {
 		t.Fatalf("complete ID lookup failed: %v", err)
+	}
+}
+
+func TestLookupCleansCopiedDirectionMarkers(t *testing.T) {
+	client := lcu.NewClient(lcu.Credentials{Port: 12345, Password: "synthetic"})
+	client.HTTP.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		var aliases []map[string]string
+		if json.NewDecoder(r.Body).Decode(&aliases) != nil || len(aliases) != 1 || aliases[0]["gameName"] != "测试 + 玩家" || aliases[0]["tagLine"] != "TEST" {
+			t.Fatal("copied formatting characters were sent to the identity endpoint")
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`[{"puuid":"test-account","gameName":"测试 + 玩家","tagLine":"TEST"}]`))}, nil
+	})
+	for _, input := range []string{"\u2066测试 + 玩家\u2069#\u2066TEST\u2069", "\u200e \u2067测试 + 玩家\u2069 # \u2068TEST\u2069\u200f", "\ufeff测试 + 玩家\u200b#\u200bTEST\ufeff"} {
+		p, err := (&TencentLCU{client: client}).FindByRiotID(context.Background(), input)
+		if err != nil || p.DisplayName != "测试 + 玩家#TEST" {
+			t.Fatalf("copied ID lookup failed: %v", err)
+		}
+	}
+}
+
+func TestLookupTimeoutDoesNotBlamePlayerID(t *testing.T) {
+	client := lcu.NewClient(lcu.Credentials{Port: 12345})
+	client.HTTP.Transport = roundTripFunc(func(*http.Request) (*http.Response, error) { return nil, context.DeadlineExceeded })
+	_, err := (&TencentLCU{client: client}).FindByRiotID(context.Background(), "PrivatePlayer#TEST")
+	if err == nil || !strings.Contains(err.Error(), "玩家身份查询超时") || strings.Contains(err.Error(), "请确认完整") || strings.Contains(err.Error(), "PrivatePlayer") {
+		t.Fatal("timeout should be explained separately and without the query URL")
 	}
 }
 
@@ -93,21 +123,31 @@ func TestLookupRejectsWrongIdentityAndExplainsFailures(t *testing.T) {
 		body    string
 		message string
 	}{
-		{"wrong tag", 200, `{"puuid":"p1","gameName":"Player","tagLine":"OTHER"}`, "无法确认"},
-		{"wrong name", 200, `{"puuid":"p1","gameName":"Other","tagLine":"CN1"}`, "无法确认"},
-		{"missing identity", 200, `{"gameName":"Player","tagLine":"CN1"}`, "无法确认"},
+		{"wrong tag", 200, `[{"puuid":"p1","gameName":"Player","tagLine":"OTHER"}]`, "无法确认"},
+		{"wrong name", 200, `[{"puuid":"p1","gameName":"Other","tagLine":"CN1"}]`, "无法确认"},
+		{"missing identity", 200, `[{"gameName":"Player","tagLine":"CN1"}]`, "无法确认"},
+		{"empty result", 200, `[]`, "未找到"},
+		{"null result", 200, `null`, "返回格式异常"},
+		{"object instead of array", 200, `{}`, "返回格式异常"},
+		{"null profile", 200, `[null]`, "无法确认"},
+		{"ambiguous result", 200, `[{"puuid":"p1","gameName":"Player","tagLine":"CN1"},{"puuid":"p2","gameName":"Player","tagLine":"CN1"}]`, "无法确认"},
 		{"bad JSON", 200, `invalid`, "返回格式异常"},
 		{"bad request", 400, `sensitive response must not be logged`, "玩家身份查询失败"},
 		{"not found", 404, `not found`, "玩家身份查询失败"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			client := lcu.NewClient(lcu.Credentials{Port: 12345, Password: "synthetic"})
+			calls := 0
 			client.HTTP.Transport = roundTripFunc(func(*http.Request) (*http.Response, error) {
+				calls++
 				return &http.Response{StatusCode: test.status, Body: io.NopCloser(strings.NewReader(test.body))}, nil
 			})
 			_, err := (&TencentLCU{client: client}).FindByRiotID(context.Background(), "Player#CN1")
 			if err == nil || !strings.Contains(err.Error(), test.message) || strings.Contains(err.Error(), "sensitive") {
 				t.Fatalf("missing or unsafe identity error: %v", err)
+			}
+			if calls != 1 {
+				t.Fatal("failed lookup must not retry or fall back")
 			}
 		})
 	}
@@ -119,7 +159,7 @@ func TestInvalidIDMakesNoRequest(t *testing.T) {
 		t.Fatal("invalid ID sent to client")
 		return nil, errors.New("unexpected request")
 	})
-	for _, id := range []string{"", "Player", "#TAG", "Player#", "Player#  "} {
+	for _, id := range []string{"", "Player", "#TAG", "Player#", "Player#  ", "\u2066\u2069#TAG", "Player#\u2066\u2069", "Player#TAG#extra", "Play\x00er#TAG"} {
 		if _, err := (&TencentLCU{client: client}).FindByRiotID(context.Background(), id); err == nil {
 			t.Fatal("invalid ID accepted")
 		}

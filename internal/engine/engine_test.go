@@ -527,6 +527,9 @@ func TestManualCacheExpiryRefreshAndFailurePreservesData(t *testing.T) {
 	if err != nil || !p.Cached || len(fake.calls) != before {
 		t.Fatal("normalized manual result was not cached")
 	}
+	if p, err = e.Lookup(context.Background(), "\u2066Manual\u2069#\u2066TEST\u2069"); err != nil || !p.Cached || len(fake.calls) != before {
+		t.Fatal("clipboard direction markers prevented cache reuse")
+	}
 	old := time.Now().Add(-6 * time.Minute)
 	e.cache["manual"] = func() core.Participant { p := e.cache["manual"]; p.HistoryMeta.FetchedAt = &old; return p }()
 	if _, err = e.Lookup(context.Background(), "Manual#TEST"); err != nil || len(fake.calls) == before {
@@ -542,6 +545,20 @@ func TestManualCacheExpiryRefreshAndFailurePreservesData(t *testing.T) {
 	p, err = e.Lookup(context.Background(), "Manual#TEST")
 	if err != nil || !p.Cached || !p.Stale {
 		t.Fatal("failed refresh destroyed offline cache")
+	}
+}
+
+func TestInvalidCopiedIDDoesNotUseManualRequestLane(t *testing.T) {
+	fake := &fakeClient{}
+	e := New(nil, nil)
+	e.client = fake
+	for _, input := range []string{"\u2066\u2069#TEST", "Player#\u2066\u2069", "Player#TEST#extra"} {
+		if _, err := e.Lookup(context.Background(), input); err == nil {
+			t.Fatal("invalid copied ID accepted")
+		}
+	}
+	if len(fake.calls) != 0 {
+		t.Fatal("invalid input issued a source request")
 	}
 }
 

@@ -55,6 +55,18 @@ func (s *TencentLCU) WatchPhase(ctx context.Context, notify func(string)) error 
 	return s.client.WatchPhase(ctx, notify)
 }
 
+func (s *TencentLCU) WatchChampSelect(ctx context.Context, notify func()) error {
+	return s.client.WatchChampSelect(ctx, notify)
+}
+
+func (s *TencentLCU) ChampSelectRoster(ctx context.Context) (int64, []core.Participant, error) {
+	raw, err := s.client.Get(ctx, "/lol-champ-select/v1/session")
+	if err != nil {
+		return 0, nil, err
+	}
+	return core.ParseChampSelectSession(raw)
+}
+
 func (s *TencentLCU) Roster(ctx context.Context) (int64, []core.Participant, error) {
 	var gameID int64
 	var roster []core.Participant
@@ -222,27 +234,39 @@ func (s *TencentLCU) lcuHistoryPage(ctx context.Context, puuid string, offset, c
 }
 
 func (s *TencentLCU) FindByRiotID(ctx context.Context, riotID string) (core.Participant, error) {
-	parts := strings.SplitN(strings.TrimSpace(riotID), "#", 2)
-	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
-		return core.Participant{}, errors.New("请输入完整 ID，例如 玩家名#标签")
-	}
-	parts[0], parts[1] = strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
-	// The running CN client's /help contract accepts only `name` here.
-	// Pass the complete Riot ID in that one parameter; # must be query-escaped.
-	path := "/lol-summoner/v1/summoners?" + url.Values{"name": {parts[0] + "#" + parts[1]}}.Encode()
-	raw, err := s.client.Get(ctx, path)
+	riotID, err := core.NormalizeRiotID(riotID)
 	if err != nil {
-		return core.Participant{}, fmt.Errorf("玩家身份查询失败（请确认完整 ID 和当前登录大区）：%w", err)
+		return core.Participant{}, err
 	}
-	var profile struct {
+	name, tag, _ := strings.Cut(riotID, "#")
+	// The current CN client exposes a structured alias lookup. One explicit
+	// request only: do not retry a timeout through the legacy name endpoint.
+	raw, err := s.client.LookupSummonerAlias(ctx, name, tag)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return core.Participant{}, errors.New("玩家身份查询超时：客户端暂未响应，请稍后重试")
+		}
+		if errors.Is(err, context.Canceled) {
+			return core.Participant{}, errors.New("玩家身份查询已取消")
+		}
+		return core.Participant{}, fmt.Errorf("玩家身份查询失败：%w", err)
+	}
+	var profiles []struct {
 		PUUID    string `json:"puuid"`
 		GameName string `json:"gameName"`
 		TagLine  string `json:"tagLine"`
 	}
-	if err := json.Unmarshal(raw, &profile); err != nil {
+	if err := json.Unmarshal(raw, &profiles); err != nil || profiles == nil {
 		return core.Participant{}, errors.New("玩家身份查询返回格式异常")
 	}
-	if !core.IsKnownPUUID(profile.PUUID) || !strings.EqualFold(profile.GameName, parts[0]) || !strings.EqualFold(profile.TagLine, parts[1]) {
+	if len(profiles) == 0 {
+		return core.Participant{}, errors.New("当前客户端未找到此 ID 对应的账号，请核对名称、标签和所在大区")
+	}
+	if len(profiles) != 1 {
+		return core.Participant{}, errors.New("无法确认此 ID 对应的账号")
+	}
+	profile := profiles[0]
+	if !core.IsKnownPUUID(profile.PUUID) || !strings.EqualFold(profile.GameName, name) || !strings.EqualFold(profile.TagLine, tag) {
 		return core.Participant{}, errors.New("无法确认此 ID 对应的账号")
 	}
 	return core.Participant{Key: profile.PUUID, PUUID: profile.PUUID,

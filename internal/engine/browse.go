@@ -37,9 +37,59 @@ func (e *Engine) LoadProfile(ctx context.Context, key string, connectionID uint6
 		return core.Participant{}, err
 	}
 	defer done()
+	return e.loadProfileData(ctx, key, connectionID, false)
+}
+
+// EnsureProfile is invoked only by an explicit user opening/query, never by
+// roster events or background preparation. The existing manual gate serializes it.
+func (e *Engine) EnsureProfile(ctx context.Context, key string, connectionID uint64) (core.Participant, error) {
+	ctx, done, err := e.beginLookup(ctx)
+	if err != nil {
+		return core.Participant{}, err
+	}
+	defer done()
+	return e.loadProfileData(ctx, key, connectionID, true)
+}
+
+func (e *Engine) enrichCachedProfile(ctx context.Context, player core.Participant) core.Participant {
+	if player.Stale {
+		return player
+	}
+	if updated, err := e.loadProfileData(ctx, player.Key, player.ConnectionID, true); err == nil {
+		updated.Cached = player.Cached
+		return updated
+	}
+	return player // Optional data must not turn a cached history into a failed query.
+}
+
+func basicProfileComplete(p *core.Profile) bool {
+	return p != nil && p.Level != nil && p.ProfileIconData != ""
+}
+
+func (e *Engine) markProfileAttempt(version uint64, key string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.clientVersion != version {
+		return
+	}
+	if e.profileRetry == nil || len(e.profileRetry) >= 64 {
+		e.profileRetry = map[string]time.Time{}
+	}
+	e.profileRetry[key] = time.Now().Add(30 * time.Second)
+}
+
+func (e *Engine) loadProfileData(ctx context.Context, key string, connectionID uint64, onlyMissing bool) (core.Participant, error) {
 	client, player, err := e.browsePlayer(key, connectionID)
 	if err != nil {
 		return core.Participant{}, err
+	}
+	if onlyMissing {
+		e.mu.RLock()
+		cooling := time.Now().Before(e.profileRetry[key])
+		e.mu.RUnlock()
+		if basicProfileComplete(player.Profile) || cooling {
+			return player, nil
+		}
 	}
 	profiles, ok := client.(source.ProfileSource)
 	if !ok {
@@ -52,13 +102,22 @@ func (e *Engine) LoadProfile(ctx context.Context, key string, connectionID uint6
 		return core.Participant{}, err
 	}
 	defer release()
-	profile := profiles.Profile(profileCtx, player.PUUID)
+	e.mu.RLock()
+	currentConnection := e.client != nil && e.clientVersion == connectionID
+	e.mu.RUnlock()
+	if !currentConnection {
+		return core.Participant{}, errors.New("连接已变化，请重新查询玩家资料")
+	}
+	e.markProfileAttempt(connectionID, key)
+	var profile core.Profile
+	if basic, ok := client.(source.BasicProfileSource); ok && onlyMissing {
+		profile = basic.BasicProfile(profileCtx, player.PUUID)
+	} else {
+		profile = profiles.Profile(profileCtx, player.PUUID)
+	}
 	if !profileAvailable(profile) && (player.Profile == nil || !profileAvailable(*player.Profile)) {
 		return core.Participant{}, errors.New("当前客户端未提供可核验资料，保留上次结果")
 	}
-	profile = mergeProfile(profile, player.Profile)
-	player.Profile = &profile
-	player.PrivacyState = profile.PrivacyState
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.client == nil || e.clientVersion != connectionID {
@@ -66,11 +125,12 @@ func (e *Engine) LoadProfile(ctx context.Context, key string, connectionID uint6
 	}
 	// A profile-only operation must never replace history that completed meanwhile.
 	if current, ok := e.cache[key]; ok {
-		current.Profile = &profile
-		current.PrivacyState = profile.PrivacyState
 		player = current
-		e.cache[key] = current
 	}
+	profile = mergeProfile(profile, player.Profile)
+	player.Profile = &profile
+	player.PrivacyState = profile.PrivacyState
+	e.cachePlayerLocked(player)
 	for i, p := range e.snapshot.Participants {
 		if p.Key == key && p.ConnectionID == connectionID {
 			e.snapshot.Participants[i].Profile = &profile

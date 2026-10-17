@@ -101,6 +101,11 @@ export interface Participant {
     "displayName": string;
     "team": string;
     "championId"?: number;
+
+    /**
+     * selected, intent, unselected, unavailable
+     */
+    "championState"?: string;
     "identityState": IdentityState;
     "privacyState": string;
     "historyState": HistoryState;

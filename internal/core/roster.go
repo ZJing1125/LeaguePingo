@@ -7,9 +7,11 @@ import (
 )
 
 type rosterMember struct {
-	PUUID        string `json:"puuid"`
-	ChampionID   int    `json:"championId"`
-	SummonerName string `json:"summonerName"`
+	PUUID              string `json:"puuid"`
+	ChampionID         *int   `json:"championId"`
+	ChampionPickIntent *int   `json:"championPickIntent"`
+	CellID             *int   `json:"cellId"`
+	SummonerName       string `json:"summonerName"`
 }
 
 type gameflowSession struct {
@@ -21,6 +23,7 @@ type gameflowSession struct {
 }
 
 type champSelectSession struct {
+	GameID    int64          `json:"gameId"`
 	MyTeam    []rosterMember `json:"myTeam"`
 	TheirTeam []rosterMember `json:"theirTeam"`
 }
@@ -65,11 +68,19 @@ func ParseGameflowRosterForPlayer(data []byte, selfPUUID string) (int64, []Parti
 }
 
 func ParseChampSelectRoster(data []byte) ([]Participant, error) {
+	_, roster, err := ParseChampSelectSession(data)
+	return roster, err
+}
+
+func ParseChampSelectSession(data []byte) (int64, []Participant, error) {
 	var session champSelectSession
 	if err := json.Unmarshal(data, &session); err != nil {
-		return nil, err
+		return 0, nil, err
 	}
-	return mergeRoster(session.MyTeam, session.TheirTeam), nil
+	if session.MyTeam == nil || session.TheirTeam == nil {
+		return 0, nil, fmt.Errorf("选人名单格式不可用")
+	}
+	return session.GameID, mergeRoster(session.MyTeam, session.TheirTeam), nil
 }
 
 func ParseLobbyRoster(data []byte) ([]Participant, error) {
@@ -102,6 +113,9 @@ func mergeRoster(allies, enemies []rosterMember) []Participant {
 			key := member.PUUID
 			if !known {
 				key = fmt.Sprintf("%s-slot-%d", team, index)
+				if member.CellID != nil {
+					key = fmt.Sprintf("%s-cell-%d", team, *member.CellID)
+				}
 			}
 			if _, ok := seen[key]; ok {
 				continue
@@ -116,9 +130,19 @@ func mergeRoster(allies, enemies []rosterMember) []Participant {
 					name = member.SummonerName
 				}
 			}
+			championID, championState := 0, "unavailable"
+			if member.ChampionID != nil && *member.ChampionID >= 0 {
+				championID, championState = *member.ChampionID, "unselected"
+				if championID > 0 {
+					championState = "selected"
+				}
+			}
+			if championID == 0 && member.ChampionPickIntent != nil && *member.ChampionPickIntent > 0 {
+				championID, championState = *member.ChampionPickIntent, "intent"
+			}
 			out = append(out, Participant{
 				Key: key, PUUID: member.PUUID, DisplayName: name,
-				Team: team, ChampionID: member.ChampionID,
+				Team: team, ChampionID: championID, ChampionState: championState,
 				IdentityState: identity, PrivacyState: "unknown", HistoryState: HistoryPending,
 			})
 		}

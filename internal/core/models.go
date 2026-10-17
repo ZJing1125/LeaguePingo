@@ -26,6 +26,7 @@ type Participant struct {
 	DisplayName   string        `json:"displayName"`
 	Team          string        `json:"team"`
 	ChampionID    int           `json:"championId,omitempty"`
+	ChampionState string        `json:"championState,omitempty"` // selected, intent, unselected, unavailable
 	IdentityState IdentityState `json:"identityState"`
 	PrivacyState  string        `json:"privacyState"`
 	HistoryState  HistoryState  `json:"historyState"`

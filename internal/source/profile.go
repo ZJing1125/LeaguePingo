@@ -15,6 +15,15 @@ import (
 )
 
 func (s *TencentLCU) Profile(ctx context.Context, puuid string) (out core.Profile) {
+	out = s.BasicProfile(ctx, puuid)
+	if ctx.Err() != nil {
+		return out
+	}
+	s.loadRanks(ctx, puuid, &out)
+	return out
+}
+
+func (s *TencentLCU) BasicProfile(ctx context.Context, puuid string) (out core.Profile) {
 	out = core.Profile{RankState: "unavailable", PrivacyState: "unknown", Ranks: []core.Rank{}}
 	// This optional local asset shares the explicit profile request's budget.
 	// Never load profile pictures from the game loop or arbitrary remote URLs.
@@ -41,9 +50,13 @@ func (s *TencentLCU) Profile(ctx context.Context, puuid string) (out core.Profil
 			}
 		}
 	}
+	return out
+}
+
+func (s *TencentLCU) loadRanks(ctx context.Context, puuid string, out *core.Profile) {
 	raw, err := s.client.Get(ctx, "/lol-ranked/v1/ranked-stats/"+url.PathEscape(puuid))
 	if err != nil {
-		return out
+		return
 	}
 	var response struct {
 		Queues []struct {
@@ -56,7 +69,7 @@ func (s *TencentLCU) Profile(ctx context.Context, puuid string) (out core.Profil
 		} `json:"queues"`
 	}
 	if json.Unmarshal(raw, &response) != nil || response.Queues == nil {
-		return out
+		return
 	}
 	// An empty response is not proof that the player is unranked.
 	for _, q := range response.Queues {
@@ -71,7 +84,6 @@ func (s *TencentLCU) Profile(ctx context.Context, puuid string) (out core.Profil
 	if len(out.Ranks) > 0 {
 		out.RankState = "ready"
 	}
-	return out
 }
 
 func (s *TencentLCU) profileIcon(ctx context.Context, id int) string {

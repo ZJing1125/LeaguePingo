@@ -106,6 +106,8 @@ async function main() {
     };
     let releaseRefresh;
     let releasePlayerAction;
+    let delayEnsure = false,
+      releaseEnsure;
     let info = {
       version: "0.2.0-dev",
       commit: "synthetic",
@@ -163,7 +165,27 @@ async function main() {
             visible: false,
           };
         else if (method === "RefreshRoster") result = snapshot;
-        else if (method === "LoadProfile" && args[0] === "Beta#TEST") {
+        else if (method === "EnsureProfile") {
+          if (delayEnsure && args[0] === "avatar-ready")
+            await new Promise((resolve) => {
+              releaseEnsure = resolve;
+            });
+          const original =
+            snapshot.participants.find((p) => p.key === args[0]) ??
+            player(args[0]);
+          result = {
+            ...original,
+            profile: {
+              updatedAt: new Date(Date.now() + 1000).toISOString(),
+              profileIconData:
+                "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aP1sAAAAASUVORK5CYII=",
+              level: 99,
+              privacyState: "unknown",
+              rankState: "unavailable",
+              ranks: [],
+            },
+          };
+        } else if (method === "LoadProfile" && args[0] === "Beta#TEST") {
           await new Promise((resolve) => {
             releasePlayerAction = resolve;
           });
@@ -295,11 +317,107 @@ async function main() {
       await page.getByLabel("玩家完整 ID", { exact: true }).fill(id);
       await page.getByRole("button", { name: "查询战绩", exact: true }).click();
     }
-    await search("Alpha#TEST");
+    for (const id of [
+      "\u2066\u2069#TEST",
+      "Alpha#\u2066\u2069",
+      "Alpha#TEST#extra",
+    ]) {
+      const lookups = calls.filter((c) => c === "Lookup").length;
+      await search(id);
+      await page
+        .getByText("请输入完整的 玩家名#标签", { exact: true })
+        .waitFor();
+      assert.equal(
+        calls.filter((c) => c === "Lookup").length,
+        lookups,
+        "invalid copied ID reached the bridge",
+      );
+    }
+    const invalidNotice = page.getByText("请输入完整的 玩家名#标签", {
+      exact: true,
+    });
+    await page.evaluate(() => {
+      const observer = new MutationObserver(() => {
+        const el = document.querySelector(".notice-leave-active");
+        if (!el) return;
+        observer.disconnect();
+        const initialHeight = el.getBoundingClientRect().height;
+        setTimeout(() => {
+          window.__noticeExit = {
+            duration: getComputedStyle(el).transitionDuration,
+            opacity: Number(getComputedStyle(el).opacity),
+            height: el.getBoundingClientRect().height,
+            initialHeight,
+          };
+        }, 90);
+      });
+      observer.observe(document.body, {
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["class"],
+      });
+    });
+    await page.waitForTimeout(1100);
+    await search("Alpha#TEST#extra");
+    await page.waitForTimeout(1100);
+    assert(
+      await invalidNotice.isVisible(),
+      "repeated notice did not restart its two-second timer",
+    );
+    await invalidNotice.waitFor({ state: "hidden", timeout: 1800 });
+    const noticeExit = await page.evaluate(() => window.__noticeExit);
+    assert(
+      noticeExit?.duration.includes("0.2s") &&
+        noticeExit.opacity > 0 &&
+        noticeExit.opacity < 1 &&
+        noticeExit.height < noticeExit.initialHeight,
+      "notice did not fade/collapse progressively",
+    );
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await search("Alpha#");
+    const reducedDuration = await page
+      .locator(".transient-notice")
+      .evaluate((el) => {
+        el.classList.add("notice-enter-active");
+        const duration = getComputedStyle(el).transitionDuration;
+        el.classList.remove("notice-enter-active");
+        return duration;
+      });
+    assert.equal(reducedDuration, "0s", "reduced motion ignored");
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await search("Alpha#");
+    await page.waitForFunction(
+      () => !!document.querySelector(".notice-leave-active"),
+    );
+    await search("Alpha#");
+    await page.waitForTimeout(300);
+    assert(
+      await invalidNotice.isVisible(),
+      "new error was removed by the preceding exit animation",
+    );
+    await invalidNotice.waitFor({ state: "hidden", timeout: 3000 });
+    await search("\u2066Alpha\u2069#\u2066TEST\u2069");
     await page
       .getByRole("heading", { name: "Alpha#TEST", exact: true })
       .waitFor();
+    assert.equal(
+      await page.getByLabel("玩家完整 ID", { exact: true }).inputValue(),
+      "Alpha#TEST",
+    );
     assert.equal(await page.locator(".match-card").count(), 20);
+    await search("Alpha#");
+    await invalidNotice.waitFor();
+    assert(
+      !(await page.locator(".workspace-message").allTextContents())
+        .join("")
+        .includes("已有资料保留"),
+    );
+    await invalidNotice.waitFor({ state: "hidden", timeout: 3000 });
+    assert.equal(
+      await page.locator(".match-card").count(),
+      20,
+      "dismissal cleared the existing history",
+    );
     const queueOptions = await page
       .getByLabel("战绩模式筛选")
       .locator("option")
@@ -514,6 +632,9 @@ async function main() {
       .locator(".player-error")
       .filter({ hasText: "Beta profile failed" })
       .waitFor();
+    await page
+      .locator(".player-error")
+      .waitFor({ state: "hidden", timeout: 3000 });
     await page.getByRole("tab", { name: "Alpha#TEST", exact: true }).click();
     assert.equal(await page.getByLabel("战绩模式筛选").inputValue(), "420");
     assert.equal(await page.locator(".match-expanded").count(), 1);
@@ -723,6 +844,186 @@ async function main() {
     await page.getByRole("button", { name: "导出脱敏诊断" }).click();
     await page.getByText(/已保存本地诊断/).waitFor();
     await page.getByRole("button", { name: "关闭设置" }).click();
+    const avatarCalls = calls.filter((c) =>
+      /Lookup|History|Profile/.test(c),
+    ).length;
+    const avatarData =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aP1sAAAAASUVORK5CYII=";
+    snapshot = {
+      ...snapshot,
+      generation: 100,
+      stage: "preparing",
+      phase: "ChampSelect",
+      knownCount: 3,
+      readyCount: 3,
+      participants: [
+        {
+          ...player("未选英雄#TEST", "avatar-ready"),
+          team: "ally",
+          championState: "unselected",
+          profile: { profileIconData: avatarData },
+        },
+        {
+          ...player("未读到英雄#TEST", "avatar-missing"),
+          team: "ally",
+          championState: "unavailable",
+        },
+        {
+          ...player("已选英雄#TEST", "avatar-champion"),
+          team: "enemy",
+          championId: 23,
+          championState: "selected",
+          profile: { profileIconData: avatarData },
+        },
+      ],
+    };
+    async function publishSnapshot() {
+      snapshot = {
+        ...snapshot,
+        generation: snapshot.generation + 1,
+        updatedAt: new Date().toISOString(),
+      };
+      await page.evaluate(
+        (s) =>
+          window._wails.dispatchWailsEvent({
+            name: "leaguepingo:snapshot",
+            data: s,
+          }),
+        snapshot,
+      );
+    }
+    await publishSnapshot();
+    await page
+      .getByRole("navigation", { name: "工作区" })
+      .getByRole("button", { name: /当前对局/ })
+      .click();
+    await page.waitForFunction(
+      () => document.querySelectorAll(".player-row").length === 3,
+    );
+    const rosterRows = page.locator(".player-row");
+    await page.waitForFunction(() => {
+      const img = document.querySelector(".player-row .participant-avatar img");
+      return img?.complete && img.naturalWidth > 0;
+    });
+    assert.equal(
+      await rosterRows.nth(0).locator(".participant-avatar img").count(),
+      1,
+    );
+    assert((await rosterRows.nth(0).textContent()).includes("暂未选择英雄"));
+    assert.equal(
+      await rosterRows.nth(1).locator(".participant-avatar .app-icon").count(),
+      1,
+    );
+    assert(
+      (await rosterRows.nth(1).textContent()).includes("英雄信息暂不可用"),
+    );
+    assert.equal(
+      await rosterRows.nth(2).locator(".participant-avatar .game-icon").count(),
+      1,
+    );
+    for (const hero of [24, 25, 0]) {
+      snapshot.participants[0] = {
+        ...snapshot.participants[0],
+        championId: hero,
+        championState: hero ? "selected" : "unselected",
+      };
+      await publishSnapshot();
+      if (hero)
+        await rosterRows
+          .nth(0)
+          .locator(".participant-avatar .game-icon")
+          .waitFor();
+      else await rosterRows.nth(0).locator(".participant-avatar img").waitFor();
+    }
+    await rosterRows
+      .nth(0)
+      .locator(".participant-avatar img")
+      .dispatchEvent("error");
+    await rosterRows.nth(0).locator(".participant-avatar .app-icon").waitFor();
+    snapshot.participants[1] = {
+      ...snapshot.participants[1],
+      championId: 24,
+      championState: "intent",
+    };
+    await publishSnapshot();
+    await rosterRows.nth(1).getByText("预选英雄", { exact: true }).waitFor();
+    assert.equal(
+      await rosterRows.nth(0).locator(".participant-avatar img").count(),
+      0,
+      "unchanged failed image retried on unrelated snapshot",
+    );
+    assert.equal(
+      calls.filter((c) => /Lookup|History|Profile/.test(c)).length,
+      avatarCalls,
+      "avatar changes requested player data",
+    );
+    assert(
+      !(await page.locator(".player-row .participant-avatar").allTextContents())
+        .join("")
+        .includes("?"),
+    );
+    await page
+      .getByRole("button", { name: "关闭玩家详情", exact: true })
+      .click();
+    const historyBeforeOpening = calls.filter((c) =>
+      /Lookup|History/.test(c),
+    ).length;
+    const ensureBeforeOpening = calls.filter(
+      (c) => c === "EnsureProfile",
+    ).length;
+    delayEnsure = true;
+    await rosterRows.nth(0).click();
+    for (let i = 0; !releaseEnsure && i < 200; i++)
+      await page.waitForTimeout(10);
+    assert(
+      releaseEnsure,
+      "opening roster did not request missing basic profile",
+    );
+    await rosterRows.nth(0).click();
+    await rosterRows.nth(1).click();
+    delayEnsure = false;
+    releaseEnsure();
+    await page
+      .locator(".player-drawer")
+      .getByRole("heading", { name: "未读到英雄#TEST", exact: true })
+      .waitFor();
+    await page.waitForFunction(() => {
+      const img = document.querySelector(".player-drawer .profile-avatar img");
+      return img?.complete && img.naturalWidth > 0;
+    });
+    assert.equal(
+      calls.filter((c) => c === "EnsureProfile").length - ensureBeforeOpening,
+      2,
+      "same-player repeat not coalesced or latest opening lost",
+    );
+    assert.equal(
+      calls.filter((c) => /Lookup|History/.test(c)).length,
+      historyBeforeOpening,
+      "opening profile reloaded history or identity",
+    );
+    await rosterRows.nth(1).click();
+    await page
+      .getByRole("button", { name: "在战绩页打开 ↗", exact: true })
+      .click();
+    await page
+      .getByRole("heading", { name: "未读到英雄#TEST", exact: true })
+      .waitFor();
+    assert.equal(
+      calls.filter((c) => c === "EnsureProfile").length - ensureBeforeOpening,
+      2,
+      "opening cached profile repeated request",
+    );
+    await page
+      .getByRole("navigation", { name: "工作区" })
+      .getByRole("button", { name: /当前对局/ })
+      .click();
+    await page
+      .getByRole("button", { name: "关闭玩家详情", exact: true })
+      .click();
+    if (process.env.UI_SCREENSHOT_PREFIX)
+      await page.screenshot({
+        path: process.env.UI_SCREENSHOT_PREFIX + "-selection.png",
+      });
     snapshot = {
       ...snapshot,
       knownCount: 10,

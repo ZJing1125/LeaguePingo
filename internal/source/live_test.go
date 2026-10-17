@@ -63,6 +63,42 @@ func TestLiveManualLookup(t *testing.T) {
 	t.Logf("live complete-ID lookup matched self-account; history parsed, games=%d excluded=%d (identities redacted)", len(history.Matches), history.Meta.Excluded)
 }
 
+// One explicit identity check with the same direction-isolate wrappers seen
+// in copied client IDs. Never persist or display the current player's ID.
+func TestLiveCopiedRiotIDLookup(t *testing.T) {
+	if os.Getenv("LEAGUEPINGO_LIVE_COPIED_ID_TEST") != "1" {
+		t.Skip("opt in with LEAGUEPINGO_LIVE_COPIED_ID_TEST=1")
+	}
+	c, err := lcu.Discover()
+	if err != nil {
+		t.Fatal("client connection unavailable (redacted)")
+	}
+	defer c.HTTP.CloseIdleConnections()
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+	defer cancel()
+	raw, err := c.Get(ctx, "/lol-summoner/v1/current-summoner")
+	if err != nil {
+		t.Fatal("self-profile unavailable (redacted)")
+	}
+	var self struct {
+		PUUID    string `json:"puuid"`
+		GameName string `json:"gameName"`
+		TagLine  string `json:"tagLine"`
+	}
+	if json.Unmarshal(raw, &self) != nil || self.PUUID == "" || self.GameName == "" || self.TagLine == "" {
+		t.Fatal("self-profile incomplete (redacted)")
+	}
+	input := "\u2066" + self.GameName + "\u2069#\u2066" + self.TagLine + "\u2069"
+	player, err := (&TencentLCU{client: c}).FindByRiotID(ctx, input)
+	if err != nil {
+		t.Fatal("copied self-ID lookup failed (redacted)")
+	}
+	if player.PUUID != self.PUUID || player.DisplayName != self.GameName+"#"+self.TagLine {
+		t.Fatal("copied self-ID resolved to a different identity (redacted)")
+	}
+	t.Log("copied-ID lookup matched current account; no history fetched, identities and responses not retained")
+}
+
 func TestLiveRoster(t *testing.T) {
 	if os.Getenv("LEAGUEPINGO_LIVE_ROSTER_TEST") != "1" {
 		t.Skip("opt in with LEAGUEPINGO_LIVE_ROSTER_TEST=1")

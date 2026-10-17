@@ -22,6 +22,7 @@ import GameIcon from "./GameIcon.vue";
 import AppIcon from "./AppIcon.vue";
 import MatchDetails from "./MatchDetails.vue";
 import RecentForm from "./RecentForm.vue";
+import TransientNotice from "./TransientNotice.vue";
 import { championName } from "../gameAssets";
 import {
   HISTORY_PAGE_SIZE,
@@ -78,7 +79,7 @@ const heroes = computed(() =>
 const copyNotice = ref("");
 const avatarBroken = ref(false);
 watch(
-  () => props.player.profile?.profileIconData,
+  [() => props.player.key, () => props.player.profile?.profileIconData],
   () => {
     avatarBroken.value = false;
   },
@@ -234,9 +235,7 @@ function toggle(id: number) {
     <p v-if="copyNotice" class="inline-status" role="status">
       {{ copyNotice }}
     </p>
-    <p v-if="error" class="error-banner player-error" role="alert">
-      {{ error }} · 已有资料保留
-    </p>
+    <TransientNotice :message="error" banner-class="player-error" />
     <div class="player-columns">
       <aside v-if="!compact" class="player-summary">
         <div class="section-heading">
