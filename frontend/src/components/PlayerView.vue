@@ -91,16 +91,6 @@ function toggle(id: number) {
       <aside v-if="!compact" class="player-summary">
         <div class="section-heading">
           <h2>近期表现</h2>
-          <select
-            v-model.number="state.sampleSize"
-            aria-label="分析样本场数"
-            :disabled="busy || state.pageBusy"
-            @change="changeCriteria"
-          >
-            <option v-for="size in SAMPLE_SIZES" :key="size" :value="size">
-              {{ size }} 场
-            </option>
-          </select>
         </div>
         <p class="sample-scope" role="status">{{ sampleLabel }}</p>
         <div class="winrate-display">
@@ -172,6 +162,16 @@ function toggle(id: number) {
                 </option>
               </select></label
             >
+            <select
+              v-model.number="state.sampleSize"
+              aria-label="分析样本场数"
+              :disabled="busy || state.pageBusy"
+              @change="changeCriteria"
+            >
+              <option v-for="size in SAMPLE_SIZES" :key="size" :value="size">
+                最近 {{ size }} 场
+              </option>
+            </select>
           </div>
           <div class="history-actions">
             <span
@@ -204,16 +204,6 @@ function toggle(id: number) {
           </p>
         </details>
         <div v-if="compact" class="compact-stats">
-          <select
-            v-model.number="state.sampleSize"
-            aria-label="分析样本场数"
-            :disabled="busy || state.pageBusy"
-            @change="changeCriteria"
-          >
-            <option v-for="size in SAMPLE_SIZES" :key="size" :value="size">
-              最近 {{ size }} 场
-            </option>
-          </select>
           <span>{{ stats.games }} / {{ state.sampleSize }} 场</span
           ><span
             >胜率 <b>{{ percent(stats.winRate) }}</b></span

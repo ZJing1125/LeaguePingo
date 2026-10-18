@@ -839,9 +839,12 @@ async function main() {
     );
     await select("分析样本场数", 10);
     await select("战绩模式筛选", 440);
-    await navigation
-      .getByRole("button", { name: "玩家战绩", exact: true })
-      .click();
+    if (await page.locator(".drawer-floating").isVisible())
+      await page.getByRole("button", { name: "在战绩页打开 ↗" }).click();
+    else
+      await navigation
+        .getByRole("button", { name: "玩家战绩", exact: true })
+        .click();
     assert.equal(await fullView.getByLabel("战绩模式筛选").inputValue(), "450");
     assert.equal(await fullView.getByLabel("分析样本场数").inputValue(), "50");
     assert.equal(await fullView.locator(".match-card").count(), 0);
@@ -881,9 +884,12 @@ async function main() {
     );
     assert.equal(await drawer.getByLabel("战绩模式筛选").inputValue(), "all");
     assert.equal(await drawer.getByLabel("分析样本场数").inputValue(), "20");
-    await navigation
-      .getByRole("button", { name: "玩家战绩", exact: true })
-      .click();
+    if (await page.locator(".drawer-floating").isVisible())
+      await page.getByRole("button", { name: "在战绩页打开 ↗" }).click();
+    else
+      await navigation
+        .getByRole("button", { name: "玩家战绩", exact: true })
+        .click();
     assert.equal(await fullView.getByLabel("战绩模式筛选").inputValue(), "450");
     assert.equal(await fullView.getByLabel("分析样本场数").inputValue(), "50");
     await navigation.getByRole("button", { name: /当前对局/ }).click();

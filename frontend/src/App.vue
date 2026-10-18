@@ -7,20 +7,14 @@ import type { OverlayState } from "../bindings/leaguepingo/models";
 import PlayerView from "./components/PlayerView.vue";
 import PlayerTabs from "./components/PlayerTabs.vue";
 import OverlayView from "./components/OverlayView.vue";
-import ParticipantAvatar from "./components/ParticipantAvatar.vue";
+import MatchRoster from "./components/MatchRoster.vue";
+import PlayerDrawer from "./components/PlayerDrawer.vue";
 import TransientNotice from "./components/TransientNotice.vue";
 import SettingsPanel from "./components/SettingsPanel.vue";
 import AppIcon from "./components/AppIcon.vue";
 import DesktopTitleBar from "./components/DesktopTitleBar.vue";
-import RecentForm from "./components/RecentForm.vue";
 import { useTransientMessages } from "./transientMessages";
-import {
-  errorMessage,
-  percent,
-  decimal,
-  preparationLabel,
-  playerName,
-} from "./presentation";
+import { errorMessage } from "./presentation";
 import { operationKey, playerTabId } from "./playerState";
 import { useLeagueSnapshot } from "./composables/useLeagueSnapshot";
 import { usePlayerWorkspace } from "./composables/usePlayerWorkspace";
@@ -31,6 +25,11 @@ const isOverlay =
   new URLSearchParams(location.search).get("view") === "overlay";
 const settingsOpen = ref(false);
 const navCollapsed = ref(true);
+const mainElement = ref<HTMLElement | null>(null);
+const mainWidth = ref(window.innerWidth - 68);
+// Measure the workspace, including an expanded navigation, rather than the screen.
+const drawerModal = computed(() => mainWidth.value < 1020);
+let resizeObserver: ResizeObserver | undefined;
 const { messages: playerErrors, setMessage } = useTransientMessages();
 const searchError = computed(() => playerErrors.search || "");
 const rosterError = computed(() => playerErrors.roster || "");
@@ -51,6 +50,24 @@ const {
   matchStateFor,
   closeTab,
 } = workspace;
+const matchModalOpen = computed(
+  () => drawerModal.value && view.value === "match" && !!selected.value,
+);
+const historyReady = computed(
+  () =>
+    players.value.filter((player) =>
+      ["ready", "empty"].includes(player.historyState),
+    ).length,
+);
+const historyLoading = computed(
+  () =>
+    players.value.filter((player) => player.historyState === "loading").length,
+);
+const historyUnknown = computed(
+  () =>
+    players.value.filter((player) => player.identityState === "unavailable")
+      .length,
+);
 function acceptSnapshot(next: SnapshotModel) {
   if (league.acceptSnapshot(next)) workspace.acceptSnapshot(next);
 }
@@ -93,6 +110,10 @@ let stopSnapshot: (() => void) | undefined,
   stopOverlay: (() => void) | undefined;
 onMounted(async () => {
   window.addEventListener("keydown", onKey);
+  resizeObserver = new ResizeObserver(([entry]) => {
+    if (entry) mainWidth.value = entry.contentRect.width;
+  });
+  if (mainElement.value) resizeObserver.observe(mainElement.value);
   stopSnapshot = Events.On("leaguepingo:snapshot", (event) => {
     acceptSnapshot(event.data as SnapshotModel);
   });
@@ -111,6 +132,7 @@ onMounted(async () => {
 });
 onUnmounted(() => {
   componentAlive = false;
+  resizeObserver?.disconnect();
   stopSnapshot?.();
   stopOverlay?.();
   window.removeEventListener("keydown", onKey);
@@ -129,8 +151,8 @@ onUnmounted(() => {
     @pin="pinOverlay"
   />
   <main v-else class="desktop-app" :class="{ 'nav-collapsed': navCollapsed }">
-    <DesktopTitleBar :modal-open="settingsOpen" />
-    <aside class="app-sidebar" :inert="settingsOpen">
+    <DesktopTitleBar :modal-open="settingsOpen || matchModalOpen" />
+    <aside class="app-sidebar" :inert="settingsOpen || matchModalOpen">
       <nav aria-label="工作区">
         <button
           :class="{ active: view === 'players' }"
@@ -178,7 +200,11 @@ onUnmounted(() => {
         </div>
       </div>
     </aside>
-    <div class="app-main" :inert="settingsOpen">
+    <div
+      ref="mainElement"
+      class="app-main"
+      :inert="settingsOpen || matchModalOpen"
+    >
       <header class="app-toolbar">
         <strong>{{ view === "players" ? "玩家战绩" : "当前对局" }}</strong>
         <span class="toolbar-status" :title="status"
@@ -266,15 +292,7 @@ onUnmounted(() => {
             <h1>
               {{ snapshot?.stage === "party" ? "当前房间成员" : "本局名单" }}
             </h1>
-            <span class="muted"
-              >{{ status }} · 身份 {{ snapshot?.knownCount ?? 0 }}/{{
-                players.length
-              }}
-              · 战绩 {{ snapshot?.readyCount ?? 0 }}/{{
-                players.length
-              }}
-              已准备</span
-            >
+            <p class="roster-subtitle muted">{{ status }}</p>
           </div>
           <button
             class="secondary"
@@ -284,6 +302,32 @@ onUnmounted(() => {
             {{ rosterBusy ? "刷新中…" : "刷新对局名单" }}
           </button>
         </header>
+        <div
+          v-if="players.length"
+          class="roster-progress"
+          aria-label="本局资料准备进度"
+          role="status"
+        >
+          <span class="progress-summary"
+            ><b
+              >{{ historyReady }}<small>/ {{ players.length }}</small></b
+            >
+            战绩已准备</span
+          >
+          <span class="roster-progress-track" aria-hidden="true"
+            ><i :style="{ width: `${(historyReady / players.length) * 100}%` }"
+          /></span>
+          <span v-if="historyLoading">{{ historyLoading }} 人正在获取</span>
+          <span v-else-if="historyReady < players.length">{{
+            historyUnknown
+              ? `${historyUnknown} 人身份未提供`
+              : `${players.length - historyReady} 人未就绪`
+          }}</span>
+          <span v-else>双方资料已就绪</span>
+          <span class="roster-known"
+            >身份 {{ snapshot?.knownCount ?? 0 }}/{{ players.length }}</span
+          >
+        </div>
         <p
           v-if="snapshot?.connected && snapshot?.message"
           class="roster-message muted"
@@ -305,79 +349,21 @@ onUnmounted(() => {
             <p>选人或进入对局后，显示客户端提供的身份。</p>
             <p class="muted">排队和接受确认阶段通常无法取得双方十人的身份。</p>
           </div>
-          <div v-else class="team-columns">
-            <section
-              v-for="team in ['ally', 'enemy']"
-              :key="team"
-              class="team-section"
-            >
-              <h2>
-                {{
-                  snapshot?.stage === "party"
-                    ? team === "ally"
-                      ? "房间成员"
-                      : "对手未确定"
-                    : team === "ally"
-                      ? "我方"
-                      : "对方"
-                }}<small
-                  >{{ players.filter((p) => p.team === team).length }} 人</small
-                >
-              </h2>
-              <button
-                v-for="(player, index) in players.filter(
-                  (p) => p.team === team,
-                )"
-                :key="player.key"
-                class="player-row"
-                :class="{ selected: selectedKey === player.key }"
-                @click="selectPlayer(player)"
-              >
-                <ParticipantAvatar :player="player" />
-                <span class="roster-identity"
-                  ><strong :title="playerName(player, index + 1)">{{
-                    playerName(player, index + 1)
-                  }}</strong
-                  ><small v-if="player.championState === 'intent'"
-                    >预选英雄</small
-                  ><small v-if="!player.championId">{{
-                    player.championState === "unselected"
-                      ? "暂未选择英雄"
-                      : "英雄信息暂不可用"
-                  }}</small
-                  ><small
-                    >{{ preparationLabel(player, snapshot?.frozen)
-                    }}<template v-if="player.historyState === 'ready'">
-                      · {{ player.stats.games }} 场样本</template
-                    ></small
-                  ><RecentForm
-                    v-if="player.historyState === 'ready'"
-                    :matches="player.history"
-                /></span>
-                <span
-                  class="roster-metrics"
-                  :title="preparationLabel(player, snapshot?.frozen)"
-                  ><template v-if="player.historyState === 'ready'"
-                    ><b>{{ percent(player.stats.winRate) }}</b
-                    ><small
-                      >{{ decimal(player.stats.kda) }} KDA</small
-                    ></template
-                  ><span v-else class="status-badge">{{
-                    player.identityState === "unavailable"
-                      ? "身份未知"
-                      : player.historyState === "loading"
-                        ? "正在获取"
-                        : player.historyState === "empty"
-                          ? "暂无战绩"
-                          : snapshot?.frozen
-                            ? "可查询"
-                            : "待准备"
-                  }}</span></span
-                >
-              </button>
-            </section>
-          </div>
-          <aside v-if="selected" class="player-drawer">
+          <MatchRoster
+            v-else
+            :players="players"
+            :selected-key="selectedKey"
+            :party="snapshot?.stage === 'party'"
+            :frozen="snapshot?.frozen"
+            @select="selectPlayer"
+          />
+          <PlayerDrawer
+            v-if="selected"
+            :player-key="selected.key"
+            :modal="drawerModal"
+            :active="view === 'match'"
+            @close="selectedKey = ''"
+          >
             <div class="drawer-toolbar">
               <button class="text-button" @click="openPlayerDetails(selected)">
                 在战绩页打开 ↗</button
@@ -426,7 +412,7 @@ onUnmounted(() => {
               @refresh="refreshPlayer"
               @profile="loadProfile"
             />
-          </aside>
+          </PlayerDrawer>
         </div>
       </section>
     </div>

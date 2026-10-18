@@ -9,7 +9,7 @@ async function main() {
   const catalog = JSON.parse(
     await fs.readFile(path.join(dist, "histoire.json"), "utf8"),
   );
-  assert.equal(catalog.stories.length, 4);
+  assert.equal(catalog.stories.length, 5);
   const browser = await chromium.launch({
     headless: true,
     executablePath: process.env.BROWSER_EXECUTABLE,
@@ -81,11 +81,13 @@ async function main() {
         );
         const selector = overlay
           ? ".overlay-shell"
-          : story.id.includes("matchhistoryrow")
-            ? ".match-card"
-            : story.id.includes("profileheader")
-              ? ".player-profile"
-              : '[role="tablist"]';
+          : story.id.includes("matchroster")
+            ? ".team-columns"
+            : story.id.includes("matchhistoryrow")
+              ? ".match-card"
+              : story.id.includes("profileheader")
+                ? ".player-profile"
+                : '[role="tablist"]';
         await page.locator(selector).waitFor({ timeout: 20000 });
         if (overlay) {
           assert.equal(await page.locator(".overlay-player").count(), 10);
@@ -96,6 +98,23 @@ async function main() {
             false,
             `${variant.title}: horizontal overflow`,
           );
+        }
+        if (story.id.includes("matchroster")) {
+          assert.equal(await page.locator(".team-section").count(), 2);
+          assert.equal(
+            await page.locator(".player-row").count(),
+            variant.title === "组队阶段" ? 3 : 10,
+          );
+          assert.equal(
+            await page.evaluate(
+              () => document.documentElement.scrollWidth > innerWidth,
+            ),
+            false,
+          );
+          if (variant.title === "双方十人") {
+            await page.locator(".player-row").nth(5).click();
+            assert.equal(await page.locator(".player-row.selected").count(), 1);
+          }
         }
         if (story.id.includes("matchhistoryrow")) {
           assert.equal(
@@ -139,7 +158,7 @@ async function main() {
         await page.close();
       }
     }
-    assert.equal(checked, 15);
+    assert.equal(checked, 19);
     assert.deepEqual(failures, []);
     assert.deepEqual(
       external,
