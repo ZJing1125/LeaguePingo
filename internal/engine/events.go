@@ -53,6 +53,9 @@ func (e *Engine) observePhase(version, sequence uint64, phase string) {
 	}
 	e.phaseEpoch++
 	e.phaseHint = phase
+	if !activeMatch(phase) {
+		e.stopInitialMatchLocked()
+	}
 	if phase != "ChampSelect" {
 		e.stopChampSelectEventsLocked()
 	}

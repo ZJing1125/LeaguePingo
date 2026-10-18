@@ -57,6 +57,7 @@ type Engine struct {
 	prepareAttempts     map[string]int
 	preferred           string
 	details             map[string]core.MatchDetail
+	initialMatch        initialMatchPreparation
 }
 
 func New(discover Discoverer, onChange func(core.Snapshot)) *Engine {
@@ -79,6 +80,9 @@ func (e *Engine) Snapshot() core.Snapshot {
 }
 
 func (e *Engine) Run(ctx context.Context) {
+	e.mu.Lock()
+	e.initialMatch.parent = ctx
+	e.mu.Unlock()
 	e.poll(ctx)
 	e.syncPhaseEvents(ctx)
 	e.syncChampSelectEvents(ctx)
@@ -95,6 +99,7 @@ func (e *Engine) Run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			e.mu.Lock()
+			e.stopInitialMatchLocked()
 			if e.cancel != nil {
 				e.cancel()
 			}
@@ -218,6 +223,7 @@ func (e *Engine) poll(ctx context.Context) {
 		}
 		e.accountIdentity = account
 	}
+	e.noteInitialMatchPhaseLocked(phase)
 	refresh := false
 	if activeMatch(phase) {
 		entering := !activeMatch(e.snapshot.Phase) || (phase == "GameStart" && e.snapshot.Phase != "GameStart")
@@ -310,10 +316,12 @@ func (e *Engine) poll(ctx context.Context) {
 		}
 	}
 	e.startPreparationLocked()
+	e.startInitialMatchLocked()
 }
 
 // Retained data can still be displayed, but can never become a new connection's cache.
 func (e *Engine) invalidateConnectionLocked() {
+	e.stopInitialMatchLocked()
 	e.stopPhaseEventsLocked()
 	e.stopChampSelectEventsLocked()
 	e.champWatchRetry = time.Time{}
@@ -342,6 +350,7 @@ func (e *Engine) invalidateConnectionLocked() {
 
 // Keep the frozen match available while exposing why reconnection failed.
 func (e *Engine) disconnectLocked(message string) {
+	e.stopInitialMatchLocked()
 	e.stopPhaseEventsLocked()
 	e.stopChampSelectEventsLocked()
 	e.client = nil
@@ -368,6 +377,9 @@ func (e *Engine) disconnectLocked(message string) {
 }
 
 func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.Participant, message string) {
+	if e.initialMatch.decided && (!activeMatch(phase) || (e.initialMatch.gameID != 0 && gameID != 0 && e.initialMatch.gameID != gameID)) {
+		e.stopInitialMatchLocked()
+	}
 	if stage != "preparing" {
 		e.stopChampSelectEventsLocked()
 	}
@@ -410,6 +422,9 @@ func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.
 		} else {
 			message = "已取得本地对局名单，保留赛前战绩；缺少资料的玩家可点击手动查询。局内暂停自动战绩预取。"
 		}
+		if e.initialMatch.cancel != nil && e.initialMatch.eligible && e.initialMatch.gameID == gameID {
+			message = initialMatchMessage
+		}
 	}
 	if sameConnection && (preparationStage(stage) || stage == "in-game") && (gameID == 0 || e.snapshot.GameID == 0 || gameID == e.snapshot.GameID) {
 		for i := range roster {
@@ -438,7 +453,7 @@ func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.
 			roster[i].DisplayName = cached.DisplayName
 		}
 	}
-	if stage == "in-game" || !samePreparation {
+	if (stage == "in-game" && e.initialMatch.cancel == nil) || (stage != "in-game" && !samePreparation) {
 		for i := range roster {
 			if roster[i].HistoryState == core.HistoryLoading {
 				roster[i].HistoryState = core.HistoryPending
@@ -458,6 +473,7 @@ func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.
 		e.cancel = nil
 	}
 	e.startPreparationLocked()
+	e.startInitialMatchLocked()
 }
 
 func (e *Engine) startPreparationLocked() {
@@ -554,7 +570,7 @@ func (e *Engine) prepare(ctx context.Context, token uint64, client Client, versi
 		e.updatePrepared(token, player.PUUID, func(p *core.Participant) { p.HistoryState = core.HistoryLoading; p.Error = "" })
 		if !strings.Contains(player.DisplayName, "#") {
 			nameCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-			name, err := e.loadName(nameCtx, client, player.PUUID, false)
+			name, err := e.loadName(nameCtx, client, player.PUUID, version, false)
 			cancel()
 			if err == nil && name != "" {
 				e.updatePrepared(token, player.PUUID, func(p *core.Participant) { p.DisplayName = name })
@@ -603,12 +619,18 @@ func (e *Engine) updatePrepared(token uint64, puuid string, edit func(*core.Part
 		}
 	}
 }
-func (e *Engine) loadName(ctx context.Context, client Client, puuid string, manual bool) (string, error) {
+func (e *Engine) loadName(ctx context.Context, client Client, puuid string, version uint64, manual bool) (string, error) {
 	release, err := e.scheduler.acquire(ctx, manual)
 	if err != nil {
 		return "", err
 	}
 	defer release()
+	e.mu.RLock()
+	current := e.client != nil && e.clientVersion == version
+	e.mu.RUnlock()
+	if !current {
+		return "", errors.New("连接已变化，请重新查询玩家名称")
+	}
 	return client.Name(ctx, puuid)
 }
 func (e *Engine) PrioritizePlayer(key string) { e.mu.Lock(); e.preferred = key; e.mu.Unlock() }
@@ -714,11 +736,6 @@ func (e *Engine) lookupPlayer(ctx context.Context, key string, force bool) (core
 	if client == nil {
 		return core.Participant{}, source.ErrNotConnected
 	}
-	if !strings.Contains(player.DisplayName, "#") {
-		if name, err := e.loadName(ctx, client, player.PUUID, true); err == nil && name != "" {
-			player.DisplayName = name
-		}
-	}
 	return e.loadManualHistory(ctx, client, snapshot.Generation, version, player, force, true)
 }
 
@@ -733,6 +750,11 @@ func (e *Engine) beginLookup(ctx context.Context) (context.Context, func(), erro
 }
 
 func (e *Engine) loadManualHistory(ctx context.Context, client Client, generation uint64, version uint64, player core.Participant, force, enrich bool) (core.Participant, error) {
+	// A complete-ID lookup already verified the name; preserve it even when
+	// the matching history cache was created from a nameless game roster.
+	if !core.IsPlaceholderName(player.DisplayName) {
+		player = e.resolvePlayerName(ctx, client, version, player, true)
+	}
 	e.mu.RLock()
 	cached, ok := e.cache[player.PUUID]
 	sameClient := e.clientVersion == version
@@ -743,9 +765,21 @@ func (e *Engine) loadManualHistory(ctx context.Context, client Client, generatio
 		}
 		return cachedPlayer(cached, false), nil
 	}
+	player = e.resolvePlayerName(ctx, client, version, player, true)
+	if player.Stale {
+		return core.Participant{}, errors.New("连接已变化，请重新查询玩家")
+	}
 	hadHistory := historyCached(player)
 	player.HistoryState = core.HistoryLoading
-	history, err := e.scheduler.history(ctx, fmt.Sprintf("%d:%s", version, player.PUUID), true, func(c context.Context) (core.HistoryResult, error) { return client.History(c, player.PUUID) })
+	history, err := e.scheduler.history(ctx, fmt.Sprintf("%d:%s", version, player.PUUID), true, func(c context.Context) (core.HistoryResult, error) {
+		e.mu.RLock()
+		current := e.client != nil && e.clientVersion == version
+		e.mu.RUnlock()
+		if !current {
+			return core.HistoryResult{}, source.ErrNotConnected
+		}
+		return client.History(c, player.PUUID)
+	})
 	if err != nil {
 		// A refresh failure must keep verified history. A first failure still
 		// returns a usable identity so optional profile data can be inspected.
@@ -763,6 +797,15 @@ func (e *Engine) loadManualHistory(ctx context.Context, client Client, generatio
 	if profiles, ok := client.(source.ProfileSource); ok && enrich {
 		profileCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		if release, err := e.scheduler.acquire(profileCtx, true); err == nil {
+			e.mu.RLock()
+			current := e.client != nil && e.clientVersion == version
+			e.mu.RUnlock()
+			if !current {
+				release()
+				cancel()
+				player.Stale = true
+				return player, nil
+			}
 			e.markProfileAttempt(version, player.Key)
 			profile := profiles.Profile(profileCtx, player.PUUID)
 			previous := player.Profile

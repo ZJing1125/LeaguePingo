@@ -32,6 +32,11 @@ export function useLeagueSnapshot() {
   const status = computed(() => {
     const s = snapshot.value;
     if (!s?.connected) return s?.frozen ? "连接中断 · 保留资料" : "等待客户端";
+    if (
+      s.stage === "in-game" &&
+      s.participants?.some((p) => p.historyState === "loading")
+    )
+      return "对局中 · 首次补齐资料";
     const phases: Record<string, string> = {
       Lobby: "组队大厅",
       Matchmaking: "正在排队",

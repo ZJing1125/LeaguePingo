@@ -7,7 +7,7 @@
     "dev": "vite",
     "build:dev": "vue-tsc && vite build --minify false --mode development",
     "build": "vue-tsc && vite build --mode production",
-    "test:smoke": "node tests/overlay-smoke.cjs && node tests/history-browser.cjs",
+    "test:smoke": "node tests/overlay-smoke.cjs && node tests/history-browser.cjs && node tests/initial-match.cjs",
     "test:components": "node tests/component-preview.cjs",
     "preview:components": "npm --prefix preview run dev",
     "build:components": "npm --prefix preview run build",

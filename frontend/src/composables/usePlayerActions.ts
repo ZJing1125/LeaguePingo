@@ -61,11 +61,14 @@ export function usePlayerActions(
     )
       return;
     const merge = (p: Participant) =>
-      newestPlayer(p, {
-        ...p,
-        profile: result.profile,
-        privacyState: result.privacyState,
-      })!;
+      newestPlayer(
+        { ...p, displayName: result.displayName },
+        {
+          ...p,
+          profile: result.profile,
+          privacyState: result.privacyState,
+        },
+      )!;
     for (let i = 0; i < tabs.value.length; i++) {
       if (operationKey(tabs.value[i]!) === operationKey(result))
         tabs.value[i] = merge(tabs.value[i]!);

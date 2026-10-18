@@ -32,7 +32,7 @@ func TestTencentLCUAdapter(t *testing.T) {
 		case request.URL.Path == "/lol-summoner/v1/current-summoner":
 			body = `{"puuid":"p1"}`
 		case strings.Contains(request.URL.Path, "summoners/puuid"):
-			body = `{"gameName":"Player","tagLine":"CN1"}`
+			body = `{"puuid":"p1","gameName":"Player","tagLine":"CN1"}`
 		case strings.Contains(request.URL.Path, "match-history"):
 			body = `{"games":{"games":[{"gameId":10,"participants":[{"participantId":1,"championId":12,"stats":{"win":true,"kills":8}}],"participantIdentities":[{"participantId":1,"player":{"puuid":"p1"}}]}]}}`
 		case strings.Contains(request.URL.Path, "summoners"):

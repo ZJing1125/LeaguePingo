@@ -19,6 +19,7 @@ import {
   percent,
   decimal,
   preparationLabel,
+  playerName,
 } from "./presentation";
 import { operationKey, playerTabId } from "./playerState";
 import { useLeagueSnapshot } from "./composables/useLeagueSnapshot";
@@ -172,7 +173,7 @@ onUnmounted(() => {
             class="connection-light"
             :class="{ online: snapshot?.connected }"
           ></span
-          >{{ status }}<small>局内仅主动查询战绩</small>
+          >{{ status }}<small>局内启动仅补齐一轮资料</small>
         </div>
       </div>
     </aside>
@@ -281,6 +282,13 @@ onUnmounted(() => {
             {{ rosterBusy ? "刷新中…" : "刷新对局名单" }}
           </button>
         </header>
+        <p
+          v-if="snapshot?.connected && snapshot?.message"
+          class="roster-message muted"
+          role="status"
+        >
+          {{ snapshot.message }}
+        </p>
         <TransientNotice :message="rosterError" />
         <p
           v-if="!rosterError && snapshot?.rosterError"
@@ -315,7 +323,9 @@ onUnmounted(() => {
                 >
               </h2>
               <button
-                v-for="player in players.filter((p) => p.team === team)"
+                v-for="(player, index) in players.filter(
+                  (p) => p.team === team,
+                )"
                 :key="player.key"
                 class="player-row"
                 :class="{ selected: selectedKey === player.key }"
@@ -323,8 +333,8 @@ onUnmounted(() => {
               >
                 <ParticipantAvatar :player="player" />
                 <span class="roster-identity"
-                  ><strong :title="player.displayName">{{
-                    player.displayName
+                  ><strong :title="playerName(player, index + 1)">{{
+                    playerName(player, index + 1)
                   }}</strong
                   ><small v-if="player.championState === 'intent'"
                     >预选英雄</small
@@ -334,7 +344,7 @@ onUnmounted(() => {
                       : "英雄信息暂不可用"
                   }}</small
                   ><small
-                    >{{ preparationLabel(player)
+                    >{{ preparationLabel(player, snapshot?.frozen)
                     }}<template v-if="player.historyState === 'ready'">
                       · {{ player.stats.games }} 场样本</template
                     ></small
@@ -342,7 +352,9 @@ onUnmounted(() => {
                     v-if="player.historyState === 'ready'"
                     :matches="player.history"
                 /></span>
-                <span class="roster-metrics" :title="preparationLabel(player)"
+                <span
+                  class="roster-metrics"
+                  :title="preparationLabel(player, snapshot?.frozen)"
                   ><template v-if="player.historyState === 'ready'"
                     ><b>{{ percent(player.stats.winRate) }}</b
                     ><small
@@ -351,7 +363,13 @@ onUnmounted(() => {
                   ><span v-else class="status-badge">{{
                     player.identityState === "unavailable"
                       ? "身份未知"
-                      : "待准备"
+                      : player.historyState === "loading"
+                        ? "正在获取"
+                        : player.historyState === "empty"
+                          ? "暂无战绩"
+                          : snapshot?.frozen
+                            ? "可查询"
+                            : "待准备"
                   }}</span></span
                 >
               </button>

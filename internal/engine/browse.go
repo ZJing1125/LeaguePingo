@@ -37,7 +37,7 @@ func (e *Engine) LoadProfile(ctx context.Context, key string, connectionID uint6
 		return core.Participant{}, err
 	}
 	defer done()
-	return e.loadProfileData(ctx, key, connectionID, false)
+	return e.loadProfileWithName(ctx, key, connectionID, false)
 }
 
 // EnsureProfile is invoked only by an explicit user opening/query, never by
@@ -48,10 +48,26 @@ func (e *Engine) EnsureProfile(ctx context.Context, key string, connectionID uin
 		return core.Participant{}, err
 	}
 	defer done()
-	return e.loadProfileData(ctx, key, connectionID, true)
+	return e.loadProfileWithName(ctx, key, connectionID, true)
+}
+
+func (e *Engine) loadProfileWithName(ctx context.Context, key string, connectionID uint64, onlyMissing bool) (core.Participant, error) {
+	client, player, err := e.browsePlayer(key, connectionID)
+	if err != nil {
+		return core.Participant{}, err
+	}
+	e.resolvePlayerName(ctx, client, connectionID, player, true)
+	return e.loadProfileData(ctx, key, connectionID, onlyMissing)
 }
 
 func (e *Engine) enrichCachedProfile(ctx context.Context, player core.Participant) core.Participant {
+	if player.Stale {
+		return player
+	}
+	e.mu.RLock()
+	client := e.client
+	e.mu.RUnlock()
+	player = e.resolvePlayerName(ctx, client, player.ConnectionID, player, true)
 	if player.Stale {
 		return player
 	}
@@ -143,7 +159,8 @@ func (e *Engine) loadProfileData(ctx context.Context, key string, connectionID u
 }
 
 // RefreshHistory uses an already verified identity and preserves independent
-// profile data. It must not repeat ID lookup or optional enrichment requests.
+// profile data. It only repairs a missing name; known names, ID lookup and
+// optional profile enrichment are not requested again.
 func (e *Engine) RefreshHistory(ctx context.Context, key string, connectionID uint64) (core.Participant, error) {
 	ctx, done, err := e.beginLookup(ctx)
 	if err != nil {

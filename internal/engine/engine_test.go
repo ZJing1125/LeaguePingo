@@ -101,7 +101,7 @@ func TestDiscoveryFailureIsPublishedAndRecovers(t *testing.T) {
 	}
 }
 
-func TestStartingMidGameRefreshesLocalRosterWithoutHistory(t *testing.T) {
+func TestLocalRosterPollingDoesNotStartPlayerPreparation(t *testing.T) {
 	for _, phase := range []string{"GameStart", "InProgress", "Reconnect", "WatchInProgress", "WaitingForStats", "PreEndOfGame", "EndOfGame"} {
 		t.Run(phase, func(t *testing.T) {
 			fake := &fakeClient{phase: phase}

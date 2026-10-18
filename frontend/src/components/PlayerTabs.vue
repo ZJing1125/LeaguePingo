@@ -1,17 +1,32 @@
 <script setup lang="ts">
-import { nextTick, ref } from "vue";
+import { nextTick, ref, watch } from "vue";
 import type { Participant } from "../../bindings/leaguepingo/internal/core/models";
 import { playerTabId } from "../playerState";
+import { playerName } from "../presentation";
 
 const props = defineProps<{ players: Participant[]; activeKey: string }>();
 const emit = defineEmits<{ select: [key: string]; close: [key: string] }>();
 const tablist = ref<HTMLElement | null>(null);
 
+function revealActive() {
+  tablist.value
+    ?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
+    ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+}
+watch(
+  () => [props.activeKey, props.players.length],
+  async () => {
+    await nextTick();
+    revealActive();
+  },
+);
+
 async function focusActive() {
   await nextTick();
   tablist.value
     ?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
-    ?.focus();
+    ?.focus({ preventScroll: true });
+  revealActive();
 }
 async function close(key: string) {
   const wasLast = props.players.length === 1;
@@ -70,15 +85,15 @@ function navigate(event: KeyboardEvent, index: number) {
         :aria-selected="activeKey === player.key"
         aria-controls="player-panel"
         :tabindex="activeKey === player.key ? 0 : -1"
-        :title="player.displayName"
+        :title="playerName(player, index + 1)"
         @click="emit('select', player.key)"
         @keydown="navigate($event, index)"
       >
-        {{ player.displayName }}
+        {{ playerName(player, index + 1) }}
       </button>
       <button
         class="tab-close"
-        :aria-label="`关闭 ${player.displayName}`"
+        :aria-label="`关闭 ${playerName(player, index + 1)}`"
         :tabindex="activeKey === player.key ? 0 : -1"
         @click="close(player.key)"
       >

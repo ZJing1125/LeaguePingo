@@ -11,6 +11,7 @@
 - `composables/usePlayerActions.ts` 管理显式查询、更新、资料补取队列及忙碌状态；继续使用原有 Go 调度和预算。
 - `composables/useOverlayControls.ts` 管理快览状态版本及显隐、置顶操作。
 - `playerState.ts` 保留连接/历史/资料分别择新的合并规则及稳定标签 ID。
+- 姓名不由历史时间决定：当前同身份的有效姓名可以更新保留的历史；占位不能盖掉已知姓名。`presentation.playerName` 只生成明确标注的展示占位，不写回身份或缓存；资料结果的姓名要同步回当前名单和详情。局内首次补齐由 Go 驱动，前端只接受快照，不能再并行发一批玩家查询。
 - `PlayerProfileHeader.vue` 和 `MatchHistoryRow.vue` 接收数据和发送交互事件。战绩行的双方详情通过插槽提供；组件自身不导入 Wails、不访问客户端或 CDN。
 - `historyBrowser.ts` 保持已有分页、样本、停止/继续和来源受限规则。展示拆分不能增加后台查询或改变统计分母。
 

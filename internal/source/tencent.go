@@ -151,24 +151,24 @@ func (s *TencentLCU) AccountIdentity(ctx context.Context) (string, error) {
 }
 
 func (s *TencentLCU) Name(ctx context.Context, puuid string) (string, error) {
+	if !core.IsKnownPUUID(puuid) {
+		return "", errors.New("玩家名称不可用")
+	}
 	raw, err := s.client.Get(ctx, "/lol-summoner/v2/summoners/puuid/"+url.PathEscape(puuid))
 	if err != nil {
 		return "", err
 	}
 	var profile struct {
-		GameName string `json:"gameName"`
-		TagLine  string `json:"tagLine"`
+		core.NameFields
+		PUUID string `json:"puuid"`
 	}
 	if err := json.Unmarshal(raw, &profile); err != nil {
 		return "", err
 	}
-	if profile.GameName == "" {
+	if profile.PUUID != puuid || !core.IsKnownPUUID(puuid) || profile.Name() == "" {
 		return "", errors.New("玩家名称不可用")
 	}
-	if profile.TagLine == "" {
-		return profile.GameName, nil
-	}
-	return profile.GameName + "#" + profile.TagLine, nil
+	return profile.Name(), nil
 }
 
 func (s *TencentLCU) History(ctx context.Context, puuid string) (core.HistoryResult, error) {

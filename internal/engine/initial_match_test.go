@@ -1,0 +1,254 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"leaguepingo/internal/core"
+)
+
+func waitInitialMatch(t *testing.T, e *Engine) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		e.mu.RLock()
+		done := e.initialMatch.started && e.initialMatch.cancel == nil
+		e.mu.RUnlock()
+		if done {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("initial match preparation did not settle")
+}
+
+func TestInitialMatchRunFillsNamesAndHistoryOnce(t *testing.T) {
+	f := &fakeClient{phase: "InProgress", gameID: 42, roster: fullTestRoster()}
+	for i := range f.roster {
+		f.roster[i].DisplayName = "玩家名称暂不可用"
+	}
+	e := New(func() (Client, error) { return f, nil }, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { e.Run(ctx); close(done) }()
+	defer func() { cancel(); <-done }()
+	waitInitialMatch(t, e)
+	for _, p := range e.Snapshot().Participants {
+		if p.DisplayName != "Alice#TEST" || !historyCached(p) {
+			t.Fatal("initial match player was not filled")
+		}
+	}
+	f.mu.Lock()
+	names, histories := 0, 0
+	for _, call := range f.calls {
+		if call == "name" {
+			names++
+		}
+		if call == "history" {
+			histories++
+		}
+		if call == "find" {
+			t.Error("startup resolved identities again")
+		}
+	}
+	f.mu.Unlock()
+	if names != 10 || histories != 10 {
+		t.Fatalf("unexpected startup requests: name=%d history=%d", names, histories)
+	}
+	for i := 0; i < 5; i++ {
+		e.poll(context.Background())
+	}
+	if _, err := e.RefreshRoster(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	for _, phase := range []string{"Lobby", "GameStart", "InProgress"} {
+		f.mu.Lock()
+		f.phase = phase
+		f.gameID = 43
+		f.mu.Unlock()
+		e.poll(context.Background())
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	count := 0
+	for _, call := range f.calls {
+		if call == "history" {
+			count++
+		}
+	}
+	if count != 10 {
+		t.Fatal("polling or manual roster refresh restarted startup batch")
+	}
+}
+
+func TestInitialMatchUsesPartialRosterAfterIdentityBudgetEnds(t *testing.T) {
+	f := &fakeClient{phase: "InProgress", gameID: 42, roster: fullTestRoster()[:9]}
+	e := New(func() (Client, error) { return f, nil }, nil)
+	e.initialMatch.parent = context.Background()
+	e.poll(context.Background())
+	f.mu.Lock()
+	f.rosterErr = errors.New("later roster read unavailable")
+	f.mu.Unlock()
+	e.poll(context.Background())
+	e.poll(context.Background())
+	waitInitialMatch(t, e)
+	if len(e.Snapshot().Participants) != 9 {
+		t.Fatal("partial roster was fabricated or lost")
+	}
+	histories := 0
+	for _, call := range f.calls {
+		if call == "history" {
+			histories++
+		}
+	}
+	if histories != 9 {
+		t.Fatal("partial roster was never filled or exceeded known identities")
+	}
+}
+
+func TestInitialMatchOnlyArmsWhenFirstPhaseIsActive(t *testing.T) {
+	f := &fakeClient{phase: "ChampSelect", gameID: 42, roster: fullTestRoster()}
+	e := New(func() (Client, error) { return f, nil }, nil)
+	e.initialMatch.parent = context.Background()
+	e.poll(context.Background())
+	waitPreparationStopped(t, e)
+	f.mu.Lock()
+	before := len(f.calls)
+	f.phase = "InProgress"
+	f.mu.Unlock()
+	e.poll(context.Background())
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, call := range f.calls[before:] {
+		if call == "history" || call == "name" {
+			t.Fatal("normal game entry armed startup exception")
+		}
+	}
+}
+
+func TestInitialMatchWaitsForFirstNonemptyPhase(t *testing.T) {
+	f := &fakeClient{phase: "", gameID: 42, roster: fullTestRoster()}
+	e := New(func() (Client, error) { return f, nil }, nil)
+	e.initialMatch.parent = context.Background()
+	e.poll(context.Background())
+	if e.initialMatch.decided {
+		t.Fatal("empty phase consumed startup eligibility")
+	}
+	f.mu.Lock()
+	f.phase = "InProgress"
+	f.mu.Unlock()
+	e.poll(context.Background())
+	waitInitialMatch(t, e)
+	if !e.initialMatch.started {
+		t.Fatal("first confirmed active phase did not initialise match")
+	}
+}
+
+func TestInitialMatchWaitsForInProgressAndReusesFreshHistory(t *testing.T) {
+	f := &fakeClient{phase: "GameStart", gameID: 42, roster: fullTestRoster()}
+	e := New(func() (Client, error) { return f, nil }, nil)
+	e.initialMatch.parent = context.Background()
+	e.poll(context.Background())
+	if e.initialMatch.started {
+		t.Fatal("loading screen started player requests")
+	}
+	e.mu.Lock()
+	for _, p := range e.snapshot.Participants {
+		core.ApplyHistory(&p, core.HistoryResult{})
+		e.cachePlayerLocked(p)
+	}
+	e.mu.Unlock()
+	f.mu.Lock()
+	f.phase = "InProgress"
+	f.mu.Unlock()
+	e.poll(context.Background())
+	waitInitialMatch(t, e)
+	for _, p := range e.Snapshot().Participants {
+		if !historyCached(p) {
+			t.Fatal("fresh history was not reused")
+		}
+	}
+	for _, call := range f.calls {
+		if call == "history" || call == "name" {
+			t.Fatal("cached player was fetched again")
+		}
+	}
+}
+
+func TestInitialMatchTimeoutClearsLoadingAndDoesNotRetry(t *testing.T) {
+	f := &fakeClient{phase: "InProgress", gameID: 42, roster: fullTestRoster()}
+	var calls atomic.Int32
+	f.historyFn = func(ctx context.Context, _ string) (core.HistoryResult, error) {
+		calls.Add(1)
+		<-ctx.Done()
+		return core.HistoryResult{}, ctx.Err()
+	}
+	e := New(func() (Client, error) { return f, nil }, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	e.initialMatch.parent = ctx
+	e.poll(context.Background())
+	waitInitialMatch(t, e)
+	for _, p := range e.Snapshot().Participants {
+		if p.HistoryState == core.HistoryLoading {
+			t.Fatal("timeout left perpetual loading")
+		}
+	}
+	for i := 0; i < 5; i++ {
+		e.poll(context.Background())
+	}
+	if calls.Load() != 1 {
+		t.Fatal("timeout batch retried")
+	}
+}
+
+func TestInitialMatchCapsPlayersAndFailureAttempts(t *testing.T) {
+	roster := append(fullTestRoster(), core.Participant{Key: "extra", PUUID: "extra", IdentityState: core.IdentityKnown})
+	f := &fakeClient{phase: "InProgress", gameID: 42, roster: roster}
+	var calls atomic.Int32
+	f.historyFn = func(context.Context, string) (core.HistoryResult, error) {
+		calls.Add(1)
+		return core.HistoryResult{}, errors.New("synthetic failure")
+	}
+	e := New(func() (Client, error) { return f, nil }, nil)
+	e.initialMatch.parent = context.Background()
+	e.poll(context.Background())
+	waitInitialMatch(t, e)
+	if calls.Load() != initialMatchPlayerLimit {
+		t.Fatal("startup exceeded player/attempt cap")
+	}
+	if e.Snapshot().Participants[10].HistoryState == core.HistoryLoading {
+		t.Fatal("unrequested extra player was left loading")
+	}
+}
+
+func TestInitialMatchCancellationRejectsLateDataAndKeepsDisconnectReason(t *testing.T) {
+	started, release := make(chan struct{}), make(chan struct{})
+	f := &fakeClient{phase: "InProgress", gameID: 42, roster: fullTestRoster()}
+	f.historyFn = func(context.Context, string) (core.HistoryResult, error) {
+		close(started)
+		<-release
+		return core.HistoryResult{Matches: []core.Match{{GameID: 99}}}, nil
+	}
+	e := New(func() (Client, error) { return f, nil }, nil)
+	e.initialMatch.parent = context.Background()
+	e.poll(context.Background())
+	<-started
+	e.mu.Lock()
+	e.disconnectLocked("synthetic disconnected")
+	e.mu.Unlock()
+	close(release)
+	waitInitialMatch(t, e)
+	s := e.Snapshot()
+	if s.Message != "synthetic disconnected；仍可查看已缓存的对局资料" {
+		t.Fatal("late startup completion erased disconnect reason")
+	}
+	for _, p := range s.Participants {
+		if len(p.History) > 0 || p.HistoryState == core.HistoryLoading {
+			t.Fatal("cancelled startup applied late history or left loading")
+		}
+	}
+}

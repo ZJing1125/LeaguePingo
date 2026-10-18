@@ -7,11 +7,11 @@ import (
 )
 
 type rosterMember struct {
+	NameFields
 	PUUID              string `json:"puuid"`
 	ChampionID         *int   `json:"championId"`
 	ChampionPickIntent *int   `json:"championPickIntent"`
 	CellID             *int   `json:"cellId"`
-	SummonerName       string `json:"summonerName"`
 }
 
 type gameflowSession struct {
@@ -90,8 +90,8 @@ func ParseChampSelectSession(data []byte) (int64, []Participant, error) {
 func ParseLobbyRoster(data []byte) ([]Participant, error) {
 	var lobby struct {
 		Members []struct {
+			NameFields
 			PUUID     string `json:"puuid"`
-			Name      string `json:"summonerName"`
 			Bot       bool   `json:"isBot"`
 			Spectator bool   `json:"isSpectator"`
 		} `json:"members"`
@@ -102,7 +102,7 @@ func ParseLobbyRoster(data []byte) ([]Participant, error) {
 	members := []rosterMember{}
 	for _, p := range lobby.Members {
 		if !p.Bot && !p.Spectator {
-			members = append(members, rosterMember{PUUID: p.PUUID, SummonerName: p.Name})
+			members = append(members, rosterMember{PUUID: p.PUUID, NameFields: p.NameFields})
 		}
 	}
 	return mergeRoster(members, nil), nil
@@ -130,8 +130,8 @@ func mergeRoster(allies, enemies []rosterMember) []Participant {
 			if known {
 				identity = IdentityKnown
 				name = "玩家名称暂不可用"
-				if member.SummonerName != "" {
-					name = member.SummonerName
+				if provided := member.Name(); provided != "" {
+					name = provided
 				}
 			}
 			championID, championState := 0, "unavailable"

@@ -8,6 +8,7 @@ import {
   preparationLabel,
   championSample,
   date,
+  playerName,
 } from "../presentation";
 import AppIcon from "./AppIcon.vue";
 import ParticipantAvatar from "./ParticipantAvatar.vue";
@@ -103,8 +104,8 @@ defineEmits<{ hide: []; pin: [] }>();
           >
             <div class="overlay-player-heading">
               <ParticipantAvatar :player="p" :size="28" /><strong
-                :title="`${p.displayName} · ${championSample(p)} · ${date(p.historyMeta?.fetchedAt)}`"
-                >{{ p.displayName }}</strong
+                :title="`${playerName(p)} · ${championSample(p)} · ${date(p.historyMeta?.fetchedAt)}`"
+                >{{ playerName(p) }}</strong
               ><small
                 v-if="p.historyState === 'ready'"
                 class="overlay-count"
@@ -131,7 +132,9 @@ defineEmits<{ hide: []; pin: [] }>();
               </div>
               <RecentForm :matches="p.history" />
             </div>
-            <p v-else class="overlay-pending">{{ preparationLabel(p) }}</p>
+            <p v-else class="overlay-pending">
+              {{ preparationLabel(p, snapshot?.frozen) }}
+            </p>
             <small v-if="p.error" class="warning-text" :title="p.error">{{
               p.error
             }}</small>

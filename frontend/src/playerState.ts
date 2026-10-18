@@ -8,6 +8,15 @@ export function operationKey(player: Participant) {
   return `${player.connectionId ?? 0}:${player.key}`;
 }
 
+export function hasPlayerName(player: Participant) {
+  return (
+    !!player.displayName?.trim() &&
+    !["玩家资料加载中", "玩家名称暂不可用", "身份暂不可用"].includes(
+      player.displayName,
+    )
+  );
+}
+
 export function newestPlayer(
   current: Participant | null,
   retained: Participant | null,
@@ -32,15 +41,10 @@ export function newestPlayer(
       : retained.profile) ??
     current.profile ??
     retained.profile;
-  const usableName = (player: Participant) =>
-    player.displayName !== "" &&
-    player.displayName !== "玩家资料加载中" &&
-    player.displayName !== "玩家名称暂不可用";
-  const other = history === current ? retained : current;
-  const displayName = usableName(history)
-    ? history.displayName
-    : usableName(other)
-      ? other.displayName
+  const displayName = hasPlayerName(current)
+    ? current.displayName
+    : hasPlayerName(retained)
+      ? retained.displayName
       : history.displayName;
   const merged = { ...history, displayName };
   return profile

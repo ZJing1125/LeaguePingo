@@ -527,7 +527,18 @@ small {
   gap: 4px;
   border-bottom: 1px solid var(--border);
   padding: 4px 20px 0;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.player-tabs::-webkit-scrollbar {
+  height: 4px;
+}
+.player-tabs::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+.roster-message {
+  margin: 0 0 12px;
 }
 .player-tab {
   display: flex;

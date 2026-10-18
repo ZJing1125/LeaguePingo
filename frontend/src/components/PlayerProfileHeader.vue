@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import type { Participant } from "../../bindings/leaguepingo/internal/core/models";
-import { date, tierName, number } from "../presentation";
+import { date, tierName, number, playerName } from "../presentation";
+import { hasPlayerName } from "../playerState";
 import AppIcon from "./AppIcon.vue";
 const props = defineProps<{
   player: Participant;
@@ -56,11 +57,14 @@ async function copyID() {
     </div>
     <div class="profile-identity">
       <div class="identity-title">
-        <h1 :title="player.displayName">{{ player.displayName }}</h1>
+        <h1 :title="playerName(player)">{{ playerName(player) }}</h1>
         <button
           class="icon-button square"
           aria-label="复制玩家完整 ID"
           title="复制完整 ID"
+          :disabled="
+            !hasPlayerName(player) || !player.displayName.includes('#')
+          "
           @click="copyID"
         >
           <AppIcon name="copy" :size="15" />

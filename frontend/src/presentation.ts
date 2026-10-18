@@ -5,6 +5,15 @@ import type {
   HistoryMeta,
 } from "../bindings/leaguepingo/internal/core/models";
 import runeCatalog from "./assets/game/rune-names.json";
+import { gameAsset } from "./gameAssets";
+import { hasPlayerName } from "./playerState";
+
+export function playerName(player: Participant, position?: number) {
+  if (hasPlayerName(player)) return player.displayName;
+  if (player.identityState === "unavailable") return "身份暂不可用";
+  const hero = gameAsset("champions", player.championId)?.name;
+  return `${hero || (position ? `玩家 ${position}` : "玩家")} · 姓名未获取`;
+}
 export function runeName(id: number) {
   return (runeCatalog.names as Record<string, string>)[id] ?? `符文 #${id}`;
 }
@@ -136,12 +145,13 @@ export function errorMessage(reason: unknown) {
     return "桌面服务暂时不可用，请重新打开应用。";
   return text.slice(0, 220);
 }
-export function preparationLabel(p: Participant) {
+export function preparationLabel(p: Participant, frozen = false) {
   if (p.identityState === "unavailable") return "身份未提供";
   if (p.stale) return "旧资料 · 可主动更新";
   if (p.historyState === "loading") return "正在准备";
   if (p.historyState === "failed") return "准备失败 · 可重试";
-  if (p.historyState === "pending") return p.error ? "准备已暂停" : "尚未准备";
+  if (p.historyState === "pending")
+    return frozen ? "未获取 · 可手动查询" : p.error ? "准备已暂停" : "尚未准备";
   if (p.historyState === "empty") return "暂无战绩";
   return p.cached ? "缓存资料" : "已准备";
 }
