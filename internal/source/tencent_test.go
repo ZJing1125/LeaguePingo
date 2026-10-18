@@ -193,3 +193,28 @@ func TestActiveRosterOrientsTeamsWithoutChampSelectOrHistoryQueries(t *testing.T
 		t.Fatal("current identity was not cached for this connection")
 	}
 }
+
+func TestGameflowKnownIdentitiesSurviveLongerSelectionFallback(t *testing.T) {
+	client := lcu.NewClient(lcu.Credentials{Port: 12345, Password: "synthetic"})
+	client.HTTP.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		body := ""
+		switch r.URL.Path {
+		case "/lol-gameflow/v1/session":
+			body = `{"gameData":{"gameId":42,"teamOne":[{"puuid":"e1"},{"puuid":"e2"},{"puuid":"e3"},{"puuid":"e4"},{"puuid":"e5"}],"teamTwo":[{"puuid":"self"},{"puuid":"a2"},{"puuid":"a3"},{"puuid":"a4"}]}}`
+		case "/lol-summoner/v1/current-summoner":
+			body = `{"puuid":"self"}`
+		case "/lol-champ-select/v1/session":
+			body = `{"myTeam":[{"puuid":"self"},{"puuid":"a2"},{"puuid":"a3"},{"puuid":"a4"},{"puuid":"a5"}],"theirTeam":[{},{},{},{},{}]}`
+		default:
+			t.Fatalf("unexpected player-data request: %s", r.URL.Path)
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body))}, nil
+	})
+	gameID, roster, err := (&TencentLCU{client: client}).Roster(context.Background())
+	if err != nil || gameID != 42 || len(roster) != 9 || knownCount(roster) != 9 {
+		t.Fatalf("longer anonymous selection replaced known gameflow identities: count=%d known=%d err=%v", len(roster), knownCount(roster), err)
+	}
+	if roster[0].PUUID != "self" || roster[4].Team != "enemy" {
+		t.Fatal("gameflow team orientation lost")
+	}
+}

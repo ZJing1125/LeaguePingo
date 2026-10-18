@@ -405,6 +405,28 @@ async function main() {
       "Alpha#TEST",
     );
     assert.equal(await page.locator(".match-card").count(), 20);
+    const beforeDodge = snapshot;
+    snapshot = {
+      ...snapshot,
+      generation: (snapshot.generation ?? 0) + 1,
+      stage: "party",
+      phase: "Lobby",
+      updatedAt: new Date().toISOString(),
+      participants: [{ ...player("Alpha#TEST", "Alpha#TEST"), displayName: "玩家资料加载中", team: "ally" }],
+    };
+    await page.evaluate(
+      (s) => window._wails.dispatchWailsEvent({ name: "leaguepingo:snapshot", data: s }),
+      snapshot,
+    );
+    await page.waitForFunction(() => document.querySelector(".sidebar-bottom")?.textContent.includes("组队大厅"));
+    await page.getByRole("tab", { name: "Alpha#TEST", exact: true }).waitFor();
+    assert.equal(await page.getByRole("heading", { name: "Alpha#TEST", exact: true }).count(), 1,
+      "lobby placeholder overwrote a verified queried player's name");
+    snapshot = { ...beforeDodge, generation: snapshot.generation + 1, updatedAt: new Date().toISOString() };
+    await page.evaluate(
+      (s) => window._wails.dispatchWailsEvent({ name: "leaguepingo:snapshot", data: s }),
+      snapshot,
+    );
     await search("Alpha#");
     await invalidNotice.waitFor();
     assert(

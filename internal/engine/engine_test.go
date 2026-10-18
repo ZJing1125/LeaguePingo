@@ -351,6 +351,115 @@ func TestInGameRosterRetriesAreBoundedAndManualRefreshWorks(t *testing.T) {
 	}
 }
 
+func TestInProgressRenewsBoundedRosterBudgetAfterGameStart(t *testing.T) {
+	fake := &fakeClient{phase: "GameStart", rosterErr: errors.New("roster not ready")}
+	e := New(func() (Client, error) { return fake, nil }, nil)
+	for i := 0; i < inGameRosterAttemptLimit; i++ {
+		e.poll(context.Background())
+	}
+	if e.matchRosterAttempts != inGameRosterAttemptLimit || e.matchRosterComplete {
+		t.Fatal("GameStart roster retry budget did not stop at its limit")
+	}
+	if e.pollInterval() != 5*time.Second {
+		t.Fatal("GameStart stopped watching for the InProgress transition")
+	}
+	fake.mu.Lock()
+	fake.phase, fake.rosterErr, fake.roster, fake.gameID = "InProgress", nil, fullTestRoster(), 42
+	fake.mu.Unlock()
+	e.poll(context.Background())
+	if !e.matchRosterComplete || !completeRoster(e.Snapshot().Participants) {
+		t.Fatal("InProgress did not refresh roster after client readiness transition")
+	}
+	if e.matchRosterAttempts != 1 {
+		t.Fatalf("unexpected renewed attempt count: %d", e.matchRosterAttempts)
+	}
+	for _, call := range fake.calls {
+		if call == "history" || call == "name" {
+			t.Fatal("local in-game roster refresh requested player data")
+		}
+	}
+}
+
+func TestHigherIdentityCountReplacesLongerIncompleteRoster(t *testing.T) {
+	old := fullTestRoster()
+	for i := range old {
+		if old[i].Team == "enemy" {
+			old[i].PUUID = ""
+			old[i].IdentityState = core.IdentityUnavailable
+			old[i].Key = fmt.Sprintf("enemy-cell-%d", i)
+		}
+	}
+	full := fullTestRoster()
+	partial := append(append([]core.Participant(nil), full[:4]...), full[5:]...) // 4 local + 5 enemy.
+	fake := &fakeClient{phase: "InProgress", roster: partial, gameID: 42}
+	e := New(func() (Client, error) { return fake, nil }, nil)
+	e.client = fake
+	e.clientVersion = 1
+	e.snapshot = core.Snapshot{Stage: "preparing", Phase: "ChampSelect", GameID: 42, Connected: true, ConnectionID: 1, Participants: old}
+	e.poll(context.Background())
+	s := e.Snapshot()
+	if len(s.Participants) != 9 || knownParticipantCount(s.Participants) != 9 {
+		t.Fatalf("newer identities were discarded with shorter roster: %d players", len(s.Participants))
+	}
+	allies, enemies := 0, 0
+	for _, p := range s.Participants {
+		if p.Team == "ally" {
+			allies++
+		} else {
+			enemies++
+		}
+	}
+	if allies != 4 || enemies != 5 {
+		t.Fatalf("unexpected updated side counts: %d/%d", allies, enemies)
+	}
+}
+
+func TestOldCompleteRosterDoesNotEndNewIncompleteMatchBudget(t *testing.T) {
+	fake := &fakeClient{phase: "GameStart", gameID: 43, roster: fullTestRoster()[:5]}
+	e := New(func() (Client, error) { return fake, nil }, nil)
+	e.client, e.clientVersion = fake, 1
+	e.snapshot = core.Snapshot{ConnectionID: 1, Stage: "in-game", Phase: "EndOfGame", GameID: 42, Connected: true, Participants: fullTestRoster()}
+	e.poll(context.Background())
+	if e.matchRosterComplete || e.Snapshot().GameID != 43 || len(e.Snapshot().Participants) != 5 {
+		t.Fatal("previous complete roster hid an incomplete new match")
+	}
+}
+
+func TestBothEntryBudgetsStopWithoutAutomaticPlayerRequests(t *testing.T) {
+	fake := &fakeClient{phase: "GameStart", rosterErr: errors.New("not ready")}
+	e := New(func() (Client, error) { return fake, nil }, nil)
+	for _, phase := range []string{"GameStart", "InProgress", "Reconnect", "InProgress"} {
+		fake.mu.Lock()
+		fake.phase = phase
+		fake.mu.Unlock()
+		for i := 0; i < 8; i++ {
+			e.poll(context.Background())
+		}
+	}
+	calls := 0
+	for _, call := range fake.calls {
+		if call == "roster" {
+			calls++
+		}
+		if call == "name" || call == "history" {
+			t.Fatal("automatic player query in-game")
+		}
+	}
+	if calls != 6 || e.pollInterval() != 20*time.Second {
+		t.Fatalf("entry budget did not settle: roster calls=%d interval=%s", calls, e.pollInterval())
+	}
+}
+
+func knownParticipantCount(players []core.Participant) int {
+	count := 0
+	for _, p := range players {
+		if core.IsKnownPUUID(p.PUUID) {
+			count++
+		}
+	}
+	return count
+}
+
 func TestManualLookupAllowedInGameAndDoesNotStartAutomaticPrefetch(t *testing.T) {
 	fake := &fakeClient{phase: "InProgress"}
 	e := New(func() (Client, error) { return fake, nil }, nil)
@@ -430,7 +539,7 @@ func TestNextGameRetriesAfterFailureDespiteCompleteOldRoster(t *testing.T) {
 	}
 	fake.phase, fake.rosterErr, fake.gameID, fake.roster = "InProgress", nil, 43, fullTestRoster()
 	e.poll(context.Background())
-	if e.Snapshot().GameID != 43 || !e.matchRosterComplete || e.matchRosterAttempts != 2 {
+	if e.Snapshot().GameID != 43 || !e.matchRosterComplete || e.matchRosterAttempts != 1 {
 		t.Fatal("new match roster did not recover after the first attempt failed")
 	}
 	before := len(fake.calls)

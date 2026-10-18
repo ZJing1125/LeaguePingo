@@ -14,6 +14,8 @@ export function newestPlayer(
 ) {
   if (!retained) return current;
   if (!current) return retained;
+  if (current.key !== retained.key || current.puuid !== retained.puuid)
+    return current;
   if ((current.connectionId ?? 0) !== (retained.connectionId ?? 0))
     return (current.connectionId ?? 0) > (retained.connectionId ?? 0)
       ? current
@@ -30,7 +32,18 @@ export function newestPlayer(
       : retained.profile) ??
     current.profile ??
     retained.profile;
+  const usableName = (player: Participant) =>
+    player.displayName !== "" &&
+    player.displayName !== "玩家资料加载中" &&
+    player.displayName !== "玩家名称暂不可用";
+  const other = history === current ? retained : current;
+  const displayName = usableName(history)
+    ? history.displayName
+    : usableName(other)
+      ? other.displayName
+      : history.displayName;
+  const merged = { ...history, displayName };
   return profile
-    ? { ...history, profile, privacyState: profile.privacyState }
-    : history;
+    ? { ...merged, profile, privacyState: profile.privacyState }
+    : merged;
 }

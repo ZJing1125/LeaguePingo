@@ -33,6 +33,10 @@ func IsKnownPUUID(value string) bool {
 	return value != "" && value != "0" && value != "00000000-0000-0000-0000-000000000000"
 }
 
+func IsPlaceholderName(name string) bool {
+	return name == "" || name == "玩家资料加载中" || name == "玩家名称暂不可用"
+}
+
 func ParseGameflowRoster(data []byte) (int64, []Participant, error) {
 	return ParseGameflowRosterForPlayer(data, "")
 }
@@ -125,7 +129,7 @@ func mergeRoster(allies, enemies []rosterMember) []Participant {
 			name := "身份暂不可用"
 			if known {
 				identity = IdentityKnown
-				name = "玩家资料加载中"
+				name = "玩家名称暂不可用"
 				if member.SummonerName != "" {
 					name = member.SummonerName
 				}

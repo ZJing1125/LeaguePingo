@@ -85,7 +85,7 @@ func (s *TencentLCU) Roster(ctx context.Context) (int64, []core.Participant, err
 		return gameID, roster, nil
 	}
 	if raw, err := s.client.Get(ctx, "/lol-champ-select/v1/session"); err == nil {
-		if selectRoster, parseErr := core.ParseChampSelectRoster(raw); parseErr == nil && (len(selectRoster) > len(roster) || knownCount(selectRoster) > knownCount(roster)) {
+		if selectRoster, parseErr := core.ParseChampSelectRoster(raw); parseErr == nil && (knownCount(selectRoster) > knownCount(roster) || (knownCount(selectRoster) == knownCount(roster) && len(selectRoster) > len(roster))) {
 			return gameID, selectRoster, nil
 		}
 	}

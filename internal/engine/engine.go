@@ -17,6 +17,8 @@ type Client = source.Source
 
 type Discoverer func() (Client, error)
 
+const inGameRosterAttemptLimit = 3
+
 type Engine struct {
 	mu                  sync.RWMutex
 	discover            Discoverer
@@ -132,8 +134,11 @@ func (e *Engine) pollInterval() time.Duration {
 	case "party":
 		return 6 * time.Second
 	case "in-game":
-		if e.client != nil && activeMatch(e.snapshot.Phase) && !e.matchRosterComplete && e.matchRosterAttempts < 3 {
+		if e.client != nil && activeMatch(e.snapshot.Phase) && !e.matchRosterComplete && e.matchRosterAttempts < inGameRosterAttemptLimit {
 			return 2 * time.Second
+		}
+		if e.client != nil && e.snapshot.Phase == "GameStart" && !e.matchRosterComplete {
+			return 5 * time.Second // Phase only after the loading-screen roster budget ends.
 		}
 		return 20 * time.Second
 	case "idle":
@@ -220,10 +225,17 @@ func (e *Engine) poll(ctx context.Context) {
 			e.matchRosterAttempts = 0
 			e.matchRosterComplete = false
 		}
+		// GameStart and InProgress are distinct client readiness windows. If
+		// loading ended before gameflow exposed the full roster, grant one new
+		// bounded local-identity refresh budget at the transition.
+		if phase == "InProgress" && e.snapshot.Phase == "GameStart" && !e.matchRosterComplete {
+			e.matchRosterAttempts = 0
+			e.matchRosterComplete = false
+		}
 		if e.cancel != nil {
 			e.cancel()
 		}
-		refresh = e.matchRosterAttempts < 3 && !e.matchRosterComplete
+		refresh = e.matchRosterAttempts < inGameRosterAttemptLimit && !e.matchRosterComplete
 		if refresh {
 			e.matchRosterAttempts++
 		}
@@ -257,7 +269,8 @@ func (e *Engine) poll(ctx context.Context) {
 		gameID = e.snapshot.GameID
 	}
 	if stage == "in-game" {
-		// Refresh only local identities at match entry (at most three attempts).
+		// Refresh only local identities at match entry (three attempts per
+		// readiness phase; GameStart -> InProgress can renew once).
 		// Historical data is fetched only on an explicit user action in-game.
 		if refresh && rosterErr == nil && gameID != 0 && completeRoster(roster) {
 			e.matchRosterComplete = true
@@ -410,7 +423,7 @@ func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.
 					roster[i].Cached = old.Cached
 					roster[i].Stale = old.Stale
 					roster[i].HistoryState = old.HistoryState
-					if old.DisplayName != "" && old.DisplayName != "玩家资料加载中" {
+					if core.IsPlaceholderName(roster[i].DisplayName) && !core.IsPlaceholderName(old.DisplayName) {
 						roster[i].DisplayName = old.DisplayName
 					}
 					roster[i].Error = old.Error
@@ -418,7 +431,14 @@ func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.
 			}
 		}
 	}
-	if stage == "in-game" {
+	// Names belong to a verified connection/player, independently of the match
+	// or history timestamp. Never let a nameless roster overwrite the cache.
+	for i := range roster {
+		if cached, ok := e.cache[roster[i].PUUID]; ok && cached.ConnectionID == e.clientVersion && core.IsPlaceholderName(roster[i].DisplayName) && !core.IsPlaceholderName(cached.DisplayName) {
+			roster[i].DisplayName = cached.DisplayName
+		}
+	}
+	if stage == "in-game" || !samePreparation {
 		for i := range roster {
 			if roster[i].HistoryState == core.HistoryLoading {
 				roster[i].HistoryState = core.HistoryPending
@@ -441,7 +461,7 @@ func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.
 }
 
 func (e *Engine) startPreparationLocked() {
-	if !preparationStage(e.snapshot.Stage) || e.client == nil || e.prepareRunning || time.Now().Before(e.prepareRetryAt) || (e.phaseHint != "" && !preparationStage(stageForPhase(e.phaseHint))) {
+	if !preparationStage(e.snapshot.Stage) || e.client == nil || e.prepareRunning || time.Now().Before(e.prepareRetryAt) || (e.phaseHint != "" && stageForPhase(e.phaseHint) != e.snapshot.Stage) {
 		return
 	}
 	if e.prepareDeadline.IsZero() {
@@ -492,6 +512,7 @@ func (e *Engine) prepare(ctx context.Context, token uint64, client Client, versi
 			return
 		}
 		players := clone(e.snapshot).Participants
+		preparingStage := e.snapshot.Stage
 		preferred := e.preferred
 		sort.SliceStable(players, func(i, j int) bool {
 			a, b := e.prepareAttempts[players[i].PUUID], e.prepareAttempts[players[j].PUUID]
@@ -523,6 +544,9 @@ func (e *Engine) prepare(ctx context.Context, token uint64, client Client, versi
 		e.mu.RUnlock()
 		if ok && cacheFresh(cached) {
 			e.updatePrepared(token, player.PUUID, func(p *core.Participant) {
+				if core.IsPlaceholderName(p.DisplayName) && !core.IsPlaceholderName(cached.DisplayName) {
+					p.DisplayName = cached.DisplayName
+				}
 				core.ApplyHistory(p, core.HistoryResult{Matches: cached.History, Meta: cached.HistoryMeta})
 			})
 			continue
@@ -539,7 +563,7 @@ func (e *Engine) prepare(ctx context.Context, token uint64, client Client, versi
 		phaseCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		phase, err := client.Phase(phaseCtx)
 		cancel()
-		if err != nil || !preparationStage(stageForPhase(phase)) || ctx.Err() != nil {
+		if err != nil || stageForPhase(phase) != preparingStage || ctx.Err() != nil {
 			e.mu.Lock()
 			if e.prepareToken == token {
 				e.prepareRetryAt = time.Now().Add(2 * time.Second)
@@ -797,6 +821,9 @@ func cachedPlayer(p core.Participant, offline bool) core.Participant {
 	return p
 }
 func (e *Engine) cachePlayerLocked(p core.Participant) {
+	if old, ok := e.cache[p.PUUID]; ok && old.ConnectionID == p.ConnectionID && core.IsPlaceholderName(p.DisplayName) && !core.IsPlaceholderName(old.DisplayName) {
+		p.DisplayName = old.DisplayName
+	}
 	if len(e.cache) >= 64 {
 		e.cache = map[string]core.Participant{}
 		e.aliases = map[string]string{}
@@ -865,6 +892,9 @@ func (e *Engine) RefreshRoster(ctx context.Context) (core.Snapshot, error) {
 		e.matchRosterAttempts = 0
 		e.matchRosterComplete = false
 	}
+	if phase == "InProgress" && e.snapshot.Phase == "GameStart" && !e.matchRosterComplete {
+		e.matchRosterAttempts = 0
+	}
 	e.replaceLocked(stage, phase, gameID, roster, "")
 	if activeMatch(phase) && gameID != 0 && completeRoster(roster) {
 		e.matchRosterComplete = true
@@ -897,7 +927,7 @@ func rosterImproves(old, next []core.Participant) bool {
 		}
 		return n
 	}
-	return len(next) >= len(old) && known(next) >= known(old)
+	return known(next) > known(old) || (len(next) >= len(old) && known(next) >= known(old))
 }
 func activeMatch(phase string) bool {
 	return phase == "GameStart" || phase == "InProgress" || phase == "Reconnect"
