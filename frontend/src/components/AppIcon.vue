@@ -11,6 +11,9 @@ withDefaults(
       | "refresh"
       | "chevron"
       | "close"
+      | "minimise"
+      | "maximise"
+      | "restore"
       | "user"
       | "shield"
       | "pin";
@@ -30,6 +33,9 @@ const paths = {
   refresh: "M20 8a8 8 0 0 0-14-3L3 8m0-5v5h5M4 16a8 8 0 0 0 14 3l3-3m0 5v-5h-5",
   chevron: "M9 5l7 7-7 7",
   close: "M6 6l12 12M6 18 18 6",
+  minimise: "M5 12h14",
+  maximise: "M5 5h14v14H5z",
+  restore: "M8 8h11v11H8zM5 15V5h10",
   user: "M20 21v-2a7 7 0 0 0-14 0v2M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0",
   shield: "M12 2l8 4v6c0 5-8 10-8 10S4 17 4 12V6zM8 12l3 3 5-6",
   pin: "M8 3h8l-1 7 4 4H5l4-4zM12 14v8",

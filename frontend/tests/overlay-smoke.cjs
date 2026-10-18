@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
+const { mockWindowRuntime } = require("./window-runtime.cjs");
 
 async function main() {
   const browser = await chromium.launch({
@@ -13,9 +14,11 @@ async function main() {
     const page = await browser.newPage({
       viewport: { width: 1100, height: 760 },
     });
+    page.setDefaultTimeout(15000);
     const errors = [],
       calls = [],
       external = [];
+    const desktopWindow = mockWindowRuntime(page);
     page.on("pageerror", (e) => errors.push(e.message));
     await page.route("**/*", (route) => {
       external.push(route.request().url());
@@ -132,6 +135,8 @@ async function main() {
       if (url.pathname === "/wails/custom.js")
         return route.fulfill({ contentType: "text/javascript", body: "" });
       if (url.pathname === "/wails/runtime") {
+        if (await desktopWindow.handle(route, route.request().postDataJSON()))
+          return;
         const request = route.request().postDataJSON(),
           method = methods[request.args?.methodID],
           args = request.args?.args ?? [];
@@ -313,6 +318,99 @@ async function main() {
       });
     });
     await page.goto("http://127.0.0.1:43199/");
+    await page.locator(".desktop-titlebar").waitFor();
+    await page.waitForFunction(() =>
+      document.querySelector(".toolbar-status")?.textContent.includes("对局中"),
+    );
+    const chromeServiceCalls = calls.length;
+    await page.getByRole("button", { name: "最小化窗口", exact: true }).click();
+    await page.getByRole("button", { name: "最大化窗口", exact: true }).click();
+    await page.getByRole("button", { name: "还原窗口", exact: true }).waitFor();
+    await page
+      .getByRole("button", { name: "还原窗口", exact: true })
+      .press("Enter");
+    await page
+      .getByRole("button", { name: "最大化窗口", exact: true })
+      .waitFor();
+    assert(
+      await page
+        .getByRole("button", { name: "最大化窗口", exact: true })
+        .evaluate((el) => el === document.activeElement),
+      "keyboard window control must preserve focus",
+    );
+    await page.locator(".window-brand").dblclick();
+    await page.getByRole("button", { name: "还原窗口", exact: true }).waitFor();
+    await page.getByRole("button", { name: "还原窗口", exact: true }).click();
+    await page
+      .getByRole("button", { name: "最大化窗口", exact: true })
+      .waitFor();
+    await page
+      .getByRole("button", { name: "关闭窗口并收起到托盘", exact: true })
+      .click();
+    assert(desktopWindow.calls.includes("Minimise"));
+    assert(
+      desktopWindow.calls.includes("Close"),
+      "custom close must use the native closing hook",
+    );
+    assert.equal(
+      desktopWindow.calls.filter((m) => m === "ToggleMaximise").length,
+      4,
+      "caption double click and keyboard controls must toggle once",
+    );
+    await desktopWindow.emit("WindowMaximise", "overlay");
+    assert.equal(
+      await page
+        .getByRole("button", { name: "最大化窗口", exact: true })
+        .count(),
+      1,
+    );
+    desktopWindow.maximised = true;
+    await desktopWindow.emit("WindowMaximise");
+    await page.getByRole("button", { name: "还原窗口", exact: true }).waitFor();
+    desktopWindow.maximised = false;
+    await desktopWindow.emit("WindowUnMaximise");
+    await page
+      .getByRole("button", { name: "最大化窗口", exact: true })
+      .waitFor();
+    await desktopWindow.emit("WindowLostFocus");
+    assert(await page.locator(".desktop-titlebar.window-inactive").count());
+    await desktopWindow.emit("WindowFocus");
+    await page.waitForFunction(
+      () =>
+        !document
+          .querySelector(".desktop-titlebar")
+          .classList.contains("window-inactive"),
+    );
+    desktopWindow.failNext = "ToggleMaximise";
+    await page.getByRole("button", { name: "最大化窗口", exact: true }).click();
+    await page
+      .getByRole("status")
+      .filter({ hasText: "窗口操作未完成" })
+      .waitFor();
+    await page.getByRole("button", { name: "最大化窗口", exact: true }).click();
+    await page.getByRole("button", { name: "还原窗口", exact: true }).waitFor();
+    await page.getByRole("button", { name: "还原窗口", exact: true }).click();
+    assert.equal(
+      calls.length,
+      chromeServiceCalls,
+      "window controls must not trigger game or app service requests",
+    );
+    assert.equal(await page.locator(".window-control-error").count(), 0);
+    assert.deepEqual(
+      await page.evaluate(() => [
+        getComputedStyle(document.querySelector(".desktop-titlebar"))
+          .getPropertyValue("--wails-draggable")
+          .trim(),
+        getComputedStyle(document.querySelector(".window-controls button"))
+          .getPropertyValue("--wails-draggable")
+          .trim(),
+      ]),
+      ["drag", "no-drag"],
+    );
+    if (process.env.UI_SCREENSHOT_PREFIX)
+      await page.screenshot({
+        path: process.env.UI_SCREENSHOT_PREFIX + "-window.png",
+      });
     async function search(id) {
       await page.getByLabel("玩家完整 ID", { exact: true }).fill(id);
       await page.getByRole("button", { name: "查询战绩", exact: true }).click();
@@ -692,6 +790,20 @@ async function main() {
     if (process.env.WORKSPACE_SCREENSHOT)
       await page.screenshot({ path: process.env.WORKSPACE_SCREENSHOT });
     await page.setViewportSize({ width: 880, height: 620 });
+    assert(
+      await page.locator(".window-controls").evaluate((el) => {
+        const rect = el.getBoundingClientRect();
+        const titlebar = el
+          .closest(".desktop-titlebar")
+          .getBoundingClientRect();
+        return (
+          rect.top === 0 &&
+          rect.right <= innerWidth &&
+          rect.bottom <= titlebar.bottom
+        );
+      }),
+      "window controls must remain at the top edge at minimum size",
+    );
     assert.equal(
       await page.evaluate(
         () => document.documentElement.scrollWidth > innerWidth,
@@ -884,6 +996,19 @@ async function main() {
     assert(calls.includes("LookupPlayer") && calls.includes("RefreshRoster"));
     await page.getByRole("button", { name: "设置与诊断", exact: true }).click();
     await page.getByRole("dialog", { name: "设置与诊断" }).waitFor();
+    assert.deepEqual(
+      await page
+        .locator(".window-controls button")
+        .evaluateAll((buttons) => buttons.map((button) => button.tabIndex)),
+      [-1, -1, -1],
+    );
+    await page.getByRole("button", { name: "最小化窗口", exact: true }).click();
+    assert(
+      await page
+        .getByRole("dialog", { name: "设置与诊断" })
+        .evaluate((el) => el === document.activeElement),
+      "caption controls must remain available without stealing modal focus",
+    );
     assert.equal(await page.locator(".app-main").getAttribute("inert"), "");
     await page.getByRole("dialog", { name: "设置与诊断" }).press("Shift+Tab");
     assert.equal(
@@ -916,6 +1041,12 @@ async function main() {
     await page.getByRole("button", { name: "导出脱敏诊断" }).click();
     await page.getByText(/已保存本地诊断/).waitFor();
     await page.getByRole("button", { name: "关闭设置" }).click();
+    assert.deepEqual(
+      await page
+        .locator(".window-controls button")
+        .evaluateAll((buttons) => buttons.map((button) => button.tabIndex)),
+      [0, 0, 0],
+    );
     await page.waitForFunction(
       () => document.activeElement?.getAttribute("aria-label") === "设置与诊断",
     );
@@ -1119,6 +1250,11 @@ async function main() {
       })),
     };
     await page.goto("http://127.0.0.1:43199/?view=overlay");
+    assert.equal(
+      await page.locator(".desktop-titlebar").count(),
+      0,
+      "overlay keeps its own compact title bar",
+    );
     await page.setViewportSize({ width: 540, height: 660 });
     await page.getByRole("button", { name: "取消置顶", exact: true }).waitFor();
     assert.equal(
