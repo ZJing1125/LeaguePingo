@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"leaguepingo/internal/core"
 	"sync"
 )
@@ -64,8 +65,9 @@ func (s *requestScheduler) history(ctx context.Context, key string, manual bool,
 			return core.HistoryResult{}, ctx.Err()
 		case <-f.done:
 		}
-		// A manual action may outlive a cancelled pregame worker.
-		if f.err != nil && manual && ctx.Err() == nil {
+		// A manual action or entry batch may outlive a cancelled pregame worker.
+		// Retrying that cancelled flight does not retry an actual entry request.
+		if f.err != nil && (manual || errors.Is(f.err, context.Canceled)) && ctx.Err() == nil {
 			return s.history(ctx, key, manual, load)
 		}
 		return f.result, f.err

@@ -185,6 +185,7 @@ export interface PlayerViewState {
   sampleSize?: number;
   browseNotice?: string;
   browseTarget?: number;
+  browseKind?: "samples" | "page";
   stopRequested?: boolean;
   sourceLimit?: string;
 }

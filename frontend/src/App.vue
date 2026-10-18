@@ -48,6 +48,7 @@ const {
   selected,
   players,
   stateFor,
+  matchStateFor,
   closeTab,
 } = workspace;
 function acceptSnapshot(next: SnapshotModel) {
@@ -173,7 +174,7 @@ onUnmounted(() => {
             class="connection-light"
             :class="{ online: snapshot?.connected }"
           ></span
-          >{{ status }}<small>局内启动仅补齐一轮资料</small>
+          >{{ status }}<small>每局开局仅补齐一轮资料</small>
         </div>
       </div>
     </aside>
@@ -242,6 +243,7 @@ onUnmounted(() => {
           tabindex="0"
           :player="active"
           :state="stateFor(active.key)"
+          :active="view === 'players'"
           :busy="manualBusy"
           :refreshing="refreshing(active)"
           :connected="snapshot?.connected"
@@ -414,7 +416,8 @@ onUnmounted(() => {
             </p>
             <PlayerView
               :player="selected"
-              :state="stateFor(selected.key)"
+              :state="matchStateFor(selected.key)"
+              :active="view === 'match'"
               :busy="manualBusy"
               :refreshing="refreshing(selected)"
               :connected="snapshot?.connected"

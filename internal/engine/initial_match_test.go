@@ -109,23 +109,48 @@ func TestInitialMatchUsesPartialRosterAfterIdentityBudgetEnds(t *testing.T) {
 	}
 }
 
-func TestInitialMatchOnlyArmsWhenFirstPhaseIsActive(t *testing.T) {
+func TestMatchEntryReusesPreparedAlliesAndFillsNewEnemies(t *testing.T) {
 	f := &fakeClient{phase: "ChampSelect", gameID: 42, roster: fullTestRoster()}
+	f.roster = f.roster[:5]
 	e := New(func() (Client, error) { return f, nil }, nil)
 	e.initialMatch.parent = context.Background()
 	e.poll(context.Background())
 	waitPreparationStopped(t, e)
 	f.mu.Lock()
 	before := len(f.calls)
+	f.phase = "GameStart"
+	f.roster = fullTestRoster()
+	for i := 5; i < 10; i++ {
+		f.roster[i].DisplayName = "玩家名称暂不可用"
+	}
+	f.mu.Unlock()
+	e.poll(context.Background())
+	if e.initialMatch.started {
+		t.Fatal("loading screen started player requests")
+	}
+	f.mu.Lock()
 	f.phase = "InProgress"
 	f.mu.Unlock()
 	e.poll(context.Background())
+	waitInitialMatch(t, e)
+	for _, p := range e.Snapshot().Participants {
+		if !historyCached(p) || core.IsPlaceholderName(p.DisplayName) {
+			t.Fatal("match entry left known opponents without data")
+		}
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	names, histories := 0, 0
 	for _, call := range f.calls[before:] {
-		if call == "history" || call == "name" {
-			t.Fatal("normal game entry armed startup exception")
+		if call == "history" {
+			histories++
 		}
+		if call == "name" {
+			names++
+		}
+	}
+	if names != 5 || histories != 5 {
+		t.Fatalf("entry did not reuse allies and fill exactly five enemies: names=%d histories=%d", names, histories)
 	}
 }
 
@@ -134,7 +159,7 @@ func TestInitialMatchWaitsForFirstNonemptyPhase(t *testing.T) {
 	e := New(func() (Client, error) { return f, nil }, nil)
 	e.initialMatch.parent = context.Background()
 	e.poll(context.Background())
-	if e.initialMatch.decided {
+	if e.initialMatch.gameID != 0 {
 		t.Fatal("empty phase consumed startup eligibility")
 	}
 	f.mu.Lock()
@@ -144,6 +169,58 @@ func TestInitialMatchWaitsForFirstNonemptyPhase(t *testing.T) {
 	waitInitialMatch(t, e)
 	if !e.initialMatch.started {
 		t.Fatal("first confirmed active phase did not initialise match")
+	}
+}
+
+func TestEachMatchGetsOneEntryBatchButReconnectDoesNotRetry(t *testing.T) {
+	f := &fakeClient{phase: "InProgress", gameID: 42, roster: fullTestRoster()}
+	var calls atomic.Int32
+	f.historyFn = func(context.Context, string) (core.HistoryResult, error) {
+		calls.Add(1)
+		return core.HistoryResult{}, errors.New("synthetic failure")
+	}
+	e := New(func() (Client, error) { return f, nil }, nil)
+	e.initialMatch.parent = context.Background()
+	e.poll(context.Background())
+	waitInitialMatch(t, e)
+	for i := 0; i < 3; i++ {
+		e.poll(context.Background())
+	}
+	if _, err := e.RefreshRoster(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	e.mu.Lock()
+	e.invalidateConnectionLocked()
+	e.mu.Unlock()
+	e.poll(context.Background())
+	if calls.Load() != 10 {
+		t.Fatal("poll, manual refresh or reconnect restarted the same match")
+	}
+	f.mu.Lock()
+	f.phase = "Lobby"
+	f.mu.Unlock()
+	e.poll(context.Background())
+	waitPreparationStopped(t, e)
+	// Count only the next entry batch, not permitted room preparation.
+	before := calls.Load()
+	f.mu.Lock()
+	f.phase, f.gameID = "InProgress", 43
+	f.mu.Unlock()
+	e.poll(context.Background())
+	waitInitialMatch(t, e)
+	if calls.Load()-before != 10 {
+		t.Fatal("new match did not receive exactly one bounded batch")
+	}
+}
+
+func TestPreviousMatchCompletionCannotCancelNewBatch(t *testing.T) {
+	e := New(nil, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	e.initialMatch = initialMatchPreparation{version: 2, gameID: 43, token: 2, cancel: cancel, eligible: true}
+	e.finishInitialMatch(2, 42, 1)
+	if ctx.Err() != nil || e.initialMatch.cancel == nil || !e.initialMatch.eligible {
+		t.Fatal("previous game's completion cancelled new preparation")
 	}
 }
 

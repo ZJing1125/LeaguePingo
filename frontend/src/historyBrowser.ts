@@ -6,6 +6,7 @@ import { errorMessage, queueName, type PlayerViewState } from "./presentation";
 export const HISTORY_PAGE_SIZE = 20;
 export const MAX_HISTORY_PAGES = 50;
 export const SAMPLE_SIZES = [10, 20, 30, 40, 50];
+export const SAMPLE_SCAN_BUDGET = 90_000;
 // All explicit browsing uses the same manual lane as search/profile/refresh.
 export const historyBrowseBusy = ref(false);
 
@@ -15,11 +16,13 @@ export function useHistoryBrowser(
     state: PlayerViewState;
     busy?: boolean;
     connected?: boolean;
+    active?: boolean;
   },
   scroll: Ref<HTMLElement | null>,
 ) {
   watch(
     () => [
+      props.state,
       props.player.key,
       props.player.connectionId,
       props.player.historyMeta?.fetchedAt,
@@ -48,6 +51,7 @@ export function useHistoryBrowser(
         browseNotice: "",
         sourceLimit: "",
         browseTarget: undefined,
+        browseKind: "samples",
         stopRequested: false,
       });
     },
@@ -64,6 +68,12 @@ export function useHistoryBrowser(
   onBeforeUnmount(() => {
     props.state.stopRequested = true;
   });
+  watch(
+    () => props.active,
+    (active) => {
+      if (active === false) props.state.stopRequested = true;
+    },
+  );
 
   const allMatchesFor = (player: Participant, state: PlayerViewState) => {
     const seen = new Set<number>();
@@ -155,9 +165,19 @@ export function useHistoryBrowser(
     await nextTick();
     scroll.value?.scrollTo({ top: 0 });
   }
+  const workspaceActive = () => props.active !== false;
 
-  async function fill(page = props.state.page ?? 1) {
-    if (props.busy || historyBrowseBusy.value || props.state.pageBusy) return;
+  async function fill(
+    page = props.state.page ?? 1,
+    kind = props.state.browseKind ?? "samples",
+  ) {
+    if (
+      !workspaceActive() ||
+      props.busy ||
+      historyBrowseBusy.value ||
+      props.state.pageBusy
+    )
+      return;
     const target = props.player,
       state = props.state,
       stamp = state.sourceStamp;
@@ -169,6 +189,7 @@ export function useHistoryBrowser(
       );
     const current = () => state.sourceStamp === stamp;
     state.browseTarget = page;
+    state.browseKind = kind;
     state.pageError = "";
     state.browseNotice = "";
     state.stopRequested = false;
@@ -183,6 +204,10 @@ export function useHistoryBrowser(
         filtered().length < required &&
         state.hasMore
       ) {
+        if (!workspaceActive()) {
+          state.stopRequested = true;
+          break;
+        }
         if (
           !props.connected ||
           target.stale ||
@@ -192,10 +217,16 @@ export function useHistoryBrowser(
             "当前仅能浏览已获取的记录，连接恢复后可继续查找。";
           break;
         }
-        // One explicit action scans at most 100 raw records. Rare modes can
-        // continue on demand, instead of making an unbounded chain of requests.
-        if (requests >= 5 || Date.now() - started >= 15000) {
-          state.browseNotice = `本轮查找已暂停，已获取记录保留；可继续查找${page > 1 ? `第 ${page} 页` : "所选模式"}。`;
+        // A selected analysis size is one explicit operation, including all
+        // source pages needed for that mode. Far page jumps keep a smaller budget.
+        const sampleScan = kind === "samples";
+        if (
+          requests >= (sampleScan ? MAX_HISTORY_PAGES : 5) ||
+          Date.now() - started >= (sampleScan ? SAMPLE_SCAN_BUDGET : 15000)
+        ) {
+          state.browseNotice = sampleScan
+            ? "样本查找已达到本次 90 秒上限，已获取记录保留；可继续查找。"
+            : `本轮查找已暂停，已获取记录保留；可继续查找${page > 1 ? `第 ${page} 页` : "所选模式"}。`;
           break;
         }
         const offset = state.nextOffset ?? 0;
@@ -234,6 +265,10 @@ export function useHistoryBrowser(
         state.nextOffset = result.nextOffset;
         state.hasMore = result.hasMore && result.nextOffset <= 980;
         state.sourceLimit = result.limitReason || "";
+        if (result.hasMore && result.nextOffset > 980 && !state.sourceLimit) {
+          state.sourceLimit =
+            "已达到最近 1000 条混合记录的查询上限，按已找到的模式样本分析。";
+        }
       }
       if (!current()) return;
       // Keep the existing page on failure/no new matches. A short last page is
@@ -263,7 +298,7 @@ export function useHistoryBrowser(
     props.state.page = 1;
     props.state.browseTarget = 1;
     await scrollTop();
-    await fill(1);
+    await fill(1, "samples");
   }
   async function goPage(page: number) {
     if (
@@ -285,7 +320,7 @@ export function useHistoryBrowser(
       props.state.browseTarget = page;
       await scrollTop();
     } else if (props.state.hasMore && canFetch.value) {
-      await fill(page);
+      await fill(page, "page");
     }
   }
   async function jumpPage() {

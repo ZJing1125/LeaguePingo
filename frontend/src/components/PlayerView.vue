@@ -30,6 +30,7 @@ const props = defineProps<{
   refreshing?: boolean;
   connected?: boolean;
   compact?: boolean;
+  active?: boolean;
   error?: string;
 }>();
 const emit = defineEmits<{

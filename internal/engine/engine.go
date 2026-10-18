@@ -223,7 +223,6 @@ func (e *Engine) poll(ctx context.Context) {
 		}
 		e.accountIdentity = account
 	}
-	e.noteInitialMatchPhaseLocked(phase)
 	refresh := false
 	if activeMatch(phase) {
 		entering := !activeMatch(e.snapshot.Phase) || (phase == "GameStart" && e.snapshot.Phase != "GameStart")
@@ -277,7 +276,7 @@ func (e *Engine) poll(ctx context.Context) {
 	if stage == "in-game" {
 		// Refresh only local identities at match entry (three attempts per
 		// readiness phase; GameStart -> InProgress can renew once).
-		// Historical data is fetched only on an explicit user action in-game.
+		// Run may fill missing names/first histories once after entry discovery.
 		if refresh && rosterErr == nil && gameID != 0 && completeRoster(roster) {
 			e.matchRosterComplete = true
 		}
@@ -377,7 +376,7 @@ func (e *Engine) disconnectLocked(message string) {
 }
 
 func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.Participant, message string) {
-	if e.initialMatch.decided && (!activeMatch(phase) || (e.initialMatch.gameID != 0 && gameID != 0 && e.initialMatch.gameID != gameID)) {
+	if e.initialMatch.gameID != 0 && (!activeMatch(phase) || (gameID != 0 && e.initialMatch.gameID != gameID)) {
 		e.stopInitialMatchLocked()
 	}
 	if stage != "preparing" {

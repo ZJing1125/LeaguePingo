@@ -28,7 +28,9 @@ func TestPhaseEventsCancelPrefetchAndWakePollingBeforeNormalInterval(t *testing.
 	fake := &phaseEventClient{fakeClient: &fakeClient{phase: "ChampSelect", roster: fullTestRoster(), gameID: 42}}
 	var historyCalls atomic.Int32
 	fake.historyFn = func(ctx context.Context, _ string) (core.HistoryResult, error) {
-		historyCalls.Add(1)
+		if historyCalls.Add(1) != 1 {
+			return core.HistoryResult{}, nil
+		}
 		started <- struct{}{}
 		<-ctx.Done()
 		stopped <- struct{}{}
@@ -78,8 +80,17 @@ func TestPhaseEventsCancelPrefetchAndWakePollingBeforeNormalInterval(t *testing.
 	for e.Snapshot().Stage != "in-game" && time.Now().Before(deadline) {
 		time.Sleep(time.Millisecond)
 	}
-	if e.Snapshot().Stage != "in-game" || historyCalls.Load() != 1 {
-		t.Fatal("event did not wake phase verification, or started in-game history")
+	if e.Snapshot().Stage != "in-game" {
+		t.Fatal("event did not wake phase verification")
+	}
+	waitInitialMatch(t, e)
+	if historyCalls.Load() != 11 {
+		t.Fatal("entry did not replace the cancelled pregame flight with one bounded batch")
+	}
+	for _, p := range e.Snapshot().Participants {
+		if !historyCached(p) {
+			t.Fatal("cancelled pregame flight left an entry player unprepared")
+		}
 	}
 	cancel()
 	select {

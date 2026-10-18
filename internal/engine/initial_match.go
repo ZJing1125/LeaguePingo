@@ -10,24 +10,17 @@ import (
 
 const initialMatchBudget = 45 * time.Second
 const initialMatchPlayerLimit = 10
-const initialMatchMessage = "局内启动，正在补齐本局资料；仅进行一轮，最多 10 位玩家、45 秒。"
+const initialMatchMessage = "正在补齐本局开局资料；每局仅一轮，最多 10 位玩家、45 秒。"
 
-// Only Run arms this exception: the first confirmed phase must already be an
-// active match. Entering a match from a running pregame assistant never arms it.
+// Run owns this bounded entry batch, both for an in-game startup and for players
+// whose identities only become available after champion selection ends.
 type initialMatchPreparation struct {
-	parent                     context.Context
-	decided, eligible, started bool
-	version                    uint64
-	gameID                     int64
-	cancel                     context.CancelFunc
-}
-
-func (e *Engine) noteInitialMatchPhaseLocked(phase string) {
-	s := &e.initialMatch
-	if s.parent == nil || s.decided || phase == "" {
-		return
-	}
-	s.decided, s.eligible, s.version = true, activeMatch(phase), e.clientVersion
+	parent            context.Context
+	eligible, started bool
+	version           uint64
+	token             uint64
+	gameID            int64
+	cancel            context.CancelFunc
 }
 
 func (e *Engine) stopInitialMatchLocked() {
@@ -38,7 +31,7 @@ func (e *Engine) stopInitialMatchLocked() {
 			p := &e.snapshot.Participants[i]
 			if p.ConnectionID == s.version && p.HistoryState == core.HistoryLoading {
 				p.HistoryState = core.HistoryPending
-				p.Error = "首次补齐已停止，可手动查询"
+				p.Error = "开局补齐已停止，可手动查询"
 			}
 		}
 	}
@@ -47,14 +40,16 @@ func (e *Engine) stopInitialMatchLocked() {
 
 func (e *Engine) startInitialMatchLocked() {
 	s := &e.initialMatch
-	if !s.eligible || s.started || e.client == nil || s.version != e.clientVersion || !activeMatch(e.snapshot.Phase) || e.snapshot.GameID == 0 {
+	if s.parent == nil || s.parent.Err() != nil || e.client == nil || !e.snapshot.Connected || !activeMatch(e.snapshot.Phase) || e.snapshot.GameID == 0 || (e.phaseHint != "" && !activeMatch(e.phaseHint)) {
 		return
-	}
-	if s.gameID == 0 {
-		s.gameID = e.snapshot.GameID
 	}
 	if s.gameID != e.snapshot.GameID {
 		e.stopInitialMatchLocked()
+		s.token++
+		s.gameID, s.version = e.snapshot.GameID, e.clientVersion
+		s.started, s.eligible = false, true
+	}
+	if !s.eligible || s.started || s.version != e.clientVersion {
 		return
 	}
 	// Wait for actual gameplay and allow bounded identity discovery to finish.
@@ -86,7 +81,8 @@ func (e *Engine) startInitialMatchLocked() {
 		targets = append(targets, *p)
 	}
 	if len(targets) == 0 {
-		e.snapshot.Message = "已复用已有本局资料；局内不再自动重试，缺失资料可手动查询。"
+		s.eligible = false
+		e.snapshot.Message = "已复用本局已有资料；本局不再自动补取，缺失资料可手动查询。"
 		if !known {
 			e.snapshot.Message = "客户端尚未提供可查询身份；可刷新本地名单或输入完整 ID 查询。"
 		}
@@ -99,11 +95,11 @@ func (e *Engine) startInitialMatchLocked() {
 	e.snapshot.Message = initialMatchMessage
 	e.snapshot.UpdatedAt = time.Now()
 	e.publishLocked()
-	go e.prepareInitialMatch(ctx, s.version, s.gameID, e.client, targets)
+	go e.prepareInitialMatch(ctx, s.version, s.gameID, s.token, e.client, targets)
 }
 
 func (e *Engine) initialMatchValidLocked(version uint64, gameID int64) bool {
-	return e.initialMatch.eligible && e.initialMatch.cancel != nil && e.client != nil && e.clientVersion == version && e.snapshot.Connected && e.snapshot.GameID == gameID && activeMatch(e.snapshot.Phase)
+	return e.initialMatch.eligible && e.initialMatch.cancel != nil && e.client != nil && e.clientVersion == version && e.snapshot.Connected && e.snapshot.GameID == gameID && activeMatch(e.snapshot.Phase) && (e.phaseHint == "" || activeMatch(e.phaseHint))
 }
 
 func (e *Engine) initialMatchValid(version uint64, gameID int64) bool {
@@ -112,19 +108,22 @@ func (e *Engine) initialMatchValid(version uint64, gameID int64) bool {
 	return e.initialMatchValidLocked(version, gameID)
 }
 
-func (e *Engine) prepareInitialMatch(ctx context.Context, version uint64, gameID int64, client Client, targets []core.Participant) {
-	defer e.finishInitialMatch(version, gameID)
+func (e *Engine) prepareInitialMatch(ctx context.Context, version uint64, gameID int64, token uint64, client Client, targets []core.Participant) {
+	defer e.finishInitialMatch(version, gameID, token)
 	for _, target := range targets {
 		if ctx.Err() != nil || !e.initialMatchValid(version, gameID) {
 			return
 		}
-		e.resolvePlayerName(ctx, client, version, target, false)
 		phaseCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		phase, err := client.Phase(phaseCtx)
 		cancel()
 		if err != nil || !activeMatch(phase) {
 			return
 		}
+		if ctx.Err() != nil || !e.initialMatchValid(version, gameID) {
+			return
+		}
+		e.resolvePlayerName(ctx, client, version, target, false)
 		e.mu.Lock()
 		current := core.Participant{}
 		for i := range e.snapshot.Participants {
@@ -176,7 +175,7 @@ func (e *Engine) prepareInitialMatch(ctx context.Context, version uint64, gameID
 			}
 			if err != nil {
 				p.HistoryState = core.HistoryFailed
-				p.Error = "首次补齐失败，可手动查询重试"
+				p.Error = "开局补齐失败，可手动查询重试"
 			} else {
 				core.ApplyHistory(p, history)
 				e.cachePlayerLocked(*p)
@@ -189,10 +188,14 @@ func (e *Engine) prepareInitialMatch(ctx context.Context, version uint64, gameID
 	}
 }
 
-func (e *Engine) finishInitialMatch(version uint64, gameID int64) {
+func (e *Engine) finishInitialMatch(version uint64, gameID int64, token uint64) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	s := &e.initialMatch
+	// A cancelled previous game's worker may finish after the next batch starts.
+	if s.version != version || s.gameID != gameID || s.token != token {
+		return
+	}
 	if s.cancel != nil {
 		s.cancel()
 		s.cancel = nil
@@ -205,10 +208,10 @@ func (e *Engine) finishInitialMatch(version uint64, gameID int64) {
 		p := &e.snapshot.Participants[i]
 		if p.HistoryState == core.HistoryLoading {
 			p.HistoryState = core.HistoryPending
-			p.Error = "首次补齐已结束，可手动查询"
+			p.Error = "开局补齐已结束，可手动查询"
 		}
 	}
-	e.snapshot.Message = "首次资料补齐已结束；未完成的玩家可手动查询，局内不再自动重试。"
+	e.snapshot.Message = "本局开局资料补齐已结束；未完成的玩家可手动查询，本局不再自动重试。"
 	e.snapshot.UpdatedAt = time.Now()
 	e.publishLocked()
 }

@@ -40,8 +40,7 @@ async function main() {
       knownCount: 10,
       readyCount: 0,
       updatedAt: "2026-10-18T10:00:00Z",
-      message:
-        "局内启动，正在补齐本局资料；仅进行一轮，最多 10 位玩家、45 秒。",
+      message: "正在补齐本局开局资料；每局仅一轮，最多 10 位玩家、45 秒。",
       participants: Array.from({ length: 10 }, (_, i) => ({
         connectionId: 1,
         key: `fixture-${i}`,
@@ -117,7 +116,7 @@ async function main() {
     assert.equal(await page.getByText("正在获取", { exact: true }).count(), 10);
     assert(
       (await page.locator(".roster-toolbar").textContent()).includes(
-        "首次补齐",
+        "开局补齐",
       ),
     );
     assert.equal(
@@ -164,7 +163,7 @@ async function main() {
     }));
     snapshot.readyCount = 10;
     snapshot.message =
-      "首次资料补齐已结束；未完成的玩家可手动查询，局内不再自动重试。";
+      "本局开局资料补齐已结束；未完成的玩家可手动查询，本局不再自动重试。";
     await publish();
     await navigation.getByRole("button", { name: "玩家战绩" }).click();
     assert.equal(await page.getByRole("tab").count(), 8);

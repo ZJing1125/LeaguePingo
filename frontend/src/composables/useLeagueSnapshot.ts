@@ -36,7 +36,7 @@ export function useLeagueSnapshot() {
       s.stage === "in-game" &&
       s.participants?.some((p) => p.historyState === "loading")
     )
-      return "对局中 · 首次补齐资料";
+      return "对局中 · 开局补齐资料";
     const phases: Record<string, string> = {
       Lobby: "组队大厅",
       Matchmaking: "正在排队",

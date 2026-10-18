@@ -1,4 +1,4 @@
-import { computed, reactive, ref, type Ref } from "vue";
+import { computed, reactive, ref, watch, type Ref } from "vue";
 import type {
   Participant,
   Snapshot as SnapshotModel,
@@ -16,6 +16,16 @@ export function usePlayerWorkspace(
     selectedKey = ref(""),
     selectedResult = ref<Participant | null>(null);
   const viewStates = reactive<Record<string, PlayerViewState>>({});
+  const matchViewStates = reactive<Record<string, PlayerViewState>>({});
+  watch(
+    () => `${snapshot.value?.connectionId ?? 0}:${snapshot.value?.gameId ?? 0}`,
+    () => {
+      for (const key of Object.keys(matchViewStates)) {
+        matchViewStates[key]!.stopRequested = true;
+        delete matchViewStates[key];
+      }
+    },
+  );
   const players = computed(() => snapshot.value?.participants ?? []);
   const active = computed(
     () => tabs.value.find((p) => p.key === activeKey.value) ?? null,
@@ -52,6 +62,12 @@ export function usePlayerWorkspace(
   function stateFor(key: string) {
     return (
       viewStates[key] ?? (viewStates[key] = { queue: "all", expanded: [] })
+    );
+  }
+  function matchStateFor(key: string) {
+    return (
+      matchViewStates[key] ??
+      (matchViewStates[key] = { queue: "all", expanded: [] })
     );
   }
   function openPlayer(player: Participant, activate = true) {
@@ -98,6 +114,7 @@ export function usePlayerWorkspace(
     selected,
     players,
     stateFor,
+    matchStateFor,
     openPlayer,
     closeTab,
     acceptSnapshot,

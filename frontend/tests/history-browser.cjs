@@ -135,10 +135,19 @@ async function main() {
           // Sparse player has no flex games within the first scan budget.
           const data =
             key === "Sparse#TEST"
-              ? history.map((m) => ({ ...m, queueId: 420 }))
-              : key === "Deep#TEST"
-                ? history
-                : history.slice(0, 140);
+              ? Array.from({ length: 1000 }, (_, i) => ({
+                  ...history[i % history.length],
+                  gameId: 3000 + i,
+                  queueId: 420,
+                }))
+              : key === "Late#TEST"
+                ? history.map((m, i) => ({
+                    ...m,
+                    queueId: i >= 140 && i < 190 ? 450 : 420,
+                  }))
+                : key === "Deep#TEST"
+                  ? history
+                  : history.slice(0, 140);
           const records = data.slice(offset, offset + 20);
           result = {
             matches: records,
@@ -162,11 +171,12 @@ async function main() {
             result.nextOffset = offset;
           }
           if (advanceBudgetNextPage) {
+            const advance = advanceBudgetNextPage;
             advanceBudgetNextPage = false;
-            await page.evaluate(() => {
+            await page.evaluate((delta) => {
               window.originalDateNow = Date.now;
-              Date.now = () => window.originalDateNow() + 16000;
-            });
+              Date.now = () => window.originalDateNow() + delta;
+            }, advance);
           }
         } else if (method === "EnsureProfile") result = player(args[0]);
         else throw new Error(`Unexpected bridge method ${method}`);
@@ -399,28 +409,50 @@ async function main() {
       (await page.locator(".page-indicator").textContent()).includes("第 2 页"),
     );
 
+    // Fifty rare-mode samples appear only beyond the former five-page/15s stop.
+    await search("Late#TEST");
+    await select("分析样本场数", 50);
+    const beforeLate = pageCalls().length;
+    advanceBudgetNextPage = 16000;
+    await select("战绩模式筛选", 450);
+    await page.evaluate(() => {
+      Date.now = window.originalDateNow;
+    });
+    assert.equal(
+      pageCalls().length - beforeLate,
+      7,
+      "sample scan did not continue beyond five source pages",
+    );
+    assert(
+      (await page.locator(".sample-scope").textContent()).includes("50 / 50"),
+    );
+    assert.equal(await page.locator(".match-card").count(), 20);
+    assert.equal(
+      await page.getByRole("button", { name: "继续查找", exact: true }).count(),
+      0,
+    );
+
     await search("Sparse#TEST");
     const beforeSparse = pageCalls().length;
     await select("战绩模式筛选", 440);
     assert.equal(
       pageCalls().length - beforeSparse,
-      5,
-      "rare mode exceeded five-request scan budget",
+      49,
+      "rare mode did not stop at the 1000-record source bound",
     );
-    await page.getByRole("button", { name: "继续查找", exact: true }).waitFor();
-    await page.getByRole("button", { name: "继续查找", exact: true }).click();
-    await idle();
     assert.equal(
-      pageCalls().length - beforeSparse,
-      10,
-      "continuation did not preserve its cursor and budget",
+      await page.getByRole("button", { name: "继续查找", exact: true }).count(),
+      0,
     );
+    await page
+      .getByText("已达到最近 1000 条混合记录的查询上限", { exact: false })
+      .waitFor();
     const sparseOffsets = pageCalls()
       .slice(beforeSparse)
       .map((c) => c.args[2]);
     assert.deepEqual(
       sparseOffsets,
-      [20, 40, 60, 80, 100, 120, 140, 160, 180, 200],
+      Array.from({ length: 49 }, (_, i) => (i + 1) * 20),
     );
     await page.setViewportSize({ width: 880, height: 620 });
     assert.equal(
@@ -499,7 +531,7 @@ async function main() {
 
     await page.getByRole("button", { name: "刷新战绩", exact: true }).click();
     await idle();
-    advanceBudgetNextPage = true;
+    advanceBudgetNextPage = 90001;
     const beforeElapsed = pageCalls().length;
     await page.getByRole("button", { name: "补齐样本", exact: true }).click();
     await idle();
@@ -788,6 +820,73 @@ async function main() {
       false,
       "compact history overflows horizontally",
     );
+    // The same player has independent analysis/filter/page state in each workspace.
+    const navigation = page.getByRole("navigation", { name: "工作区" });
+    const rosterBefore = await page.locator(".team-columns").textContent();
+    await page.getByRole("button", { name: "在战绩页打开 ↗" }).click();
+    const fullView = page.locator(".players-workspace .player-view");
+    assert.equal(await fullView.getByLabel("分析样本场数").inputValue(), "20");
+    await select("分析样本场数", 50);
+    await select("战绩模式筛选", 450);
+    assert.equal(await fullView.locator(".match-card").count(), 0);
+    await navigation.getByRole("button", { name: /当前对局/ }).click();
+    assert.equal(await drawer.getByLabel("战绩模式筛选").inputValue(), "all");
+    assert.equal(await drawer.getByLabel("分析样本场数").inputValue(), "50");
+    assert.equal(await drawer.locator(".match-card").count(), 20);
+    assert.equal(
+      await page.locator(".team-columns").textContent(),
+      rosterBefore,
+    );
+    await select("分析样本场数", 10);
+    await select("战绩模式筛选", 440);
+    await navigation
+      .getByRole("button", { name: "玩家战绩", exact: true })
+      .click();
+    assert.equal(await fullView.getByLabel("战绩模式筛选").inputValue(), "450");
+    assert.equal(await fullView.getByLabel("分析样本场数").inputValue(), "50");
+    assert.equal(await fullView.locator(".match-card").count(), 0);
+
+    // Hidden workspaces cannot keep scanning; one sent request may finish locally.
+    await fullView
+      .getByRole("button", { name: "刷新战绩", exact: true })
+      .click();
+    await idle();
+    holdPage = true;
+    releasePage = undefined;
+    await fullView
+      .getByRole("button", { name: "补齐样本", exact: true })
+      .click();
+    await held();
+    const beforeHide = pageCalls().length;
+    await navigation.getByRole("button", { name: /当前对局/ }).click();
+    releasePage();
+    await idle();
+    assert.equal(
+      pageCalls().length,
+      beforeHide,
+      "hidden workspace kept scanning",
+    );
+    assert.equal(await drawer.getByLabel("战绩模式筛选").inputValue(), "440");
+    assert.equal(await drawer.getByLabel("分析样本场数").inputValue(), "10");
+
+    // A new match resets only its drawer; the explicit player query stays intact.
+    snapshot = { ...snapshot, generation: 4, gameId: 43 };
+    await page.evaluate(
+      (s) =>
+        window._wails.dispatchWailsEvent({
+          name: "leaguepingo:snapshot",
+          data: s,
+        }),
+      snapshot,
+    );
+    assert.equal(await drawer.getByLabel("战绩模式筛选").inputValue(), "all");
+    assert.equal(await drawer.getByLabel("分析样本场数").inputValue(), "20");
+    await navigation
+      .getByRole("button", { name: "玩家战绩", exact: true })
+      .click();
+    assert.equal(await fullView.getByLabel("战绩模式筛选").inputValue(), "450");
+    assert.equal(await fullView.getByLabel("分析样本场数").inputValue(), "50");
+    await navigation.getByRole("button", { name: /当前对局/ }).click();
     if (process.env.UI_SCREENSHOT_PREFIX)
       await page.screenshot({
         path: process.env.UI_SCREENSHOT_PREFIX + "-compact.png",
@@ -795,7 +894,7 @@ async function main() {
     assert.deepEqual(errors, []);
     assert.deepEqual(external, []);
     console.log(
-      "PASS: mode-linked 10–50 samples, embedded pagination/jump/cache, bounded far-jump continuation, independent refresh, terminal/empty/limited modes, duplicate guards, failed/invalid-page retry, request/time/stop budgets, player isolation, offline cache and compact/minimum layout.",
+      "PASS: continuous rare-mode 10–50 samples, 1000-record/90s/stop bounds, embedded pagination/jump/cache, bounded far jumps, refresh/error/duplicate guards, player/workspace isolation, hidden-scan cancellation, next-match reset, offline cache and compact/minimum layout.",
     );
   } finally {
     await browser.close();
