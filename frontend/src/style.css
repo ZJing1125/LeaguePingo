@@ -90,6 +90,7 @@
   --warning: #e4bf7f;
   --radius: 8px;
   --selection: #203b3c;
+  --titlebar-height: 36px;
   font-variant-numeric: tabular-nums;
 }
 * {
@@ -292,33 +293,95 @@ small {
 }
 .desktop-app {
   height: 100dvh;
-  display: flex;
+  display: grid;
+  grid-template: var(--titlebar-height) minmax(0, 1fr) / auto minmax(0, 1fr);
   overflow: hidden;
+}
+.desktop-titlebar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  background: #14171e;
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+  --wails-draggable: drag;
+}
+.window-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-left: 16px;
+  min-width: 0;
+}
+.window-brand .brand-mark {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  font-size: 16px;
+}
+.window-brand strong {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+.window-subtitle {
+  padding-left: 10px;
+  margin-left: 1px;
+  border-left: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+}
+.window-inactive .window-brand {
+  opacity: 0.6;
+}
+.window-control-error {
+  margin-left: 20px;
+  color: var(--loss);
+  font-size: 11px;
+}
+.window-controls {
+  display: flex;
+  align-self: stretch;
+  margin-left: auto;
+  --wails-draggable: no-drag;
+}
+.window-controls button {
+  width: 46px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+}
+.window-controls button:hover:not(:disabled) {
+  background: var(--raised);
+  color: var(--text);
+}
+.window-controls .window-close:hover:not(:disabled) {
+  background: #c44459;
+  color: #fff;
+}
+.window-controls button:focus-visible {
+  outline-offset: -4px;
+}
+.window-controls button[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: wait;
+}
+.window-controls .app-icon {
+  pointer-events: none;
 }
 .app-sidebar {
   width: 164px;
   flex: none;
-  padding: 20px 12px 14px;
+  padding: 16px 12px 14px;
   background: #14171e;
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-}
-.app-brand {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin-bottom: 30px;
-}
-.app-brand strong {
-  font-size: 14px;
-  letter-spacing: 0.1px;
-}
-.app-brand small {
-  display: block;
-  color: var(--muted);
-  font-size: 11px;
-  margin-top: 3px;
 }
 .app-sidebar nav {
   display: grid;
@@ -373,9 +436,8 @@ small {
 }
 .desktop-app.nav-collapsed .app-sidebar {
   width: 68px;
-  padding: 20px 10px;
+  padding: 16px 10px;
 }
-.nav-collapsed .app-brand > div,
 .nav-collapsed .app-sidebar nav button > span,
 .nav-collapsed .app-sidebar nav i,
 .nav-collapsed .sidebar-bottom span,
@@ -396,9 +458,6 @@ small {
 .match-layout:has(.player-drawer) .team-columns {
   grid-template-columns: 1fr;
 }
-.nav-collapsed .app-brand {
-  justify-content: center;
-}
 .nav-collapsed .app-sidebar nav button,
 .nav-collapsed .settings-trigger {
   justify-content: center;
@@ -409,18 +468,19 @@ small {
 .app-main {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   position: relative;
 }
 .app-toolbar {
-  height: 58px;
+  height: 50px;
   flex: none;
   display: flex;
   align-items: center;
   gap: 16px;
   border-bottom: 1px solid var(--border);
-  padding: 10px 20px;
+  padding: 6px 20px;
 }
 .app-toolbar > strong {
   font-size: 14px;
@@ -506,8 +566,8 @@ small {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 18px 22px;
-  min-height: 98px;
+  padding: 12px 22px;
+  min-height: 80px;
   flex: none;
   border-bottom: 1px solid var(--border);
 }
@@ -838,7 +898,7 @@ small {
   justify-content: space-between;
   gap: 8px;
   flex: none;
-  min-height: 54px;
+  min-height: 46px;
 }
 .history-filter,
 .history-actions {
@@ -1498,7 +1558,7 @@ small {
 }
 .settings-backdrop {
   position: fixed;
-  inset: 0;
+  inset: var(--titlebar-height) 0 0;
   z-index: 20;
   background: #0009;
   display: grid;
@@ -1607,9 +1667,8 @@ small {
 @media (max-width: 1000px) {
   .app-sidebar {
     width: 68px;
-    padding: 20px 10px;
+    padding: 16px 10px;
   }
-  .app-brand > div,
   .app-sidebar nav button > span,
   .app-sidebar nav i,
   .sidebar-bottom span,
@@ -1619,7 +1678,6 @@ small {
   .sidebar-connection {
     display: none;
   }
-  .app-brand,
   .app-sidebar nav button,
   .settings-trigger {
     justify-content: center;

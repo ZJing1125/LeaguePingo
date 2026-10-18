@@ -11,6 +11,7 @@ league-pingo/
 ├── .leaguepingo/       可选可信本机工具环境（忽略 Git）
 ├── main.go / appservice.go / overlay.go / preferences.go
 │   └── 桌面启动、Wails 服务入口、快览和设置桥接
+├── desktop_window.go   无边框主窗口、深色原生主题与尺寸约束
 ├── internal/
 │   ├── core/          业务模型与战绩解析
 │   ├── engine/        阶段机、调度与缓存

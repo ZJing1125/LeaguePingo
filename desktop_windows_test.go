@@ -42,7 +42,11 @@ func TestDesktopProbeProcess(t *testing.T) {
 	})
 	options.UniqueID = os.Getenv("LEAGUEPINGO_PROBE_ID")
 	app = application.New(application.Options{Name: "LeaguePingo isolated test", SingleInstance: options})
-	w := app.Window.NewWithOptions(application.WebviewWindowOptions{Name: "probe", Hidden: true, Frameless: true, Width: 400, Height: 300, HTML: "<html><body>Isolated desktop smoke test</body></html>"})
+	windowOptions := mainWindowOptions(true)
+	windowOptions.Name = "probe"
+	windowOptions.URL = ""
+	windowOptions.HTML = "<html><body>Isolated desktop smoke test</body></html>"
+	w := app.Window.NewWithOptions(windowOptions)
 	var probeErr error
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		if w.IsIgnoreMouseEvents() {

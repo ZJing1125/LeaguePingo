@@ -43,11 +43,14 @@ func main() {
 	if settingsErr != nil {
 		backend.settingsWarning = settingsErr.Error()
 	}
-	instance := singleInstanceOptions(func() {
-		<-windowReady
+	showMain := func() {
 		mainWindow.Show()
 		mainWindow.UnMinimise()
 		mainWindow.Focus()
+	}
+	instance := singleInstanceOptions(func() {
+		<-windowReady
+		showMain()
 	})
 	if offlineSmoke {
 		instance.UniqueID = fmt.Sprintf("com.leaguepingo.offline.p%d", os.Getpid())
@@ -73,12 +76,7 @@ func main() {
 	backend.engine = engine.New(discover, func(snapshot core.Snapshot) {
 		app.Event.Emit("leaguepingo:snapshot", snapshot)
 	})
-	mainWindow = app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Name: "main", Title: "LeaguePingo", Width: 1100, Height: 760,
-		MinWidth: 880, MinHeight: 620, URL: "/",
-		Hidden:           offlineSmoke,
-		BackgroundColour: application.NewRGB(10, 16, 29),
-	})
+	mainWindow = app.Window.NewWithOptions(mainWindowOptions(offlineSmoke))
 	// Closing the main window keeps the lightweight helper available in the tray.
 	mainWindow.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
 		mainWindow.Hide()
@@ -89,11 +87,10 @@ func main() {
 	tray.SetTooltip("LeaguePingo")
 	menu := app.NewMenu()
 	menu.Add("打开 LeaguePingo").OnClick(func(*application.Context) {
-		mainWindow.Show()
-		mainWindow.Focus()
+		showMain()
 	})
 	tray.SetMenu(menu)
-	tray.OnClick(func() { mainWindow.Show(); mainWindow.Focus() })
+	tray.OnClick(showMain)
 	controller := &overlayController{
 		dispatch: application.InvokeSync,
 		state:    OverlayState{Pinned: store.Snapshot().Pinned, Shortcut: store.Snapshot().Shortcut},

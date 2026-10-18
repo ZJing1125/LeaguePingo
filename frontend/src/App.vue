@@ -11,6 +11,7 @@ import ParticipantAvatar from "./components/ParticipantAvatar.vue";
 import TransientNotice from "./components/TransientNotice.vue";
 import SettingsPanel from "./components/SettingsPanel.vue";
 import AppIcon from "./components/AppIcon.vue";
+import DesktopTitleBar from "./components/DesktopTitleBar.vue";
 import RecentForm from "./components/RecentForm.vue";
 import { useTransientMessages } from "./transientMessages";
 import {
@@ -126,11 +127,8 @@ onUnmounted(() => {
     @pin="pinOverlay"
   />
   <main v-else class="desktop-app" :class="{ 'nav-collapsed': navCollapsed }">
+    <DesktopTitleBar :modal-open="settingsOpen" />
     <aside class="app-sidebar" :inert="settingsOpen">
-      <div class="app-brand">
-        <span class="brand-mark">P</span>
-        <div><strong>LeaguePingo</strong><small>战绩助手</small></div>
-      </div>
       <nav aria-label="工作区">
         <button
           :class="{ active: view === 'players' }"
