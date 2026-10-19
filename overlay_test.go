@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -65,5 +66,52 @@ func TestOverlayIsCreatedOnlyOnFirstShow(t *testing.T) {
 	o.toggle()
 	if count != 1 || !w.visible {
 		t.Fatal("overlay creation was not lazy and reusable")
+	}
+}
+
+type fakeHoldOverlay struct {
+	fakeOverlay
+	held bool
+	fail bool
+}
+
+func (f *fakeHoldOverlay) showHold() error {
+	if f.fail {
+		return fmt.Errorf("native failure")
+	}
+	f.held = true
+	f.visible = true
+	return nil
+}
+func (f *fakeHoldOverlay) endHold() { f.held = false }
+func TestHoldDoesNotHidePersistentOrShowAfterRelease(t *testing.T) {
+	down := true
+	w := &fakeHoldOverlay{}
+	o := &overlayController{dispatch: func(fn func()) { fn() }, window: w, holdDesired: func() bool { return down }}
+	if s := o.reconcileHold(); s.Mode != "hold" || !w.held {
+		t.Fatal("temporary show")
+	}
+	down = false
+	if s := o.reconcileHold(); s.Visible || w.held {
+		t.Fatal("release")
+	}
+	o.toggle()
+	down = true
+	o.reconcileHold()
+	down = false
+	if s := o.reconcileHold(); !s.Visible || s.Mode != "persistent" {
+		t.Fatal("release closed persistent view")
+	}
+	o.hide()
+	o.window = nil
+	down = true
+	o.create = func() overlayWindow { down = false; return w }
+	if s := o.reconcileHold(); s.Visible {
+		t.Fatal("late initialization showed after release")
+	}
+	down = true
+	w.fail = true
+	if s := o.reconcileHold(); s.Visible || s.HoldWarning == "" {
+		t.Fatal("native failure must keep hidden")
 	}
 }

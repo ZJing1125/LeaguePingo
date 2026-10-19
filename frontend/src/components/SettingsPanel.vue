@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
 import * as Service from "../../bindings/leaguepingo/appservice";
-import type { AppInfo } from "../../bindings/leaguepingo/models";
+import type { OverlayState, AppInfo } from "../../bindings/leaguepingo/models";
 import { errorMessage } from "../presentation";
 import { assetVersion } from "../gameAssets";
+defineProps<{ overlayState?: OverlayState | null }>();
 defineEmits<{ close: [] }>();
+const holdEnabled = ref(true),
+  holdKey = ref("Backquote");
 const info = ref<AppInfo | null>(null),
   shortcut = ref("Ctrl+Shift+P"),
   busy = ref(false),
@@ -21,7 +24,7 @@ function trapFocus(event: KeyboardEvent) {
   if (event.key !== "Tab" || !panel.value) return;
   const controls = Array.from(
     panel.value.querySelectorAll<HTMLElement>(
-      'button:not(:disabled), select, [tabindex="0"]',
+      'button:not(:disabled), select:not(:disabled), input:not(:disabled), [tabindex="0"]',
     ),
   );
   const first = controls[0],
@@ -41,6 +44,8 @@ async function load() {
   try {
     info.value = await Service.Info();
     shortcut.value = info.value.shortcut;
+    holdEnabled.value = info.value.holdEnabled ?? true;
+    holdKey.value = info.value.holdKey || "Backquote";
   } catch (reason) {
     error.value = errorMessage(reason);
   }
@@ -52,6 +57,19 @@ async function save() {
   try {
     info.value = await Service.ConfigureShortcut(shortcut.value);
     message.value = "快捷键已保存；窗口位置和置顶状态也会记住。";
+  } catch (reason) {
+    error.value = errorMessage(reason);
+  } finally {
+    busy.value = false;
+  }
+}
+async function saveHold() {
+  busy.value = true;
+  error.value = "";
+  message.value = "";
+  try {
+    info.value = await Service.ConfigureHold(holdEnabled.value, holdKey.value);
+    message.value = "局内按住快览设置已保存。";
   } catch (reason) {
     error.value = errorMessage(reason);
   } finally {
@@ -108,7 +126,28 @@ onUnmounted(() => {
         LeaguePingo {{ info?.version ?? "加载中" }} · {{ info?.commit ?? "—"
         }}<br />构建 {{ info?.buildTime ?? "—" }} · 游戏资源 {{ assetVersion }}
       </p>
-      <h2>快览快捷键</h2>
+      <h2>局内按住快览</h2>
+      <form class="settings-hold" @submit.prevent="saveHold">
+        <label
+          ><input
+            v-model="holdEnabled"
+            type="checkbox"
+            aria-label="启用局内按住快览"
+          />启用按住显示、松开隐藏</label
+        ><select v-model="holdKey" aria-label="局内按住键">
+          <option value="Backquote">~ / 反引号（无需 Shift）</option>
+          <option v-for="key in ['F8', 'F9', 'F10']" :key="key" :value="key">
+            {{ key }}
+          </option></select
+        ><button class="primary" :disabled="busy">保存按住设置</button>
+      </form>
+      <p class="muted">
+        仅在正式对局、游戏窗口处于前台时生效。临时快览不抢焦点，鼠标和按键继续传给游戏；切出游戏会隐藏。若与“只以英雄为目标”等游戏按键冲突，请在此改键。建议使用无边框或窗口模式，独占全屏兼容性待实机验证。
+      </p>
+      <p v-if="overlayState?.holdWarning" class="quality-warning">
+        {{ overlayState.holdWarning }}
+      </p>
+      <h2>手动快览快捷键</h2>
       <form class="settings-shortcut" @submit.prevent="save">
         <select v-model="shortcut" aria-label="快览快捷键">
           <option

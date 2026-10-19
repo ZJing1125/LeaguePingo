@@ -16,6 +16,7 @@ type AppService struct {
 	configDir         string
 	settingsWarning   string
 	configureShortcut func(string) error
+	configureHold     func(bool, string) error
 }
 
 func (s *AppService) Snapshot() core.Snapshot { return s.engine.Snapshot() }

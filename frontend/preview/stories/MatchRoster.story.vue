@@ -34,7 +34,7 @@ const longNames = players.map((p) => ({
 <template>
   <Story title="对局 / 双方名单">
     <Variant title="双方十人"
-      ><div style="width: 740px; max-width: 100%; padding: 12px">
+      ><div style="width: 1180px; max-width: 100%; padding: 12px">
         <MatchRoster
           :players="players"
           :selected-key="selected"
@@ -43,15 +43,15 @@ const longNames = players.map((p) => ({
         /></div
     ></Variant>
     <Variant title="准备中与身份缺失"
-      ><div style="width: 740px; max-width: 100%; padding: 12px">
+      ><div style="width: 1180px; max-width: 100%; padding: 12px">
         <MatchRoster :players="mixed" frozen /></div
     ></Variant>
     <Variant title="组队阶段"
-      ><div style="width: 740px; max-width: 100%; padding: 12px">
+      ><div style="width: 1180px; max-width: 100%; padding: 12px">
         <MatchRoster :players="players.slice(0, 3)" party /></div
     ></Variant>
-    <Variant title="长名称与紧凑双列"
-      ><div style="width: 570px; max-width: 100%; padding: 12px">
+    <Variant title="长名称与窄窗阵容"
+      ><div style="width: 820px; max-width: 100%; padding: 12px">
         <MatchRoster
           :players="longNames"
           :selected-key="players[1]!.key"

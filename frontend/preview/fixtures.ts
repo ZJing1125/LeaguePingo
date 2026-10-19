@@ -114,5 +114,10 @@ export function makeOverlayState(): OverlayState {
     shortcutAvailable: true,
     warning: "",
     shortcut: "Ctrl+Shift+P",
+    mode: "persistent",
+    holdEnabled: true,
+    holdKey: "Backquote",
+    holdAvailable: true,
+    holdWarning: "",
   };
 }

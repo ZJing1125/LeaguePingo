@@ -18,7 +18,7 @@ if [[ "$task_scope" == windows ]]; then
 fi
 echo "Verification scope: $task_scope (not real-game acceptance)"
 node scripts/workflow.mjs check
-node --test scripts/artifacts.test.mjs scripts/workflow.test.mjs scripts/environment.test.mjs
+node --test scripts/artifacts.test.mjs scripts/workflow.test.mjs scripts/environment.test.mjs scripts/champion-portraits.test.mjs
 if [[ "$task_scope" == portable ]]; then
   npm --prefix frontend run build
   go test ./internal/...

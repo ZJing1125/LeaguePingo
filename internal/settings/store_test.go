@@ -47,3 +47,28 @@ func TestClampDisconnectedAndNegativeMonitor(t *testing.T) {
 		t.Fatal("unsafe shortcut accepted")
 	}
 }
+
+func TestExistingSettingsReceiveHoldDefaultsAndRoundtrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if err := os.WriteFile(path, []byte(`{"schema":1,"shortcut":"Ctrl+Shift+P","pinned":true,"overlay":{"width":540,"height":660}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !s.Snapshot().HoldEnabled || s.Snapshot().HoldKey != "Backquote" || s.Snapshot().Overlay.Width != 540 {
+		t.Fatal("migration lost window position or defaults")
+	}
+	s.SetHold(false, "F9")
+	if err := s.Save(); err != nil {
+		t.Fatal(err)
+	}
+	s, err = Open(path)
+	if err != nil || s.Snapshot().HoldEnabled || s.Snapshot().HoldKey != "F9" {
+		t.Fatal("hold preference lost")
+	}
+	if ValidHoldKey("Alt+F4") {
+		t.Fatal("invalid hold key")
+	}
+}

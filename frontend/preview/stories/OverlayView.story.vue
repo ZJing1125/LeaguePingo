@@ -30,7 +30,7 @@ const partial = makeSnapshot({
 <template>
   <Story title="对局 / 快览">
     <Variant title="十人就绪"
-      ><div style="width: 540px; height: 660px">
+      ><div style="width: 1100px; height: 640px">
         <OverlayView
           :snapshot="ready"
           :state="state"
@@ -41,7 +41,7 @@ const partial = makeSnapshot({
         /></div
     ></Variant>
     <Variant title="部分就绪与失败"
-      ><div style="width: 540px; height: 660px">
+      ><div style="width: 1100px; height: 640px">
         <OverlayView
           :snapshot="partial"
           :state="state"
@@ -51,7 +51,7 @@ const partial = makeSnapshot({
         /></div
     ></Variant>
     <Variant title="断线与旧资料"
-      ><div style="width: 540px; height: 660px">
+      ><div style="width: 1100px; height: 640px">
         <OverlayView
           :snapshot="
             makeSnapshot({
@@ -73,6 +73,16 @@ const partial = makeSnapshot({
         <OverlayView
           :snapshot="ready"
           :state="state"
+          status="对局中"
+          :busy="false"
+          error=""
+        /></div
+    ></Variant>
+    <Variant title="按住只读快览"
+      ><div style="width: 1100px; height: 640px">
+        <OverlayView
+          :snapshot="ready"
+          :state="{ ...state, mode: 'hold' }"
           status="对局中"
           :busy="false"
           error=""

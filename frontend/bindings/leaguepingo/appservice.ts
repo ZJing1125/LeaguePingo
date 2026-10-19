@@ -18,6 +18,10 @@ import * as core$0 from "./internal/core/models.js";
 // @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
+export function ConfigureHold(enabled: boolean, key: string): $CancellablePromise<$models.AppInfo> {
+    return $Call.ByID(3168600939, enabled, key);
+}
+
 export function ConfigureShortcut(key: string): $CancellablePromise<$models.AppInfo> {
     return $Call.ByID(4027411068, key);
 }

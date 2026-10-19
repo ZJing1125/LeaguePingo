@@ -1,14 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { Participant } from "../../bindings/leaguepingo/internal/core/models";
-import {
-  decimal,
-  percent,
-  playerName,
-  preparationLabel,
-} from "../presentation";
+import { playerName } from "../presentation";
+import { championName } from "../gameAssets";
+import PlayerCardData from "./PlayerCardData.vue";
 import ParticipantAvatar from "./ParticipantAvatar.vue";
-import RecentForm from "./RecentForm.vue";
+import ChampionPortrait from "./ChampionPortrait.vue";
 
 const props = defineProps<{
   players: Participant[];
@@ -30,16 +27,15 @@ const teams = computed(() =>
     players: props.players.filter((player) => player.team === key),
   })),
 );
-function badge(player: Participant) {
-  if (player.identityState === "unavailable") return "身份未知";
-  if (player.historyState === "loading") return "正在获取";
-  if (player.historyState === "empty") return "暂无战绩";
-  if (player.historyState === "failed") return "可重试";
-  return props.frozen ? "可查询" : "待准备";
-}
 </script>
 <template>
-  <div class="team-columns" aria-label="双方名单">
+  <div
+    class="team-columns"
+    :class="{
+      'expanded-roster': teams.some((team) => team.players.length > 5),
+    }"
+    aria-label="双方名单"
+  >
     <section
       v-for="team in teams"
       :key="team.key"
@@ -54,69 +50,36 @@ function badge(player: Participant) {
         <button
           v-for="player in team.players"
           :key="player.key"
-          class="player-row"
+          class="player-row hero-card"
           :class="{ selected: selectedKey === player.key }"
           :aria-pressed="selectedKey === player.key"
           :data-player-key="player.key"
           @click="$emit('select', player)"
         >
-          <ParticipantAvatar :player="player" :size="32" />
-          <span class="roster-identity">
-            <strong :title="playerName(player)">{{
-              playerName(player)
-            }}</strong>
-            <small
-              class="roster-preparation"
-              :title="preparationLabel(player, frozen)"
-            >
-              {{ preparationLabel(player, frozen)
-              }}<template v-if="player.historyState === 'ready'">
-                · {{ player.stats.games }} 场</template
-              >
-            </small>
-          </span>
-          <span
-            class="roster-metrics"
-            :title="preparationLabel(player, frozen)"
-          >
-            <template v-if="player.historyState === 'ready'">
-              <b
-                ><span class="sr-only">胜率 </span
-                >{{ percent(player.stats.winRate) }}</b
-              >
-              <small>{{ decimal(player.stats.kda) }} KDA</small>
-            </template>
-            <span
-              v-else
-              class="status-badge"
-              :class="{ 'is-loading': player.historyState === 'loading' }"
-              >{{ badge(player) }}</span
-            >
-          </span>
-          <span class="roster-form">
-            <RecentForm
-              v-if="player.historyState === 'ready'"
-              :matches="player.history"
+          <span class="card-portrait">
+            <ChampionPortrait :id="player.championId" /><ParticipantAvatar
+              class="card-avatar"
+              :player="player"
+              :size="24"
             />
-            <small
-              v-else-if="player.championState !== 'intent' && player.championId"
-              >战绩未就绪</small
+            <span class="card-identity"
+              ><strong>{{
+                player.championId
+                  ? championName(player.championId).split("·")[1] ||
+                    championName(player.championId)
+                  : player.championState === "unselected"
+                    ? "暂未选择英雄"
+                    : "英雄信息暂不可用"
+              }}</strong
+              ><span :title="playerName(player)">{{
+                playerName(player)
+              }}</span></span
             >
-            <small
-              class="roster-champion-note"
-              v-if="player.championState === 'intent'"
-              >预选英雄</small
-            >
-            <small
-              class="roster-champion-note"
-              v-else-if="!player.championId"
-              >{{
-                player.championState === "unselected"
-                  ? "暂未选择英雄"
-                  : "英雄信息暂不可用"
-              }}</small
+            <span v-if="player.championState === 'intent'" class="card-intent"
+              >预选英雄</span
             >
           </span>
+          <PlayerCardData :player="player" :frozen="frozen" />
         </button>
       </div>
       <p v-if="!team.players.length" class="team-empty">

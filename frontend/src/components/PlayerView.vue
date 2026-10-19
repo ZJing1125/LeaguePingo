@@ -17,6 +17,7 @@ import AppIcon from "./AppIcon.vue";
 import MatchDetails from "./MatchDetails.vue";
 import RecentForm from "./RecentForm.vue";
 import TransientNotice from "./TransientNotice.vue";
+import ChampionPortrait from "./ChampionPortrait.vue";
 import { championName } from "../gameAssets";
 import {
   HISTORY_PAGE_SIZE,
@@ -56,6 +57,13 @@ const {
   goPage,
   fill,
 } = useHistoryBrowser(props, historyScroll);
+const currentHeroStats = computed(() =>
+  sampleStats(
+    analysisMatches.value.filter(
+      (m) => m.championId === props.player.championId,
+    ),
+  ),
+);
 const stats = computed(() => sampleStats(analysisMatches.value));
 const modes = computed(() => [
   ...new Set([420, 440, 450, 2400, ...allMatches.value.map((m) => m.queueId)]),
@@ -79,6 +87,12 @@ function toggle(id: number) {
 </script>
 <template>
   <section class="player-view" :class="{ compact }">
+    <div v-if="!compact" class="dossier-poster">
+      <ChampionPortrait :id="player.championId || heroes[0]?.id" /><span
+        class="poster-label"
+        >PLAYER DOSSIER<small>英雄原画背景 · 非玩家头像</small></span
+      >
+    </div>
     <PlayerProfileHeader
       :player="player"
       :busy="busy"
@@ -92,7 +106,13 @@ function toggle(id: number) {
         <div class="section-heading">
           <h2>近期表现</h2>
         </div>
-        <p class="sample-scope" role="status">{{ sampleLabel }}</p>
+        <p class="sample-scope" role="status">
+          {{ sampleLabel
+          }}<span v-if="player.championId">
+            · 本英雄 {{ currentHeroStats.games }} 场 ·
+            {{ percent(currentHeroStats.winRate) }}</span
+          >
+        </p>
         <div class="winrate-display">
           <strong>{{ percent(stats.winRate) }}</strong
           ><span

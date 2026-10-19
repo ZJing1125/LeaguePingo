@@ -15,6 +15,7 @@ import (
 
 	"leaguepingo/internal/core"
 	"leaguepingo/internal/engine"
+	"leaguepingo/internal/hold"
 	"leaguepingo/internal/settings"
 	"leaguepingo/internal/source"
 )
@@ -23,6 +24,16 @@ import (
 var assets embed.FS
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	holdWake := make(chan struct{}, 1)
+	held := hold.New(func() {
+		select {
+		case holdWake <- struct{}{}:
+		default:
+		}
+	})
+	var monitor *hold.Monitor
 	var mainWindow *application.WebviewWindow
 	windowReady := make(chan struct{})
 	configRoot, err := os.UserConfigDir()
@@ -63,6 +74,10 @@ func main() {
 		Mac:            application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
 		SingleInstance: instance,
 		OnShutdown: func() {
+			cancel()
+			if monitor != nil {
+				monitor.Stop()
+			}
 			if err := store.Save(); err != nil {
 				log.Print("无法保存窗口设置")
 			}
@@ -74,6 +89,7 @@ func main() {
 		discover = func() (source.Source, error) { return nil, source.ErrNotConnected }
 	}
 	backend.engine = engine.New(discover, func(snapshot core.Snapshot) {
+		held.Allow(snapshot.Connected && snapshot.Phase == "InProgress")
 		app.Event.Emit("leaguepingo:snapshot", snapshot)
 	})
 	mainWindow = app.Window.NewWithOptions(mainWindowOptions(offlineSmoke))
@@ -92,9 +108,10 @@ func main() {
 	tray.SetMenu(menu)
 	tray.OnClick(showMain)
 	controller := &overlayController{
-		dispatch: application.InvokeSync,
-		state:    OverlayState{Pinned: store.Snapshot().Pinned, Shortcut: store.Snapshot().Shortcut},
-		emit:     func(state OverlayState) { app.Event.Emit("leaguepingo:overlay", state) },
+		dispatch:    application.InvokeSync,
+		state:       OverlayState{Pinned: store.Snapshot().Pinned, Shortcut: store.Snapshot().Shortcut, Mode: "hidden", HoldEnabled: store.Snapshot().HoldEnabled, HoldKey: store.Snapshot().HoldKey},
+		holdDesired: func() bool { return held.Desired() && hold.GameForeground() },
+		emit:        func(state OverlayState) { app.Event.Emit("leaguepingo:overlay", state) },
 	}
 	backend.overlay = controller
 	// Geometry changes only update memory. Disk writes occur on explicit setting
@@ -102,11 +119,16 @@ func main() {
 	geometryReady := false
 	watchGeometry := func(w *application.WebviewWindow, isMain bool) {
 		capture := func(*application.WindowEvent) {
-			if !geometryReady || w.IsMinimised() || w.IsMaximised() {
+			if ctx.Err() != nil {
 				return
 			}
-			r := w.Bounds()
-			store.SetBounds(isMain, settings.Rect{X: r.X, Y: r.Y, Width: r.Width, Height: r.Height})
+			application.InvokeSync(func() {
+				if ctx.Err() != nil || !geometryReady || (!isMain && (controller.state.Mode == "hold" || !w.IsVisible())) || w.IsMinimised() || w.IsMaximised() {
+					return
+				}
+				r := w.Bounds()
+				store.SetBounds(isMain, settings.Rect{X: r.X, Y: r.Y, Width: r.Width, Height: r.Height})
+			})
 		}
 		w.OnWindowEvent(events.Common.WindowDidMove, capture)
 		w.OnWindowEvent(events.Common.WindowDidResize, capture)
@@ -126,13 +148,14 @@ func main() {
 	controller.create = func() overlayWindow {
 		cfg := store.Snapshot()
 		w := app.Window.NewWithOptions(application.WebviewWindowOptions{
-			Name: "overlay", Title: "LeaguePingo · 对局快览", Width: 540, Height: 660, MinWidth: 400, MinHeight: 360,
-			URL: "/?view=overlay", Hidden: true, Frameless: true, AlwaysOnTop: cfg.Pinned, BackgroundColour: application.NewRGB(10, 16, 29),
+			Name: "overlay", Title: "LeaguePingo · 对局快览", Width: 1100, Height: 640, MinWidth: 400, MinHeight: 360,
+			URL: "/?view=overlay", Hidden: true, Frameless: true, AlwaysOnTop: cfg.Pinned, BackgroundColour: application.NewRGB(20, 28, 32),
+			Windows: application.WindowsWindow{Theme: application.Dark, HiddenOnTaskbar: true},
 		})
 		restoreGeometry(w, cfg.Overlay, 400, 360)
 		watchGeometry(w, false)
 		w.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) { event.Cancel(); controller.hide() })
-		return w
+		return &nativeOverlay{WebviewWindow: w, restore: func() { restoreGeometry(w, store.Snapshot().Overlay, 400, 360) }}
 	}
 	menu.Add("隐藏对局快览").OnClick(func(*application.Context) { controller.hide() })
 	menu.Add("退出").OnClick(func(*application.Context) { app.Quit() })
@@ -151,6 +174,45 @@ func main() {
 			go func() { time.Sleep(35 * time.Second); app.Quit() }()
 			return
 		}
+		var monitorErr error
+		monitor, monitorErr = hold.Start(held)
+		controller.update(func() {
+			controller.state.HoldAvailable = monitorErr == nil
+			if monitorErr != nil {
+				controller.state.HoldWarning = monitorErr.Error()
+			}
+		})
+		var holdConfigMu sync.Mutex
+		backend.configureHold = func(enabled bool, key string) error {
+			holdConfigMu.Lock()
+			defer holdConfigMu.Unlock()
+			old := store.Snapshot()
+			store.SetHold(enabled, key)
+			if err := store.Save(); err != nil {
+				store.SetHold(old.HoldEnabled, old.HoldKey)
+				return err
+			}
+			held.Configure(enabled && monitor != nil, hold.Key(key))
+			controller.update(func() { controller.state.HoldEnabled = enabled; controller.state.HoldKey = key })
+			return nil
+		}
+		held.Configure(cfg.HoldEnabled && monitor != nil, hold.Key(cfg.HoldKey))
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-holdWake:
+					if ctx.Err() == nil {
+						application.InvokeSync(func() {
+							if ctx.Err() == nil {
+								controller.reconcileHold()
+							}
+						})
+					}
+				}
+			}
+		}()
 		registered := ""
 		var shortcutMu sync.Mutex
 		backend.configureShortcut = func(key string) error {
@@ -184,8 +246,6 @@ func main() {
 			controller.update(func() { controller.state.Warning = err.Error() })
 		}
 	})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	go backend.engine.Run(ctx)
 	if err := app.Run(); err != nil {
 		log.Fatal(err)

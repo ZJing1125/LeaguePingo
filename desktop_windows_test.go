@@ -19,8 +19,9 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
-// A hidden, isolated Wails process: no League engine, tray, game API or global
-// shortcuts. This checks the native single-instance IPC and window operations.
+// An isolated Wails process: no League engine, tray, game API or global
+// shortcuts. The main probe is hidden; a temporary non-activating window briefly
+// checks hold visibility, input and focus before being hidden again.
 func TestDesktopProbeProcess(t *testing.T) {
 	if os.Getenv("LEAGUEPINGO_DESKTOP_PROBE") != "1" {
 		t.Skip("subprocess helper")
@@ -58,6 +59,26 @@ func TestDesktopProbeProcess(t *testing.T) {
 		if x, y := w.Position(); x != 120 || y != 140 {
 			probeErr = fmt.Errorf("native position did not change")
 		}
+
+		temporary := app.Window.NewWithOptions(application.WebviewWindowOptions{Name: "hold-probe", Width: 1100, Height: 640, Hidden: true, Frameless: true, HTML: "<html><body>Hold view</body></html>"})
+		restored := false
+		adapter := &nativeOverlay{WebviewWindow: temporary, restore: func() { restored = true }}
+		application.InvokeSync(func() {
+			before, _, _ := overlayUser.NewProc("GetForegroundWindow").Call()
+			if err := adapter.showHold(); err != nil {
+				probeErr = err
+			} else {
+				after, _, _ := overlayUser.NewProc("GetForegroundWindow").Call()
+				if before != after || !temporary.IsIgnoreMouseEvents() || !temporary.IsVisible() {
+					probeErr = fmt.Errorf("hold view changed focus or did not pass mouse events")
+				}
+			}
+			temporary.Hide()
+			adapter.endHold()
+			if temporary.IsIgnoreMouseEvents() || !restored {
+				probeErr = fmt.Errorf("persistent view input/geometry was not restored")
+			}
+		})
 		if probeErr != nil {
 			_ = os.WriteFile(filepath.Join(dir, "failed"), []byte(probeErr.Error()), 0600)
 			app.Quit()

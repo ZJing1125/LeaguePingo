@@ -1,5 +1,8 @@
 # 第三方资源
 
+BUG-0045 随包增加 173 张 Riot Games Data Dragon 经典英雄载入原画（约 7.70 MiB），作为阵容卡和英雄背景，不冒充账号头像。来源模板为 `https://ddragon.leagueoflegends.com/cdn/img/champion/loading/{EnglishName}_0.jpg`。逐图来源、字节数、SHA-256 见 `frontend/src/assets/game/portraits/manifest.json`；显式维护脚本为 `scripts/sync-champion-portraits.mjs`。这些图片未作为本项目原创授权，仍适用下述权利及发布前复核要求。程序运行和常规构建不访问 CDN。
+
+
 游戏中文名称、英雄/装备/召唤师技能图标及符文名称来自 Riot Games Data Dragon `16.20.1`，以元数据和雪碧图随应用打包，仅作游戏资料识别。来源：<https://ddragon.leagueoflegends.com/>；图标更新脚本为 `scripts/sync-game-assets.mjs`，符文名称为 `scripts/sync-rune-metadata.mjs`（输出补丁，不直接改文件）。图标完整性摘要位于静态资源目录 `catalog.json`。
 
 LeaguePingo 是独立原型，不由 Riot Games 或腾讯赞助或认可。游戏名称、图标及相关素材权利属于其权利人。正式发布前需复核 Riot Games Legal Jibber Jabber、适用开发者政策及腾讯国服相关条款；本文件不等同于获得商业分发许可。

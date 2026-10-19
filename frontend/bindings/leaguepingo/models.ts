@@ -10,6 +10,8 @@ export interface AppInfo {
     "commit": string;
     "buildTime": string;
     "shortcut": string;
+    "holdEnabled": boolean;
+    "holdKey": string;
     "settingsWarning": string;
     "goHeapBytes": number;
     "goroutines": number;
@@ -24,4 +26,9 @@ export interface OverlayState {
     "shortcutAvailable": boolean;
     "warning": string;
     "shortcut": string;
+    "mode": string;
+    "holdEnabled": boolean;
+    "holdKey": string;
+    "holdAvailable": boolean;
+    "holdWarning": string;
 }

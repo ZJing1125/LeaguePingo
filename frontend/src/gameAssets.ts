@@ -40,3 +40,13 @@ export function iconStyle(
   };
 }
 export const assetVersion = catalog.version;
+
+// All artwork is packaged. Missing/new champions keep the local fallback.
+const portraits = import.meta.glob("./assets/game/portraits/*.jpg", {
+  eager: true,
+  query: "?url",
+  import: "default",
+}) as Record<string, string>;
+export function championPortrait(id: number | undefined) {
+  return id ? portraits[`./assets/game/portraits/${id}.jpg`] : undefined;
+}

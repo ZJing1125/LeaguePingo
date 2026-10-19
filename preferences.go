@@ -21,6 +21,8 @@ type AppInfo struct {
 	Commit           string                        `json:"commit"`
 	BuildTime        string                        `json:"buildTime"`
 	Shortcut         string                        `json:"shortcut"`
+	HoldEnabled      bool                          `json:"holdEnabled"`
+	HoldKey          string                        `json:"holdKey"`
 	SettingsWarning  string                        `json:"settingsWarning"`
 	GoHeapBytes      uint64                        `json:"goHeapBytes"`
 	Goroutines       int                           `json:"goroutines"`
@@ -31,8 +33,21 @@ type AppInfo struct {
 func (s *AppService) Info() AppInfo {
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
-	return AppInfo{Version: Version, Commit: Commit, BuildTime: BuildTime, Shortcut: s.settings.Snapshot().Shortcut, SettingsWarning: s.settingsWarning,
+	cfg := s.settings.Snapshot()
+	return AppInfo{Version: Version, Commit: Commit, BuildTime: BuildTime, Shortcut: cfg.Shortcut, HoldEnabled: cfg.HoldEnabled, HoldKey: cfg.HoldKey, SettingsWarning: s.settingsWarning,
 		GoHeapBytes: mem.HeapAlloc, Goroutines: runtime.NumGoroutine(), Requests: diagnostics.Default.Snapshot(), PerformanceScope: "仅 Go 堆；不包含 WebView2，不代表总内存、游戏 FPS 或网络延迟"}
+}
+func (s *AppService) ConfigureHold(enabled bool, key string) (AppInfo, error) {
+	if !settings.ValidHoldKey(key) {
+		return AppInfo{}, errors.New("按住键仅支持 ~、F8、F9、F10")
+	}
+	if s.configureHold == nil {
+		return AppInfo{}, errors.New("应用尚未准备好配置按住快览")
+	}
+	if err := s.configureHold(enabled, key); err != nil {
+		return AppInfo{}, err
+	}
+	return s.Info(), nil
 }
 func (s *AppService) ConfigureShortcut(key string) (AppInfo, error) {
 	key, err := settings.NormalizeShortcut(key)

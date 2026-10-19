@@ -107,6 +107,7 @@ async function main() {
       shortcutAvailable: true,
       warning: "",
     };
+    let rejectHold = true;
     let releaseRefresh;
     let releasePlayerAction;
     let delayEnsure = false,
@@ -144,7 +145,17 @@ async function main() {
         let result = null;
         if (method === "Snapshot") result = snapshot;
         else if (method === "Info") result = info;
-        else if (method === "ConfigureShortcut") {
+        else if (method === "ConfigureHold") {
+          if (rejectHold)
+            return route.fulfill({
+              status: 400,
+              json: {
+                kind: "RuntimeError",
+                message: "按住设置保存失败，原设置保留",
+              },
+            });
+          result = info = { ...info, holdEnabled: args[0], holdKey: args[1] };
+        } else if (method === "ConfigureShortcut") {
           if (args[0] === "Ctrl+Shift+X")
             return route.fulfill({
               status: 400,
@@ -510,19 +521,46 @@ async function main() {
       stage: "party",
       phase: "Lobby",
       updatedAt: new Date().toISOString(),
-      participants: [{ ...player("Alpha#TEST", "Alpha#TEST"), displayName: "玩家资料加载中", team: "ally" }],
+      participants: [
+        {
+          ...player("Alpha#TEST", "Alpha#TEST"),
+          displayName: "玩家资料加载中",
+          team: "ally",
+        },
+      ],
     };
     await page.evaluate(
-      (s) => window._wails.dispatchWailsEvent({ name: "leaguepingo:snapshot", data: s }),
+      (s) =>
+        window._wails.dispatchWailsEvent({
+          name: "leaguepingo:snapshot",
+          data: s,
+        }),
       snapshot,
     );
-    await page.waitForFunction(() => document.querySelector(".sidebar-bottom")?.textContent.includes("组队大厅"));
+    await page.waitForFunction(() =>
+      document
+        .querySelector(".toolbar-status")
+        ?.textContent.includes("组队大厅"),
+    );
     await page.getByRole("tab", { name: "Alpha#TEST", exact: true }).waitFor();
-    assert.equal(await page.getByRole("heading", { name: "Alpha#TEST", exact: true }).count(), 1,
-      "lobby placeholder overwrote a verified queried player's name");
-    snapshot = { ...beforeDodge, generation: snapshot.generation + 1, updatedAt: new Date().toISOString() };
+    assert.equal(
+      await page
+        .getByRole("heading", { name: "Alpha#TEST", exact: true })
+        .count(),
+      1,
+      "lobby placeholder overwrote a verified queried player's name",
+    );
+    snapshot = {
+      ...beforeDodge,
+      generation: snapshot.generation + 1,
+      updatedAt: new Date().toISOString(),
+    };
     await page.evaluate(
-      (s) => window._wails.dispatchWailsEvent({ name: "leaguepingo:snapshot", data: s }),
+      (s) =>
+        window._wails.dispatchWailsEvent({
+          name: "leaguepingo:snapshot",
+          data: s,
+        }),
       snapshot,
     );
     await search("Alpha#");
@@ -583,8 +621,6 @@ async function main() {
       standardRows >= 5,
       `1280x800 must show five complete matches, got ${standardRows}`,
     );
-    await page.getByRole("button", { name: "展开导航", exact: true }).click();
-    await page.getByRole("button", { name: "收起导航", exact: true }).click();
     await page.setViewportSize({ width: 1100, height: 760 });
     await page
       .getByRole("button", { name: "更新玩家资料", exact: true })
@@ -870,7 +906,7 @@ async function main() {
       });
     }, snapshot);
     assert(
-      (await page.locator(".sidebar-bottom").textContent()).includes("对局中"),
+      (await page.locator(".toolbar-status").textContent()).includes("对局中"),
       "old snapshots must not overwrite new game state",
     );
     await page
@@ -1038,6 +1074,19 @@ async function main() {
     await page
       .getByText("快捷键已保存；窗口位置和置顶状态也会记住。")
       .waitFor();
+    await page.getByLabel("启用局内按住快览").uncheck();
+    await page.getByLabel("局内按住键").selectOption("F9");
+    await page.getByRole("button", { name: "保存按住设置" }).click();
+    await page
+      .getByRole("alert")
+      .filter({ hasText: "按住设置保存失败" })
+      .waitFor();
+    assert.notEqual(info.holdKey, "F9");
+    rejectHold = false;
+    await page.getByRole("button", { name: "保存按住设置" }).click();
+    await page.getByText("局内按住快览设置已保存。").waitFor();
+    assert.equal(info.holdKey, "F9");
+    assert.equal(info.holdEnabled, false);
     await page.getByRole("button", { name: "导出脱敏诊断" }).click();
     await page.getByText(/已保存本地诊断/).waitFor();
     await page.getByRole("button", { name: "关闭设置" }).click();
@@ -1255,7 +1304,7 @@ async function main() {
       0,
       "overlay keeps its own compact title bar",
     );
-    await page.setViewportSize({ width: 540, height: 660 });
+    await page.setViewportSize({ width: 1100, height: 640 });
     await page.getByRole("button", { name: "取消置顶", exact: true }).waitFor();
     assert.equal(
       await page
@@ -1280,7 +1329,7 @@ async function main() {
       0,
     );
     const bounds = await page.locator(".overlay-footer").boundingBox();
-    assert(bounds.y + bounds.height <= 660);
+    assert(bounds.y + bounds.height <= 640);
     const visiblePlayers = await page.locator(".overlay-player").evaluateAll(
       (rows) =>
         rows.filter((row) => {
@@ -1296,7 +1345,7 @@ async function main() {
     assert.equal(
       visiblePlayers,
       10,
-      "normal ten-player quick view must fit without scrolling at 540x660",
+      "normal ten-player quick view must fit without scrolling at 1100x640",
     );
     if (process.env.OVERLAY_SCREENSHOT)
       await page.screenshot({ path: process.env.OVERLAY_SCREENSHOT });
@@ -1318,7 +1367,9 @@ async function main() {
       snapshot,
     );
     await page.waitForFunction(
-      () => document.querySelectorAll(".overlay-data").length === 10,
+      () =>
+        document.querySelectorAll(".overlay-player .overview-metrics")
+          .length === 10,
     );
     const allReady = await page.locator(".overlay-player").evaluateAll((rows) =>
       rows.every((row) => {
@@ -1327,34 +1378,37 @@ async function main() {
         return r.top >= v.top && r.bottom <= v.bottom;
       }),
     );
-    assert(allReady, "all ten ready players must fit at 540x660");
+    assert(allReady, "all ten ready players must fit at 1100x640");
     assert.equal(
       await page
-        .locator(".overlay-metrics small")
-        .filter({ hasText: /^胜率$/ })
+        .locator(".overlay-player .overview-metrics small")
+        .filter({ hasText: /胜 \/.*负/ })
         .count(),
       10,
     );
     assert.equal(
       await page
-        .locator(".overlay-metrics small")
-        .filter({ hasText: /^KDA$/ })
+        .locator(".overlay-player .overview-metrics small")
+        .filter({ hasText: /^汇总 KDA$/ })
         .count(),
       10,
     );
-    assert.equal(await page.locator(".overlay-count").count(), 10);
+    assert.equal(
+      await page.locator(".overlay-player .sample-size").count(),
+      10,
+    );
     const nonOverlapping = await page
-      .locator(".overlay-data")
+      .locator(".overlay-player .card-details")
       .evaluateAll((rows) =>
         rows.every((row) => {
           const metrics = row
-            .querySelector(".overlay-metrics")
+            .querySelector(".overview-metrics")
             .getBoundingClientRect();
           const form = row
-            .querySelector(".recent-form")
+            .querySelector(".recent-block")
             .getBoundingClientRect();
           return (
-            metrics.right + 3 <= form.left &&
+            metrics.bottom <= form.top &&
             form.right <= row.getBoundingClientRect().right + 1
           );
         }),
@@ -1373,18 +1427,22 @@ async function main() {
       .evaluate((el) => ({
         width: el.clientWidth,
         scroll: el.scrollWidth,
-        rowsFit: [...el.querySelectorAll(".overlay-data")].every((row) => {
+        rowsFit: [
+          ...el.querySelectorAll(".overlay-player .card-details"),
+        ].every((row) => {
           const box = row.getBoundingClientRect();
           const metrics = row
-            .querySelector(".overlay-metrics")
+            .querySelector(".overview-metrics")
             .getBoundingClientRect();
           const form = row
-            .querySelector(".recent-form")
+            .querySelector(".recent-block")
             .getBoundingClientRect();
           return (
             metrics.right <= box.right + 1 &&
             form.right <= box.right + 1 &&
-            (metrics.right + 3 <= form.left || metrics.bottom <= form.top)
+            (form.width === 0 ||
+              metrics.right + 3 <= form.left ||
+              metrics.bottom <= form.top)
           );
         }),
       }));
@@ -1392,6 +1450,46 @@ async function main() {
       compactOverlay.scroll <= compactOverlay.width + 1 &&
         compactOverlay.rowsFit,
       "minimum 400x360 quick view may scroll vertically but must not clip or overlap metrics",
+    );
+    const readsBeforeHold = calls.filter((c) =>
+      /History|Lookup|Profile|RefreshRoster/.test(c),
+    ).length;
+    state = {
+      ...state,
+      mode: "hold",
+      holdKey: "Backquote",
+      revision: state.revision + 1,
+    };
+    await page.evaluate(
+      (s) =>
+        window._wails.dispatchWailsEvent({
+          name: "leaguepingo:overlay",
+          data: s,
+        }),
+      state,
+    );
+    await page.getByText("松开 ~ 隐藏 · 鼠标操作传给游戏").waitFor();
+    assert.equal(await page.locator(".overlay-controls").count(), 0);
+    assert.equal(
+      await page
+        .locator(".overlay-shell")
+        .evaluate((el) => getComputedStyle(el).pointerEvents),
+      "none",
+    );
+    state = { ...state, mode: "persistent", revision: state.revision + 1 };
+    await page.evaluate(
+      (s) =>
+        window._wails.dispatchWailsEvent({
+          name: "leaguepingo:overlay",
+          data: s,
+        }),
+      state,
+    );
+    assert.equal(
+      calls.filter((c) => /History|Lookup|Profile|RefreshRoster/.test(c))
+        .length,
+      readsBeforeHold,
+      "showing overlay triggered data reads",
     );
     await page.getByRole("button", { name: "关闭对局快览" }).click();
     await page.waitForFunction(

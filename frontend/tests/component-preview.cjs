@@ -68,8 +68,8 @@ async function main() {
         const narrow = variant.title.includes("窄抽屉");
         const page = await browser.newPage({
           viewport: {
-            width: minimum || narrow ? 400 : overlay ? 540 : 1280,
-            height: minimum || narrow ? 360 : overlay ? 660 : 800,
+            width: minimum || narrow ? 400 : overlay ? 1100 : 1280,
+            height: minimum || narrow ? 360 : overlay ? 640 : 800,
           },
         });
         page.on("pageerror", (error) =>
@@ -158,7 +158,7 @@ async function main() {
         await page.close();
       }
     }
-    assert.equal(checked, 19);
+    assert.equal(checked, 20);
     assert.deepEqual(failures, []);
     assert.deepEqual(
       external,

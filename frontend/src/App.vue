@@ -24,11 +24,10 @@ import { useOverlayControls } from "./composables/useOverlayControls";
 const isOverlay =
   new URLSearchParams(location.search).get("view") === "overlay";
 const settingsOpen = ref(false);
-const navCollapsed = ref(true);
 const mainElement = ref<HTMLElement | null>(null);
-const mainWidth = ref(window.innerWidth - 68);
-// Measure the workspace, including an expanded navigation, rather than the screen.
-const drawerModal = computed(() => mainWidth.value < 1020);
+const mainWidth = ref(window.innerWidth);
+// Measure the actual workspace so resizing moves the existing inspector instance.
+const drawerModal = computed(() => mainWidth.value < 1000);
 let resizeObserver: ResizeObserver | undefined;
 const { messages: playerErrors, setMessage } = useTransientMessages();
 const searchError = computed(() => playerErrors.search || "");
@@ -150,70 +149,34 @@ onUnmounted(() => {
     @hide="hideOverlay"
     @pin="pinOverlay"
   />
-  <main v-else class="desktop-app" :class="{ 'nav-collapsed': navCollapsed }">
+  <main v-else class="desktop-app">
     <DesktopTitleBar :modal-open="settingsOpen || matchModalOpen" />
-    <aside class="app-sidebar" :inert="settingsOpen || matchModalOpen">
-      <nav aria-label="工作区">
-        <button
-          :class="{ active: view === 'players' }"
-          :aria-current="view === 'players' ? 'page' : undefined"
-          aria-label="玩家战绩"
-          title="玩家战绩"
-          @click="view = 'players'"
-        >
-          <AppIcon name="history" /><span>玩家战绩</span></button
-        ><button
-          :class="{ active: view === 'match' }"
-          :aria-current="view === 'match' ? 'page' : undefined"
-          aria-label="当前对局"
-          title="当前对局"
-          @click="view = 'match'"
-        >
-          <AppIcon name="match" /><span>当前对局</span
-          ><i v-if="players.length">{{ players.length }}</i>
-        </button>
-      </nav>
-      <div class="sidebar-bottom">
-        <button
-          class="icon-button nav-toggle square"
-          :aria-label="navCollapsed ? '展开导航' : '收起导航'"
-          :title="navCollapsed ? '展开导航' : '收起导航'"
-          :aria-expanded="!navCollapsed"
-          @click="navCollapsed = !navCollapsed"
-        >
-          <AppIcon name="panel" />
-        </button>
-        <button
-          class="text-button settings-trigger"
-          aria-label="设置与诊断"
-          title="设置与诊断"
-          @click="settingsOpen = true"
-        >
-          <AppIcon name="settings" /><span>设置与诊断</span>
-        </button>
-        <div class="sidebar-connection">
-          <span
-            class="connection-light"
-            :class="{ online: snapshot?.connected }"
-          ></span
-          >{{ status }}<small>每局开局仅补齐一轮资料</small>
-        </div>
-      </div>
-    </aside>
     <div
       ref="mainElement"
       class="app-main"
       :inert="settingsOpen || matchModalOpen"
     >
       <header class="app-toolbar">
-        <strong>{{ view === "players" ? "玩家战绩" : "当前对局" }}</strong>
-        <span class="toolbar-status" :title="status"
-          ><span
-            class="connection-light"
-            :class="{ online: snapshot?.connected }"
-          ></span
-          >{{ status.split(" · ")[0] }}</span
+        <span class="nav-wordmark"
+          ><span class="brand-mark">P</span>League<span>Pingo</span></span
         >
+        <nav class="workspace-nav" aria-label="工作区">
+          <button
+            :class="{ active: view === 'match' }"
+            :aria-current="view === 'match' ? 'page' : undefined"
+            aria-label="当前对局"
+            @click="view = 'match'"
+          >
+            对局室</button
+          ><button
+            :class="{ active: view === 'players' }"
+            :aria-current="view === 'players' ? 'page' : undefined"
+            aria-label="玩家战绩"
+            @click="view = 'players'"
+          >
+            玩家战绩
+          </button>
+        </nav>
         <form class="global-search" @submit.prevent="search">
           <AppIcon name="search" :size="16" />
           <input
@@ -225,6 +188,21 @@ onUnmounted(() => {
             {{ searching ? "查询中…" : "查询战绩" }}
           </button>
         </form>
+        <span class="toolbar-status" :title="status"
+          ><span
+            class="connection-light"
+            :class="{ online: snapshot?.connected }"
+          ></span
+          >{{ status.split(" · ")[0] }}</span
+        >
+        <button
+          class="icon-button settings-trigger"
+          aria-label="设置与诊断"
+          title="设置与诊断"
+          @click="settingsOpen = true"
+        >
+          <AppIcon name="settings" />
+        </button>
         <button
           class="icon-button"
           aria-label="显示／隐藏快览"
@@ -286,14 +264,29 @@ onUnmounted(() => {
           </button>
         </div>
       </section>
-      <section v-show="view === 'match'" class="match-workspace">
+      <section
+        v-show="view === 'match'"
+        class="match-workspace"
+        :class="{ 'has-inspector': !!selected }"
+      >
         <header class="roster-toolbar">
           <div>
+            <span class="section-eyebrow">MATCH ROOM / 对局室</span>
             <h1>
               {{ snapshot?.stage === "party" ? "当前房间成员" : "本局名单" }}
             </h1>
             <p class="roster-subtitle muted">{{ status }}</p>
           </div>
+          <span class="hold-hint" :title="overlay?.holdWarning"
+            ><kbd>{{
+              overlay?.holdKey === "Backquote" ? "~" : overlay?.holdKey || "~"
+            }}</kbd>
+            {{
+              overlay?.holdEnabled && overlay?.holdAvailable
+                ? "局内按住显示快览"
+                : "按住快览未启用"
+            }}<small>仅游戏前台 · 松开隐藏</small></span
+          >
           <button
             class="secondary"
             :disabled="rosterBusy || !canRefresh"
@@ -416,6 +409,10 @@ onUnmounted(() => {
         </div>
       </section>
     </div>
-    <SettingsPanel v-if="settingsOpen" @close="settingsOpen = false" />
+    <SettingsPanel
+      :overlay-state="overlay"
+      v-if="settingsOpen"
+      @close="settingsOpen = false"
+    />
   </main>
 </template>

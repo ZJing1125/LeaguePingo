@@ -14,6 +14,7 @@ async function main() {
     const page = await browser.newPage({
       viewport: { width: 1280, height: 800 },
     });
+    page.setDefaultTimeout(10000);
     const errors = [],
       external = [],
       calls = [];
@@ -142,8 +143,8 @@ async function main() {
           .getBoundingClientRect();
         return {
           paired:
-            teams[0].right <= teams[1].left &&
-            Math.abs(teams[0].top - teams[1].top) < 1,
+            teams[0].bottom <= teams[1].top &&
+            Math.abs(teams[0].left - teams[1].left) < 1,
           count: rows.length,
           visible: rows.every(
             (r) =>
@@ -156,8 +157,12 @@ async function main() {
           ),
         };
       });
+      if (process.env.UI_SCREENSHOT_PREFIX) await screenshot("geometry");
       assert.equal(result.count, 10);
-      assert(result.paired, "both teams must remain side by side");
+      assert(
+        result.paired,
+        "both teams must remain in aligned horizontal rows",
+      );
       if (allVisible)
         assert(
           result.visible,
@@ -180,6 +185,7 @@ async function main() {
       );
     }
     await page.goto("http://127.0.0.1:43201/");
+    if (process.env.UI_SCREENSHOT_PREFIX) await screenshot("start");
     await page.getByRole("button", { name: "当前对局", exact: true }).click();
     await page.locator(".player-row").last().waitFor();
     await geometry();
@@ -196,11 +202,10 @@ async function main() {
     await drawer.getByLabel("分析样本场数").selectOption("10");
     await drawer.getByLabel("战绩模式筛选").selectOption("420");
     await screenshot("roster-inline");
-    // Expanded navigation uses the available main width, preserving both teams.
-    await page.getByRole("button", { name: "展开导航" }).click();
+    await page.getByRole("navigation", { name: "工作区" }).waitFor();
+    await page.setViewportSize({ width: 1100, height: 760 });
     await geometry();
-    await screenshot("roster-expanded-nav");
-    await page.getByRole("button", { name: "收起导航" }).click();
+    await screenshot("roster-1100");
     await page.setViewportSize({ width: 880, height: 620 });
     await page.getByRole("dialog", { name: "玩家详情" }).waitFor();
     assert.equal(await drawer.getByLabel("分析样本场数").inputValue(), "10");
@@ -304,7 +309,7 @@ async function main() {
       ),
     );
     await screenshot("roster-partial");
-    // Hero notes share the second row, including unselected and intent states.
+    // Champion availability remains honest, including unselected and intent states.
     snapshot.participants = snapshot.participants.map((p, i) => ({
       ...p,
       championId: i % 2 ? 0 : 23,
@@ -328,6 +333,32 @@ async function main() {
         document.querySelector(".roster-toolbar button"),
     );
 
+    // Extra members wrap without painting over the other team's cards.
+    const example = snapshot.participants[0];
+    snapshot.participants = Array.from({ length: 12 }, (_, i) => ({
+      ...example,
+      key: `large-${i}`,
+      displayName: `合成成员${i}#DEMO`,
+      team: i < 6 ? "ally" : "enemy",
+    }));
+    snapshot.knownCount = 12;
+    await publish();
+    await page.waitForFunction(
+      () => document.querySelectorAll(".player-row").length === 12,
+    );
+    assert(
+      await page.locator(".team-columns").evaluate((el) => {
+        const teams = el.querySelectorAll(".team-section");
+        const last = teams[0]
+          .querySelector(".player-row:last-child")
+          .getBoundingClientRect();
+        return (
+          last.bottom <= teams[1].getBoundingClientRect().top &&
+          el.scrollWidth <= el.clientWidth
+        );
+      }),
+      "nonstandard teams overlap or overflow",
+    );
     assert(
       !calls.includes("EnsureProfile") &&
         !calls.includes("LookupPlayer") &&
@@ -337,7 +368,7 @@ async function main() {
     assert.deepEqual(errors, []);
     assert.deepEqual(external, []);
     console.log(
-      "PASS: 1280×800 ten-player comparison with inline details/expanded navigation, 880×620 modal geometry, Tab/Esc/backdrop/focus return, resize continuity and partial states without extra requests.",
+      "PASS: 1280×800 and 1100×760 horizontal ten-player comparison with bottom inspector, 880×620 modal geometry, Tab/Esc/backdrop/focus return, resize continuity and partial states without extra requests.",
     );
   } finally {
     await browser.close();
