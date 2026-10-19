@@ -73,3 +73,7 @@ func (s *AppService) LoadProfile(ctx context.Context, key string, connectionID u
 func (s *AppService) EnsureProfile(ctx context.Context, key string, connectionID uint64) (core.Participant, error) {
 	return s.engine.EnsureProfile(ctx, key, connectionID)
 }
+
+func (s *AppService) LoadRanks(ctx context.Context, key string, connectionID uint64) (core.Participant, error) {
+	return s.engine.LoadRanks(ctx, key, connectionID)
+}

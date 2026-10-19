@@ -1,5 +1,16 @@
 # 国服实机验收
 
+## BUG-0046 完整原画与段位专项
+
+本批在 Linux 云主机修改源码。已完成 portable（24 项工程测试通过、4 平台项跳过，Vue/TypeScript 与生产资源构建、7 个 internal 包测试/vet）、engine/source race；固定 beta.29 CLI 生成绑定、Windows 目标根包测试编译和根包/hold 静态 vet。四组产品浏览器模拟桥接回归通过：完整雷恩加尔原画、1280×800/1100×760 十人及底部详情、880×620 浮层，段位超时→成功→失败保留、零自动段位请求、无新增标签与历史/筛选隔离。合成截图位于当前主机 artifacts/ui-refactor/bug46-*.png，不是实际游戏证据。
+
+组件预览构建及浏览器渲染检查均通过（5 组/23 变体和工作台，无外部请求/页面异常）；本机产物 audit --allow-empty 通过，无产品交付记录。未生成或执行 Windows 产品 exe，真实客户端段位覆盖、DPI、游戏/原生窗口与性能仍待用户游戏电脑验收。
+
+1. Windows 从干净 dev 经统一 build.sh 构建新候选，选人阶段选择雷恩加尔及其他明/暗原画英雄，打开/关闭底部详情。确认整张载入原画按比例显示、头部不再截断，姓名/段位/胜率/KDA 可读；1100×820、1280×800、880×620 和 125%/150% DPI 复验十人对照及详情。
+2. 初次打开只补基础资料，段位应显示待查询。点击“获取段位”只读一次段位；若超时/失败或来源未提供则显示对应状态，可明确重试，不影响已有战绩。仅客户端明确 NONE/UNRANKED 才显示未定级。
+3. 段位成功后失败刷新，保留旧段位和原获取时间，悬停可见失败原因；切人/快照/快览显隐不发段位请求。断线/换号时旧连接返回不能写入。
+4. 在底部详情选择 10/50 场及模式，再获取段位，确认筛选、历史、名单首批统计不变，且不新增战绩标签；单双排/灵活排位缺其一时不能据另一项推断。
+
 ## BUG-0045 界面重构与局内按住快览专项
 
 本批在 Linux 云主机更新 dev 源码，未生成或执行 Windows 产品 exe；下方较早批次的布局/交付结果是历史记录，当前 UI 以本节与 UI_DESIGN.md 为准。
@@ -13,6 +24,8 @@ Windows 本机构建（Git Bash，先确保 dev 工作区无用户未提交改�
 ```bash
 git switch dev
 git pull --ff-only origin dev
+mkdir -p .tools/npm-cache
+export npm_config_cache="$(cygpath -m "$PWD/.tools/npm-cache")"
 npm --prefix frontend ci
 node scripts/artifacts.mjs clean --apply
 bash scripts/build.sh

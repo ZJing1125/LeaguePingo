@@ -48,6 +48,7 @@ type Profile struct {
 	ProfileIconData string                    `json:"profileIconData"`
 	Level           *int                      `json:"level"`
 	RankState       string                    `json:"rankState"`
+	RankMessage     string                    `json:"rankMessage,omitempty"`
 	Ranks           []Rank                    `json:"ranks"`
 }
 

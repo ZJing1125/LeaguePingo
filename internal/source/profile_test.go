@@ -125,3 +125,71 @@ func TestProfilePrivacyRequiresMatchingIdentityAndExplicitValue(t *testing.T) {
 		}
 	}
 }
+
+func TestRankedQueueMapIsAccepted(t *testing.T) {
+	s := &TencentLCU{client: lcu.NewClient(lcu.Credentials{})}
+	s.client.HTTP.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		body := `{"puuid":"target","summonerLevel":50}`
+		if strings.Contains(r.URL.Path, "ranked-stats") {
+			body = `{"queueMap":{"RANKED_SOLO_5x5":{"tier":"EMERALD","division":"II","leaguePoints":0}}}`
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body))}, nil
+	})
+	p := s.Profile(context.Background(), "target")
+	if p.RankState != "ready" || len(p.Ranks) != 1 || p.Ranks[0].LP == nil || *p.Ranks[0].LP != 0 {
+		t.Fatal("verified queueMap rank was lost")
+	}
+}
+
+func TestRanksOnlyRequestAndVerifiedFormats(t *testing.T) {
+	for _, test := range []struct{ name, body, state, tier string }{
+		{"array", `{"queues":[{"queueType":"RANKED_SOLO_5x5","tier":"GOLD"}]}`, "ready", "GOLD"},
+		{"map", `{"queues":{"RANKED_SOLO_5x5":{"tier":"EMERALD"}}}`, "ready", "EMERALD"},
+		{"unranked", `{"queueMap":{"RANKED_SOLO_5x5":{"tier":"NONE"}}}`, "ready", "NONE"},
+		{"missing", `{}`, "unavailable", ""},
+		{"empty", `{"queues":[]}`, "unavailable", ""},
+		{"unknown", `{"queueMap":{"RANKED_SOLO_5x5":{"tier":"UNKNOWN"}}}`, "unavailable", ""},
+		{"conflict", `{"queueMap":{"RANKED_SOLO_5x5":{"queueType":"RANKED_FLEX_SR","tier":"GOLD"}}}`, "unavailable", ""},
+		{"wrong-player", `{"puuid":"other","queues":[{"queueType":"RANKED_SOLO_5x5","tier":"GOLD"}]}`, "failed", ""},
+		{"invalid", `{"queues":false}`, "failed", ""},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			s := &TencentLCU{client: lcu.NewClient(lcu.Credentials{})}
+			calls := 0
+			s.client.HTTP.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				calls++
+				if r.URL.Path != "/lol-ranked/v1/ranked-stats/target" {
+					t.Fatal("rank retry fetched unrelated profile data")
+				}
+				return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(test.body))}, nil
+			})
+			p := s.Ranks(context.Background(), "target")
+			if calls != 1 || p.RankState != test.state {
+				t.Fatal("wrong rank state/request count", p.RankState, calls)
+			}
+			if test.tier != "" && (len(p.Ranks) != 1 || p.Ranks[0].Tier != test.tier) {
+				t.Fatal("verified rank lost")
+			}
+			if test.tier == "" && (len(p.Ranks) != 0 || p.RankMessage == "") {
+				t.Fatal("missing rank reported without reason")
+			}
+			if len(s.Ranks(context.Background(), "").Ranks) != 0 || calls != 1 {
+				t.Fatal("unknown identity triggered request")
+			}
+		})
+	}
+}
+
+func TestRankTimeoutIsRecoverableAndDoesNotExposeSourceDetails(t *testing.T) {
+	s := &TencentLCU{client: lcu.NewClient(lcu.Credentials{})}
+	s.client.HTTP.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		<-r.Context().Done()
+		return nil, r.Context().Err()
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	p := s.Ranks(ctx, "target")
+	if p.RankState != "failed" || p.RankMessage != "段位查询超时，可重试" || len(p.Ranks) != 0 {
+		t.Fatal("rank timeout was hidden or exposed raw error")
+	}
+}

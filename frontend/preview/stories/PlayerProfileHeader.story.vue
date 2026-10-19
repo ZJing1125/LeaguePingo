@@ -13,6 +13,14 @@ const retained = makePlayer(2, {
 const longName = makePlayer(3, {
   displayName: "这是一个用于检查中文英文混排与超长名称的合成玩家LongName#DEMO",
 });
+const failed = makePlayer(4, {
+  profile: {
+    ...normal.profile!,
+    rankState: "failed",
+    rankMessage: "段位查询超时，可重试",
+    ranks: [],
+  },
+});
 </script>
 <template>
   <Story title="玩家 / 资料头部">
@@ -33,5 +41,11 @@ const longName = makePlayer(3, {
       ><div class="compact" style="width: 400px; max-width: 100%">
         <PlayerProfileHeader :player="longName" connected compact /></div
     ></Variant>
+    <Variant title="段位超时可重试"
+      ><PlayerProfileHeader :player="failed" connected
+    /></Variant>
+    <Variant title="段位查询中"
+      ><PlayerProfileHeader :player="normal" connected busy rank-loading
+    /></Variant>
   </Story>
 </template>

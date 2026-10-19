@@ -381,6 +381,7 @@ select {
   inset: 0;
   border: 1px solid #ffffff22;
   pointer-events: none;
+  z-index: 3;
 }
 .hero-card.player-row:hover {
   background: #1b3036;
@@ -394,7 +395,6 @@ select {
 }
 .card-portrait {
   position: relative;
-  isolation: isolate;
   width: 100%;
   height: 32%;
   min-height: 62px;
@@ -402,8 +402,8 @@ select {
   flex: none;
   display: flex;
   align-items: flex-end;
-  overflow: hidden;
-  background: #344b4e;
+  z-index: 2;
+  background: transparent;
 }
 .hero-art {
   position: absolute;
@@ -414,12 +414,25 @@ select {
   object-position: 50% 23%;
   z-index: -2;
 }
-.card-portrait:after {
+.hero-card:before,
+.overlay-player:before {
   position: absolute;
   content: "";
   inset: 0;
-  z-index: -1;
-  background: linear-gradient(0deg, #12232de8, #12232d10);
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, #10212bef 0%, #10212bcc 44%, #10212b20 100%),
+    linear-gradient(0deg, #10212bf2 0%, #10212b88 30%, #10212b0a 100%);
+}
+.hero-card > .card-illustration,
+.overlay-player > .card-illustration {
+  inset: 8px;
+  width: calc(100% - 16px);
+  height: calc(100% - 16px);
+  object-fit: contain;
+  object-position: right center;
+  z-index: 0;
 }
 .portrait-fallback {
   position: absolute;
@@ -467,7 +480,10 @@ select {
   padding: 1px 4px;
 }
 .card-details {
-  background: #14232cf2;
+  position: relative;
+  z-index: 2;
+  background: transparent;
+  text-shadow: 0 1px 3px #071218;
   width: 100%;
   padding: 6px 12px 8px;
   display: flex;
@@ -1267,6 +1283,7 @@ select {
 }
 .overlay-player {
   position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   padding: 0;
@@ -1809,6 +1826,56 @@ select {
 }
 .players-workspace .profile-update > span {
   display: inline;
+}
+.profile-ranks .rank-query {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px 8px;
+  font-size: 10px;
+  white-space: nowrap;
+  align-self: center;
+}
+.compact.player-profile,
+.compact .player-profile {
+  flex-wrap: wrap;
+}
+.compact .profile-ranks {
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+.players-workspace .rank-query {
+  color: #f4e5c8;
+  border-color: #a1ad8e80;
+  background: #243b34;
+}
+.player-drawer .compact .profile-ranks {
+  display: flex;
+  flex-basis: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  margin: 0;
+  min-width: 0;
+}
+.player-drawer .compact .rank-card {
+  min-width: 0;
+}
+.player-drawer .compact .rank-card small {
+  font-size: 8px;
+}
+.player-drawer .compact .rank-card strong {
+  font-size: 10px;
+  margin: 2px 0;
+}
+.drawer-floating .compact > .player-profile {
+  flex-wrap: wrap;
+}
+.drawer-floating .compact .profile-ranks {
+  flex-basis: auto;
 }
 .form-result.won {
   background: #497d65;

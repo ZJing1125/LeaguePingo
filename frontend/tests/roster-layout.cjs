@@ -43,6 +43,7 @@ async function main() {
       spell1: 4,
       spell2: 14,
     }));
+    let rankRequests = 0;
     let snapshot = {
       connectionId: 1,
       generation: 1,
@@ -82,7 +83,7 @@ async function main() {
             Buffer.from(
               '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" rx="6" fill="#305b53"/><circle cx="16" cy="16" r="7" fill="#62d6ba"/></svg>',
             ).toString("base64"),
-          rankState: "unavailable",
+          rankState: "not-requested",
           ranks: [],
           privacyState: "unknown",
           updatedAt: "2026-10-18T01:00:00Z",
@@ -106,7 +107,47 @@ async function main() {
         if (method === "Snapshot") result = snapshot;
         else if (method === "OverlayStatus")
           result = { visible: false, pinned: true, revision: 0 };
-        else if (method !== "PrioritizePlayer")
+        else if (method === "LoadRanks") {
+          const [key, connectionId] = request.args?.args ?? [];
+          assert.equal(connectionId, 1);
+          const player = snapshot.participants.find((p) => p.key === key);
+          assert(player);
+          rankRequests++;
+          const ready = rankRequests === 2;
+          const retained = rankRequests > 2;
+          const old = player.profile;
+          player.profile = {
+            ...old,
+            updatedAt: `2026-10-19T01:00:0${rankRequests}Z`,
+            rankState: ready || retained ? "ready" : "failed",
+            rankMessage: ready ? "" : "段位查询超时，可重试",
+            ranks: ready
+              ? [
+                  {
+                    queue: "RANKED_SOLO_5x5",
+                    tier: "DIAMOND",
+                    division: "I",
+                    lp: 0,
+                    wins: 15,
+                    losses: 10,
+                  },
+                ]
+              : old.ranks,
+            fields: {
+              ...old.fields,
+              rank: {
+                state: retained ? "retained" : ready ? "ready" : "failed",
+                fetchedAt: retained
+                  ? old.fields.rank.fetchedAt
+                  : ready
+                    ? "2026-10-19T01:00:02Z"
+                    : undefined,
+              },
+            },
+          };
+          result = player;
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        } else if (method !== "PrioritizePlayer")
           throw new Error(`Unexpected request: ${method}`);
         return route.fulfill({ json: result });
       }
@@ -119,9 +160,11 @@ async function main() {
           ? "text/javascript"
           : relative.endsWith(".css")
             ? "text/css"
-            : relative.endsWith(".png")
-              ? "image/png"
-              : "text/html",
+            : /\.(jpg|jpeg)$/.test(relative)
+              ? "image/jpeg"
+              : relative.endsWith(".png")
+                ? "image/png"
+                : "text/html",
       });
     });
     async function screenshot(name) {
@@ -202,6 +245,39 @@ async function main() {
     await drawer.getByLabel("分析样本场数").selectOption("10");
     await drawer.getByLabel("战绩模式筛选").selectOption("420");
     await screenshot("roster-inline");
+    // Rank requests are explicit and leave both history workspaces untouched.
+    assert.equal(rankRequests, 0);
+    await drawer.getByRole("button", { name: "获取段位", exact: true }).click();
+    await drawer.getByText("段位查询超时", { exact: true }).waitFor();
+    await drawer.getByRole("button", { name: "重试段位", exact: true }).click();
+    await drawer.getByText("钻石 I · 0 LP", { exact: true }).waitFor();
+    await drawer.getByRole("button", { name: "更新段位", exact: true }).click();
+    await drawer.getByText("旧段位", { exact: true }).waitFor();
+    assert.equal(
+      await drawer.getByText("钻石 I · 0 LP", { exact: false }).count(),
+      1,
+    );
+    assert.equal(await drawer.getByLabel("分析样本场数").inputValue(), "10");
+    assert.equal(await drawer.getByLabel("战绩模式筛选").inputValue(), "420");
+    assert.equal(
+      await page.locator(".player-tab").count(),
+      0,
+      "rank lookup must not open a history tab",
+    );
+    assert.equal(
+      await rows.nth(7).locator(".overview-metrics").textContent(),
+      await rows.nth(0).locator(".overview-metrics").textContent(),
+    );
+    assert.equal(
+      await rows
+        .nth(7)
+        .locator(".rank-line")
+        .getAttribute("title")
+        .then((t) => t.includes("超时")),
+      true,
+    );
+    await screenshot("rank-retained");
+
     await page.getByRole("navigation", { name: "工作区" }).waitFor();
     await page.setViewportSize({ width: 1100, height: 760 });
     await geometry();
@@ -365,10 +441,86 @@ async function main() {
         !calls.includes("HistoryPage"),
       "layout and snapshots cannot trigger extra data queries",
     );
+
+    // Reported champion-select case: one Rengar and one hidden opponent,
+    // with the inspector open. The entire source portrait fits inside the card.
+    snapshot.phase = "ChampSelect";
+    snapshot.stage = "champion-select";
+    snapshot.frozen = false;
+    snapshot.participants = [
+      {
+        ...example,
+        key: "rengar",
+        displayName: "合成狮子狗#DEMO",
+        championId: 107,
+        championState: "selected",
+        team: "ally",
+        profile: { ...example.profile, rankState: "not-requested", ranks: [] },
+      },
+      {
+        ...example,
+        key: "hidden-opponent",
+        identityState: "unavailable",
+        championId: 0,
+        championState: "unselected",
+        displayName: "",
+        team: "enemy",
+        historyState: "pending",
+        history: [],
+        profile: undefined,
+      },
+    ];
+    snapshot.knownCount = 1;
+    await publish();
+    await page.setViewportSize({ width: 1100, height: 820 });
+    await page.locator('[data-player-key="rengar"]').click();
+    await drawer.waitFor();
+    await page.waitForFunction(() => {
+      const image = document.querySelector(
+        '[data-player-key="rengar"] > img.card-illustration',
+      );
+      return image?.complete && image.naturalWidth > 0;
+    });
+    assert(
+      await page.locator('[data-player-key="rengar"]').evaluate((el) => {
+        const image = el.querySelector("img.card-illustration");
+        const box = image.getBoundingClientRect(),
+          card = el.getBoundingClientRect();
+        const scale = Math.min(
+          box.width / image.naturalWidth,
+          box.height / image.naturalHeight,
+        );
+        const width = image.naturalWidth * scale,
+          height = image.naturalHeight * scale;
+        const style = getComputedStyle(image);
+        return (
+          style.objectFit === "contain" &&
+          height > card.height - 18 &&
+          width <= card.width - 16 &&
+          box.top >= card.top + 7 &&
+          box.bottom <= card.bottom - 7 &&
+          box.left >= card.left + 7 &&
+          box.right <= card.right - 7 &&
+          getComputedStyle(el, ":before").backgroundImage.includes(
+            "linear-gradient",
+          )
+        );
+      }),
+      "complete Rengar artwork must fit the whole card, without a header crop",
+    );
+    await drawer
+      .getByRole("button", { name: "获取段位", exact: true })
+      .waitFor();
+    await screenshot("rengar-complete");
+    assert.equal(
+      rankRequests,
+      3,
+      "snapshots and card selection must not fetch ranks",
+    );
     assert.deepEqual(errors, []);
     assert.deepEqual(external, []);
     console.log(
-      "PASS: 1280×800 and 1100×760 horizontal ten-player comparison with bottom inspector, 880×620 modal geometry, Tab/Esc/backdrop/focus return, resize continuity and partial states without extra requests.",
+      "PASS: 1280×800 and 1100×760 horizontal ten-player comparison with bottom inspector, 880×620 modal geometry, Tab/Esc/backdrop/focus return, resize continuity, complete Rengar art, explicit rank failure/retry/retention and history isolation without automatic queries.",
     );
   } finally {
     await browser.close();

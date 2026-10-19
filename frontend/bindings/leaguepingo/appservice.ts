@@ -50,6 +50,10 @@ export function LoadProfile(key: string, connectionID: number): $CancellableProm
     return $Call.ByID(915890303, key, connectionID);
 }
 
+export function LoadRanks(key: string, connectionID: number): $CancellablePromise<core$0.Participant> {
+    return $Call.ByID(3985518597, key, connectionID);
+}
+
 export function Lookup(riotID: string): $CancellablePromise<core$0.Participant> {
     return $Call.ByID(1792296300, riotID);
 }

@@ -22,7 +22,7 @@ export function usePlayerActions(
   const rosterBusy = ref(false);
   const playerOperation = ref<{
     key: string;
-    kind: "history" | "profile" | "lookup";
+    kind: "history" | "profile" | "rank" | "lookup";
   } | null>(null);
   const manualBusy = computed(
     () =>
@@ -219,6 +219,30 @@ export function usePlayerActions(
     }
   }
 
+  async function loadRanks(player: Participant) {
+    if (
+      manualBusy.value ||
+      !snapshot.value?.connected ||
+      player.stale ||
+      player.identityState !== "known"
+    )
+      return;
+    const requestKey = operationKey(player);
+    playerOperation.value = { key: requestKey, kind: "rank" };
+    setMessage(requestKey, "");
+    try {
+      acceptProfile(await Service.LoadRanks(player.key, player.connectionId));
+    } catch (reason) {
+      if (
+        componentAlive &&
+        (player.connectionId ?? 0) === (snapshot.value?.connectionId ?? 0)
+      )
+        setMessage(requestKey, errorMessage(reason));
+    } finally {
+      playerOperation.value = null;
+    }
+  }
+
   onUnmounted(() => {
     componentAlive = false;
     pendingProfile.value = null;
@@ -237,5 +261,6 @@ export function usePlayerActions(
     lookupSelected,
     refreshRoster,
     loadProfile,
+    loadRanks,
   };
 }

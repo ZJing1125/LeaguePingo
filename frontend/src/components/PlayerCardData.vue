@@ -5,10 +5,10 @@ import {
   sampleStats,
   percent,
   decimal,
-  tierName,
   preparationLabel,
   date,
 } from "../presentation";
+import { rankPresentation } from "../rankPresentation";
 import { championName } from "../gameAssets";
 import GameIcon from "./GameIcon.vue";
 const props = defineProps<{ player: Participant; frozen?: boolean }>();
@@ -33,24 +33,13 @@ const mains = computed(() =>
     .sort((a, b) => b.n - a.n)
     .slice(0, 3),
 );
-const rank = computed(() =>
-  props.player.profile?.ranks?.find((r) => r.queue === "RANKED_SOLO_5x5"),
-);
+const rank = computed(() => rankPresentation(props.player));
 </script>
 <template>
   <span class="card-details">
-    <span
-      class="rank-line"
-      :title="`单双排段位 · ${date(player.profile?.fields?.rank?.fetchedAt)}`"
-      ><span>单双排</span
-      ><b>{{
-        rank
-          ? `${tierName(rank.tier)} ${rank.division} ${rank.lp ?? "—"} LP`
-          : "段位未获取"
-      }}</b
-      ><small v-if="player.profile?.fields?.rank?.state === 'retained'"
-        >旧</small
-      ></span
+    <span class="rank-line" :title="rank.title"
+      ><span>单双排</span><b>{{ rank.label }}</b
+      ><small v-if="rank.retained">旧</small></span
     >
     <template v-if="player.historyState === 'ready'">
       <span

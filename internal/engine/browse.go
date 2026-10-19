@@ -51,6 +51,41 @@ func (e *Engine) EnsureProfile(ctx context.Context, key string, connectionID uin
 	return e.loadProfileWithName(ctx, key, connectionID, true)
 }
 
+// LoadRanks is explicit, bounded and independent of optional names and avatars.
+func (e *Engine) LoadRanks(ctx context.Context, key string, connectionID uint64) (core.Participant, error) {
+	ctx, done, err := e.beginLookup(ctx)
+	if err != nil {
+		return core.Participant{}, err
+	}
+	defer done()
+	client, player, err := e.browsePlayer(key, connectionID)
+	if err != nil {
+		return core.Participant{}, err
+	}
+	if player.IdentityState != core.IdentityKnown || !core.IsKnownPUUID(player.PUUID) {
+		return core.Participant{}, errors.New("客户端未提供有效身份，无法查询段位")
+	}
+	ranks, ok := client.(source.RankSource)
+	if !ok {
+		return core.Participant{}, errors.New("当前数据源不支持段位查询")
+	}
+	rankCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	release, err := e.scheduler.acquire(rankCtx, true)
+	if err != nil {
+		return core.Participant{}, err
+	}
+	defer release()
+	e.mu.RLock()
+	current := e.client != nil && e.clientVersion == connectionID
+	e.mu.RUnlock()
+	if !current {
+		return core.Participant{}, errors.New("连接已变化，请重新查询段位")
+	}
+	profile := ranks.Ranks(rankCtx, player.PUUID)
+	return e.storeProfile(player, connectionID, profile, "rank")
+}
+
 func (e *Engine) loadProfileWithName(ctx context.Context, key string, connectionID uint64, onlyMissing bool) (core.Participant, error) {
 	client, player, err := e.browsePlayer(key, connectionID)
 	if err != nil {
@@ -126,29 +161,39 @@ func (e *Engine) loadProfileData(ctx context.Context, key string, connectionID u
 	}
 	e.markProfileAttempt(connectionID, key)
 	var profile core.Profile
+	var fields []string
 	if basic, ok := client.(source.BasicProfileSource); ok && onlyMissing {
 		profile = basic.BasicProfile(profileCtx, player.PUUID)
+		fields = []string{"level", "icon", "avatar", "privacy"}
 	} else {
 		profile = profiles.Profile(profileCtx, player.PUUID)
 	}
 	if !profileAvailable(profile) && (player.Profile == nil || !profileAvailable(*player.Profile)) {
 		return core.Participant{}, errors.New("当前客户端未提供可核验资料，保留上次结果")
 	}
+	return e.storeProfile(player, connectionID, profile, fields...)
+}
+
+func (e *Engine) storeProfile(player core.Participant, connectionID uint64, profile core.Profile, fields ...string) (core.Participant, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.client == nil || e.clientVersion != connectionID {
 		return core.Participant{}, errors.New("连接已变化，请重新查询玩家资料")
 	}
 	// A profile-only operation must never replace history that completed meanwhile.
-	if current, ok := e.cache[key]; ok {
+	if current, ok := e.cache[player.Key]; ok {
 		player = current
 	}
-	profile = mergeProfile(profile, player.Profile)
+	previous := player.Profile
+	if previous == nil {
+		previous = &core.Profile{PrivacyState: player.PrivacyState}
+	}
+	profile = mergeProfile(profile, previous, fields...)
 	player.Profile = &profile
 	player.PrivacyState = profile.PrivacyState
 	e.cachePlayerLocked(player)
 	for i, p := range e.snapshot.Participants {
-		if p.Key == key && p.ConnectionID == connectionID {
+		if p.Key == player.Key && p.ConnectionID == connectionID {
 			e.snapshot.Participants[i].Profile = &profile
 			e.snapshot.Participants[i].PrivacyState = profile.PrivacyState
 		}
@@ -177,7 +222,22 @@ func (e *Engine) RefreshHistory(ctx context.Context, key string, connectionID ui
 	return e.loadManualHistory(ctx, client, generation, connectionID, player, true, false)
 }
 
-func mergeProfile(next core.Profile, previous *core.Profile) core.Profile {
+func mergeProfile(next core.Profile, previous *core.Profile, fields ...string) core.Profile {
+	requested := func(field string) bool {
+		if field == "rank" && next.RankState == "not-requested" {
+			return false
+		}
+		if len(fields) == 0 {
+			return true
+		}
+		for _, f := range fields {
+			if f == field {
+				return true
+			}
+		}
+		return false
+	}
+	rankRequested := requested("rank")
 	now := time.Now()
 	next.UpdatedAt = &now
 	next.Fields = make(map[string]core.FieldFreshness)
@@ -198,6 +258,9 @@ func mergeProfile(next core.Profile, previous *core.Profile) core.Profile {
 	track("level", next.Level != nil, old.Level != nil)
 	track("icon", next.ProfileIconID != nil, old.ProfileIconID != nil)
 	track("rank", next.RankState == "ready", old.RankState == "ready")
+	if next.RankState == "failed" && old.RankState != "ready" {
+		next.Fields["rank"] = core.FieldFreshness{State: "failed"}
+	}
 	privacyKnown := func(p core.Profile) bool { return p.PrivacyState == "public" || p.PrivacyState == "private" }
 	track("privacy", privacyKnown(next), privacyKnown(old))
 	if next.Level == nil {
@@ -216,6 +279,34 @@ func mergeProfile(next core.Profile, previous *core.Profile) core.Profile {
 	}
 	if !privacyKnown(next) && privacyKnown(old) {
 		next.PrivacyState = old.PrivacyState
+	}
+	// Fields omitted by this operation retain their values AND freshness.
+	for _, field := range []string{"level", "icon", "avatar", "privacy", "rank"} {
+		if (field != "rank" && requested(field)) || (field == "rank" && rankRequested) {
+			continue
+		}
+		delete(next.Fields, field)
+		if meta, ok := old.Fields[field]; ok {
+			next.Fields[field] = meta
+		}
+		switch field {
+		case "level":
+			next.Level = old.Level
+		case "icon":
+			next.ProfileIconID = old.ProfileIconID
+		case "avatar":
+			next.ProfileIconData = old.ProfileIconData
+		case "privacy":
+			next.PrivacyState = old.PrivacyState
+		case "rank":
+			next.Ranks, next.RankState, next.RankMessage = old.Ranks, old.RankState, old.RankMessage
+			if next.RankState == "" {
+				next.RankState = "not-requested"
+			}
+		}
+	}
+	if next.Ranks == nil {
+		next.Ranks = []core.Rank{}
 	}
 	return next
 }

@@ -84,6 +84,7 @@ const {
   lookupSelected,
   refreshRoster,
   loadProfile,
+  loadRanks,
 } = usePlayerActions(snapshot, workspace, acceptSnapshot, setMessage);
 const {
   overlay,
@@ -250,10 +251,15 @@ onUnmounted(() => {
           :active="view === 'players'"
           :busy="manualBusy"
           :refreshing="refreshing(active)"
+          :rank-loading="
+            playerOperation?.key === operationKey(active) &&
+            playerOperation?.kind === 'rank'
+          "
           :connected="snapshot?.connected"
           :error="playerErrors[operationKey(active)] || active.error"
           @refresh="refreshPlayer"
           @profile="loadProfile"
+          @ranks="loadRanks"
         />
         <div v-else class="empty-state initial-empty">
           <AppIcon name="search" :size="42" />
@@ -399,11 +405,16 @@ onUnmounted(() => {
               :active="view === 'match'"
               :busy="manualBusy"
               :refreshing="refreshing(selected)"
+              :rank-loading="
+                playerOperation?.key === operationKey(selected) &&
+                playerOperation?.kind === 'rank'
+              "
               :connected="snapshot?.connected"
               :error="playerErrors[operationKey(selected)] || selected.error"
               compact
               @refresh="refreshPlayer"
               @profile="loadProfile"
+              @ranks="loadRanks"
             />
           </PlayerDrawer>
         </div>

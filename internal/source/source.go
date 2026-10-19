@@ -35,6 +35,11 @@ type BasicProfileSource interface {
 	BasicProfile(context.Context, string) core.Profile
 }
 
+// An explicit rank retry must not spend its budget reloading names or avatars.
+type RankSource interface {
+	Ranks(context.Context, string) core.Profile
+}
+
 type HistoryPager interface {
 	HistoryPage(context.Context, string, int) (core.HistoryPage, error)
 }

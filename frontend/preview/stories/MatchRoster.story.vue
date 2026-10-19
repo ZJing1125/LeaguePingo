@@ -30,6 +30,7 @@ const longNames = players.map((p) => ({
   ...p,
   displayName: "这是很长的中英文混排玩家名称LongName#DEMO",
 }));
+const rengar = makePlayer(0, { championId: 107, championState: "selected" });
 </script>
 <template>
   <Story title="对局 / 双方名单">
@@ -55,6 +56,16 @@ const longNames = players.map((p) => ({
         <MatchRoster
           :players="longNames"
           :selected-key="players[1]!.key"
+        /></div
+    ></Variant>
+    <Variant title="完整原画与详情压缩"
+      ><div
+        class="has-inspector"
+        style="width: 1100px; max-width: 100%; height: 380px; padding: 12px"
+      >
+        <MatchRoster
+          :players="[rengar, ...players.slice(1)]"
+          :selected-key="rengar.key"
         /></div
     ></Variant>
   </Story>

@@ -1,16 +1,27 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import type { Participant } from "../../bindings/leaguepingo/internal/core/models";
-import { date, tierName, number, playerName } from "../presentation";
+import { date, number, playerName } from "../presentation";
+import { rankPresentation, rankActionLabel } from "../rankPresentation";
 import { hasPlayerName } from "../playerState";
 import AppIcon from "./AppIcon.vue";
 const props = defineProps<{
   player: Participant;
   busy?: boolean;
+  rankLoading?: boolean;
   connected?: boolean;
   compact?: boolean;
 }>();
-const emit = defineEmits<{ profile: [player: Participant] }>();
+const emit = defineEmits<{
+  profile: [player: Participant];
+  ranks: [player: Participant];
+}>();
+const rankCards = computed(() =>
+  (props.compact
+    ? ["RANKED_SOLO_5x5"]
+    : ["RANKED_SOLO_5x5", "RANKED_FLEX_SR"]
+  ).map((queue) => ({ queue, ...rankPresentation(props.player, queue) })),
+);
 const copyNotice = ref("");
 const avatarBroken = ref(false);
 watch(
@@ -111,45 +122,49 @@ async function copyID() {
         >
       </div>
     </div>
-    <div v-if="!compact" class="profile-ranks">
+    <div class="profile-ranks" :aria-busy="rankLoading || undefined">
       <div
-        v-for="queue in ['RANKED_SOLO_5x5', 'RANKED_FLEX_SR']"
-        :key="queue"
+        v-for="item in rankCards"
+        :key="item.queue"
         class="rank-card"
+        :title="item.title"
       >
-        <AppIcon name="shield" :size="24" />
+        <AppIcon v-if="!compact" name="shield" :size="24" />
         <div>
           <small>{{
-            queue === "RANKED_SOLO_5x5" ? "单双排" : "灵活排位"
-          }}</small
-          ><template
-            v-for="rank in (player.profile?.ranks ?? []).filter(
-              (r) => r.queue === queue,
-            )"
-            :key="rank.queue"
-            ><strong :title="fieldTitle('rank')"
-              >{{ tierName(rank.tier) }} {{ rank.division }}
-              <span>{{ number(rank.lp) }} LP</span
-              ><small
-                v-if="player.profile?.fields?.rank?.state === 'retained'"
-                class="warning-text"
-                >旧段位</small
-              ></strong
-            ><small
-              >{{ number(rank.wins) }} 胜 / {{ number(rank.losses) }} 负</small
-            ></template
-          ><strong
-            v-if="!(player.profile?.ranks ?? []).some((r) => r.queue === queue)"
-            class="muted"
-            >段位未获取</strong
+            item.queue === "RANKED_SOLO_5x5" ? "单双排" : "灵活排位"
+          }}</small>
+          <strong :class="{ muted: !item.rank }"
+            >{{ rankLoading ? "查询中…" : item.label
+            }}<small v-if="item.retained" class="warning-text"
+              >旧段位</small
+            ></strong
+          >
+          <small v-if="item.rank && !compact"
+            >{{ number(item.rank.wins) }} 胜 /
+            {{ number(item.rank.losses) }} 负</small
           >
         </div>
       </div>
+      <button
+        class="rank-query"
+        :title="
+          player.profile?.rankMessage || '仅查询段位，不重新获取头像或战绩'
+        "
+        :disabled="
+          busy || !connected || player.stale || player.identityState !== 'known'
+        "
+        @click="emit('ranks', player)"
+      >
+        <AppIcon name="refresh" :size="13" />{{
+          rankLoading ? "查询中…" : rankActionLabel(player)
+        }}
+      </button>
     </div>
     <button
       class="icon-button profile-update"
       aria-label="更新玩家资料"
-      title="更新等级、段位与隐私"
+      title="更新等级、头像、隐私和段位；段位可使用上方独立入口"
       :disabled="
         busy || !connected || player.stale || player.identityState !== 'known'
       "

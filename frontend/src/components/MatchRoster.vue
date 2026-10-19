@@ -56,8 +56,9 @@ const teams = computed(() =>
           :data-player-key="player.key"
           @click="$emit('select', player)"
         >
+          <ChampionPortrait class="card-illustration" :id="player.championId" />
           <span class="card-portrait">
-            <ChampionPortrait :id="player.championId" /><ParticipantAvatar
+            <ParticipantAvatar
               class="card-avatar"
               :player="player"
               :size="24"

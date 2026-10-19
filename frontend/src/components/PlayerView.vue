@@ -29,6 +29,7 @@ const props = defineProps<{
   state: PlayerViewState;
   busy?: boolean;
   refreshing?: boolean;
+  rankLoading?: boolean;
   connected?: boolean;
   compact?: boolean;
   active?: boolean;
@@ -37,6 +38,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   refresh: [player: Participant];
   profile: [player: Participant];
+  ranks: [player: Participant];
 }>();
 const historyScroll = ref<HTMLElement | null>(null);
 const {
@@ -98,6 +100,8 @@ function toggle(id: number) {
       :busy="busy"
       :connected="connected"
       :compact="compact"
+      :rank-loading="rankLoading"
+      @ranks="emit('ranks', $event)"
       @profile="emit('profile', $event)"
     />
     <TransientNotice :message="error" banner-class="player-error" />

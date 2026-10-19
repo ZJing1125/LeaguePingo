@@ -96,8 +96,8 @@ defineEmits<{ hide: []; pin: [] }>();
               outdated: p.stale,
             }"
           >
+            <ChampionPortrait class="card-illustration" :id="p.championId" />
             <div class="card-portrait">
-              <ChampionPortrait :id="p.championId" />
               <div class="card-identity">
                 <strong>{{
                   p.championId

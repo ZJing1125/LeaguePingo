@@ -158,7 +158,7 @@ async function main() {
         await page.close();
       }
     }
-    assert.equal(checked, 20);
+    assert.equal(checked, 23);
     assert.deepEqual(failures, []);
     assert.deepEqual(
       external,

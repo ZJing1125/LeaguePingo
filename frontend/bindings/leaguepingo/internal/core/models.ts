@@ -129,6 +129,7 @@ export interface Profile {
     "profileIconData": string;
     "level": number | null;
     "rankState": string;
+    "rankMessage"?: string;
     "ranks": Rank[] | null;
 }
 
