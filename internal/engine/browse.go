@@ -138,7 +138,7 @@ func (e *Engine) loadProfileData(ctx context.Context, key string, connectionID u
 		e.mu.RLock()
 		cooling := time.Now().Before(e.profileRetry[key])
 		e.mu.RUnlock()
-		if basicProfileComplete(player.Profile) || cooling {
+		if automaticProfileFresh(player.Profile) || cooling {
 			return player, nil
 		}
 	}
@@ -160,18 +160,11 @@ func (e *Engine) loadProfileData(ctx context.Context, key string, connectionID u
 		return core.Participant{}, errors.New("连接已变化，请重新查询玩家资料")
 	}
 	e.markProfileAttempt(connectionID, key)
-	var profile core.Profile
-	var fields []string
-	if basic, ok := client.(source.BasicProfileSource); ok && onlyMissing {
-		profile = basic.BasicProfile(profileCtx, player.PUUID)
-		fields = []string{"level", "icon", "avatar", "privacy"}
-	} else {
-		profile = profiles.Profile(profileCtx, player.PUUID)
-	}
-	if !profileAvailable(profile) && (player.Profile == nil || !profileAvailable(*player.Profile)) {
+	profile := profiles.Profile(profileCtx, player.PUUID)
+	if onlyMissing && !profileAvailable(profile) && (player.Profile == nil || !profileAvailable(*player.Profile)) {
 		return core.Participant{}, errors.New("当前客户端未提供可核验资料，保留上次结果")
 	}
-	return e.storeProfile(player, connectionID, profile, fields...)
+	return e.storeProfile(player, connectionID, profile)
 }
 
 func (e *Engine) storeProfile(player core.Participant, connectionID uint64, profile core.Profile, fields ...string) (core.Participant, error) {

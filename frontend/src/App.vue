@@ -25,10 +25,6 @@ const isOverlay =
   new URLSearchParams(location.search).get("view") === "overlay";
 const settingsOpen = ref(false);
 const mainElement = ref<HTMLElement | null>(null);
-const mainWidth = ref(window.innerWidth);
-// Measure the actual workspace so resizing moves the existing inspector instance.
-const drawerModal = computed(() => mainWidth.value < 1000);
-let resizeObserver: ResizeObserver | undefined;
 const { messages: playerErrors, setMessage } = useTransientMessages();
 const searchError = computed(() => playerErrors.search || "");
 const rosterError = computed(() => playerErrors.roster || "");
@@ -50,7 +46,7 @@ const {
   closeTab,
 } = workspace;
 const matchModalOpen = computed(
-  () => drawerModal.value && view.value === "match" && !!selected.value,
+  () => view.value === "match" && !!selected.value,
 );
 const historyReady = computed(
   () =>
@@ -74,17 +70,13 @@ const {
   query,
   searching,
   rosterBusy,
-  playerOperation,
   manualBusy,
   refreshing,
   openPlayerDetails,
   search,
   refreshPlayer,
   selectPlayer,
-  lookupSelected,
   refreshRoster,
-  loadProfile,
-  loadRanks,
 } = usePlayerActions(snapshot, workspace, acceptSnapshot, setMessage);
 const {
   overlay,
@@ -95,6 +87,14 @@ const {
   pinOverlay,
   toggleOverlay,
 } = useOverlayControls();
+function selectAdjacent(direction: number) {
+  const index = players.value.findIndex((p) => p.key === selectedKey.value);
+  const next =
+    players.value[
+      (index + direction + players.value.length) % players.value.length
+    ];
+  if (next) selectPlayer(next);
+}
 function onKey(event: KeyboardEvent) {
   if (event.key === "Escape") {
     if (settingsOpen.value) {
@@ -110,10 +110,6 @@ let stopSnapshot: (() => void) | undefined,
   stopOverlay: (() => void) | undefined;
 onMounted(async () => {
   window.addEventListener("keydown", onKey);
-  resizeObserver = new ResizeObserver(([entry]) => {
-    if (entry) mainWidth.value = entry.contentRect.width;
-  });
-  if (mainElement.value) resizeObserver.observe(mainElement.value);
   stopSnapshot = Events.On("leaguepingo:snapshot", (event) => {
     acceptSnapshot(event.data as SnapshotModel);
   });
@@ -132,7 +128,6 @@ onMounted(async () => {
 });
 onUnmounted(() => {
   componentAlive = false;
-  resizeObserver?.disconnect();
   stopSnapshot?.();
   stopOverlay?.();
   window.removeEventListener("keydown", onKey);
@@ -251,15 +246,9 @@ onUnmounted(() => {
           :active="view === 'players'"
           :busy="manualBusy"
           :refreshing="refreshing(active)"
-          :rank-loading="
-            playerOperation?.key === operationKey(active) &&
-            playerOperation?.kind === 'rank'
-          "
           :connected="snapshot?.connected"
           :error="playerErrors[operationKey(active)] || active.error"
           @refresh="refreshPlayer"
-          @profile="loadProfile"
-          @ranks="loadRanks"
         />
         <div v-else class="empty-state initial-empty">
           <AppIcon name="search" :size="42" />
@@ -322,7 +311,7 @@ onUnmounted(() => {
               ? `${historyUnknown} 人身份未提供`
               : `${players.length - historyReady} 人未就绪`
           }}</span>
-          <span v-else>双方资料已就绪</span>
+          <span v-else>战绩已就绪</span>
           <span class="roster-known"
             >身份 {{ snapshot?.knownCount ?? 0 }}/{{ players.length }}</span
           >
@@ -359,14 +348,31 @@ onUnmounted(() => {
           <PlayerDrawer
             v-if="selected"
             :player-key="selected.key"
-            :modal="drawerModal"
+            modal
             :active="view === 'match'"
             @close="selectedKey = ''"
           >
             <div class="drawer-toolbar">
               <button class="text-button" @click="openPlayerDetails(selected)">
-                在战绩页打开 ↗</button
-              ><button
+                在战绩页打开 ↗
+              </button>
+              <div class="drawer-player-switch">
+                <button
+                  class="text-button"
+                  aria-label="上一位玩家"
+                  @click="selectAdjacent(-1)"
+                >
+                  ← 上一位
+                </button>
+                <button
+                  class="text-button"
+                  aria-label="下一位玩家"
+                  @click="selectAdjacent(1)"
+                >
+                  下一位 →
+                </button>
+              </div>
+              <button
                 class="icon-button"
                 aria-label="关闭玩家详情"
                 @click="selectedKey = ''"
@@ -380,19 +386,6 @@ onUnmounted(() => {
             >
               客户端未提供身份，可刷新名单或输入完整 ID。
             </p>
-            <button
-              v-else-if="!['ready', 'empty'].includes(selected.historyState)"
-              class="primary drawer-query"
-              :disabled="manualBusy"
-              @click="lookupSelected"
-            >
-              {{
-                playerOperation?.key === operationKey(selected) &&
-                playerOperation?.kind === "lookup"
-                  ? "查询中…"
-                  : "手动查询此玩家"
-              }}
-            </button>
             <p
               v-if="!players.some((p) => p.key === selectedKey)"
               class="quality-warning"
@@ -405,16 +398,10 @@ onUnmounted(() => {
               :active="view === 'match'"
               :busy="manualBusy"
               :refreshing="refreshing(selected)"
-              :rank-loading="
-                playerOperation?.key === operationKey(selected) &&
-                playerOperation?.kind === 'rank'
-              "
               :connected="snapshot?.connected"
               :error="playerErrors[operationKey(selected)] || selected.error"
               compact
               @refresh="refreshPlayer"
-              @profile="loadProfile"
-              @ranks="loadRanks"
             />
           </PlayerDrawer>
         </div>

@@ -193,3 +193,26 @@ func TestRankTimeoutIsRecoverableAndDoesNotExposeSourceDetails(t *testing.T) {
 		t.Fatal("rank timeout was hidden or exposed raw error")
 	}
 }
+
+func TestSlowAvatarDoesNotPreventUnifiedRankResponse(t *testing.T) {
+	s := &TencentLCU{client: lcu.NewClient(lcu.Credentials{})}
+	ranked := false
+	s.client.HTTP.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		body := `{"puuid":"target","summonerLevel":100,"profileIconId":123}`
+		if strings.Contains(r.URL.Path, "profile-icons") {
+			<-r.Context().Done()
+			return nil, r.Context().Err()
+		}
+		if strings.Contains(r.URL.Path, "ranked-stats") {
+			ranked = true
+			body = `{"queueMap":{"RANKED_SOLO_5x5":{"tier":"GOLD"}}}`
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body))}, nil
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	p := s.Profile(ctx, "target")
+	if !ranked || p.RankState != "ready" || p.Level == nil || p.ProfileIconData != "" {
+		t.Fatal("slow avatar starved unified rank response")
+	}
+}

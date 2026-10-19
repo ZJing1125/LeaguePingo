@@ -103,7 +103,7 @@ async function main() {
           result = { visible: false, pinned: true, revision: 0 };
         else if (method === "PrioritizePlayer") result = null;
         else if (method === "Lookup") result = player(args[0]);
-        else if (method === "RefreshHistory")
+        else if (method === "RefreshData")
           result = {
             ...player(args[0]),
             historyMeta: {
@@ -369,7 +369,7 @@ async function main() {
     await select("分析样本场数", 50);
     const exhaustedRequests = pageCalls().length;
     await page.getByRole("button", { name: "下一页", exact: true }).click();
-    await page.getByRole("button", { name: "刷新战绩", exact: true }).click();
+    await page.getByRole("button", { name: "刷新数据", exact: true }).click();
     await idle();
     assert.equal(
       pageCalls().length,
@@ -386,7 +386,7 @@ async function main() {
     await page.getByRole("button", { name: "补齐样本", exact: true }).click();
     await idle();
     await checkSample("all", 50);
-    await page.getByRole("button", { name: "刷新战绩", exact: true }).click();
+    await page.getByRole("button", { name: "刷新数据", exact: true }).click();
     await idle();
     failNextPage = true;
     await page.getByRole("button", { name: "下一页", exact: true }).click();
@@ -506,7 +506,7 @@ async function main() {
     await checkSample("all", 50);
 
     // Stopping and elapsed-time limits must both prevent a second request.
-    await page.getByRole("button", { name: "刷新战绩", exact: true }).click();
+    await page.getByRole("button", { name: "刷新数据", exact: true }).click();
     await idle();
     await select("分析样本场数", 10);
     holdPage = true;
@@ -529,7 +529,7 @@ async function main() {
       .getByText("已停止查找，已获取记录保留。", { exact: true })
       .waitFor();
 
-    await page.getByRole("button", { name: "刷新战绩", exact: true }).click();
+    await page.getByRole("button", { name: "刷新数据", exact: true }).click();
     await idle();
     advanceBudgetNextPage = 90001;
     const beforeElapsed = pageCalls().length;
@@ -548,7 +548,7 @@ async function main() {
     await checkSample("all", 50);
 
     // Invalid cursors must not advance or discard the last valid page.
-    await page.getByRole("button", { name: "刷新战绩", exact: true }).click();
+    await page.getByRole("button", { name: "刷新数据", exact: true }).click();
     await idle();
     invalidNextPage = true;
     const beforeInvalid = pageCalls().length;
@@ -566,7 +566,7 @@ async function main() {
     );
     await checkSample("all", 50);
 
-    await page.getByRole("button", { name: "刷新战绩", exact: true }).click();
+    await page.getByRole("button", { name: "刷新数据", exact: true }).click();
     await idle();
     repeatNextPage = true;
     const beforeRepeat = pageCalls().length;
@@ -590,7 +590,7 @@ async function main() {
     await idle();
     await checkSample("all", 50);
 
-    await page.getByRole("button", { name: "刷新战绩", exact: true }).click();
+    await page.getByRole("button", { name: "刷新数据", exact: true }).click();
     await idle();
     limitedNextPage = true;
     await select("战绩模式筛选", 450);
@@ -851,7 +851,7 @@ async function main() {
 
     // Hidden workspaces cannot keep scanning; one sent request may finish locally.
     await fullView
-      .getByRole("button", { name: "刷新战绩", exact: true })
+      .getByRole("button", { name: "刷新数据", exact: true })
       .click();
     await idle();
     holdPage = true;

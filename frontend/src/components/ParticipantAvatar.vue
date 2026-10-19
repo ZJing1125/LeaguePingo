@@ -5,7 +5,7 @@ import { gameAsset } from "../gameAssets";
 import GameIcon from "./GameIcon.vue";
 import AppIcon from "./AppIcon.vue";
 const props = withDefaults(
-  defineProps<{ player: Participant; size?: number }>(),
+  defineProps<{ player: Participant; size?: number; account?: boolean }>(),
   { size: 38 },
 );
 const broken = ref(false);
@@ -16,7 +16,7 @@ watch(
   },
 );
 const hasChampion = computed(
-  () => !!gameAsset("champions", props.player.championId),
+  () => !props.account && !!gameAsset("champions", props.player.championId),
 );
 const status = computed(() =>
   props.player.championId

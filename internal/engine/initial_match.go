@@ -71,7 +71,7 @@ func (e *Engine) startInitialMatchLocked() {
 				p.DisplayName = cached.DisplayName
 			}
 		}
-		if historyCached(*p) && cacheFresh(*p) && !core.IsPlaceholderName(p.DisplayName) {
+		if historyCached(*p) && cacheFresh(*p) && !core.IsPlaceholderName(p.DisplayName) && !e.needsAutomaticProfileLocked(*p) {
 			continue
 		}
 		if !historyCached(*p) || !cacheFresh(*p) {
@@ -186,6 +186,14 @@ func (e *Engine) prepareInitialMatch(ctx context.Context, version uint64, gameID
 		e.publishLocked()
 		e.mu.Unlock()
 	}
+	// Optional data uses only the remaining one-shot budget, after all histories.
+	for _, target := range targets {
+		if ctx.Err() != nil || !e.initialMatchValid(version, gameID) {
+			return
+		}
+		e.prepareOptionalProfile(ctx, client, target, func() bool { return e.initialMatchValidLocked(version, gameID) })
+	}
+
 }
 
 func (e *Engine) finishInitialMatch(version uint64, gameID int64, token uint64) {

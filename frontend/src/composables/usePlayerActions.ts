@@ -22,7 +22,7 @@ export function usePlayerActions(
   const rosterBusy = ref(false);
   const playerOperation = ref<{
     key: string;
-    kind: "history" | "profile" | "rank" | "lookup";
+    kind: "history" | "profile";
   } | null>(null);
   const manualBusy = computed(
     () =>
@@ -47,7 +47,11 @@ export function usePlayerActions(
       !snapshot.value?.connected
     )
       return;
-    if (player.profile?.profileIconData && player.profile?.level != null)
+    if (
+      player.profile?.profileIconData &&
+      player.profile?.level != null &&
+      player.profile?.rankState === "ready"
+    )
       return;
     pendingProfile.value = player;
     void flushMissingProfile();
@@ -154,12 +158,15 @@ export function usePlayerActions(
     playerOperation.value = { key: requestKey, kind: "history" };
     setMessage(requestKey, "");
     try {
-      const result = await Service.RefreshHistory(
-        player.key,
-        player.connectionId,
-      );
+      const result = await Service.RefreshData(player.key, player.connectionId);
+      acceptProfile(result);
       if (selectedKey.value === player.key) selectedResult.value = result;
-      openPlayer(result, false);
+      const existing = tabs.value.findIndex(
+        (p) => operationKey(p) === operationKey(result),
+      );
+      if (existing >= 0)
+        tabs.value[existing] = newestPlayer(result, tabs.value[existing]!)!;
+      if (result.error) setMessage(requestKey, result.error);
     } catch (reason) {
       setMessage(requestKey, errorMessage(reason));
     } finally {
@@ -175,22 +182,6 @@ export function usePlayerActions(
     });
     requestMissingProfile(player);
   }
-  async function lookupSelected() {
-    if (!selected.value || manualBusy.value) return;
-    const target = selected.value;
-    const requestKey = operationKey(target);
-    playerOperation.value = { key: requestKey, kind: "lookup" };
-    setMessage(requestKey, "");
-    try {
-      const result = await Service.LookupPlayer(target.key);
-      if (selectedKey.value === target.key) selectedResult.value = result;
-      openPlayer(result, false);
-    } catch (reason) {
-      setMessage(requestKey, errorMessage(reason));
-    } finally {
-      playerOperation.value = null;
-    }
-  }
   async function refreshRoster() {
     if (rosterBusy.value) return;
     rosterBusy.value = true;
@@ -201,45 +192,6 @@ export function usePlayerActions(
       setMessage("roster", errorMessage(reason));
     } finally {
       rosterBusy.value = false;
-    }
-  }
-  async function loadProfile(player: Participant) {
-    if (manualBusy.value) return;
-    const requestKey = operationKey(player);
-    playerOperation.value = { key: requestKey, kind: "profile" };
-    setMessage(requestKey, "");
-    try {
-      const result = await Service.LoadProfile(player.key, player.connectionId);
-      openPlayer(result, false);
-      if (selectedKey.value === player.key) selectedResult.value = result;
-    } catch (reason) {
-      setMessage(requestKey, errorMessage(reason));
-    } finally {
-      playerOperation.value = null;
-    }
-  }
-
-  async function loadRanks(player: Participant) {
-    if (
-      manualBusy.value ||
-      !snapshot.value?.connected ||
-      player.stale ||
-      player.identityState !== "known"
-    )
-      return;
-    const requestKey = operationKey(player);
-    playerOperation.value = { key: requestKey, kind: "rank" };
-    setMessage(requestKey, "");
-    try {
-      acceptProfile(await Service.LoadRanks(player.key, player.connectionId));
-    } catch (reason) {
-      if (
-        componentAlive &&
-        (player.connectionId ?? 0) === (snapshot.value?.connectionId ?? 0)
-      )
-        setMessage(requestKey, errorMessage(reason));
-    } finally {
-      playerOperation.value = null;
     }
   }
 
@@ -258,9 +210,6 @@ export function usePlayerActions(
     search,
     refreshPlayer,
     selectPlayer,
-    lookupSelected,
     refreshRoster,
-    loadProfile,
-    loadRanks,
   };
 }

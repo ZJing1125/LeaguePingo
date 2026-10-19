@@ -11,8 +11,8 @@ export function rankPresentation(
       ? profile.ranks?.find((r) => r.queue === queue)
       : undefined;
   const retained = !!rank && profile?.fields?.rank?.state === "retained";
-  let label = "段位待查询";
-  let title = "打开玩家详情后点击“获取段位”；战绩与段位分别获取";
+  let label = "段位暂缺";
+  let title = "资料尚未取得；可用“刷新数据”统一重试";
   if (player.identityState !== "known") {
     label = "身份未提供";
     title = "客户端未提供有效身份，无法查询段位";
@@ -34,13 +34,4 @@ export function rankPresentation(
     title = profile.rankMessage || "客户端未提供可核验段位，可手动重试";
   }
   return { rank, retained, label, title };
-}
-
-export function rankActionLabel(player: Participant) {
-  if (
-    player.profile?.rankMessage ||
-    ["failed", "unavailable"].includes(player.profile?.rankState ?? "")
-  )
-    return "重试段位";
-  return player.profile?.rankState === "ready" ? "更新段位" : "获取段位";
 }

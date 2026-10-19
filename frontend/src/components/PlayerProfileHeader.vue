@@ -2,25 +2,20 @@
 import { computed, ref, watch } from "vue";
 import type { Participant } from "../../bindings/leaguepingo/internal/core/models";
 import { date, number, playerName } from "../presentation";
-import { rankPresentation, rankActionLabel } from "../rankPresentation";
+import { rankPresentation } from "../rankPresentation";
 import { hasPlayerName } from "../playerState";
 import AppIcon from "./AppIcon.vue";
 const props = defineProps<{
   player: Participant;
   busy?: boolean;
-  rankLoading?: boolean;
   connected?: boolean;
   compact?: boolean;
 }>();
-const emit = defineEmits<{
-  profile: [player: Participant];
-  ranks: [player: Participant];
-}>();
 const rankCards = computed(() =>
-  (props.compact
-    ? ["RANKED_SOLO_5x5"]
-    : ["RANKED_SOLO_5x5", "RANKED_FLEX_SR"]
-  ).map((queue) => ({ queue, ...rankPresentation(props.player, queue) })),
+  ["RANKED_SOLO_5x5", "RANKED_FLEX_SR"].map((queue) => ({
+    queue,
+    ...rankPresentation(props.player, queue),
+  })),
 );
 const copyNotice = ref("");
 const avatarBroken = ref(false);
@@ -29,11 +24,6 @@ watch(
   () => {
     avatarBroken.value = false;
   },
-);
-const hasRetainedProfile = computed(() =>
-  Object.values(props.player.profile?.fields ?? {}).some(
-    (field) => field?.state === "retained",
-  ),
 );
 function fieldTitle(field: string) {
   const meta = props.player.profile?.fields?.[field];
@@ -99,7 +89,7 @@ async function copyID() {
           v-if="player.privacyState === 'private'"
           class="status-badge"
           :title="fieldTitle('privacy')"
-          >生涯不公开（客户端明确返回）<small
+          >生涯不公开<small
             v-if="player.profile?.fields?.privacy?.state === 'retained'"
             class="warning-text"
           >
@@ -122,7 +112,7 @@ async function copyID() {
         >
       </div>
     </div>
-    <div class="profile-ranks" :aria-busy="rankLoading || undefined">
+    <div class="profile-ranks">
       <div
         v-for="item in rankCards"
         :key="item.queue"
@@ -135,7 +125,7 @@ async function copyID() {
             item.queue === "RANKED_SOLO_5x5" ? "单双排" : "灵活排位"
           }}</small>
           <strong :class="{ muted: !item.rank }"
-            >{{ rankLoading ? "查询中…" : item.label
+            >{{ item.label
             }}<small v-if="item.retained" class="warning-text"
               >旧段位</small
             ></strong
@@ -146,36 +136,8 @@ async function copyID() {
           >
         </div>
       </div>
-      <button
-        class="rank-query"
-        :title="
-          player.profile?.rankMessage || '仅查询段位，不重新获取头像或战绩'
-        "
-        :disabled="
-          busy || !connected || player.stale || player.identityState !== 'known'
-        "
-        @click="emit('ranks', player)"
-      >
-        <AppIcon name="refresh" :size="13" />{{
-          rankLoading ? "查询中…" : rankActionLabel(player)
-        }}
-      </button>
     </div>
-    <button
-      class="icon-button profile-update"
-      aria-label="更新玩家资料"
-      title="更新等级、头像、隐私和段位；段位可使用上方独立入口"
-      :disabled="
-        busy || !connected || player.stale || player.identityState !== 'known'
-      "
-      @click="emit('profile', player)"
-    >
-      <AppIcon name="refresh" :size="16" /><span>更新资料</span>
-    </button>
   </header>
-  <p v-if="hasRetainedProfile" class="profile-freshness" role="status">
-    部分资料未更新，标“旧”的字段保留了上次结果；悬停查看获取时间。
-  </p>
   <p v-if="copyNotice" class="inline-status" role="status">
     {{ copyNotice }}
   </p>

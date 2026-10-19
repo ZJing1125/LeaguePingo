@@ -13,11 +13,15 @@ import (
 	"leaguepingo/internal/core"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 func (s *TencentLCU) Profile(ctx context.Context, puuid string) (out core.Profile) {
-	out = s.BasicProfile(ctx, puuid)
+	basicCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
+	out = s.BasicProfile(basicCtx, puuid)
+	cancel()
 	if ctx.Err() != nil {
+		out.RankState, out.RankMessage = "failed", "玩家资料查询超时，可刷新重试"
 		return out
 	}
 	s.loadRanks(ctx, puuid, &out)

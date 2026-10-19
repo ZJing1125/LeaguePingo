@@ -111,6 +111,14 @@ async function main() {
     });
     await page.goto("http://127.0.0.1:43198/");
     const navigation = page.getByRole("navigation", { name: "工作区" });
+    async function closeDetails() {
+      if (await page.locator(".player-drawer").isVisible())
+        await page
+          .getByRole("button", { name: "关闭玩家详情", exact: true })
+          .click();
+    }
+
+    await closeDetails();
     await navigation.getByRole("button", { name: "当前对局" }).click();
     await page.getByText("正在获取", { exact: true }).first().waitFor();
     assert.equal(await page.getByText("正在获取", { exact: true }).count(), 10);
@@ -128,6 +136,7 @@ async function main() {
         path: process.env.UI_SCREENSHOT_PREFIX + "-initial-loading.png",
       });
     for (let i = 0; i < 8; i++) {
+      await closeDetails();
       await page.locator(".player-row").nth(i).click();
       if (i === 0)
         await page
@@ -142,6 +151,7 @@ async function main() {
             .isDisabled(),
           "missing name must not be copied as an ID",
         );
+      await closeDetails();
       await navigation.getByRole("button", { name: "当前对局" }).click();
     }
     async function publish() {
@@ -165,6 +175,7 @@ async function main() {
     snapshot.message =
       "本局开局资料补齐已结束；未完成的玩家可手动查询，本局不再自动重试。";
     await publish();
+    await closeDetails();
     await navigation.getByRole("button", { name: "玩家战绩" }).click();
     assert.equal(await page.getByRole("tab").count(), 8);
     for (let i = 1; i < 8; i++)
@@ -215,11 +226,12 @@ async function main() {
       error: "首次补齐已结束，可手动查询",
     };
     await publish();
+    await closeDetails();
     await navigation.getByRole("button", { name: "当前对局" }).click();
     await page.getByText("未获取 · 可手动查询", { exact: true }).waitFor();
     assert.equal(await page.getByText("正在获取", { exact: true }).count(), 0);
     assert(
-      !calls.includes("LookupPlayer") && !calls.includes("RefreshHistory"),
+      !calls.includes("LookupPlayer") && !calls.includes("RefreshData"),
       "UI must not start a parallel batch of player queries",
     );
     assert.deepEqual(errors, []);

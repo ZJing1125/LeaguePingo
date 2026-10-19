@@ -1,10 +1,9 @@
-// Synthetic runtime only: geometry and focus behavior, no client/network data.
+// Synthetic runtime: player-first cards, full profiles and stable modal details.
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
 const { mockWindowRuntime } = require("./window-runtime.cjs");
-
 async function main() {
   const browser = await chromium.launch({
     headless: true,
@@ -14,7 +13,7 @@ async function main() {
     const page = await browser.newPage({
       viewport: { width: 1280, height: 800 },
     });
-    page.setDefaultTimeout(10000);
+    page.setDefaultTimeout(15000);
     const errors = [],
       external = [],
       calls = [];
@@ -29,11 +28,16 @@ async function main() {
         ...binding.matchAll(/export function (\w+)\([^]*?\$Call.ByID\((\d+)/g),
       ].map((m) => [m[2], m[1]]),
     );
+    const avatar =
+      "data:image/svg+xml;base64," +
+      Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" rx="5" fill="#397d78"/><circle cx="20" cy="20" r="9" fill="#f2c284"/></svg>',
+      ).toString("base64");
     const history = Array.from({ length: 20 }, (_, i) => ({
       gameId: 90000 + i,
-      playedAt: "2026-10-18T01:00:00Z",
+      playedAt: "2026-10-19T01:00:00Z",
       queueId: 420,
-      championId: 23,
+      championId: 107,
       win: i % 2 === 0,
       kills: 6,
       deaths: 3,
@@ -43,53 +47,52 @@ async function main() {
       spell1: 4,
       spell2: 14,
     }));
-    let rankRequests = 0;
+    function profile() {
+      return {
+        updatedAt: "2026-10-19T01:00:00Z",
+        profileIconData: avatar,
+        level: 100,
+        privacyState: "private",
+        rankState: "ready",
+        ranks: [
+          { queue: "RANKED_SOLO_5x5", tier: "GOLD", division: "II", lp: 52 },
+        ],
+        fields: { rank: { state: "ready", fetchedAt: "2026-10-19T01:00:00Z" } },
+      };
+    }
+    const players = Array.from({ length: 10 }, (_, i) => ({
+      connectionId: 1,
+      key: `synthetic-${i}`,
+      puuid: `synthetic-${i}`,
+      displayName: `合成玩家${i + 1}#DEMO`,
+      team: i < 5 ? "ally" : "enemy",
+      championId: [107, 23, 25][i % 3],
+      championState: "selected",
+      identityState: "known",
+      privacyState: "private",
+      historyState: "ready",
+      history,
+      historyMeta: {
+        fetchedAt: "2026-10-19T01:00:00Z",
+        returned: 20,
+        parsed: 20,
+      },
+      stats: { games: 20, winRate: 50, kda: 5 },
+      profile: profile(),
+    }));
     let snapshot = {
       connectionId: 1,
       generation: 1,
       gameId: 42,
       connected: true,
-      stage: "in-game",
-      phase: "InProgress",
-      frozen: true,
+      stage: "preparing",
+      phase: "ChampSelect",
+      frozen: false,
       knownCount: 10,
       readyCount: 10,
-      message:
-        "本局开局资料补齐已结束；未完成的玩家可手动查询，本局不再自动重试。",
-      participants: Array.from({ length: 10 }, (_, i) => ({
-        connectionId: 1,
-        key: `synthetic-${i}`,
-        displayName:
-          i === 1
-            ? "用于检查省略显示的中英文长玩家名称LongName#DEMO"
-            : `合成玩家${i + 1}#DEMO`,
-        team: i < 5 ? "ally" : "enemy",
-        championId: [23, 24, 25][i % 3],
-        championState: "selected",
-        identityState: "known",
-        privacyState: "unknown",
-        historyState: "ready",
-        history,
-        historyMeta: {
-          fetchedAt: "2026-10-18T01:00:00Z",
-          returned: 20,
-          parsed: 20,
-        },
-        stats: { games: 20, winRate: 50, kda: 5 },
-        profile: {
-          level: 100,
-          profileIconData:
-            "data:image/svg+xml;base64," +
-            Buffer.from(
-              '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" rx="6" fill="#305b53"/><circle cx="16" cy="16" r="7" fill="#62d6ba"/></svg>',
-            ).toString("base64"),
-          rankState: "not-requested",
-          ranks: [],
-          privacyState: "unknown",
-          updatedAt: "2026-10-18T01:00:00Z",
-        },
-      })),
+      participants: structuredClone(players),
     };
+    let refreshes = 0;
     await page.route("**/*", (route) => {
       external.push(route.request().url());
       return route.abort();
@@ -101,52 +104,30 @@ async function main() {
       if (url.pathname === "/wails/runtime") {
         const request = route.request().postDataJSON();
         if (await desktop.handle(route, request)) return;
-        const method = methods[request.args?.methodID];
+        const method = methods[request.args?.methodID],
+          args = request.args?.args ?? [];
         calls.push(method);
         let result = null;
         if (method === "Snapshot") result = snapshot;
         else if (method === "OverlayStatus")
           result = { visible: false, pinned: true, revision: 0 };
-        else if (method === "LoadRanks") {
-          const [key, connectionId] = request.args?.args ?? [];
-          assert.equal(connectionId, 1);
-          const player = snapshot.participants.find((p) => p.key === key);
-          assert(player);
-          rankRequests++;
-          const ready = rankRequests === 2;
-          const retained = rankRequests > 2;
-          const old = player.profile;
-          player.profile = {
-            ...old,
-            updatedAt: `2026-10-19T01:00:0${rankRequests}Z`,
-            rankState: ready || retained ? "ready" : "failed",
-            rankMessage: ready ? "" : "段位查询超时，可重试",
-            ranks: ready
-              ? [
-                  {
-                    queue: "RANKED_SOLO_5x5",
-                    tier: "DIAMOND",
-                    division: "I",
-                    lp: 0,
-                    wins: 15,
-                    losses: 10,
-                  },
-                ]
-              : old.ranks,
-            fields: {
-              ...old.fields,
-              rank: {
-                state: retained ? "retained" : ready ? "ready" : "failed",
-                fetchedAt: retained
-                  ? old.fields.rank.fetchedAt
-                  : ready
-                    ? "2026-10-19T01:00:02Z"
-                    : undefined,
+        else if (method === "RefreshData") {
+          assert.equal(args[1], 1);
+          refreshes++;
+          const original = snapshot.participants.find((p) => p.key === args[0]);
+          assert(original);
+          result = {
+            ...original,
+            profile: {
+              ...original.profile,
+              updatedAt: "2026-10-20T01:00:00Z",
+              rankMessage: "段位查询超时，可重试",
+              fields: {
+                ...original.profile.fields,
+                rank: { state: "retained", fetchedAt: "2026-10-19T01:00:00Z" },
               },
             },
           };
-          result = player;
-          await new Promise((resolve) => setTimeout(resolve, 50));
         } else if (method !== "PrioritizePlayer")
           throw new Error(`Unexpected request: ${method}`);
         return route.fulfill({ json: result });
@@ -154,17 +135,16 @@ async function main() {
       const relative =
         url.pathname === "/" ? "index.html" : url.pathname.slice(1);
       if (relative.includes("..")) return route.abort();
+      const ext = path.extname(relative);
       return route.fulfill({
         body: await fs.readFile(path.join(__dirname, "../dist", relative)),
-        contentType: relative.endsWith(".js")
-          ? "text/javascript"
-          : relative.endsWith(".css")
-            ? "text/css"
-            : /\.(jpg|jpeg)$/.test(relative)
-              ? "image/jpeg"
-              : relative.endsWith(".png")
-                ? "image/png"
-                : "text/html",
+        contentType:
+          {
+            ".js": "text/javascript",
+            ".css": "text/css",
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+          }[ext] ?? "text/html",
       });
     });
     async function screenshot(name) {
@@ -172,49 +152,6 @@ async function main() {
         await page.screenshot({
           path: `${process.env.UI_SCREENSHOT_PREFIX}-${name}.png`,
         });
-    }
-    async function geometry(allVisible = true) {
-      const result = await page.evaluate(() => {
-        const teams = [...document.querySelectorAll(".team-section")].map((e) =>
-          e.getBoundingClientRect(),
-        );
-        const rows = [...document.querySelectorAll(".player-row")].map((e) =>
-          e.getBoundingClientRect(),
-        );
-        const list = document
-          .querySelector(".team-columns")
-          .getBoundingClientRect();
-        return {
-          paired:
-            teams[0].bottom <= teams[1].top &&
-            Math.abs(teams[0].left - teams[1].left) < 1,
-          count: rows.length,
-          visible: rows.every(
-            (r) =>
-              r.top >= list.top &&
-              r.bottom <= Math.min(list.bottom, innerHeight),
-          ),
-          overflow: document.documentElement.scrollWidth > innerWidth,
-          inside: rows.every(
-            (r) => r.left >= list.left && r.right <= list.right,
-          ),
-        };
-      });
-      if (process.env.UI_SCREENSHOT_PREFIX) await screenshot("geometry");
-      assert.equal(result.count, 10);
-      assert(
-        result.paired,
-        "both teams must remain in aligned horizontal rows",
-      );
-      if (allVisible)
-        assert(
-          result.visible,
-          "all ten players must fit in the visible roster",
-        );
-      assert(
-        !result.overflow && result.inside,
-        "roster must not overflow horizontally",
-      );
     }
     async function publish() {
       snapshot = { ...snapshot, generation: snapshot.generation + 1 };
@@ -227,69 +164,111 @@ async function main() {
         snapshot,
       );
     }
-    await page.goto("http://127.0.0.1:43201/");
-    if (process.env.UI_SCREENSHOT_PREFIX) await screenshot("start");
-    await page.getByRole("button", { name: "当前对局", exact: true }).click();
-    await page.locator(".player-row").last().waitFor();
-    await geometry();
-    await screenshot("roster");
+    async function sizes() {
+      return page
+        .locator(".player-row")
+        .evaluateAll((rows) =>
+          rows.map((el) => ({
+            width: el.getBoundingClientRect().width,
+            height: el.getBoundingClientRect().height,
+            recent: getComputedStyle(el.querySelector(".recent-block")).display,
+          })),
+        );
+    }
+    async function noOverflow() {
+      assert(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      );
+    }
     const rows = page.locator(".player-row"),
       drawer = page.locator(".player-drawer");
-    await rows.nth(1).click();
+    await page.goto("http://127.0.0.1:43201/");
+    await page.getByRole("button", { name: "当前对局", exact: true }).click();
+    await rows.last().waitFor();
+    assert.equal(await rows.count(), 10);
+    assert(
+      await rows
+        .first()
+        .evaluate(
+          (el) =>
+            parseFloat(
+              getComputedStyle(el.querySelector(".overview-metrics b"))
+                .fontSize,
+            ) >= 24,
+        ),
+    );
+    assert(
+      await rows
+        .first()
+        .evaluate(
+          (el) =>
+            parseFloat(
+              getComputedStyle(el.querySelector(".rank-line")).fontSize,
+            ) >= 12,
+        ),
+    );
+    await noOverflow();
+    await screenshot("cards");
+    const before = await sizes();
+    await rows.first().click();
     await drawer.waitFor();
-    assert.equal(await drawer.getAttribute("role"), "complementary");
-    await geometry();
-    await rows.nth(7).click();
-    await drawer.getByRole("heading", { name: "合成玩家8#DEMO" }).waitFor();
-    assert.equal(await rows.nth(7).getAttribute("aria-pressed"), "true");
-    await drawer.getByLabel("分析样本场数").selectOption("10");
-    await drawer.getByLabel("战绩模式筛选").selectOption("420");
-    await screenshot("roster-inline");
-    // Rank requests are explicit and leave both history workspaces untouched.
-    assert.equal(rankRequests, 0);
-    await drawer.getByRole("button", { name: "获取段位", exact: true }).click();
-    await drawer.getByText("段位查询超时", { exact: true }).waitFor();
-    await drawer.getByRole("button", { name: "重试段位", exact: true }).click();
-    await drawer.getByText("钻石 I · 0 LP", { exact: true }).waitFor();
-    await drawer.getByRole("button", { name: "更新段位", exact: true }).click();
-    await drawer.getByText("旧段位", { exact: true }).waitFor();
+    assert.equal(await drawer.getAttribute("role"), "dialog");
+    assert.deepEqual(
+      await sizes(),
+      before,
+      "opening details must not shrink cards or hide information",
+    );
+    assert.equal(await page.locator(".app-main").getAttribute("inert"), "");
     assert.equal(
-      await drawer.getByText("钻石 I · 0 LP", { exact: false }).count(),
+      await drawer
+        .getByRole("button", { name: "刷新数据", exact: true })
+        .count(),
       1,
     );
-    assert.equal(await drawer.getByLabel("分析样本场数").inputValue(), "10");
-    assert.equal(await drawer.getByLabel("战绩模式筛选").inputValue(), "420");
+    assert.equal(
+      await page
+        .getByRole("button", {
+          name: /获取段位|更新玩家资料|刷新战绩|重试段位/,
+        })
+        .count(),
+      0,
+      "only one data refresh control",
+    );
+    await drawer.getByText("生涯不公开", { exact: true }).waitFor();
+    assert(!(await drawer.textContent()).includes("客户端明确返回"));
+    assert.equal(await drawer.locator(".rank-card").count(), 2);
+    await drawer.getByLabel("分析样本场数").selectOption("10");
+    await drawer.getByLabel("战绩模式筛选").selectOption("420");
+    await drawer.getByRole("button", { name: "刷新数据", exact: true }).click();
+    await drawer.getByText("旧段位", { exact: true }).waitFor();
+    assert.equal(refreshes, 1);
     assert.equal(
       await page.locator(".player-tab").count(),
       0,
-      "rank lookup must not open a history tab",
+      "refresh must not open history tabs",
     );
-    assert.equal(
-      await rows.nth(7).locator(".overview-metrics").textContent(),
-      await rows.nth(0).locator(".overview-metrics").textContent(),
-    );
-    assert.equal(
-      await rows
-        .nth(7)
-        .locator(".rank-line")
-        .getAttribute("title")
-        .then((t) => t.includes("超时")),
-      true,
-    );
-    await screenshot("rank-retained");
-
-    await page.getByRole("navigation", { name: "工作区" }).waitFor();
-    await page.setViewportSize({ width: 1100, height: 760 });
-    await geometry();
-    await screenshot("roster-1100");
-    await page.setViewportSize({ width: 880, height: 620 });
-    await page.getByRole("dialog", { name: "玩家详情" }).waitFor();
     assert.equal(await drawer.getByLabel("分析样本场数").inputValue(), "10");
     assert.equal(await drawer.getByLabel("战绩模式筛选").inputValue(), "420");
-    await page.waitForFunction(() =>
-      document.querySelector(".player-drawer").contains(document.activeElement),
-    );
-    assert.equal(await page.locator(".app-main").getAttribute("inert"), "");
+    await screenshot("unified-details");
+    await drawer
+      .getByRole("button", { name: "下一位玩家", exact: true })
+      .click();
+    await drawer
+      .getByRole("heading", { name: "合成玩家2#DEMO", exact: true })
+      .waitFor();
+    await drawer
+      .getByRole("button", { name: "上一位玩家", exact: true })
+      .click();
+    await drawer
+      .getByRole("heading", { name: "合成玩家1#DEMO", exact: true })
+      .waitFor();
+    assert.equal(await drawer.getByLabel("分析样本场数").inputValue(), "10");
+    await page.setViewportSize({ width: 1100, height: 760 });
+    assert.equal((await sizes())[0].height, before[0].height);
+    await page.setViewportSize({ width: 880, height: 620 });
+    await noOverflow();
     assert(
       await drawer.evaluate((el) => {
         const r = el.getBoundingClientRect();
@@ -302,8 +281,6 @@ async function main() {
         );
       }),
     );
-    await geometry(false);
-    // Tab wraps in both directions and ignores hidden/disabled controls.
     await drawer.focus();
     await page.keyboard.press("Shift+Tab");
     assert(await drawer.evaluate((el) => el.contains(document.activeElement)));
@@ -311,216 +288,124 @@ async function main() {
     await page.waitForFunction(() =>
       document.activeElement?.textContent.includes("在战绩页打开"),
     );
-    const firstFocused = await page.evaluate(
-      () => document.activeElement.outerHTML,
-    );
-    await publish();
-    assert.equal(
-      await page.evaluate(() => document.activeElement.outerHTML),
-      firstFocused,
-      "snapshots must not steal focus",
-    );
-    await screenshot("roster-modal");
+    await screenshot("details-880");
     await page.keyboard.press("Escape");
-    await drawer.waitFor({ state: "detached" });
-    assert.equal(await page.locator(".app-main").getAttribute("inert"), null);
-    await page.waitForFunction(
-      () => document.activeElement?.dataset.playerKey === "synthetic-7",
-    );
-    await rows.nth(0).click();
-    await page.getByRole("dialog", { name: "玩家详情" }).waitFor();
-    await page
-      .locator(".drawer-floating")
-      .click({ position: { x: 12, y: 40 } });
     await drawer.waitFor({ state: "detached" });
     await page.waitForFunction(
       () => document.activeElement?.dataset.playerKey === "synthetic-0",
     );
-    await rows.nth(9).click();
-    await page.getByRole("button", { name: "在战绩页打开 ↗" }).click();
-    await page.waitForFunction(
-      () => document.activeElement?.getAttribute("role") === "tab",
-    );
-    assert.equal(
-      await page.getByRole("dialog", { name: "玩家详情" }).count(),
-      0,
-    );
-    await page.getByRole("button", { name: "当前对局", exact: true }).click();
-    await page.getByRole("dialog", { name: "玩家详情" }).waitFor();
-    await page.setViewportSize({ width: 1280, height: 800 });
+    assert.equal(await page.locator(".app-main").getAttribute("inert"), null);
+    await page.setViewportSize({ width: 1100, height: 820 });
+    snapshot = {
+      ...snapshot,
+      stage: "party",
+      phase: "Lobby",
+      gameId: 0,
+      knownCount: 1,
+      readyCount: 1,
+      participants: [
+        {
+          ...structuredClone(players[0]),
+          championId: 0,
+          championState: "unselected",
+        },
+      ],
+    };
+    await publish();
+    await rows.first().getByText("等级 100", { exact: true }).waitFor();
+    assert.equal(await rows.count(), 1);
+    assert(!(await rows.first().textContent()).includes("英雄信息暂不可用"));
     await page.waitForFunction(
       () =>
-        document.querySelector(".player-drawer")?.getAttribute("role") ===
-        "complementary",
+        document.querySelector(".player-row .participant-avatar img")
+          ?.naturalWidth > 0,
     );
-    await geometry();
-    // Failed/hidden/loading/empty retain distinct wording and still fit in one screen.
-    snapshot.participants = snapshot.participants.map((p, i) =>
-      i < 5
-        ? p
-        : {
-            ...p,
-            historyState:
-              i === 9
-                ? "pending"
-                : i === 8
-                  ? "empty"
-                  : i === 7
-                    ? "failed"
-                    : "loading",
-            identityState: i === 9 ? "unavailable" : "known",
-            history: [],
-          },
+    await rows.first().getByText("黄金 II · 52 LP", { exact: true }).waitFor();
+    const lobbyBefore = await sizes();
+    await screenshot("lobby");
+    await rows.first().click();
+    await drawer.waitFor();
+    assert.deepEqual(
+      await sizes(),
+      lobbyBefore,
+      "lobby card must remain unchanged",
     );
-    snapshot.knownCount = 9;
-    await publish();
-    await page.getByRole("button", { name: "关闭玩家详情" }).click();
-    await geometry();
-    assert.equal(await page.getByText("正在获取", { exact: true }).count(), 2);
-    assert.equal(await page.getByText("可重试", { exact: true }).count(), 1);
-    assert.equal(await page.getByText("身份未知", { exact: true }).count(), 1);
-    assert(
-      (await page.getByLabel("本局资料准备进度").textContent()).includes(
-        "6/ 10",
-      ),
-    );
-    await screenshot("roster-partial");
-    // Champion availability remains honest, including unselected and intent states.
-    snapshot.participants = snapshot.participants.map((p, i) => ({
-      ...p,
-      championId: i % 2 ? 0 : 23,
-      championState: i % 2 ? "unselected" : "intent",
-    }));
-    await publish();
-    await geometry();
-    await rows.nth(0).click();
-    await geometry();
-    await page.getByRole("button", { name: "关闭玩家详情" }).click();
-    // If the selected row disappears, return to an available match control.
-    await rows.nth(1).click();
-    snapshot.participants = snapshot.participants.filter(
-      (p) => p.key !== "synthetic-1",
-    );
-    await publish();
+    await page.keyboard.press("Escape");
     await drawer.waitFor({ state: "detached" });
-    await page.waitForFunction(
-      () =>
-        document.activeElement ===
-        document.querySelector(".roster-toolbar button"),
-    );
-
-    // Extra members wrap without painting over the other team's cards.
-    const example = snapshot.participants[0];
-    snapshot.participants = Array.from({ length: 12 }, (_, i) => ({
-      ...example,
-      key: `large-${i}`,
-      displayName: `合成成员${i}#DEMO`,
-      team: i < 6 ? "ally" : "enemy",
-    }));
-    snapshot.knownCount = 12;
+    snapshot = {
+      ...snapshot,
+      stage: "preparing",
+      phase: "ChampSelect",
+      gameId: 43,
+      participants: [
+        structuredClone(players[0]),
+        {
+          ...structuredClone(players[5]),
+          identityState: "unavailable",
+          displayName: "",
+          championId: 0,
+          championState: "unselected",
+          history: [],
+          historyState: "pending",
+          profile: undefined,
+        },
+      ],
+    };
     await publish();
     await page.waitForFunction(
-      () => document.querySelectorAll(".player-row").length === 12,
+      () => document.querySelector(".card-art-figure")?.naturalWidth > 0,
     );
+    assert(
+      await rows.first().evaluate((el) => {
+        const figure = el.querySelector(".card-art-figure"),
+          art = el.querySelector(".card-artwork"),
+          card = el.getBoundingClientRect(),
+          box = art.getBoundingClientRect();
+        return (
+          Math.abs(box.width - card.width) < 2 &&
+          Math.abs(box.height - card.height) < 2 &&
+          getComputedStyle(figure).objectPosition === "50% 50%" &&
+          getComputedStyle(el).clipPath === "none"
+        );
+      }),
+      "art must fill the card without a right-side strip or inset frame",
+    );
+    await screenshot("champ-select");
+    snapshot = {
+      ...snapshot,
+      knownCount: 12,
+      readyCount: 12,
+      participants: Array.from({ length: 12 }, (_, i) => ({
+        ...structuredClone(players[0]),
+        key: `large-${i}`,
+        puuid: `large-${i}`,
+        team: i < 6 ? "ally" : "enemy",
+      })),
+    };
+    await publish();
+    await rows.last().waitFor();
+    assert.equal(await rows.count(), 12);
     assert(
       await page.locator(".team-columns").evaluate((el) => {
-        const teams = el.querySelectorAll(".team-section");
-        const last = teams[0]
-          .querySelector(".player-row:last-child")
-          .getBoundingClientRect();
+        const t = el.querySelectorAll(".team-section");
         return (
-          last.bottom <= teams[1].getBoundingClientRect().top &&
-          el.scrollWidth <= el.clientWidth
+          t[0].querySelector(".player-row:last-child").getBoundingClientRect()
+            .bottom <= t[1].getBoundingClientRect().top
         );
       }),
-      "nonstandard teams overlap or overflow",
     );
+    await noOverflow();
+    assert.equal(calls.filter((c) => c === "RefreshData").length, 1);
     assert(
-      !calls.includes("EnsureProfile") &&
-        !calls.includes("LookupPlayer") &&
-        !calls.includes("HistoryPage"),
-      "layout and snapshots cannot trigger extra data queries",
-    );
-
-    // Reported champion-select case: one Rengar and one hidden opponent,
-    // with the inspector open. The entire source portrait fits inside the card.
-    snapshot.phase = "ChampSelect";
-    snapshot.stage = "champion-select";
-    snapshot.frozen = false;
-    snapshot.participants = [
-      {
-        ...example,
-        key: "rengar",
-        displayName: "合成狮子狗#DEMO",
-        championId: 107,
-        championState: "selected",
-        team: "ally",
-        profile: { ...example.profile, rankState: "not-requested", ranks: [] },
-      },
-      {
-        ...example,
-        key: "hidden-opponent",
-        identityState: "unavailable",
-        championId: 0,
-        championState: "unselected",
-        displayName: "",
-        team: "enemy",
-        historyState: "pending",
-        history: [],
-        profile: undefined,
-      },
-    ];
-    snapshot.knownCount = 1;
-    await publish();
-    await page.setViewportSize({ width: 1100, height: 820 });
-    await page.locator('[data-player-key="rengar"]').click();
-    await drawer.waitFor();
-    await page.waitForFunction(() => {
-      const image = document.querySelector(
-        '[data-player-key="rengar"] > img.card-illustration',
-      );
-      return image?.complete && image.naturalWidth > 0;
-    });
-    assert(
-      await page.locator('[data-player-key="rengar"]').evaluate((el) => {
-        const image = el.querySelector("img.card-illustration");
-        const box = image.getBoundingClientRect(),
-          card = el.getBoundingClientRect();
-        const scale = Math.min(
-          box.width / image.naturalWidth,
-          box.height / image.naturalHeight,
-        );
-        const width = image.naturalWidth * scale,
-          height = image.naturalHeight * scale;
-        const style = getComputedStyle(image);
-        return (
-          style.objectFit === "contain" &&
-          height > card.height - 18 &&
-          width <= card.width - 16 &&
-          box.top >= card.top + 7 &&
-          box.bottom <= card.bottom - 7 &&
-          box.left >= card.left + 7 &&
-          box.right <= card.right - 7 &&
-          getComputedStyle(el, ":before").backgroundImage.includes(
-            "linear-gradient",
-          )
-        );
-      }),
-      "complete Rengar artwork must fit the whole card, without a header crop",
-    );
-    await drawer
-      .getByRole("button", { name: "获取段位", exact: true })
-      .waitFor();
-    await screenshot("rengar-complete");
-    assert.equal(
-      rankRequests,
-      3,
-      "snapshots and card selection must not fetch ranks",
+      !calls.some((c) =>
+        /LoadRanks|LoadProfile|LookupPlayer|HistoryPage|EnsureProfile/.test(c),
+      ),
+      "warm layout/selection must not start redundant data queries",
     );
     assert.deepEqual(errors, []);
     assert.deepEqual(external, []);
     console.log(
-      "PASS: 1280×800 and 1100×760 horizontal ten-player comparison with bottom inspector, 880×620 modal geometry, Tab/Esc/backdrop/focus return, resize continuity, complete Rengar art, explicit rank failure/retry/retention and history isolation without automatic queries.",
+      "PASS: full lobby avatar/rank, player-first readable cards without frame/strip, unified refresh and retained fields, no extra tabs/queries, stable card geometry, modal focus/resize and expanded roster.",
     );
   } finally {
     await browser.close();

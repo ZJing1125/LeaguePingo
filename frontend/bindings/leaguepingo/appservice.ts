@@ -74,6 +74,10 @@ export function PrioritizePlayer(key: string): $CancellablePromise<void> {
     return $Call.ByID(4255655626, key);
 }
 
+export function RefreshData(key: string, connectionID: number): $CancellablePromise<core$0.Participant> {
+    return $Call.ByID(983148913, key, connectionID);
+}
+
 export function RefreshHistory(key: string, connectionID: number): $CancellablePromise<core$0.Participant> {
     return $Call.ByID(2919448547, key, connectionID);
 }

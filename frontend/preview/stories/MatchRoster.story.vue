@@ -35,7 +35,10 @@ const rengar = makePlayer(0, { championId: 107, championState: "selected" });
 <template>
   <Story title="对局 / 双方名单">
     <Variant title="双方十人"
-      ><div style="width: 1180px; max-width: 100%; padding: 12px">
+      ><div
+        class="match-workspace"
+        style="width: 1180px; max-width: 100%; padding: 12px"
+      >
         <MatchRoster
           :players="players"
           :selected-key="selected"
@@ -44,24 +47,33 @@ const rengar = makePlayer(0, { championId: 107, championState: "selected" });
         /></div
     ></Variant>
     <Variant title="准备中与身份缺失"
-      ><div style="width: 1180px; max-width: 100%; padding: 12px">
+      ><div
+        class="match-workspace"
+        style="width: 1180px; max-width: 100%; padding: 12px"
+      >
         <MatchRoster :players="mixed" frozen /></div
     ></Variant>
     <Variant title="组队阶段"
-      ><div style="width: 1180px; max-width: 100%; padding: 12px">
+      ><div
+        class="match-workspace"
+        style="width: 1180px; max-width: 100%; padding: 12px"
+      >
         <MatchRoster :players="players.slice(0, 3)" party /></div
     ></Variant>
     <Variant title="长名称与窄窗阵容"
-      ><div style="width: 820px; max-width: 100%; padding: 12px">
+      ><div
+        class="match-workspace"
+        style="width: 820px; max-width: 100%; padding: 12px"
+      >
         <MatchRoster
           :players="longNames"
           :selected-key="players[1]!.key"
         /></div
     ></Variant>
-    <Variant title="完整原画与详情压缩"
+    <Variant title="完整原画与清晰数据"
       ><div
-        class="has-inspector"
-        style="width: 1100px; max-width: 100%; height: 380px; padding: 12px"
+        class="match-workspace"
+        style="width: 1100px; max-width: 100%; height: 680px; padding: 12px"
       >
         <MatchRoster
           :players="[rengar, ...players.slice(1)]"

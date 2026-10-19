@@ -56,6 +56,10 @@ func (s *AppService) RefreshPlayer(ctx context.Context, key string) (core.Partic
 func (s *AppService) RefreshHistory(ctx context.Context, key string, connectionID uint64) (core.Participant, error) {
 	return s.engine.RefreshHistory(ctx, key, connectionID)
 }
+
+func (s *AppService) RefreshData(ctx context.Context, key string, connectionID uint64) (core.Participant, error) {
+	return s.engine.RefreshData(ctx, key, connectionID)
+}
 func (s *AppService) PrioritizePlayer(key string) { s.engine.PrioritizePlayer(key) }
 
 func (s *AppService) HistoryPage(ctx context.Context, key string, connectionID uint64, offset int) (core.HistoryPage, error) {

@@ -44,8 +44,8 @@ const failed = makePlayer(4, {
     <Variant title="段位超时可重试"
       ><PlayerProfileHeader :player="failed" connected
     /></Variant>
-    <Variant title="段位查询中"
-      ><PlayerProfileHeader :player="normal" connected busy rank-loading
+    <Variant title="资料尚未取得"
+      ><PlayerProfileHeader :player="missing" connected busy
     /></Variant>
   </Story>
 </template>

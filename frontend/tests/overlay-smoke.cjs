@@ -109,6 +109,8 @@ async function main() {
     };
     let rejectHold = true;
     let releaseRefresh;
+    let refreshFailures = false;
+    let selectedRefreshes = 0;
     let releasePlayerAction;
     let delayEnsure = false,
       releaseEnsure;
@@ -180,7 +182,64 @@ async function main() {
             revision: state.revision + 1,
             visible: false,
           };
-        else if (method === "RefreshRoster") result = snapshot;
+        else if (method === "RefreshData") {
+          if (
+            (args[0] === "test-5" && ++selectedRefreshes > 1) ||
+            (refreshFailures && ["Alpha#TEST", "Beta#TEST"].includes(args[0]))
+          ) {
+            await new Promise((resolve) => {
+              if (args[0] === "test-5") releaseRefresh = resolve;
+              else releasePlayerAction = resolve;
+            });
+            return route.fulfill({
+              status: 400,
+              json: {
+                kind: "RuntimeError",
+                message:
+                  args[0] === "test-5"
+                    ? "A query failed"
+                    : args[0] === "Alpha#TEST"
+                      ? "Alpha history failed"
+                      : "Beta profile failed",
+              },
+            });
+          }
+          let original =
+            snapshot.participants.find((p) => p.key === args[0]) ??
+            player(args[0]);
+          if (args[0] === "test-5") {
+            original = player("测试玩家5#TEST", "test-5");
+            snapshot = { ...snapshot, participants: [] };
+            await page.evaluate(
+              (s) =>
+                window._wails.dispatchWailsEvent({
+                  name: "leaguepingo:snapshot",
+                  data: s,
+                }),
+              snapshot,
+            );
+          }
+          result = {
+            ...original,
+            privacyState: "private",
+            profile: {
+              updatedAt: new Date(Date.now() + 2000).toISOString(),
+              privacyState: "private",
+              rankState: "ready",
+              ranks: [
+                {
+                  queue: "RANKED_SOLO_5x5",
+                  tier: "GOLD",
+                  division: "II",
+                  lp: 52,
+                },
+              ],
+              level: 100,
+              profileIconData:
+                "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aP1sAAAAASUVORK5CYII=",
+            },
+          };
+        } else if (method === "RefreshRoster") result = snapshot;
         else if (method === "EnsureProfile") {
           if (delayEnsure && args[0] === "avatar-ready")
             await new Promise((resolve) => {
@@ -197,8 +256,15 @@ async function main() {
                 "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aP1sAAAAASUVORK5CYII=",
               level: 99,
               privacyState: "unknown",
-              rankState: "unavailable",
-              ranks: [],
+              rankState: "ready",
+              ranks: [
+                {
+                  queue: "RANKED_SOLO_5x5",
+                  tier: "GOLD",
+                  division: "II",
+                  lp: 52,
+                },
+              ],
             },
           };
         } else if (method === "LoadProfile" && args[0] === "Beta#TEST") {
@@ -622,12 +688,8 @@ async function main() {
       `1280x800 must show five complete matches, got ${standardRows}`,
     );
     await page.setViewportSize({ width: 1100, height: 760 });
-    await page
-      .getByRole("button", { name: "更新玩家资料", exact: true })
-      .click();
-    await page
-      .getByText("生涯不公开（客户端明确返回）", { exact: false })
-      .waitFor();
+    await page.getByRole("button", { name: "刷新数据", exact: true }).click();
+    await page.getByText("生涯不公开", { exact: false }).waitFor();
     await page.waitForFunction(() => {
       const img = document.querySelector(".profile-avatar img");
       return img?.complete && img.naturalWidth > 0;
@@ -727,10 +789,11 @@ async function main() {
       .getByRole("heading", { name: "Beta#TEST", exact: true })
       .waitFor();
     await page.getByRole("tab", { name: "Alpha#TEST", exact: true }).click();
+    refreshFailures = true;
     const identityCalls = calls.filter(
       (c) => c === "Lookup" || c === "RefreshLookup",
     ).length;
-    await page.getByRole("button", { name: "刷新战绩", exact: true }).click();
+    await page.getByRole("button", { name: "刷新数据", exact: true }).click();
     assert.equal(
       await page
         .locator(".global-search button")
@@ -765,9 +828,7 @@ async function main() {
       .filter({ hasText: "Alpha history failed" })
       .waitFor();
     await page.getByRole("tab", { name: "Beta#TEST", exact: true }).click();
-    await page
-      .getByRole("button", { name: "更新玩家资料", exact: true })
-      .click();
+    await page.getByRole("button", { name: "刷新数据", exact: true }).click();
     await page.getByRole("tab", { name: "Alpha#TEST", exact: true }).click();
     for (let i = 0; !releasePlayerAction && i < 500; i++)
       await new Promise((resolve) => setTimeout(resolve, 10));
@@ -921,9 +982,7 @@ async function main() {
         path: process.env.UI_SCREENSHOT_PREFIX + "-match.png",
       });
     await page.locator(".player-row").nth(5).click();
-    await page
-      .getByRole("button", { name: "手动查询此玩家", exact: true })
-      .click();
+    await page.getByRole("button", { name: "刷新数据", exact: true }).click();
     await page
       .locator(".player-drawer")
       .getByRole("heading", { name: "测试玩家5#TEST" })
@@ -961,14 +1020,14 @@ async function main() {
     );
     await page
       .locator(".player-drawer")
-      .getByRole("button", { name: "刷新战绩", exact: true })
+      .getByRole("button", { name: "刷新数据", exact: true })
       .click();
     await page.waitForFunction(
       () =>
         document.querySelector(".player-drawer .history-actions button")
           ?.disabled,
     );
-    await page.locator(".player-row").nth(1).click();
+    await page.getByRole("button", { name: "下一位玩家", exact: true }).click();
     for (let i = 0; !releaseRefresh && i < 500; i++)
       await new Promise((resolve) => setTimeout(resolve, 10));
     assert(releaseRefresh, "refresh request did not reach the bridge");
@@ -986,11 +1045,11 @@ async function main() {
     );
     await page
       .locator(".player-drawer")
-      .getByRole("button", { name: "更新玩家资料", exact: true })
+      .getByRole("button", { name: "刷新数据", exact: true })
       .click();
     await page
       .locator(".player-drawer")
-      .getByText("生涯不公开（客户端明确返回）", { exact: false })
+      .getByText("生涯不公开", { exact: false })
       .waitFor();
     snapshot = {
       ...snapshot,
@@ -1016,10 +1075,14 @@ async function main() {
     );
     assert(
       (await page.locator(".player-drawer").textContent()).includes(
-        "生涯不公开（客户端明确返回）",
+        "生涯不公开",
       ),
       "older profile with equal history timestamp overwrote explicit update",
     );
+    if (await page.locator(".player-drawer").isVisible())
+      await page
+        .getByRole("button", { name: "关闭玩家详情", exact: true })
+        .click();
     await page
       .getByRole("navigation", { name: "工作区" })
       .getByRole("button", { name: /玩家战绩/ })
@@ -1029,7 +1092,7 @@ async function main() {
       (await page.getByRole("tab", { selected: true }).textContent()).trim(),
       "background results must keep a valid active tab after eviction",
     );
-    assert(calls.includes("LookupPlayer") && calls.includes("RefreshRoster"));
+    assert(calls.includes("RefreshData") && calls.includes("RefreshRoster"));
     await page.getByRole("button", { name: "设置与诊断", exact: true }).click();
     await page.getByRole("dialog", { name: "设置与诊断" }).waitFor();
     assert.deepEqual(
@@ -1171,16 +1234,14 @@ async function main() {
       await rosterRows.nth(0).locator(".participant-avatar img").count(),
       1,
     );
-    assert((await rosterRows.nth(0).textContent()).includes("暂未选择英雄"));
+    assert((await rosterRows.nth(0).textContent()).includes("尚未选择英雄"));
     assert.equal(
       await rosterRows.nth(1).locator(".participant-avatar .app-icon").count(),
       1,
     );
-    assert(
-      (await rosterRows.nth(1).textContent()).includes("英雄信息暂不可用"),
-    );
+    assert((await rosterRows.nth(1).textContent()).includes("英雄待确认"));
     assert.equal(
-      await rosterRows.nth(2).locator(".participant-avatar .game-icon").count(),
+      await rosterRows.nth(2).locator(".card-pick .game-icon").count(),
       1,
     );
     for (const hero of [24, 25, 0]) {
@@ -1191,10 +1252,7 @@ async function main() {
       };
       await publishSnapshot();
       if (hero)
-        await rosterRows
-          .nth(0)
-          .locator(".participant-avatar .game-icon")
-          .waitFor();
+        await rosterRows.nth(0).locator(".card-pick .game-icon").waitFor();
       else await rosterRows.nth(0).locator(".participant-avatar img").waitFor();
     }
     await rosterRows
@@ -1224,9 +1282,10 @@ async function main() {
         .join("")
         .includes("?"),
     );
-    await page
-      .getByRole("button", { name: "关闭玩家详情", exact: true })
-      .click();
+    if (await page.locator(".player-drawer").isVisible())
+      await page
+        .getByRole("button", { name: "关闭玩家详情", exact: true })
+        .click();
     const historyBeforeOpening = calls.filter((c) =>
       /Lookup|History/.test(c),
     ).length;
@@ -1241,8 +1300,7 @@ async function main() {
       releaseEnsure,
       "opening roster did not request missing basic profile",
     );
-    await rosterRows.nth(0).click();
-    await rosterRows.nth(1).click();
+    await page.getByRole("button", { name: "下一位玩家", exact: true }).click();
     delayEnsure = false;
     releaseEnsure();
     await page
@@ -1263,7 +1321,6 @@ async function main() {
       historyBeforeOpening,
       "opening profile reloaded history or identity",
     );
-    await rosterRows.nth(1).click();
     await page
       .getByRole("button", { name: "在战绩页打开 ↗", exact: true })
       .click();
@@ -1452,7 +1509,7 @@ async function main() {
       "minimum 400x360 quick view may scroll vertically but must not clip or overlap metrics",
     );
     const readsBeforeHold = calls.filter((c) =>
-      /History|Lookup|Profile|RefreshRoster/.test(c),
+      /History|Lookup|Profile|RefreshRoster|RefreshData/.test(c),
     ).length;
     state = {
       ...state,
@@ -1486,8 +1543,9 @@ async function main() {
       state,
     );
     assert.equal(
-      calls.filter((c) => /History|Lookup|Profile|RefreshRoster/.test(c))
-        .length,
+      calls.filter((c) =>
+        /History|Lookup|Profile|RefreshRoster|RefreshData/.test(c),
+      ).length,
       readsBeforeHold,
       "showing overlay triggered data reads",
     );

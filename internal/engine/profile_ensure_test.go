@@ -14,8 +14,8 @@ type basicProfileClient struct {
 	onBasic func()
 }
 
-func (c *basicProfileClient) BasicProfile(context.Context, string) core.Profile {
-	c.record("basic-profile")
+func (c *basicProfileClient) Profile(context.Context, string) core.Profile {
+	c.record("profile")
 	if c.onBasic != nil {
 		c.onBasic()
 	}
@@ -34,7 +34,7 @@ func profileEnsureFixture() (*Engine, *basicProfileClient, core.Participant) {
 	return e, c, p
 }
 
-func TestCachedManualLookupsEnrichWithoutIdentityHistoryOrRank(t *testing.T) {
+func TestCachedManualLookupsEnrichWithoutIdentityOrHistory(t *testing.T) {
 	for _, kind := range []string{"id", "player", "after-resolution"} {
 		t.Run(kind, func(t *testing.T) {
 			e, c, p := profileEnsureFixture()
@@ -48,7 +48,7 @@ func TestCachedManualLookupsEnrichWithoutIdentityHistoryOrRank(t *testing.T) {
 			case "after-resolution":
 				got, err = e.loadManualHistory(context.Background(), c, 0, 0, p, false, true)
 			}
-			if err != nil || got.Profile == nil || got.Profile.ProfileIconData != "synthetic-avatar" || len(c.calls) != 1 || c.calls[0] != "basic-profile" || !got.HistoryMeta.FetchedAt.Equal(*p.HistoryMeta.FetchedAt) {
+			if err != nil || got.Profile == nil || got.Profile.ProfileIconData != "synthetic-avatar" || len(c.calls) != 1 || c.calls[0] != "profile" || !got.HistoryMeta.FetchedAt.Equal(*p.HistoryMeta.FetchedAt) {
 				t.Fatal("cached lookup did not enrich independently", err)
 			}
 			if e.Snapshot().Participants[0].Profile == nil {

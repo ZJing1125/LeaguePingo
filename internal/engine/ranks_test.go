@@ -28,8 +28,8 @@ func TestRankRetryPreservesHistoryAndUntouchedProfileFreshness(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Profile.RankState != "not-requested" {
-		t.Fatal("basic request marked rank as attempted")
+	if got.Profile.RankState != "unavailable" {
+		t.Fatal("full profile did not preserve source rank state")
 	}
 	before := got.Profile.Fields["level"]
 	c := &rankClient{basicProfileClient: b, rank: core.Profile{RankState: "ready", Ranks: []core.Rank{{Queue: "RANKED_SOLO_5x5", Tier: "GOLD"}}}}

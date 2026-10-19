@@ -5,7 +5,8 @@ import { playerName } from "../presentation";
 import { championName } from "../gameAssets";
 import PlayerCardData from "./PlayerCardData.vue";
 import ParticipantAvatar from "./ParticipantAvatar.vue";
-import ChampionPortrait from "./ChampionPortrait.vue";
+import PlayerCardArt from "./PlayerCardArt.vue";
+import GameIcon from "./GameIcon.vue";
 
 const props = defineProps<{
   players: Participant[];
@@ -33,6 +34,7 @@ const teams = computed(() =>
     class="team-columns"
     :class="{
       'expanded-roster': teams.some((team) => team.players.length > 5),
+      'party-roster': party,
     }"
     aria-label="双方名单"
   >
@@ -56,25 +58,36 @@ const teams = computed(() =>
           :data-player-key="player.key"
           @click="$emit('select', player)"
         >
-          <ChampionPortrait class="card-illustration" :id="player.championId" />
+          <PlayerCardArt :id="player.championId" />
           <span class="card-portrait">
             <ParticipantAvatar
               class="card-avatar"
               :player="player"
-              :size="24"
+              :size="36"
+              account
             />
             <span class="card-identity"
-              ><strong>{{
-                player.championId
-                  ? championName(player.championId).split("·")[1] ||
-                    championName(player.championId)
-                  : player.championState === "unselected"
-                    ? "暂未选择英雄"
-                    : "英雄信息暂不可用"
-              }}</strong
-              ><span :title="playerName(player)">{{
+              ><strong :title="playerName(player)">{{
                 playerName(player)
-              }}</span></span
+              }}</strong>
+              <span class="card-pick"
+                ><GameIcon
+                  v-if="player.championId"
+                  :id="player.championId"
+                  :size="24"
+                />{{
+                  player.championId
+                    ? championName(player.championId).split("·")[1] ||
+                      championName(player.championId)
+                    : party
+                      ? player.profile?.level != null
+                        ? `等级 ${player.profile.level}`
+                        : "房间成员"
+                      : player.championState === "unselected"
+                        ? "尚未选择英雄"
+                        : "英雄待确认"
+                }}</span
+              ></span
             >
             <span v-if="player.championState === 'intent'" class="card-intent"
               >预选英雄</span

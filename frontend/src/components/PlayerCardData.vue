@@ -53,7 +53,7 @@ const rank = computed(() => rankPresentation(props.player));
           ><small>汇总 KDA</small></span
         ><small class="sample-size">近 {{ sample.games }} 场</small></span
       >
-      <span class="current-hero"
+      <span v-if="player.championId" class="current-hero"
         ><span>本英雄</span
         ><b>{{
           current.games

@@ -55,6 +55,7 @@ type Engine struct {
 	prepareDeadline     time.Time
 	prepareRetryAt      time.Time
 	prepareAttempts     map[string]int
+	prepareProfiles     map[string]bool
 	preferred           string
 	details             map[string]core.MatchDetail
 	initialMatch        initialMatchPreparation
@@ -342,6 +343,7 @@ func (e *Engine) invalidateConnectionLocked() {
 	e.prepareDeadline = time.Time{}
 	e.prepareRetryAt = time.Time{}
 	e.prepareAttempts = nil
+	e.prepareProfiles = nil
 	for i := range e.snapshot.Participants {
 		e.snapshot.Participants[i].Stale = true
 	}
@@ -393,6 +395,7 @@ func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.
 		e.prepareDeadline = time.Time{}
 		e.prepareRetryAt = time.Time{}
 		e.prepareAttempts = map[string]int{}
+		e.prepareProfiles = map[string]bool{}
 	}
 	if samePreparation && stage == "party" {
 		for _, p := range roster {
@@ -448,8 +451,14 @@ func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.
 	// Names belong to a verified connection/player, independently of the match
 	// or history timestamp. Never let a nameless roster overwrite the cache.
 	for i := range roster {
-		if cached, ok := e.cache[roster[i].PUUID]; ok && cached.ConnectionID == e.clientVersion && core.IsPlaceholderName(roster[i].DisplayName) && !core.IsPlaceholderName(cached.DisplayName) {
-			roster[i].DisplayName = cached.DisplayName
+		if cached, ok := e.cache[roster[i].PUUID]; ok && cached.ConnectionID == e.clientVersion {
+			if core.IsPlaceholderName(roster[i].DisplayName) && !core.IsPlaceholderName(cached.DisplayName) {
+				roster[i].DisplayName = cached.DisplayName
+			}
+			if roster[i].Profile == nil {
+				roster[i].Profile = cached.Profile
+				roster[i].PrivacyState = cached.PrivacyState
+			}
 		}
 	}
 	if (stage == "in-game" && e.initialMatch.cancel == nil) || (stage != "in-game" && !samePreparation) {
@@ -482,12 +491,13 @@ func (e *Engine) startPreparationLocked() {
 	if e.prepareDeadline.IsZero() {
 		e.prepareDeadline = time.Now().Add(45 * time.Second)
 		e.prepareAttempts = map[string]int{}
+		e.prepareProfiles = map[string]bool{}
 	}
 	if !time.Now().Before(e.prepareDeadline) {
 		return
 	}
 	for _, p := range e.snapshot.Participants {
-		if p.ConnectionID == e.clientVersion && core.IsKnownPUUID(p.PUUID) && !(historyCached(p) && cacheFresh(p) && !p.Stale) && e.prepareAttempts[p.PUUID] < 2 {
+		if p.ConnectionID == e.clientVersion && core.IsKnownPUUID(p.PUUID) && ((!(historyCached(p) && cacheFresh(p) && !p.Stale) && e.prepareAttempts[p.PUUID] < 2) || e.needsPreparedProfileLocked(p)) {
 			ctx, cancel := context.WithDeadline(context.Background(), e.prepareDeadline)
 			e.cancel, e.prepareRunning = cancel, true
 			go func(token, version uint64, client Client) {
@@ -545,7 +555,26 @@ func (e *Engine) prepare(ctx context.Context, token uint64, client Client, versi
 		}
 		e.mu.RUnlock()
 		if player.PUUID == "" {
-			return
+			e.mu.Lock()
+			if e.prepareToken != token || e.clientVersion != version || e.snapshot.Stage != preparingStage || ctx.Err() != nil {
+				e.mu.Unlock()
+				return
+			}
+			for _, p := range e.snapshot.Participants {
+				if e.needsPreparedProfileLocked(p) {
+					player = p
+					e.prepareProfiles[p.PUUID] = true
+					break
+				}
+			}
+			e.mu.Unlock()
+			if player.PUUID == "" {
+				return
+			}
+			e.prepareOptionalProfile(ctx, client, player, func() bool {
+				return e.client != nil && e.clientVersion == version && e.prepareToken == token && e.snapshot.Stage == preparingStage && (e.phaseHint == "" || stageForPhase(e.phaseHint) == preparingStage)
+			})
+			continue
 		}
 		e.mu.Lock()
 		if e.prepareToken != token {
@@ -609,7 +638,7 @@ func (e *Engine) updatePrepared(token uint64, puuid string, edit func(*core.Part
 		p := &e.snapshot.Participants[i]
 		if p.PUUID == puuid {
 			edit(p)
-			if historyCached(*p) {
+			if historyCached(*p) || p.Profile != nil {
 				e.cachePlayerLocked(*p)
 			}
 			e.snapshot.UpdatedAt = time.Now()
@@ -821,6 +850,12 @@ func (e *Engine) loadManualHistory(ctx context.Context, client Client, generatio
 	e.mu.Lock()
 	if e.client == nil || e.clientVersion != version {
 		player.Stale = true
+	}
+	// Background profile completion and manual history use independent clocks.
+	// Keep a newer profile that completed while history was waiting in the lane.
+	if latest, ok := e.cache[player.PUUID]; ok && latest.ConnectionID == version && latest.Profile != nil &&
+		(player.Profile == nil || (latest.Profile.UpdatedAt != nil && (player.Profile.UpdatedAt == nil || latest.Profile.UpdatedAt.After(*player.Profile.UpdatedAt)))) {
+		player.Profile, player.PrivacyState = latest.Profile, latest.PrivacyState
 	}
 	if e.client != nil && e.clientVersion == version {
 		e.cachePlayerLocked(player)

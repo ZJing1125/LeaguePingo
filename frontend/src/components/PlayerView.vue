@@ -29,7 +29,6 @@ const props = defineProps<{
   state: PlayerViewState;
   busy?: boolean;
   refreshing?: boolean;
-  rankLoading?: boolean;
   connected?: boolean;
   compact?: boolean;
   active?: boolean;
@@ -37,8 +36,6 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
   refresh: [player: Participant];
-  profile: [player: Participant];
-  ranks: [player: Participant];
 }>();
 const historyScroll = ref<HTMLElement | null>(null);
 const {
@@ -100,9 +97,6 @@ function toggle(id: number) {
       :busy="busy"
       :connected="connected"
       :compact="compact"
-      :rank-loading="rankLoading"
-      @ranks="emit('ranks', $event)"
-      @profile="emit('profile', $event)"
     />
     <TransientNotice :message="error" banner-class="player-error" />
     <div class="player-columns">
@@ -208,7 +202,7 @@ function toggle(id: number) {
               @click="emit('refresh', player)"
             >
               <AppIcon name="refresh" :size="14" />{{
-                refreshing ? "刷新中…" : "刷新战绩"
+                refreshing ? "刷新中…" : "刷新数据"
               }}
             </button>
           </div>
