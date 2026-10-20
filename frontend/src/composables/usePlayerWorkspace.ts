@@ -10,7 +10,7 @@ export function usePlayerWorkspace(
   snapshot: Ref<SnapshotModel | null>,
   onClose?: (player: Participant) => void,
 ) {
-  const view = ref<"players" | "match">("players");
+  const view = ref<"home" | "players" | "match">("home");
   const tabs = ref<Participant[]>([]),
     activeKey = ref(""),
     selectedKey = ref(""),

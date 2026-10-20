@@ -53,6 +53,9 @@ func (e *Engine) observePhase(version, sequence uint64, phase string) {
 	}
 	e.phaseEpoch++
 	e.phaseHint = phase
+	if stageForPhase(phase) != "idle" && e.homeCancel != nil {
+		e.homeCancel()
+	}
 	if !activeMatch(phase) {
 		e.stopInitialMatchLocked()
 	}

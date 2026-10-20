@@ -19,7 +19,11 @@ const hasChampion = computed(
   () => !props.account && !!gameAsset("champions", props.player.championId),
 );
 const status = computed(() =>
-  props.player.championId
+  props.account
+    ? props.player.profile?.profileIconData && !broken.value
+      ? "玩家账号头像"
+      : "账号头像暂缺"
+    : props.player.championId
     ? `英雄图标暂不可用（#${props.player.championId}）`
     : props.player.championState === "unselected"
       ? "暂未选择英雄"

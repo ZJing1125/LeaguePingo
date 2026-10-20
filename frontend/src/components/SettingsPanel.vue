@@ -4,8 +4,9 @@ import * as Service from "../../bindings/leaguepingo/appservice";
 import type { OverlayState, AppInfo } from "../../bindings/leaguepingo/models";
 import { errorMessage } from "../presentation";
 import { assetVersion } from "../gameAssets";
-defineProps<{ overlayState?: OverlayState | null }>();
-defineEmits<{ close: [] }>();
+import type { ThemePreference } from "../composables/useTheme";
+defineProps<{ overlayState?: OverlayState | null; theme: ThemePreference; resolvedTheme: string; themeError: string }>();
+defineEmits<{ close: []; theme: [value: ThemePreference] }>();
 const holdEnabled = ref(true),
   holdKey = ref("Backquote");
 const info = ref<AppInfo | null>(null),
@@ -126,6 +127,16 @@ onUnmounted(() => {
         LeaguePingo {{ info?.version ?? "加载中" }} · {{ info?.commit ?? "—"
         }}<br />构建 {{ info?.buildTime ?? "—" }} · 游戏资源 {{ assetVersion }}
       </p>
+      <fieldset class="theme-choices">
+        <legend>外观主题</legend>
+        <label v-for="choice in [{ value: 'light', name: '浅色', caption: '暖纸白 · 活力橙' }, { value: 'dark', name: '深色', caption: '炭灰 · 星夜紫' }, { value: 'system', name: '跟随系统', caption: '随系统外观自动切换' }]" :key="choice.value" :class="{ selected: theme === choice.value }">
+          <input type="radio" name="theme" :value="choice.value" :checked="theme === choice.value" @change="$emit('theme', choice.value as ThemePreference)" />
+          <span class="theme-swatch" :class="choice.value" aria-hidden="true"><i /><i /><i /></span>
+          <strong>{{ choice.name }}</strong><small>{{ choice.caption }}</small>
+        </label>
+      </fieldset>
+      <p class="muted">{{ theme === 'system' ? `当前跟随系统：${resolvedTheme === 'dark' ? '深色' : '浅色'}。` : '选择后立即生效并自动保存。' }}局内快览保持深色，方便对局中阅读。</p>
+      <p v-if="themeError" class="quality-warning" role="status">{{ themeError }}</p>
       <h2>局内按住快览</h2>
       <form class="settings-hold" @submit.prevent="saveHold">
         <label

@@ -1,0 +1,130 @@
+/* Shared semantic colors. The default preserves the existing paper theme. */
+:root {
+  --panel: #f7f6ef;
+  --surface-2: #e8e8e0;
+  --primary-bg: #d75530;
+  --on-accent: #fffaf3;
+  --button-bg: #eeeee6;
+  --button-text: #33443d;
+  --hover: #e1e3d8;
+  --input-bg: #f8f7f1;
+  --search-bg: #e9eae1;
+  --warning-bg: #f7e8d6;
+  --warning-text: #805126;
+  --warning-border: #d5ad7c;
+  --badge-bg: #e3e5d9;
+  --badge-text: #526256;
+  --accent-art: #e86a43;
+  --titlebar-bg: #e4e3dc;
+  --page-glow: #fffdf7;
+  --ally: #33778c;
+  --enemy: #b86258;
+  --match-bg: #eee7e5;
+  --win-bg: #e8eee5;
+  --loss-bg: #f0e3e0;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  color: #ececf1;
+  background: #1c1c1f;
+  --surface: #1c1c1f;
+  --panel: #242427;
+  --raised: #2b2b31;
+  --surface-2: #303038;
+  --border: #ffffff1c;
+  --text: #ececf1;
+  --muted: #a8a8b6;
+  --accent: #b19aff;
+  --accent-art: #9876ff;
+  --primary-bg: #7145db;
+  --on-accent: #fff;
+  --button-bg: #303036;
+  --button-text: #e1deed;
+  --hover: #3a3746;
+  --input-bg: #242427;
+  --search-bg: #29292e;
+  --warning-bg: #372d22;
+  --warning-text: #f0c38d;
+  --warning-border: #735635;
+  --warning: #f0c38d;
+  --badge-bg: #34323f;
+  --badge-text: #d2cbdc;
+  --titlebar-bg: #171719;
+  --page-glow: #27232f;
+  --ally: #8cbce8;
+  --enemy: #eda1a7;
+  --win: #8ab9ff;
+  --loss: #f0a1ac;
+  --win-bg: #252e42;
+  --loss-bg: #3c2833;
+  --match-bg: #2c2b33;
+  --selection: #3a304f;
+}
+.theme-select {
+  flex: none;
+  font-size: 12px;
+  max-width: 102px;
+  padding: 6px 5px;
+  cursor: pointer;
+}
+.theme-choices {
+  border: 0;
+  padding: 0;
+  margin: 8px 0 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.theme-choices legend { font-weight: 600; margin-bottom: 12px; }
+.theme-choices label {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  cursor: pointer;
+}
+.theme-choices label.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.theme-choices input { position: absolute; right: 9px; bottom: 30px; accent-color: var(--accent); }
+.theme-choices strong { font-size: 13px; }
+.theme-choices small { color: var(--muted); font-size: 11px; }
+.theme-swatch { width: 100%; height: 45px; padding: 9px; display: flex; gap: 5px; background: #f2f1eb; border: 1px solid #8883; border-radius: 4px; }
+.theme-swatch i { width: 24%; height: 100%; background: #d75530; border-radius: 2px; }
+.theme-swatch i + i { background: #d6d9cd; }
+.theme-swatch.dark { background: #1c1c1f; }
+.theme-swatch.dark i { background: #7145db; }
+.theme-swatch.dark i + i { background: #3b3b44; }
+.theme-swatch.system { background: linear-gradient(90deg, #f2f1eb 50%, #1c1c1f 50%); }
+.theme-swatch.system i { background: #d75530; }
+.theme-swatch.system i + i { background: #7145db; }
+:root[data-theme="dark"] .desktop-app .desktop-titlebar { border-color: var(--border); }
+:root[data-theme="dark"] .desktop-app .app-toolbar { border-color: var(--border); }
+:root[data-theme="dark"] .desktop-app .error-banner,
+:root[data-theme="dark"] .desktop-app .quality-warning { background: var(--warning-bg); color: var(--warning-text); border-color: var(--warning-border); }
+:root[data-theme="dark"] .desktop-app .match-expanded { background: #17171c66; }
+:root[data-theme="dark"] .desktop-app .detail-metrics { color: var(--text); }
+:root[data-theme="dark"] .desktop-app .match-card { border-bottom-color: var(--border); }
+:root[data-theme="dark"] .desktop-app .match-runes > span { color: var(--text); }
+:root[data-theme="dark"] .desktop-app .game-icon { background-color: var(--raised); color: var(--muted); }
+:root[data-theme="dark"] .desktop-app .match-main:hover { background: #ffffff08; }
+:root[data-theme="dark"] .desktop-app .players-workspace .match-expanded { border-left-color: var(--border); }
+:root[data-theme="dark"] .desktop-app .form-result.won { background: #2b4365; color: #b8d5ff; }
+:root[data-theme="dark"] .desktop-app .form-result.lost { background: #533341; color: #ffc0cf; }
+:root[data-theme="dark"] .desktop-app .form-result.unknown { background: var(--raised); color: var(--muted); }
+:root[data-theme="dark"] .desktop-app .player-row.selected:after { border-color: var(--accent-art); }
+:root[data-theme="dark"] .desktop-app .hero-card:focus-visible { box-shadow: inset 0 0 0 3px var(--accent); }
+@media (max-width: 1150px) {
+  .app-toolbar { gap: 10px; }
+  .workspace-nav { gap: 14px; }
+  .global-search { flex: 1; min-width: 200px; }
+}
+@media (max-width: 999px) {
+  .app-toolbar .nav-wordmark { font-size: 13px; }
+  .app-toolbar .workspace-nav { gap: 10px; }
+  .app-toolbar .global-search { min-width: 180px; }
+  .theme-select { max-width: 88px; font-size: 11px; }
+}

@@ -57,6 +57,12 @@ type AccountSource interface {
 	AccountIdentity(context.Context) (string, error)
 }
 
+// CachedAccountSource exposes identity already verified by local roster reading.
+// It must not make a network request, including during active gameplay.
+type CachedAccountSource interface {
+	CachedAccountIdentity() string
+}
+
 // Optional phase-only notifications. The callback is a wake-up hint; the engine
 // still verifies state through Phase. Implementations block until cancelled or failed.
 type PhaseEventSource interface {

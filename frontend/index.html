@@ -3,6 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <script>
+      // Resolve before the first paint, including an explicitly saved dark theme.
+      (() => {
+        let theme = "light";
+        try { theme = localStorage.getItem("leaguepingo.theme") || "light"; } catch {}
+        if (theme === "system") theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.dataset.theme = theme === "dark" ? "dark" : "light";
+      })();
+    </script>
     <link rel="stylesheet" href="/src/style.css" />
     <title>LeaguePingo</title>
   </head>

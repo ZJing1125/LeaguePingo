@@ -36,6 +36,7 @@ type Engine struct {
 	profileRetry        map[string]time.Time
 	clientVersion       uint64
 	accountIdentity     string
+	homeCancel          context.CancelFunc
 	phaseEpoch          uint64
 	phaseHint           string
 	phaseWake           chan struct{}
@@ -100,6 +101,9 @@ func (e *Engine) Run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			e.mu.Lock()
+			if e.homeCancel != nil {
+				e.homeCancel()
+			}
 			e.stopInitialMatchLocked()
 			if e.cancel != nil {
 				e.cancel()
@@ -195,7 +199,7 @@ func (e *Engine) poll(ctx context.Context) {
 	}
 	stage := stageForPhase(phase)
 	account := ""
-	if preparationStage(stage) {
+	if preparationStage(stage) || stage == "idle" {
 		if accounts, ok := client.(source.AccountSource); ok {
 			// Piggyback on low-frequency pregame polls; no account or history
 			// polling is added to active gameplay.
@@ -263,10 +267,18 @@ func (e *Engine) poll(ctx context.Context) {
 			roster[i].ConnectionID = version
 		}
 	}
+	if stage == "in-game" {
+		if cached, ok := client.(source.CachedAccountSource); ok {
+			account = cached.CachedAccountIdentity()
+		}
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.snapshot.Generation != generation || e.clientVersion != version || e.phaseEpoch != epoch {
 		return
+	}
+	if e.accountIdentity == "" && core.IsKnownPUUID(account) {
+		e.accountIdentity = account
 	}
 	if stage == "preparing" && e.champEpoch != champEpoch {
 		return
@@ -298,7 +310,7 @@ func (e *Engine) poll(ctx context.Context) {
 			gameID = e.snapshot.GameID
 		}
 	}
-	if e.snapshot.ConnectionID != version || e.snapshot.Phase != phase || e.snapshot.GameID != gameID || !e.snapshot.Connected {
+	if e.snapshot.ConnectionID != version || e.snapshot.Phase != phase || e.snapshot.GameID != gameID || !e.snapshot.Connected || e.snapshot.SelfKey != e.accountIdentity {
 		e.replaceLocked(stage, phase, gameID, roster, "")
 	} else if (preparationStage(stage) || stage == "in-game") && rosterChanged(e.snapshot.Participants, roster) {
 		e.replaceLocked(stage, phase, gameID, roster, "")
@@ -321,6 +333,9 @@ func (e *Engine) poll(ctx context.Context) {
 
 // Retained data can still be displayed, but can never become a new connection's cache.
 func (e *Engine) invalidateConnectionLocked() {
+	if e.homeCancel != nil {
+		e.homeCancel()
+	}
 	e.stopInitialMatchLocked()
 	e.stopPhaseEventsLocked()
 	e.stopChampSelectEventsLocked()
@@ -351,6 +366,9 @@ func (e *Engine) invalidateConnectionLocked() {
 
 // Keep the frozen match available while exposing why reconnection failed.
 func (e *Engine) disconnectLocked(message string) {
+	if e.homeCancel != nil {
+		e.homeCancel()
+	}
 	e.stopInitialMatchLocked()
 	e.stopPhaseEventsLocked()
 	e.stopChampSelectEventsLocked()
@@ -378,6 +396,9 @@ func (e *Engine) disconnectLocked(message string) {
 }
 
 func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.Participant, message string) {
+	if stage != "idle" && e.homeCancel != nil {
+		e.homeCancel()
+	}
 	if e.initialMatch.gameID != 0 && (!activeMatch(phase) || (gameID != 0 && e.initialMatch.gameID != gameID)) {
 		e.stopInitialMatchLocked()
 	}
@@ -473,7 +494,7 @@ func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.
 	if e.client != nil {
 		region = e.client.Region()
 	}
-	e.snapshot = core.Snapshot{ConnectionID: e.clientVersion, Generation: e.snapshot.Generation, Phase: phase, Stage: stage,
+	e.snapshot = core.Snapshot{ConnectionID: e.clientVersion, SelfKey: e.accountIdentity, Generation: e.snapshot.Generation, Phase: phase, Stage: stage,
 		Connected: stage != "disconnected", Region: region, GameID: gameID, Frozen: stage == "in-game",
 		UpdatedAt: time.Now(), Participants: roster, Message: message}
 	e.publishLocked()
@@ -778,6 +799,12 @@ func (e *Engine) beginLookup(ctx context.Context) (context.Context, func(), erro
 }
 
 func (e *Engine) loadManualHistory(ctx context.Context, client Client, generation uint64, version uint64, player core.Participant, force, enrich bool) (core.Participant, error) {
+	return e.loadManualHistoryGuarded(ctx, client, generation, version, player, force, enrich, nil)
+}
+
+// validLocked optionally prevents a cancelled home task from replacing cache
+// prepared by a newer phase. It is evaluated while e.mu is held.
+func (e *Engine) loadManualHistoryGuarded(ctx context.Context, client Client, generation uint64, version uint64, player core.Participant, force, enrich bool, validLocked func() bool) (core.Participant, error) {
 	// A complete-ID lookup already verified the name; preserve it even when
 	// the matching history cache was created from a nameless game roster.
 	if !core.IsPlaceholderName(player.DisplayName) {
@@ -848,6 +875,10 @@ func (e *Engine) loadManualHistory(ctx context.Context, client Client, generatio
 		cancel()
 	}
 	e.mu.Lock()
+	if validLocked != nil && !validLocked() {
+		e.mu.Unlock()
+		return core.Participant{}, context.Canceled
+	}
 	if e.client == nil || e.clientVersion != version {
 		player.Stale = true
 	}

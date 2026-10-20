@@ -1,4 +1,6 @@
 @import "./foundation.css";
+@import "./theme.css";
+@import "./home.css";
 
 /* Approved paper / ink / orange design. All game data remains in the existing workspaces. */
 :root {
@@ -18,7 +20,7 @@
   --radius: 3px;
 }
 body {
-  background: #f2f1eb;
+  background: var(--surface);
 }
 button,
 input,
@@ -29,53 +31,53 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 summary:focus-visible {
-  outline: 2px solid #e86a43;
+  outline: 2px solid var(--accent-art);
   outline-offset: 2px;
 }
 .primary {
-  background: #d75530;
-  color: #fffaf3;
-  border-color: #d75530;
+  background: var(--primary-bg);
+  color: var(--on-accent);
+  border-color: var(--primary-bg);
 }
 .secondary {
-  background: #eeeee6;
-  color: #33443d;
+  background: var(--button-bg);
+  color: var(--button-text);
   border-color: var(--border);
 }
 .secondary:hover {
-  background: #e1e3d8;
+  background: var(--hover);
 }
 .text-button {
-  color: #ac4325;
+  color: var(--accent);
 }
 input,
 select {
-  background: #f8f7f1;
+  background: var(--input-bg);
   color: var(--text);
   border-color: var(--border);
 }
 .error-banner,
 .quality-warning {
-  background: #f7e8d6;
-  color: #805126;
-  border-color: #d5ad7c;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  border-color: var(--warning-border);
 }
 .status-badge {
-  background: #e3e5d9;
-  color: #526256;
+  background: var(--badge-bg);
+  color: var(--badge-text);
 }
 .status-badge.warning {
-  background: #f5e3cc;
-  color: #97621d;
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 .profile-freshness {
-  background: #f4e7d4;
+  background: var(--warning-bg);
 }
 .inline-status {
   background: transparent;
 }
 .brand-mark {
-  background: #e86a43;
+  background: var(--accent-art);
   color: #fff6e9;
   border-radius: 0;
   clip-path: polygon(0 0, 100% 0, 100% 72%, 72% 100%, 0 100%);
@@ -88,11 +90,11 @@ select {
 .desktop-titlebar {
   height: 36px;
   flex: none;
-  background: #e4e3dc;
+  background: var(--titlebar-bg);
   border-color: #1d282f0c;
 }
 .window-brand {
-  color: #69756d;
+  color: var(--muted);
 }
 .window-brand .brand-mark {
   width: 17px;
@@ -107,10 +109,10 @@ select {
   font-size: 10px;
 }
 .window-controls button {
-  color: #6b736e;
+  color: var(--muted);
 }
 .window-controls button:hover {
-  background: #d5d8cf;
+  background: var(--hover);
 }
 .window-controls .window-close:hover {
   background: #c84040;
@@ -123,13 +125,13 @@ select {
   width: 100%;
   overflow: hidden;
   background:
-    radial-gradient(ellipse at 55% 0, #fffdf7, transparent 65%), #f2f1eb;
+    radial-gradient(ellipse at 55% 0, var(--page-glow), transparent 65%), var(--surface);
 }
 .app-toolbar {
   height: 62px;
   gap: 18px;
   padding: 0 28px;
-  background: #f2f1eb;
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
 .nav-wordmark {
@@ -147,7 +149,7 @@ select {
   font-size: 21px;
 }
 .nav-wordmark > span:last-child {
-  color: #d75c35;
+  color: var(--accent-art);
 }
 .workspace-nav {
   display: flex;
@@ -161,17 +163,17 @@ select {
   padding: 0 2px;
   font-weight: 600;
   font-size: 12px;
-  color: #7d867c;
+  color: var(--muted);
   background: none;
   border: 0;
 }
 .workspace-nav button.active {
-  color: #1d282f;
+  color: var(--text);
 }
 .workspace-nav button.active:after {
   content: "";
   height: 3px;
-  background: #e86a43;
+  background: var(--accent-art);
   position: absolute;
   bottom: 0;
   left: 0;
@@ -179,7 +181,7 @@ select {
 }
 .global-search {
   width: min(360px, 34%);
-  background: #e9eae1;
+  background: var(--search-bg);
   border: 0;
   border-radius: 3px;
   margin-left: auto;
@@ -222,7 +224,7 @@ select {
 .section-eyebrow {
   font-size: 8px;
   letter-spacing: 2px;
-  color: #819082;
+  color: var(--muted);
 }
 .roster-toolbar h1 {
   font-size: 28px;
@@ -274,11 +276,11 @@ select {
 }
 .roster-progress-track {
   width: 90px;
-  background: #dce0d4;
+  background: var(--raised);
   height: 3px;
 }
 .roster-progress-track i {
-  background: #658f80;
+  background: var(--win);
 }
 .roster-known {
   margin-left: auto;
@@ -322,14 +324,14 @@ select {
   letter-spacing: 1px;
 }
 .team-section h2 > span {
-  color: #33778c;
+  color: var(--ally);
 }
 .team-section:nth-child(2) h2 > span {
-  color: #b86258;
+  color: var(--enemy);
 }
 .team-section h2 small {
   font-size: 9px;
-  color: #7c8b7e;
+  color: var(--muted);
 }
 .team-player-list {
   display: grid;
@@ -343,9 +345,9 @@ select {
   flex: 1;
   display: grid;
   place-items: center;
-  background: #e7e8df;
-  border: 1px dashed #c6cdbc;
-  color: #7e8e7c;
+  background: var(--raised);
+  border: 1px dashed var(--border);
+  color: var(--muted);
   font-size: 12px;
   margin: 0;
   min-height: 120px;
@@ -691,8 +693,8 @@ select {
   width: 100%;
   height: 212px;
   flex: none;
-  background: #e5e7dc;
-  border: 1px solid #bdc8b7;
+  background: var(--raised);
+  border: 1px solid var(--border);
   border-radius: 0;
   box-shadow: none;
 }
@@ -788,7 +790,7 @@ select {
   font-size: 10px;
 }
 .player-drawer .history-panel {
-  background: #f1f2e9;
+  background: var(--panel);
 }
 .player-drawer .history-pagination {
   padding: 3px 7px;
@@ -834,9 +836,9 @@ select {
 .drawer-floating .player-drawer {
   width: 100%;
   height: min(450px, 85%);
-  border: 1px solid #b5c1af;
+  border: 1px solid var(--border);
   border-radius: 3px;
-  background: #f2f1eb;
+  background: var(--surface);
 }
 .drawer-floating .player-view.compact {
   display: flex;
@@ -860,15 +862,15 @@ select {
   overflow: hidden;
 }
 .player-tabs {
-  background: #e8e9e0;
+  background: var(--raised);
   border-color: var(--border);
 }
 .player-tab {
   background: transparent;
 }
 .player-tab.active {
-  background: #f2f1eb;
-  border-color: #d96a43;
+  background: var(--surface);
+  border-color: var(--accent-art);
 }
 .players-workspace > .player-view:not(.compact) {
   display: grid;
@@ -1016,7 +1018,7 @@ select {
 }
 .winrate-display strong {
   font-size: 35px;
-  color: #273d33;
+  color: var(--text);
 }
 .winrate-display > span {
   font-size: 10px;
@@ -1091,7 +1093,7 @@ select {
 }
 .history-panel {
   border-radius: 3px;
-  background: #f7f6ef;
+  background: var(--panel);
 }
 .history-panel > .history-scroll {
   padding: 0 9px;
@@ -1100,28 +1102,28 @@ select {
   border-radius: 0;
   border: 0;
   border-bottom: 1px solid #1d282f18;
-  background: #eee7e5;
+  background: var(--match-bg);
 }
 .match-card.won {
-  background: #e8eee5;
-  border-left-color: #4c947d;
+  background: var(--win-bg);
+  border-left-color: var(--win);
 }
 .match-card.lost {
-  background: #f0e3e0;
-  border-left-color: #bf7474;
+  background: var(--loss-bg);
+  border-left-color: var(--loss);
 }
 .match-card .match-row {
   padding: 8px 6px;
 }
 .match-runes > span {
-  background: #e6e9dd;
+  background: var(--raised);
 }
 .match-context-detail {
-  color: #73806d;
+  color: var(--muted);
 }
 .history-pagination {
-  background: #e8e9df;
-  border-color: #d5d9cb;
+  background: var(--raised);
+  border-color: var(--border);
 }
 .profile-freshness,
 .player-view > .inline-status {
@@ -1145,19 +1147,19 @@ select {
   background: #1d282f88;
 }
 .settings-panel {
-  background: #f2f1eb;
-  border: 1px solid #bec7b6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 4px;
 }
 .runtime-summary {
-  background: #e6e8dd;
+  background: var(--raised);
 }
 .diagnostic-table th,
 .diagnostic-table td {
-  border-color: #cad1c0;
+  border-color: var(--border);
 }
 .settings-message {
-  color: #38684d;
+  color: var(--win);
 }
 /* Read-only hold and interactive persistent overlay share one cached presentation. */
 .overlay-shell {
@@ -1597,7 +1599,7 @@ select {
   gap: 6px;
 }
 .settings-hold input {
-  accent-color: #d75530;
+  accent-color: var(--primary-bg);
 }
 .settings-hold select {
   max-width: 230px;
@@ -1829,7 +1831,7 @@ select {
   color: #fff;
 }
 .player-tab.active {
-  border-bottom: 2px solid #e86a43;
+  border-bottom: 2px solid var(--accent-art);
 }
 .players-workspace .history-panel {
   border-inline: 0;
@@ -1942,7 +1944,7 @@ select {
   border-color: #89a5a833;
 }
 .match-workspace .hero-card.selected:after {
-  border: 2px solid #e86a43;
+  border: 2px solid var(--accent-art);
 }
 .match-workspace .hero-card:before {
   background: linear-gradient(
@@ -2137,7 +2139,7 @@ select {
   font-size: 13px;
   background: transparent;
   border: 0;
-  border-top: 1px dashed #bac4b5;
+  border-top: 1px dashed var(--border);
 }
 
 /* Details float above the roster, preserving every card's geometry. */
@@ -2239,9 +2241,9 @@ select {
   min-height: 48px;
 }
 .drawer-floating .history-actions .secondary {
-  background: #e8ebe1;
-  color: #263a37;
-  border-color: #b7c2b0;
+  background: var(--button-bg);
+  color: var(--button-text);
+  border-color: var(--border);
 }
 .drawer-floating .profile-freshness {
   left: 16px;

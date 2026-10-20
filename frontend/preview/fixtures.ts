@@ -92,6 +92,7 @@ export function makeSnapshot(overrides: Partial<Snapshot> = {}): Snapshot {
   return {
     connectionId: 1,
     generation: 1,
+    selfKey: "synthetic-0",
     connected: true,
     phase: "InProgress",
     stage: "in-game",

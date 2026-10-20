@@ -144,6 +144,7 @@ type Stats struct {
 
 type Snapshot struct {
 	ConnectionID uint64        `json:"connectionId"`
+	SelfKey      string        `json:"selfKey"`
 	KnownCount   int           `json:"knownCount"`
 	ReadyCount   int           `json:"readyCount"`
 	RosterError  string        `json:"rosterError"`

@@ -21,6 +21,10 @@ type AppService struct {
 
 func (s *AppService) Snapshot() core.Snapshot { return s.engine.Snapshot() }
 
+func (s *AppService) CurrentPlayer(ctx context.Context, connectionID uint64) (core.Participant, error) {
+	return s.engine.CurrentPlayer(ctx, connectionID)
+}
+
 func (s *AppService) Lookup(ctx context.Context, riotID string) (core.Participant, error) {
 	return s.engine.Lookup(ctx, riotID)
 }

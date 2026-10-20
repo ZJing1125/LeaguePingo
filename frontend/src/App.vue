@@ -13,6 +13,7 @@ import TransientNotice from "./components/TransientNotice.vue";
 import SettingsPanel from "./components/SettingsPanel.vue";
 import AppIcon from "./components/AppIcon.vue";
 import DesktopTitleBar from "./components/DesktopTitleBar.vue";
+import HomeView from "./components/HomeView.vue";
 import { useTransientMessages } from "./transientMessages";
 import { errorMessage } from "./presentation";
 import { operationKey, playerTabId } from "./playerState";
@@ -20,9 +21,12 @@ import { useLeagueSnapshot } from "./composables/useLeagueSnapshot";
 import { usePlayerWorkspace } from "./composables/usePlayerWorkspace";
 import { usePlayerActions } from "./composables/usePlayerActions";
 import { useOverlayControls } from "./composables/useOverlayControls";
+import { useTheme, type ThemePreference } from "./composables/useTheme";
+import { useHomePlayer } from "./composables/useHomePlayer";
 
 const isOverlay =
   new URLSearchParams(location.search).get("view") === "overlay";
+const { preference: themePreference, resolved: resolvedTheme, saveError: themeError, setTheme } = useTheme();
 const settingsOpen = ref(false);
 const mainElement = ref<HTMLElement | null>(null);
 const { messages: playerErrors, setMessage } = useTransientMessages();
@@ -78,6 +82,14 @@ const {
   selectPlayer,
   refreshRoster,
 } = usePlayerActions(snapshot, workspace, acceptSnapshot, setMessage);
+const home = useHomePlayer(snapshot, view, computed(() => manualBusy.value || rosterBusy.value || isOverlay));
+const { player: homePlayer, loading: homeLoading, error: homeError } = home;
+async function refreshHome() {
+  if (homePlayer.value) {
+    const result = await refreshPlayer(homePlayer.value);
+    if (result) home.accept(result);
+  } else await home.retry();
+}
 const {
   overlay,
   overlayBusy,
@@ -158,6 +170,12 @@ onUnmounted(() => {
         >
         <nav class="workspace-nav" aria-label="工作区">
           <button
+            :class="{ active: view === 'home' }"
+            :aria-current="view === 'home' ? 'page' : undefined"
+            aria-label="首页"
+            @click="view = 'home'"
+          >首页</button>
+          <button
             :class="{ active: view === 'match' }"
             :aria-current="view === 'match' ? 'page' : undefined"
             aria-label="当前对局"
@@ -173,17 +191,20 @@ onUnmounted(() => {
             玩家战绩
           </button>
         </nav>
-        <form class="global-search" @submit.prevent="search">
+        <form class="global-search" @submit.prevent="!homeLoading && search()">
           <AppIcon name="search" :size="16" />
           <input
             v-model="query"
             aria-label="玩家完整 ID"
             placeholder="搜索 玩家名#标签"
             autocomplete="off"
-          /><button class="primary" :disabled="manualBusy">
+          /><button class="primary" :disabled="manualBusy || homeLoading">
             {{ searching ? "查询中…" : "查询战绩" }}
           </button>
         </form>
+        <select class="theme-select" aria-label="界面主题" :value="themePreference" @change="setTheme(($event.target as HTMLSelectElement).value as ThemePreference)">
+          <option value="light">浅色</option><option value="dark">深色</option><option value="system">跟随系统</option>
+        </select>
         <span class="toolbar-status" :title="status"
           ><span
             class="connection-light"
@@ -226,6 +247,18 @@ onUnmounted(() => {
       <TransientNotice
         :message="searchError"
         banner-class="workspace-message"
+      />
+      <HomeView
+        v-show="view === 'home'"
+        :player="homePlayer"
+        :snapshot="snapshot"
+        :status="status"
+        :loading="homeLoading"
+        :busy="manualBusy"
+        :error="homeError || (homePlayer ? playerErrors[operationKey(homePlayer)] || '' : '')"
+        @open="openPlayerDetails"
+        @match="view = 'match'"
+        @refresh="refreshHome"
       />
       <section v-show="view === 'players'" class="players-workspace">
         <PlayerTabs
@@ -409,6 +442,10 @@ onUnmounted(() => {
     </div>
     <SettingsPanel
       :overlay-state="overlay"
+      :theme="themePreference"
+      :resolved-theme="resolvedTheme"
+      :theme-error="themeError"
+      @theme="setTheme"
       v-if="settingsOpen"
       @close="settingsOpen = false"
     />

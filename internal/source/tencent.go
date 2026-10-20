@@ -150,6 +150,12 @@ func (s *TencentLCU) AccountIdentity(ctx context.Context) (string, error) {
 	return p.PUUID, nil
 }
 
+func (s *TencentLCU) CachedAccountIdentity() string {
+	s.selfMu.Lock()
+	defer s.selfMu.Unlock()
+	return s.selfPUUID
+}
+
 func (s *TencentLCU) Name(ctx context.Context, puuid string) (string, error) {
 	if !core.IsKnownPUUID(puuid) {
 		return "", errors.New("玩家名称不可用")

@@ -1,0 +1,86 @@
+.home-workspace { flex: 1; min-height: 0; padding: 20px 28px 24px; overflow: auto; scrollbar-gutter: stable; }
+.home-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+.home-heading h1 { font-size: 28px; letter-spacing: -0.7px; margin-top: 4px; }
+.home-hero { position: relative; isolation: isolate; overflow: hidden; display: flex; gap: 30px; align-items: center; justify-content: space-between; padding: 28px; min-height: 154px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+.home-hero-art { position: absolute; inset: 0 20% 0 20%; z-index: -1; opacity: 0.14; mask-image: linear-gradient(90deg, transparent, #000 45%, transparent); }
+.home-hero-art .hero-art { z-index: 0; object-position: 50% 23%; filter: saturate(0.5); }
+.home-account { display: flex; align-items: center; gap: 16px; min-width: 0; flex: 1; }
+.home-account > div { min-width: 0; }
+.home-account h2 { font-size: 21px; line-height: 1.35; margin: 5px 0 8px; overflow-wrap: anywhere; }
+.home-account p, .home-account-caption { font-size: 12px; color: var(--muted); }
+.home-avatar-empty { flex: none; display: grid; place-items: center; width: 64px; height: 64px; border-radius: 10px; background: var(--raised); color: var(--muted); }
+.home-privacy { font-size: 11px; color: var(--muted); display: block; margin-top: 7px; }
+.home-form-summary { display: flex; align-items: center; gap: 28px; flex: none; }
+.home-form-summary > div { display: flex; flex-direction: column; gap: 8px; min-width: 95px; }
+.home-form-summary > div > span:first-child { color: var(--muted); font-size: 12px; }
+.home-form-summary strong { font-size: 32px; line-height: 34px; font-weight: 650; }
+.home-form-summary small { color: var(--muted); font-size: 11px; }
+.home-form-last { align-self: stretch; justify-content: center; }
+.home-form-last .recent-form { height: 34px; gap: 4px; }
+.home-grid { display: grid; grid-template-columns: minmax(190px, 0.8fr) minmax(330px, 2fr) minmax(230px, 1fr); align-items: start; gap: 18px; margin-top: 20px; }
+.home-panel { background: var(--panel); border: 1px solid var(--border); border-radius: 9px; min-width: 0; overflow: hidden; }
+.home-panel > header { display: flex; align-items: center; justify-content: space-between; min-height: 58px; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.home-panel > header h2 { font-size: 15px; white-space: nowrap; }
+.home-panel > header > span { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.home-ranks { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.home-rank { position: relative; padding: 17px 18px; display: flex; flex-direction: column; gap: 9px; }
+.home-rank > span, .home-panel-caption { font-size: 12px; color: var(--muted); }
+.home-rank > .app-icon { position: absolute; right: 15px; top: 15px; color: var(--accent); opacity: 0.45; }
+.home-rank strong { font-size: 16px; line-height: 1.5; margin-top: 6px; }
+.home-rank > small { color: var(--muted); font-size: 11px; }
+.home-rank strong small { font-size: 11px; color: var(--warning); }
+.home-session { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+.home-session strong { display: flex; align-items: center; gap: 7px; font-size: 13px; }
+.home-session p { font-size: 12px; color: var(--muted); line-height: 1.7; }
+.home-session button { justify-content: space-between; }
+.home-recent header .text-button { padding: 0; font-size: 12px; }
+.home-match { width: 100%; display: flex; align-items: center; gap: 12px; padding: 13px 15px; min-height: 70px; border: 0; border-left: 3px solid var(--muted); border-bottom: 1px solid var(--border); border-radius: 0; color: var(--text); text-align: left; background: var(--match-bg); }
+.home-match.won { background: var(--win-bg); border-left-color: var(--win); }
+.home-match.lost { background: var(--loss-bg); border-left-color: var(--loss); }
+.home-match:hover { filter: brightness(0.97); }
+:root[data-theme="dark"] .home-match:hover { filter: brightness(1.12); }
+.home-match > span { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.home-match b { font-size: 12px; font-weight: 600; white-space: nowrap; }
+.home-match small { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.home-match-context { flex: 1; }
+.home-match-score { width: 100px; }
+.home-match-result { text-align: right; }
+.home-match.won .home-match-result b { color: var(--win); }
+.home-match.lost .home-match-result b { color: var(--loss); }
+.home-match > .app-icon { color: var(--muted); }
+.home-recent footer { padding: 11px 16px; color: var(--muted); font-size: 11px; }
+.home-champion { display: flex; align-items: center; gap: 10px; padding: 15px 16px; border-bottom: 1px solid var(--border); }
+.home-champion > div { flex: 1; min-width: 0; }
+.home-champion strong { display: block; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-champion small { display: block; color: var(--muted); font-size: 11px; margin-top: 7px; white-space: nowrap; }
+.home-champion > b { font-size: 14px; }
+.home-sample-note { padding: 12px 16px; font-size: 11px; color: var(--muted); line-height: 1.7; }
+.home-no-history { min-height: 250px; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 28px; gap: 15px; color: var(--muted); text-align: center; }
+.home-no-history h3 { font-size: 15px; color: var(--text); margin: 0; }
+.home-no-history p, .home-no-champions p { font-size: 12px; line-height: 1.8; }
+.home-no-champions { padding: 30px 20px; text-align: center; color: var(--muted); }
+.home-no-champions .app-icon { margin-bottom: 16px; }
+.home-error { margin-top: 12px; }
+@media (max-width: 1150px) {
+  .home-workspace { padding-inline: 20px; }
+  .home-grid { grid-template-columns: 180px minmax(300px, 1fr) 220px; gap: 12px; }
+  .home-hero { padding: 23px 20px; gap: 20px; }
+  .home-account { gap: 12px; }
+  .home-account h2 { font-size: 19px; }
+  .home-form-summary { gap: 18px; }
+  .home-form-summary > div { min-width: 85px; }
+  .home-match { gap: 9px; padding-inline: 10px; }
+  .home-match-score { width: 88px; }
+  .home-champion { padding-inline: 12px; gap: 8px; }
+}
+@media (max-width: 999px) {
+  .home-heading { margin-bottom: 12px; }
+  .home-hero { flex-wrap: wrap; gap: 20px; }
+  .home-account { flex-basis: 40%; }
+  .home-form-summary { gap: 18px; }
+  .home-grid { grid-template-columns: minmax(0, 1.6fr) minmax(220px, 1fr); }
+  .home-ranks { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr 1.15fr; }
+  .home-session { justify-content: center; }
+  .home-session p { display: none; }
+  .home-rank { padding-block: 14px; }
+}

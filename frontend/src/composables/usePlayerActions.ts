@@ -167,6 +167,7 @@ export function usePlayerActions(
       if (existing >= 0)
         tabs.value[existing] = newestPlayer(result, tabs.value[existing]!)!;
       if (result.error) setMessage(requestKey, result.error);
+      return result;
     } catch (reason) {
       setMessage(requestKey, errorMessage(reason));
     } finally {

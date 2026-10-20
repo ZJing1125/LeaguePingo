@@ -144,6 +144,7 @@ export interface Rank {
 
 export interface Snapshot {
     "connectionId": number;
+    "selfKey": string;
     "knownCount": number;
     "readyCount": number;
     "rosterError": string;

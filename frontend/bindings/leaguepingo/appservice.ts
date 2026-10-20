@@ -26,6 +26,10 @@ export function ConfigureShortcut(key: string): $CancellablePromise<$models.AppI
     return $Call.ByID(4027411068, key);
 }
 
+export function CurrentPlayer(connectionID: number): $CancellablePromise<core$0.Participant> {
+    return $Call.ByID(1849815546, connectionID);
+}
+
 export function EnsureProfile(key: string, connectionID: number): $CancellablePromise<core$0.Participant> {
     return $Call.ByID(175727633, key, connectionID);
 }
