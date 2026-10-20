@@ -16,7 +16,7 @@
 - `composables/useOverlayControls.ts` 管理快览状态版本及显隐、置顶操作。
 - `playerState.ts` 保留连接/历史/资料分别择新的合并规则及稳定标签 ID。
 - 姓名不由历史时间决定：当前同身份的有效姓名可以更新保留的历史；占位不能盖掉已知姓名。`presentation.playerName` 只生成明确标注的展示占位，不写回身份或缓存；资料结果的姓名要同步回当前名单和详情。每局开局补齐由 Go 驱动，前端只接受快照，不能再并行发一批玩家查询。
-- `PlayerCardData.vue` 复用阵容/快览的近期总体、本英雄子集、近况与常用统计；`ChampionPortrait.vue` 只取打包的图片并处理回退，不新增请求。
+- `PlayerScoutCard.vue` 共享对局室/快览的账号头部与 PlayerCardData；`scout.css` 管理分区布局及两种主题。`scoutStats.ts` 是仅依赖已有首批历史的纯统计，提供有界时段子样本、可核验历史位置及事实标签；`matchStats.ts` 保留原 sampleStats 的分母/KDA算法，presentation 继续兼容导出。RankEmblem/RoleIcon 使用本地原创矢量，不发外部请求。`ChampionPortrait.vue` 继续服务首页/档案背景，不再覆盖对局卡。
 - `PlayerProfileHeader.vue` 和 `MatchHistoryRow.vue` 接收数据和发送交互事件。战绩行的双方详情通过插槽提供；组件自身不导入 Wails、不访问客户端或 CDN。
 - `historyBrowser.ts` 将样本补齐与远页跳转分开计预算：样本按模式持续至目标数量/来源边界/90 秒，远页仍五请求/15 秒。停止、切人、隐藏工作区或卸载会停止后续请求，保留已完成页；资料/历史仍按来源戳择新。展示拆分不能增加后台查询或改变统计分母。
 
@@ -95,3 +95,9 @@ rankPresentation 统一卡片和资料头部文案：未请求、失败/超时�
 最新布局以 UI_DESIGN.md 为准：PlayerCardArt 以完整居中原画加模糊同源底图、纵向渐变构成全卡背景；账号头像与英雄小图分开，去掉 inset 黑边/切角。MatchRoster 的卡片不因详情压缩，固定可读字号，窄窗换列/滚动。PlayerDrawer 始终为模态浮层，提供上一位/下一位，背景 inert、焦点圈定/返回保持。布局不能发批量请求。
 
 PlayerProfileHeader 只呈现头像/等级/两种段位/简短隐私状态，不再含更新资料或段位按钮；PlayerView 的唯一“刷新数据”调用 RefreshData，经各工作区自己的浏览状态保留模式/场数，不创建标签。EnsureProfile 改为完整资料缺失补齐；正常新鲜资料随快照到达，不由卡片渲染逐个发请求。上文 BUG-0046 的段位按钮和底部压缩方案属于历史实现，已由本节替代。
+
+## BUG-0049 图一对照卡
+
+当前卡片视觉以 UI_DESIGN 的 BUG-0049 为准，替代上文 BUG-0047 全卡原画；删除未再引用的 PlayerCardArt，档案原画资源保留。组件预览仍为 5 组/23 变体，名单最后一项改为英雄/段位并列状态。
+
+`node frontend/tests/scout-stats.cjs` 使用既有 TypeScript 编译器运行实际纯模块，核对时段边界/未来或无效时间、未知与零、位置证据/并列、前 20 场上限、KDA 和事实标签；已接入产品 test:smoke。时段基准固定在 historyMeta.fetchedAt，不由计时器或最新一场时间代替。无位置不从 lane 补，空样本不生成评价。卡片选择、模态焦点/筛选隔离及游戏请求预算沿用现有逻辑。

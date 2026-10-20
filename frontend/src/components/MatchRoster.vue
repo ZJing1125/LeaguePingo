@@ -1,12 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { Participant } from "../../bindings/leaguepingo/internal/core/models";
-import { playerName } from "../presentation";
-import { championName } from "../gameAssets";
-import PlayerCardData from "./PlayerCardData.vue";
-import ParticipantAvatar from "./ParticipantAvatar.vue";
-import PlayerCardArt from "./PlayerCardArt.vue";
-import GameIcon from "./GameIcon.vue";
+import PlayerScoutCard from "./PlayerScoutCard.vue";
 
 const props = defineProps<{
   players: Participant[];
@@ -52,48 +47,13 @@ const teams = computed(() =>
         <button
           v-for="player in team.players"
           :key="player.key"
-          class="player-row hero-card"
-          :class="{ selected: selectedKey === player.key }"
+          class="player-row hero-card scout-card"
+          :class="{ selected: selectedKey === player.key, 'scout-enemy': team.key === 'enemy' }"
           :aria-pressed="selectedKey === player.key"
           :data-player-key="player.key"
           @click="$emit('select', player)"
         >
-          <PlayerCardArt :id="player.championId" />
-          <span class="card-portrait">
-            <ParticipantAvatar
-              class="card-avatar"
-              :player="player"
-              :size="36"
-              account
-            />
-            <span class="card-identity"
-              ><strong :title="playerName(player)">{{
-                playerName(player)
-              }}</strong>
-              <span class="card-pick"
-                ><GameIcon
-                  v-if="player.championId"
-                  :id="player.championId"
-                  :size="24"
-                />{{
-                  player.championId
-                    ? championName(player.championId).split("·")[1] ||
-                      championName(player.championId)
-                    : party
-                      ? player.profile?.level != null
-                        ? `等级 ${player.profile.level}`
-                        : "房间成员"
-                      : player.championState === "unselected"
-                        ? "尚未选择英雄"
-                        : "英雄待确认"
-                }}</span
-              ></span
-            >
-            <span v-if="player.championState === 'intent'" class="card-intent"
-              >预选英雄</span
-            >
-          </span>
-          <PlayerCardData :player="player" :frozen="frozen" />
+          <PlayerScoutCard :player="player" :frozen="frozen" :party="party" />
         </button>
       </div>
       <p v-if="!team.players.length" class="team-empty">

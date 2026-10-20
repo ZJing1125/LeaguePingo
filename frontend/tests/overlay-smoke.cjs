@@ -987,6 +987,7 @@ async function main() {
       .locator(".player-drawer")
       .getByRole("heading", { name: "测试玩家5#TEST" })
       .waitFor();
+    await page.locator(".player-drawer .match-card").nth(19).waitFor();
     assert.equal(
       await page.locator(".player-drawer .match-card").count(),
       20,
@@ -1438,15 +1439,13 @@ async function main() {
     assert(allReady, "all ten ready players must fit at 1100x640");
     assert.equal(
       await page
-        .locator(".overlay-player .overview-metrics small")
-        .filter({ hasText: /胜 \/.*负/ })
+        .locator(".overlay-player .scout-rings")
         .count(),
       10,
     );
     assert.equal(
       await page
-        .locator(".overlay-player .overview-metrics small")
-        .filter({ hasText: /^汇总 KDA$/ })
+        .locator(".overlay-player .scout-scope")
         .count(),
       10,
     );

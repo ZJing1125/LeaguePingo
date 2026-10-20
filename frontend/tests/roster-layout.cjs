@@ -1,4 +1,4 @@
-// Synthetic runtime: player-first cards, full profiles and stable modal details.
+// Synthetic runtime: comparison cards, honest sample rings and stable details.
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
@@ -47,7 +47,7 @@ async function main() {
       spell1: 4,
       spell2: 14,
     }));
-    function profile() {
+    function profile(index = 0) {
       return {
         updatedAt: "2026-10-19T01:00:00Z",
         profileIconData: avatar,
@@ -55,7 +55,7 @@ async function main() {
         privacyState: "private",
         rankState: "ready",
         ranks: [
-          { queue: "RANKED_SOLO_5x5", tier: "GOLD", division: "II", lp: 52 },
+          { queue: "RANKED_SOLO_5x5", tier: ["GOLD", "DIAMOND", "EMERALD", "MASTER", "PLATINUM"][index % 5], division: "II", lp: 52, wins: 154 + index * 7, losses: 138 + index * 3 },
         ],
         fields: { rank: { state: "ready", fetchedAt: "2026-10-19T01:00:00Z" } },
       };
@@ -71,14 +71,14 @@ async function main() {
       identityState: "known",
       privacyState: "private",
       historyState: "ready",
-      history,
+      history: history.map((m, j) => ({ ...m, position: ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"][i % 5], mapId: 11, playedAt: new Date(Date.parse("2026-10-19T01:00:00Z") - j * 7200000).toISOString(), cs: 180 + i * 5, win: (j + i) % (i % 2 ? 3 : 2) !== 0 })),
       historyMeta: {
         fetchedAt: "2026-10-19T01:00:00Z",
         returned: 20,
         parsed: 20,
       },
       stats: { games: 20, winRate: 50, kda: 5 },
-      profile: profile(),
+      profile: profile(i),
     }));
     let snapshot = {
       connectionId: 1,
@@ -194,9 +194,9 @@ async function main() {
         .evaluate(
           (el) =>
             parseFloat(
-              getComputedStyle(el.querySelector(".overview-metrics b"))
+              getComputedStyle(el.querySelector(".scout-ring b"))
                 .fontSize,
-            ) >= 24,
+            ) >= 14,
         ),
     );
     assert(
@@ -206,11 +206,20 @@ async function main() {
           (el) =>
             parseFloat(
               getComputedStyle(el.querySelector(".rank-line")).fontSize,
-            ) >= 12,
+            ) >= 11,
         ),
     );
     await noOverflow();
+    assert.equal(await page.locator(".scout-rings").count(), 10);
+    assert.equal(await page.locator(".scout-ring-metric").count(), 30);
+    assert.equal(await page.locator(".card-artwork").count(), 0, "comparison cards use flat, aligned data cells");
+    assert((await rows.first().locator(".scout-rings").innerText()).includes("上路"));
+    assert((await rows.first().locator(".scout-scope").innerText()).includes("20 场内"));
+    assert(await rows.evaluateAll(cards => cards.every(card => card.getBoundingClientRect().bottom <= innerHeight)), "all ten comparison cards should fit at 1280x800");
     await screenshot("cards");
+    await page.getByRole("combobox", { name: "界面主题", exact: true }).selectOption("light");
+    await screenshot("cards-light");
+    await page.getByRole("combobox", { name: "界面主题", exact: true }).selectOption("dark");
     const before = await sizes();
     await rows.first().click();
     await drawer.waitFor();
@@ -352,23 +361,17 @@ async function main() {
       ],
     };
     await publish();
-    await page.waitForFunction(
-      () => document.querySelector(".card-art-figure")?.naturalWidth > 0,
-    );
+    await rows.first().locator(".card-pick .game-icon").waitFor();
     assert(
       await rows.first().evaluate((el) => {
-        const figure = el.querySelector(".card-art-figure"),
-          art = el.querySelector(".card-artwork"),
-          card = el.getBoundingClientRect(),
-          box = art.getBoundingClientRect();
+        const hero = el.querySelector(".scout-champion").getBoundingClientRect(),
+          rank = el.querySelector(".scout-rank").getBoundingClientRect();
         return (
-          Math.abs(box.width - card.width) < 2 &&
-          Math.abs(box.height - card.height) < 2 &&
-          getComputedStyle(figure).objectPosition === "50% 50%" &&
+          hero.right <= rank.left + 1 && Math.abs(hero.top - rank.top) < 1 &&
           getComputedStyle(el).clipPath === "none"
         );
       }),
-      "art must fill the card without a right-side strip or inset frame",
+      "hero sample and rank must use aligned cells without clipping or a portrait strip",
     );
     await screenshot("champ-select");
     snapshot = {
@@ -396,6 +399,12 @@ async function main() {
     );
     await noOverflow();
     assert.equal(calls.filter((c) => c === "RefreshData").length, 1);
+    snapshot.participants = [{ ...structuredClone(players[0]), history: history.map(m => ({ ...m, win: null })), profile: { ...profile(), rankState: "unavailable", ranks: [] } }];
+    await publish();
+    await rows.first().locator(".scout-ring-metric").first().getByText("胜负暂缺", { exact: true }).waitFor();
+    assert((await rows.first().locator(".scout-ring-metric").first().innerText()).includes("—"));
+    await rows.first().getByText("来源未提供段位", { exact: true }).waitFor();
+    await screenshot("partial");
     assert(
       !calls.some((c) =>
         /LoadRanks|LoadProfile|LookupPlayer|HistoryPage|EnsureProfile/.test(c),
@@ -405,7 +414,7 @@ async function main() {
     assert.deepEqual(errors, []);
     assert.deepEqual(external, []);
     console.log(
-      "PASS: full lobby avatar/rank, player-first readable cards without frame/strip, unified refresh and retained fields, no extra tabs/queries, stable card geometry, modal focus/resize and expanded roster.",
+      "PASS: ten comparison cards, hero/rank cells, sample rings/roles/tags, both themes, full lobby profile, unified refresh, no extra queries, stable modal geometry/focus and expanded rosters.",
     );
   } finally {
     await browser.close();

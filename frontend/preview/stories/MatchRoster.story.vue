@@ -70,7 +70,7 @@ const rengar = makePlayer(0, { championId: 107, championState: "selected" });
           :selected-key="players[1]!.key"
         /></div
     ></Variant>
-    <Variant title="完整原画与清晰数据"
+    <Variant title="英雄与段位并列对照"
       ><div
         class="match-workspace"
         style="width: 1100px; max-width: 100%; height: 680px; padding: 12px"

@@ -41,7 +41,10 @@ export function makePlayer(
   index = 0,
   overrides: Partial<Participant> = {},
 ): Participant {
-  const history = Array.from({ length: 20 }, (_, i) => makeMatch(i));
+  const history = Array.from({ length: 20 }, (_, i) => makeMatch(i, {
+    position: ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"][index % 5],
+    playedAt: new Date(Date.parse(exampleTime) - i * 7200000).toISOString(),
+  }));
   return {
     connectionId: 1,
     key: `synthetic-${index}`,

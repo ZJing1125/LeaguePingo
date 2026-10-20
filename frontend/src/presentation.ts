@@ -1,12 +1,12 @@
 import type {
   Match,
-  Stats,
   Participant,
   HistoryMeta,
 } from "../bindings/leaguepingo/internal/core/models";
 import runeCatalog from "./assets/game/rune-names.json";
 import { gameAsset } from "./gameAssets";
 import { hasPlayerName } from "./playerState";
+import { sampleStats } from "./matchStats";
 
 export function playerName(player: Participant, position?: number) {
   if (hasPlayerName(player)) return player.displayName;
@@ -106,25 +106,7 @@ const queues: Record<number, string> = {
 export function queueName(id: number) {
   return queues[id] ?? `模式 ${id}`;
 }
-export function sampleStats(matches: Match[]): Stats {
-  const outcomes = matches.filter((m) => m.win != null);
-  const complete = matches.filter(
-    (m) => m.kills != null && m.deaths != null && m.assists != null,
-  );
-  const wins = outcomes.filter((m) => m.win).length;
-  const kills = complete.reduce((a, m) => a + m.kills!, 0),
-    deaths = complete.reduce((a, m) => a + m.deaths!, 0),
-    assists = complete.reduce((a, m) => a + m.assists!, 0);
-  return {
-    games: matches.length,
-    wins,
-    losses: outcomes.length - wins,
-    outcomeGames: outcomes.length,
-    kdaGames: complete.length,
-    winRate: outcomes.length ? (wins * 100) / outcomes.length : null,
-    kda: complete.length ? (kills + assists) / Math.max(1, deaths) : null,
-  };
-}
+export { sampleStats } from "./matchStats";
 // Match core.NormalizeRiotID's clipboard cleanup; keep name-significant
 // joiners, accents, variation selectors and inner spaces unchanged.
 export function normalizeRiotIDInput(value: string) {

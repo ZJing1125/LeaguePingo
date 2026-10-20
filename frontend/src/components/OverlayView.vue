@@ -2,11 +2,9 @@
 import { computed } from "vue";
 import type { Snapshot } from "../../bindings/leaguepingo/internal/core/models";
 import type { OverlayState } from "../../bindings/leaguepingo/models";
-import { date, playerName } from "../presentation";
+import { date } from "../presentation";
 import AppIcon from "./AppIcon.vue";
-import ChampionPortrait from "./ChampionPortrait.vue";
-import PlayerCardData from "./PlayerCardData.vue";
-import { championName } from "../gameAssets";
+import PlayerScoutCard from "./PlayerScoutCard.vue";
 const props = defineProps<{
   snapshot: Snapshot | null;
   state: OverlayState | null;
@@ -90,25 +88,14 @@ defineEmits<{ hide: []; pin: [] }>();
           <div
             v-for="p in players.filter((p) => p.team === team)"
             :key="p.key"
-            class="overlay-player"
+            class="overlay-player scout-card"
             :class="{
+              'scout-enemy': team === 'enemy',
               unavailable: p.identityState === 'unavailable',
               outdated: p.stale,
             }"
           >
-            <ChampionPortrait class="card-illustration" :id="p.championId" />
-            <div class="card-portrait">
-              <div class="card-identity">
-                <strong>{{
-                  p.championId
-                    ? championName(p.championId).split("·")[1] ||
-                      championName(p.championId)
-                    : "英雄未获取"
-                }}</strong
-                ><span :title="playerName(p)">{{ playerName(p) }}</span>
-              </div>
-            </div>
-            <PlayerCardData :player="p" :frozen="snapshot?.frozen" />
+            <PlayerScoutCard :player="p" :frozen="snapshot?.frozen" :party="snapshot?.stage === 'party'" />
           </div>
         </section>
       </div>

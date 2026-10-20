@@ -1,0 +1,180 @@
+/* Compact comparison cards. Team order and data fetching remain unchanged. */
+:root {
+  --scout-card: #f6f6f0;
+  --scout-head: #e7e9e3;
+  --scout-cell: #eeefe9;
+  --scout-inset: #e2e7e1;
+  --scout-border: #293d4c24;
+  --scout-text: #23333e;
+  --scout-muted: #64717d;
+  --scout-good: #157e61;
+  --scout-bad: #b74958;
+  --scout-warning: #9b6b20;
+  --scout-track: #ced8d3;
+  --scout-accent: #7252b1;
+  --scout-ally: #248ba7;
+  --scout-enemy: #c26573;
+}
+:root[data-theme="dark"], .overlay-shell {
+  --scout-card: #344052;
+  --scout-head: #2b3545;
+  --scout-cell: #374456;
+  --scout-inset: #2d394a;
+  --scout-border: #18223380;
+  --scout-text: #f2f5fa;
+  --scout-muted: #b3c0d1;
+  --scout-good: #4cdea8;
+  --scout-bad: #ff8b9a;
+  --scout-warning: #ecc17b;
+  --scout-track: #223043;
+  --scout-accent: #bdacff;
+  --scout-ally: #50c6e3;
+  --scout-enemy: #ef8b9b;
+}
+.match-workspace .hero-card.player-row.scout-card,
+.overlay-shell .overlay-player.scout-card {
+  --scout-team: var(--scout-ally);
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  color: var(--scout-text);
+  background: var(--scout-card);
+  border: 1px solid var(--scout-border);
+  border-radius: 5px;
+  clip-path: none;
+  overflow: hidden;
+  box-shadow: 0 2px 5px #11182725;
+  min-width: 0;
+  min-height: 0;
+  height: 286px;
+}
+.match-workspace .hero-card.player-row.scout-enemy,
+.overlay-shell .overlay-player.scout-enemy { --scout-team: var(--scout-enemy); }
+.match-workspace .hero-card.player-row.scout-card::before,
+.overlay-shell .overlay-player.scout-card::before { content: none; display: none; }
+.match-workspace .hero-card.player-row.scout-card::after { border: 0; }
+.match-workspace .hero-card.player-row.scout-card.selected::after { border: 2px solid var(--accent-art); border-radius: inherit; }
+.match-workspace .hero-card.player-row.scout-card:hover { border-color: var(--scout-team); background: var(--scout-card); }
+.scout-card .scout-identity.card-portrait {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 50px;
+  min-height: 50px;
+  max-height: 50px;
+  padding: 6px 9px;
+  background: var(--scout-head);
+  border-bottom: 2px solid var(--scout-team);
+  flex: none;
+}
+.scout-card .scout-identity .card-avatar { position: static; flex: none; overflow: hidden; border-radius: 4px; opacity: 1; }
+.scout-card .scout-identity .card-identity { display: flex; flex-direction: column; gap: 3px; width: auto; flex: 1; min-width: 0; padding: 0; text-shadow: none; }
+.scout-card .scout-identity .card-identity > strong { font-size: 12px; line-height: 15px; color: var(--scout-text); font-weight: 650; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
+.scout-card .scout-identity .card-identity > .scout-level { font-size: 10px; line-height: 13px; color: var(--scout-muted); }
+.scout-level small { color: var(--scout-warning); font-size: 10px; }
+.scout-retained { flex: none; color: var(--scout-warning); }
+.scout-card .card-details.scout-data { position: relative; z-index: 2; display: flex; flex-direction: column; justify-content: flex-start; flex: 1; min-height: 0; width: 100%; padding: 0; gap: 0; text-shadow: none; color: var(--scout-text); }
+.scout-headline { display: grid; grid-template-columns: 1fr 1fr; height: 84px; min-height: 84px; background: var(--scout-cell); border-bottom: 1px solid var(--scout-border); }
+.scout-champion { display: flex; flex-direction: column; min-width: 0; padding: 7px 7px 5px; gap: 4px; border-right: 1px solid var(--scout-border); }
+.scout-champion .card-pick { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.scout-champion .card-pick > .app-icon { color: var(--scout-muted); flex: none; }
+.scout-champion .card-pick > span { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.scout-champion .card-pick strong { display: block; font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scout-champion .card-pick small { display: block; font-size: 9px; color: var(--scout-muted); white-space: nowrap; }
+.scout-kda { font-size: 10px; white-space: nowrap; line-height: 13px; }
+.scout-kda b { font-size: 11px; font-weight: 650; color: var(--scout-good); }
+.scout-kda b:nth-child(2) { color: var(--scout-bad); }
+.scout-kda b:nth-child(3) { color: var(--scout-warning); }
+.scout-no-kda { font-size: 10px; color: var(--scout-muted); white-space: nowrap; }
+.scout-hero-rate { font-size: 10px; color: var(--scout-good); white-space: nowrap; }
+.scout-hero-rate.no-sample { color: var(--scout-muted); }
+.scout-hero-rate > span { color: var(--scout-muted); font-size: 9px; }
+.scout-rank { display: flex; flex-direction: column; justify-content: center; align-items: center; min-width: 0; gap: 2px; padding: 3px 4px 5px; text-align: center; }
+.scout-rank .rank-emblem { width: 46px; height: 36px; flex: none; }
+.scout-card .scout-rank .rank-line { display: flex; align-items: center; justify-content: center; gap: 3px; min-height: 14px; width: 100%; font-size: 11px; white-space: normal; }
+.scout-card .scout-rank .rank-line > b { flex: initial; color: var(--scout-text); font-weight: 500; font-size: 11px; line-height: 13px; overflow: visible; white-space: normal; }
+.scout-card .scout-rank .rank-line small { font-size: 9px; color: var(--scout-warning); }
+.scout-season { font-size: 9px; color: var(--scout-muted); line-height: 12px; white-space: nowrap; }
+.scout-card .overview-metrics.scout-rings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; height: 94px; min-height: 94px; padding: 7px 3px 3px; gap: 0; }
+.scout-ring-metric { --ring-color: var(--scout-good); display: flex; flex-direction: column; align-items: center; gap: 2px; padding-inline: 1px; min-width: 0; color: var(--scout-text); }
+.scout-ring-metric + .scout-ring-metric { border-left: 1px solid var(--scout-border); }
+.scout-ring-metric.warning { --ring-color: var(--scout-warning); }
+.scout-ring-metric.negative { --ring-color: var(--scout-bad); }
+.scout-ring-metric.unknown { --ring-color: var(--scout-muted); }
+.scout-ring { display: grid; place-items: center; width: 43px; height: 43px; flex: none; border-radius: 50%; padding: 3px; background: conic-gradient(var(--ring-color) var(--ring-value), var(--scout-track) 0); }
+.scout-ring-center { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; gap: 1px; border-radius: 50%; background: var(--scout-inset); }
+.scout-card .scout-rings .scout-ring b { font-size: 14px; font-weight: 700; letter-spacing: -.3px; line-height: 16px; color: var(--scout-text); }
+.scout-card .scout-rings .negative .scout-ring b { color: var(--scout-bad); }
+.scout-card .scout-rings .unknown .scout-ring b { color: var(--scout-muted); }
+.scout-card .scout-rings .scout-ring small { font-size: 8px; color: var(--scout-muted); line-height: 10px; margin: 0; }
+.scout-ring .role-icon { width: 23px; height: 23px; color: var(--scout-warning); }
+.scout-card .scout-rings .scout-ring-metric > strong { font-size: 10px; line-height: 12px; font-weight: 600; white-space: nowrap; }
+.scout-card .scout-rings .scout-ring-metric > span:not(.scout-ring) { font-size: 10px; line-height: 12px; white-space: nowrap; }
+.scout-card .scout-rings .scout-ring-metric > small { display: block; color: var(--scout-muted); font-size: 9px; line-height: 11px; white-space: nowrap; margin: 0; }
+.scout-scope { display: flex; align-items: center; justify-content: center; gap: 8px; height: 16px; min-height: 16px; color: var(--scout-muted); font-size: 10px; }
+.scout-scope .sample-size { font-size: 10px; white-space: nowrap; }
+.scout-scope b { color: var(--scout-text); font-size: 11px; font-weight: 600; }
+.scout-card .scout-tags.recent-block { display: flex; flex-direction: row; align-items: flex-start; align-content: center; justify-content: center; flex-wrap: wrap; gap: 3px 4px; height: 42px; min-height: 42px; padding: 4px 6px; border-top: 1px solid var(--scout-border); overflow: hidden; }
+.scout-tag { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid currentColor; padding: 1px 4px; border-radius: 3px; color: var(--scout-muted); font-size: 10px; line-height: 13px; }
+.scout-tag.positive { color: var(--scout-good); background: color-mix(in srgb, var(--scout-good) 7%, transparent); }
+.scout-tag.accent { color: var(--scout-accent); background: color-mix(in srgb, var(--scout-accent) 7%, transparent); }
+.scout-tag .game-icon { margin-right: 3px; border-radius: 1px; vertical-align: -2px; }
+.scout-card .rich-state.scout-state { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; min-height: 0; gap: 10px; padding: 12px; color: var(--scout-muted); text-align: center; }
+.scout-card .rich-state.scout-state b { font-size: 15px; color: var(--scout-text); }
+.scout-card .rich-state.scout-state small { font-size: 11px; line-height: 16px; }
+.scout-card .rich-state.scout-state.failed > b { color: var(--scout-warning); }
+.match-workspace .team-columns .team-player-list,
+.match-workspace .expanded-roster .team-player-list { grid-auto-rows: 286px; gap: 10px; }
+.desktop-app .match-workspace .roster-toolbar { height: 46px; padding-block: 3px; }
+.match-workspace .roster-toolbar .section-eyebrow { display: none; }
+.match-workspace .roster-toolbar h1 { font-size: 23px; line-height: 26px; margin: 0 0 2px; }
+.desktop-app .match-workspace .roster-progress { height: 22px; min-height: 22px; margin-bottom: 2px; padding-block: 2px; }
+.desktop-app .match-workspace .team-section h2 { height: 18px; min-height: 18px; font-size: 12px; }
+.desktop-app .match-workspace .team-columns { gap: 10px; }
+.match-workspace .team-empty { margin-top: 4px; }
+.overlay-shell .overlay-groups { gap: 8px; margin-top: 0; }
+main.overlay-shell { padding-block: 10px; }
+.overlay-shell .overlay-head { min-height: 36px; padding-bottom: 4px; }
+.overlay-shell .overlay-title strong { font-size: 16px; line-height: 18px; }
+.overlay-shell .overlay-title small { line-height: 11px; margin-top: 2px; }
+.overlay-shell .overlay-readiness { padding-block: 2px; font-size: 10px; line-height: 12px; }
+.overlay-shell .overlay-content { gap: 3px; }
+.overlay-shell .overlay-footer { min-height: 18px; padding-top: 3px; line-height: 14px; margin-top: 2px; }
+.overlay-shell .overlay-groups > section { gap: 6px; }
+.overlay-shell .overlay-player.scout-card { height: 236px; min-height: 236px; width: calc((100% - 24px) / 5); margin: 0; }
+.overlay-shell .scout-card .scout-identity.card-portrait { height: 42px; min-height: 42px; max-height: 42px; padding: 4px 6px; gap: 6px; }
+.overlay-shell .scout-identity .participant-avatar,
+.overlay-shell .scout-identity .participant-avatar-fallback { width: 28px !important; height: 28px !important; }
+.overlay-shell .scout-card .scout-identity .card-identity > strong { font-size: 11px; }
+.overlay-shell .scout-card .scout-identity .card-identity > .scout-level { font-size: 9px; }
+.overlay-shell .scout-headline { height: 70px; min-height: 70px; }
+.overlay-shell .scout-champion { padding: 4px; gap: 3px; }
+.overlay-shell .scout-champion .card-pick .game-icon { width: 25px !important; height: 25px !important; }
+.overlay-shell .scout-champion .card-pick { gap: 4px; }
+.overlay-shell .scout-champion .card-pick strong { font-size: 10px; }
+.overlay-shell .scout-rank .rank-emblem { height: 27px; width: 36px; }
+.overlay-shell .scout-card .scout-rank .rank-line > b { font-size: 10px; }
+.overlay-shell .scout-hero-rate > span { display: none; }
+.overlay-shell .scout-card .overview-metrics.scout-rings { height: 82px; min-height: 82px; padding-block: 4px 0; }
+.overlay-shell .scout-ring { width: 36px; height: 36px; }
+.overlay-shell .scout-card .scout-rings .scout-ring b { font-size: 12px; line-height: 14px; }
+.overlay-shell .scout-card .scout-rings .scout-ring-metric > small { font-size: 8px; }
+.overlay-shell .scout-card .scout-rings .scout-ring-metric > strong { font-size: 9px; }
+.overlay-shell .scout-card .scout-rings .scout-ring-metric > span:not(.scout-ring) { font-size: 9px; }
+.overlay-shell .scout-scope { min-height: 14px; height: 14px; gap: 6px; }
+.overlay-shell .scout-scope .sample-size,
+.overlay-shell .scout-scope b,
+.overlay-shell .scout-scope > span { font-size: 9px; }
+.overlay-shell .scout-card .scout-tags.recent-block { flex: 1; min-height: 26px; height: 26px; padding: 4px; flex-wrap: nowrap; align-items: center; }
+.overlay-shell .scout-tags .scout-tag { max-width: calc(50% - 2px); font-size: 9px; }
+.overlay-shell .scout-tags .scout-tag:nth-child(n+3) { display: none; }
+@media (max-width: 680px) {
+  .overlay-shell .overlay-player.scout-card { width: calc((100% - 6px) / 2); }
+  .overlay-shell .overlay-head { min-height: 34px; }
+}
