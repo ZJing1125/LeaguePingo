@@ -69,6 +69,13 @@ async function main() {
     assert.equal(calls.filter(c => c === "CurrentPlayer").length, 1);
     assert(await page.locator(".home-account img").evaluate(img => img.complete && img.naturalWidth > 0));
     await page.getByRole("img", { name: "玩家账号头像", exact: true }).waitFor();
+    await resolved("dark");
+    assert.equal(await theme.inputValue(), "dark", "a new player should start in dark mode");
+    await theme.selectOption("light"); await resolved("light");
+    await page.reload();
+    await page.locator(".home-account h2").filter({ hasText: self.displayName }).waitFor();
+    await resolved("light");
+    assert.equal(await theme.inputValue(), "light", "saved light mode must override the dark default");
     await screenshot("light");
     let before = calls.length;
     await theme.selectOption("dark"); await resolved("dark");
@@ -98,6 +105,10 @@ async function main() {
     await peer.goto("http://127.0.0.1:43202/theme-sync");
     await peer.evaluate(() => localStorage.setItem("leaguepingo.theme", "light"));
     await resolved("light"); assert.equal(await theme.inputValue(), "light");
+    await peer.evaluate(() => localStorage.removeItem("leaguepingo.theme"));
+    await resolved("dark"); assert.equal(await theme.inputValue(), "dark");
+    await peer.evaluate(() => localStorage.setItem("leaguepingo.theme", "light"));
+    await resolved("light");
     await peer.close();
     assert.equal(calls.length, before, "cross-window theme sync requested data");
     await page.evaluate(() => { window.__themeSetItem = Storage.prototype.setItem; Storage.prototype.setItem = function () { throw new DOMException("Synthetic storage unavailable", "SecurityError"); }; });

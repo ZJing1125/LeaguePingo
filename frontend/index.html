@@ -6,10 +6,10 @@
     <script>
       // Resolve before the first paint, including an explicitly saved dark theme.
       (() => {
-        let theme = "light";
-        try { theme = localStorage.getItem("leaguepingo.theme") || "light"; } catch {}
+        let theme = "dark";
+        try { theme = localStorage.getItem("leaguepingo.theme") || "dark"; } catch {}
         if (theme === "system") theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-        document.documentElement.dataset.theme = theme === "dark" ? "dark" : "light";
+        document.documentElement.dataset.theme = theme === "light" ? "light" : "dark";
       })();
     </script>
     <link rel="stylesheet" href="/src/style.css" />

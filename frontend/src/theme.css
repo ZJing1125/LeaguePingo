@@ -1,4 +1,4 @@
-/* Shared semantic colors. The default preserves the existing paper theme. */
+/* Base paper palette; the selected dark theme overrides these semantic colors. */
 :root {
   --panel: #f7f6ef;
   --surface-2: #e8e8e0;
