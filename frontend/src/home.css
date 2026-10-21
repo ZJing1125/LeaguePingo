@@ -84,3 +84,43 @@
   .home-session p { display: none; }
   .home-rank { padding-block: 14px; }
 }
+
+/* Aligned overview columns and independently filtered history. */
+.home-workspace { padding: 16px 22px 20px; }
+.home-heading { min-height: 40px; margin-bottom: 10px; }
+.home-heading h1 { font-size: 26px; line-height: 30px; }
+.home-hero { min-height: 132px; padding: 18px 22px; gap: 22px; }
+.home-hero-art { inset: 0 0 0 14%; opacity: .32; mask-image: linear-gradient(90deg, transparent, #000 48%, #000 68%, transparent); }
+.home-hero-art .hero-splash { width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; }
+.home-hero::after { position: absolute; inset: 0; z-index: -1; content: ''; background: linear-gradient(90deg, var(--panel) 0%, transparent 56%, color-mix(in srgb, var(--panel) 88%, transparent) 85%); }
+.home-grid { height: max(400px, calc(100dvh - 372px)); grid-template-columns: minmax(175px, .78fr) minmax(350px, 2.3fr) minmax(240px, 1fr); align-items: stretch; gap: 14px; margin-top: 14px; }
+.home-panel > header { min-height: 44px; height: 44px; padding: 10px 14px; flex: none; }
+.home-ranks { display: grid; grid-template-rows: 1fr 1fr 1.25fr; gap: 12px; min-height: 0; }
+.home-rank { padding: 15px; gap: 7px; justify-content: center; }
+.home-rank > .rank-emblem { position: absolute; top: 12px; right: 9px; width: 58px; height: 58px; }
+.home-rank > span:first-child { padding-right: 48px; }
+.home-rank strong { margin-top: 4px; font-size: 15px; position: relative; }
+.home-rank > small { position: relative; }
+.home-session { padding: 14px 15px; justify-content: space-between; gap: 8px; }
+.home-session p { font-size: 11px; }
+.home-recent, .home-mains { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.home-history-filters { padding: 7px 10px; display: flex; gap: 7px; align-items: center; min-height: 42px; border-bottom: 1px solid var(--border); flex: none; }
+.home-history-filters select { min-width: 0; max-width: 142px; font-size: 11px; }
+.home-history-filters > span { margin-left: auto; white-space: nowrap; font-size: 10px; color: var(--muted); }
+.home-match-list { overflow: auto; flex: 1; min-height: 0; overscroll-behavior: contain; }
+.home-match { min-height: 60px; padding: 9px 12px; gap: 10px; }
+.home-match-score { width: 93px; }.home-match-score small { overflow: hidden; text-overflow: ellipsis; max-width: 93px; }
+.home-match b { font-size: 11px; }.home-match small { font-size: 10px; }
+.home-pagination { flex: none; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 45px; border-top: 1px solid var(--border); padding: 6px 8px; }
+.home-pagination > span { display: flex; flex-direction: column; align-items: center; font-size: 11px; white-space: nowrap; }
+.home-pagination small { font-size: 9px; color: var(--muted); margin-top: 2px; }
+.home-pagination button { font-size: 10px; padding: 5px 9px; }
+.home-page-jump { display: flex; gap: 5px; margin-left: auto; }
+.home-page-jump input { width: 30px; min-width: 0; padding: 4px; font-size: 11px; text-align: center; }
+.home-browse-status { display: flex; align-items: center; justify-content: space-between; font-size: 10px; color: var(--muted); line-height: 1.5; padding: 6px 10px; border-bottom: 1px solid var(--border); flex: none; }
+.home-browse-status .text-button { white-space: nowrap; font-size: 10px; }
+.home-mains-list { flex: 1; min-height: 0; overflow: auto; }
+.home-champion { padding: 10px 12px; min-height: 61px; gap: 8px; }.home-champion strong { font-size: 12px; }.home-champion small { font-size: 10px; margin-top: 4px; }.home-champion > b { font-size: 12px; }
+.home-sample-note { flex: none; border-top: 1px solid var(--border); padding: 10px 12px; font-size: 10px; line-height: 1.6; }.home-sample-note > span { display: block; margin-bottom: 4px; }.home-sample-note .history-notice { font-size: 10px; }
+@media (max-width: 1150px) { .home-grid { grid-template-columns: 175px minmax(350px, 1fr) 240px; gap: 12px; }.home-workspace { padding-inline: 18px; }.home-form-summary { gap: 16px; }.home-form-summary strong { font-size: 28px; }.home-account h2 { font-size: 19px; }.home-form-summary > div { min-width: 80px; } }
+@media (max-width: 999px) { .home-grid { height: auto; grid-template-columns: minmax(350px, 1.6fr) minmax(220px, 1fr); }.home-ranks { grid-column: 1 / -1; grid-template: 128px / 1fr 1fr 1.1fr; }.home-recent, .home-mains { height: 440px; }.home-hero { flex-wrap: wrap; }.home-session p { display: none; }.home-page-jump { display: none; } }

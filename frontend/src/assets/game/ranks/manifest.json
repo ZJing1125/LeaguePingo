@@ -1,0 +1,55 @@
+{
+  "source": "Riot official ranked-emblems-latest.zip",
+  "images": {
+    "IRON": {
+      "url": "https://static.developer.riotgames.com/docs/lol/ranked-emblems-latest.zip#Ranked Emblems Latest/Rank=Iron.png",
+      "bytes": 188074,
+      "sha256": "a9b030af5525d1fb7f100613a007de5f7b0fd586948a742b3a366a2b912d8a2d"
+    },
+    "BRONZE": {
+      "url": "https://static.developer.riotgames.com/docs/lol/ranked-emblems-latest.zip#Ranked Emblems Latest/Rank=Bronze.png",
+      "bytes": 334306,
+      "sha256": "2ce661d817067eef87c5f57c9ddf1cf8213547f87c3d640669458eacd0fda32c"
+    },
+    "SILVER": {
+      "url": "https://static.developer.riotgames.com/docs/lol/ranked-emblems-latest.zip#Ranked Emblems Latest/Rank=Silver.png",
+      "bytes": 481949,
+      "sha256": "566c3def707c64384c0cc129e1f09aaffce75373364343215135f711918d0c26"
+    },
+    "GOLD": {
+      "url": "https://static.developer.riotgames.com/docs/lol/ranked-emblems-latest.zip#Ranked Emblems Latest/Rank=Gold.png",
+      "bytes": 554097,
+      "sha256": "0e736c3a19f22b4514c897fd179f728093913ac83642f352632d3bd9c959ce31"
+    },
+    "PLATINUM": {
+      "url": "https://static.developer.riotgames.com/docs/lol/ranked-emblems-latest.zip#Ranked Emblems Latest/Rank=Platinum.png",
+      "bytes": 498643,
+      "sha256": "3ac5fa4d68db644a36f54c9258f18ad4669429528497458cb2401fd5f12b9e25"
+    },
+    "EMERALD": {
+      "url": "https://static.developer.riotgames.com/docs/lol/ranked-emblems-latest.zip#Ranked Emblems Latest/Rank=Emerald.png",
+      "bytes": 493524,
+      "sha256": "3c3252191b111ce11f44f59745b788a4100bfb1a3ecc1b8a7dd87ac418e326b8"
+    },
+    "DIAMOND": {
+      "url": "https://static.developer.riotgames.com/docs/lol/ranked-emblems-latest.zip#Ranked Emblems Latest/Rank=Diamond.png",
+      "bytes": 591513,
+      "sha256": "052c7a82914eccc5333dc20f67b3208cf854f66130db12e4aa4f947f76a0b60f"
+    },
+    "MASTER": {
+      "url": "https://static.developer.riotgames.com/docs/lol/ranked-emblems-latest.zip#Ranked Emblems Latest/Rank=Master.png",
+      "bytes": 578336,
+      "sha256": "83fe38066dfc796b55c46bb17cae72a0b23af93b819adfaf02c1c79b52919568"
+    },
+    "GRANDMASTER": {
+      "url": "https://static.developer.riotgames.com/docs/lol/ranked-emblems-latest.zip#Ranked Emblems Latest/Rank=Grandmaster.png",
+      "bytes": 677483,
+      "sha256": "ea4f8579a5c2bbc82200531bc007d009ab39f8f59b2f81e2932d62ff63bd8c25"
+    },
+    "CHALLENGER": {
+      "url": "https://static.developer.riotgames.com/docs/lol/ranked-emblems-latest.zip#Ranked Emblems Latest/Rank=Challenger.png",
+      "bytes": 730997,
+      "sha256": "668f402b0c800562b61e7128d6b01bbfc81f508cc8a6232276158416ed81f725"
+    }
+  }
+}

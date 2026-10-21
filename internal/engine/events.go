@@ -53,6 +53,9 @@ func (e *Engine) observePhase(version, sequence uint64, phase string) {
 	}
 	e.phaseEpoch++
 	e.phaseHint = phase
+	if stageForPhase(phase) != e.snapshot.Stage || phase == "GameStart" {
+		e.stopScoutingLocked()
+	}
 	if stageForPhase(phase) != "idle" && e.homeCancel != nil {
 		e.homeCancel()
 	}

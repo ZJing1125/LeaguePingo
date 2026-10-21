@@ -8,6 +8,7 @@ const props = defineProps<{
   selectedKey?: string;
   party?: boolean;
   frozen?: boolean;
+  queue?: number;
 }>();
 defineEmits<{ select: [player: Participant] }>();
 const teams = computed(() =>
@@ -53,7 +54,7 @@ const teams = computed(() =>
           :data-player-key="player.key"
           @click="$emit('select', player)"
         >
-          <PlayerScoutCard :player="player" :frozen="frozen" :party="party" />
+          <PlayerScoutCard :player="player" :frozen="frozen" :party="party" :queue="queue" />
         </button>
       </div>
       <p v-if="!team.players.length" class="team-empty">

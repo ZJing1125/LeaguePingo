@@ -102,6 +102,10 @@ export function SetOverlayPinned(pinned: boolean): $CancellablePromise<$models.O
     return $Call.ByID(517636436, pinned);
 }
 
+export function SetScoutQueue(queue: number): $CancellablePromise<core$0.Snapshot> {
+    return $Call.ByID(31819491, queue);
+}
+
 export function Snapshot(): $CancellablePromise<core$0.Snapshot> {
     return $Call.ByID(3423517222);
 }

@@ -22,6 +22,13 @@ type sgpHistory struct {
 	http                    *http.Client
 	origin, platform, token string
 	expires                 time.Time
+	pages                   map[string]cachedSGPPage
+	heads                   map[string]int64
+}
+
+type cachedSGPPage struct {
+	page    core.HistoryPage
+	expires time.Time
 }
 
 var tencentPlatform = regexp.MustCompile(`^[A-Z][A-Z0-9]{1,11}$`)
@@ -38,6 +45,12 @@ func trustedSGPOrigin(platform, configured string) (string, error) {
 }
 
 func (s *TencentLCU) sgpHistoryPage(ctx context.Context, puuid string, offset int) (core.HistoryPage, error) {
+	page, err := s.sgpSummaryPage(ctx, puuid, offset)
+	page.HasMore = page.HasMore && page.NextOffset <= 980
+	return page, err
+}
+
+func (s *TencentLCU) sgpSummaryPage(ctx context.Context, puuid string, offset int) (core.HistoryPage, error) {
 	s.sgpMu.Lock()
 	defer s.sgpMu.Unlock()
 	if s.sgp == nil {
@@ -82,6 +95,9 @@ func (s *TencentLCU) sgpHistoryPage(ctx context.Context, puuid string, offset in
 		r.origin, r.platform, r.token, r.expires = origin, auth.Platform, token.Access, time.Now().Add(2*time.Minute)
 	}
 	path := "/match-history-query/v1/products/lol/player/" + url.PathEscape(puuid) + "/SUMMARY?" + url.Values{"startIndex": {fmt.Sprint(offset)}, "count": {"20"}}.Encode()
+	if cached, ok := r.pages[path]; offset > 0 && ok && time.Now().Before(cached.expires) {
+		return cached.page, nil
+	}
 	raw, status, err := r.get(ctx, path)
 	if status == http.StatusUnauthorized || status == http.StatusForbidden {
 		r.token = ""
@@ -96,7 +112,35 @@ func (s *TencentLCU) sgpHistoryPage(ctx context.Context, puuid string, offset in
 	if result.Meta.Returned > 20 {
 		return core.HistoryPage{}, errors.New("战绩服务返回超出请求的页范围")
 	}
-	return core.HistoryPage{Matches: result.Matches, Meta: result.Meta, Offset: offset, NextOffset: offset + result.Meta.Returned, HasMore: result.Meta.Returned == 20 && offset+result.Meta.Returned <= 980}, nil
+	page := core.HistoryPage{Matches: result.Matches, Meta: result.Meta, Offset: offset, NextOffset: offset + result.Meta.Returned, HasMore: result.Meta.Returned == 20}
+	if offset == 0 {
+		var head int64
+		if len(result.Matches) > 0 {
+			head = result.Matches[0].GameID
+		}
+		r.rememberHead(puuid, head)
+	}
+	if r.pages == nil || len(r.pages) >= 512 {
+		r.pages = map[string]cachedSGPPage{}
+	}
+	r.pages[path] = cachedSGPPage{page: page, expires: time.Now().Add(15 * time.Second)}
+	return page, nil
+}
+
+func (r *sgpHistory) rememberHead(puuid string, head int64) {
+	if r.heads == nil || len(r.heads) >= 64 {
+		r.heads = map[string]int64{}
+		r.pages = nil
+	}
+	if previous, ok := r.heads[puuid]; ok && previous != head {
+		prefix := "/match-history-query/v1/products/lol/player/" + url.PathEscape(puuid) + "/SUMMARY?"
+		for key := range r.pages {
+			if strings.HasPrefix(key, prefix) {
+				delete(r.pages, key)
+			}
+		}
+	}
+	r.heads[puuid] = head
 }
 
 func (r *sgpHistory) get(ctx context.Context, path string) (raw []byte, status int, resultErr error) {

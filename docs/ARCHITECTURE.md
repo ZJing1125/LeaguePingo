@@ -1,5 +1,7 @@
 # 架构与技术选型
 
+BUG-0050：新增独立 ScoutSource/ScoutReport，英雄当前赛季与12小时/30天统计不与列表样本共用；范围、调度、缓存和完整性定义以 SCOUTING.md 为准，替代下文旧“仅近20场对局统计”和“不自动分页”对本通道的限制。Snapshot.queueId 为已读会话队列，scoutQueue 为统一展示选择；SetScoutQueue 仅更新快照。其余历史、资料、首页与原生快览规则继续适用。
+
 ## 平台范围
 
 当前集中开发 Windows，macOS 在 Windows 产品成熟后再适配。保留 `build/darwin` 只是保留桌面构建资源；非 Windows 客户端发现目前仅支持显式 lockfile 路径，macOS 自动发现、数据源兼容、窗口/快捷键和签名分发均未完成验收。本阶段不增加移动端、Linux 或服务端产品目标。

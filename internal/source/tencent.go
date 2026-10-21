@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"leaguepingo/internal/core"
 	"leaguepingo/internal/lcu"
@@ -19,16 +20,20 @@ type TencentLCU struct {
 	selfPUUID string
 	sgpMu     sync.Mutex
 	sgp       *sgpHistory
+	queueID   atomic.Int32
 }
 
 func (*TencentLCU) Region() string { return "CN" }
 func (s *TencentLCU) ResetIdentity() {
+	s.queueID.Store(0)
 	s.selfMu.Lock()
 	s.selfPUUID = ""
 	s.selfMu.Unlock()
 	s.sgpMu.Lock()
 	if s.sgp != nil {
 		s.sgp.token, s.sgp.origin, s.sgp.platform = "", "", ""
+		s.sgp.pages = nil
+		s.sgp.heads = nil
 	}
 	s.sgpMu.Unlock()
 }
@@ -72,6 +77,7 @@ func (s *TencentLCU) Roster(ctx context.Context) (int64, []core.Participant, err
 	var roster []core.Participant
 	var firstErr error
 	if raw, err := s.client.Get(ctx, "/lol-gameflow/v1/session"); err == nil {
+		s.rememberQueue(raw, false)
 		self, selfErr := s.currentPUUID(ctx)
 		if selfErr == nil {
 			gameID, roster, firstErr = core.ParseGameflowRosterForPlayer(raw, self)
@@ -100,7 +106,32 @@ func (s *TencentLCU) Lobby(ctx context.Context) ([]core.Participant, error) {
 	if err != nil {
 		return nil, err
 	}
+	s.rememberQueue(raw, true)
 	return core.ParseLobbyRoster(raw)
+}
+
+func (s *TencentLCU) CurrentQueue() int { return int(s.queueID.Load()) }
+func (s *TencentLCU) rememberQueue(raw []byte, lobby bool) {
+	var v struct {
+		GameData struct {
+			Queue struct {
+				ID *int `json:"id"`
+			} `json:"queue"`
+		} `json:"gameData"`
+		GameConfig struct {
+			QueueID *int `json:"queueId"`
+		} `json:"gameConfig"`
+	}
+	if json.Unmarshal(raw, &v) != nil {
+		return
+	}
+	q := v.GameData.Queue.ID
+	if lobby {
+		q = v.GameConfig.QueueID
+	}
+	if q != nil && *q >= 0 {
+		s.queueID.Store(int32(*q))
+	}
 }
 
 func knownCount(players []core.Participant) int {
@@ -178,8 +209,20 @@ func (s *TencentLCU) Name(ctx context.Context, puuid string) (string, error) {
 }
 
 func (s *TencentLCU) History(ctx context.Context, puuid string) (core.HistoryResult, error) {
-	// Automatic preparation stays on LCU; remote paging is explicit only.
+	// The first recent-history batch stays on LCU. Independent season scouting
+	// uses ScoutPage; user-driven browsing uses HistoryPage.
 	page, err := s.lcuHistoryPage(ctx, puuid, 0, 20)
+	if err == nil {
+		s.sgpMu.Lock()
+		if s.sgp != nil {
+			var head int64
+			if len(page.Matches) > 0 {
+				head = page.Matches[0].GameID
+			}
+			s.sgp.rememberHead(puuid, head)
+		}
+		s.sgpMu.Unlock()
+	}
 	return core.HistoryResult{Matches: page.Matches, Meta: page.Meta}, err
 }
 

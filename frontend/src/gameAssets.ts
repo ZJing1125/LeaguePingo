@@ -50,3 +50,8 @@ const portraits = import.meta.glob("./assets/game/portraits/*.jpg", {
 export function championPortrait(id: number | undefined) {
   return id ? portraits[`./assets/game/portraits/${id}.jpg`] : undefined;
 }
+
+const splashes = import.meta.glob("./assets/game/splashes/*.jpg", { eager: true, query: "?url", import: "default" }) as Record<string,string>;
+const emblems = import.meta.glob("./assets/game/ranks/*.png", { eager: true, query: "?url", import: "default" }) as Record<string,string>;
+export function championSplash(id: number | undefined) { return id ? splashes[`./assets/game/splashes/${id}.jpg`] : undefined; }
+export function rankEmblem(tier: string | undefined) { return tier ? emblems[`./assets/game/ranks/${tier}.png`] : undefined; }

@@ -7,6 +7,7 @@ export {
 } from "./models.js";
 
 export type {
+    ChampionMastery,
     FieldFreshness,
     HistoryMeta,
     HistoryPage,
@@ -16,6 +17,12 @@ export type {
     Participant,
     Profile,
     Rank,
+    ScoutChampion,
+    ScoutHeroQueue,
+    ScoutPosition,
+    ScoutQueue,
+    ScoutReport,
+    ScoutSeason,
     Snapshot,
     Stats
 } from "./models.js";

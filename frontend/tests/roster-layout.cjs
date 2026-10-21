@@ -1,4 +1,5 @@
 // Synthetic runtime: comparison cards, honest sample rings and stable details.
+const { scoutFixture } = require("./scout-fixtures.cjs");
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
@@ -108,7 +109,7 @@ async function main() {
           args = request.args?.args ?? [];
         calls.push(method);
         let result = null;
-        if (method === "Snapshot") result = snapshot;
+        if (method === "Snapshot") { snapshot.participants.forEach(p => p.scout = scoutFixture(p)); result = snapshot; }
         else if (method === "OverlayStatus")
           result = { visible: false, pinned: true, revision: 0 };
         else if (method === "RefreshData") {
@@ -154,6 +155,7 @@ async function main() {
         });
     }
     async function publish() {
+      snapshot.participants.forEach(p => p.scout = scoutFixture(p));
       snapshot = { ...snapshot, generation: snapshot.generation + 1 };
       await page.evaluate(
         (s) =>
@@ -214,7 +216,7 @@ async function main() {
     assert.equal(await page.locator(".scout-ring-metric").count(), 30);
     assert.equal(await page.locator(".card-artwork").count(), 0, "comparison cards use flat, aligned data cells");
     assert((await rows.first().locator(".scout-rings").innerText()).includes("上路"));
-    assert((await rows.first().locator(".scout-scope").innerText()).includes("20 场内"));
+    assert((await rows.first().locator(".scout-scope").innerText()).includes("近30天"));
     assert(await rows.evaluateAll(cards => cards.every(card => card.getBoundingClientRect().bottom <= innerHeight)), "all ten comparison cards should fit at 1280x800");
     await screenshot("cards");
     await page.getByRole("combobox", { name: "界面主题", exact: true }).selectOption("light");
@@ -401,10 +403,10 @@ async function main() {
     assert.equal(calls.filter((c) => c === "RefreshData").length, 1);
     snapshot.participants = [{ ...structuredClone(players[0]), history: history.map(m => ({ ...m, win: null })), profile: { ...profile(), rankState: "unavailable", ranks: [] } }];
     await publish();
-    await rows.first().locator(".scout-ring-metric").first().getByText("胜负暂缺", { exact: true }).waitFor();
+    await rows.first().locator(".scout-ring-metric").first().getByText("胜负未记录", { exact: true }).waitFor();
     assert((await rows.first().locator(".scout-ring-metric").first().innerText()).includes("—"));
     await rows.first().getByText("来源未提供段位", { exact: true }).waitFor();
-    await screenshot("partial");
+    await screenshot("cards-partial");
     assert(
       !calls.some((c) =>
         /LoadRanks|LoadProfile|LookupPlayer|HistoryPage|EnsureProfile/.test(c),

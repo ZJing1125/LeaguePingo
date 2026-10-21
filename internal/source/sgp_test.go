@@ -60,6 +60,64 @@ func TestSGPExplicitPagingUsesTrustedHostSessionAndRawOffset(t *testing.T) {
 	}
 }
 
+func TestSGPScoutingAndBrowseSharePagesButChangedHeadInvalidatesCursorCache(t *testing.T) {
+	calls, head := 0, 1
+	r := &sgpHistory{origin: "https://nj100-sgp.lol.qq.com:21019", platform: "NJ100", token: "synthetic", expires: time.Now().Add(time.Minute)}
+	r.http = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		calls++
+		offset, _ := strconv.Atoi(req.URL.Query().Get("startIndex"))
+		id := offset + 1
+		if offset == 0 {
+			id = head
+		}
+		return jsonResponse(fmt.Sprintf(`{"games":[{"metadata":{"product":"lol","info_type":"summary","match_id":"NJ100_%d"},"json":{"gameId":%d,"platformId":"NJ100","queueId":420,"participants":[{"puuid":"target"}]}}]}`, id, id)), nil
+	})}
+	s := &TencentLCU{sgp: r}
+	read := func(offset int) {
+		t.Helper()
+		if _, err := s.ScoutPage(context.Background(), "target", offset); err != nil {
+			t.Fatal(err)
+		}
+	}
+	read(0)
+	read(20)
+	read(20)
+	if calls != 2 {
+		t.Fatal("same immutable page was fetched twice")
+	}
+	head = 2
+	read(0)
+	read(20)
+	if calls != 4 {
+		t.Fatal("new game did not invalidate shifted cached pages")
+	}
+	if _, err := s.HistoryPage(context.Background(), "target", 20); err != nil || calls != 4 {
+		t.Fatal("browse did not reuse matching scouting page")
+	}
+	s.ResetIdentity()
+	if len(r.pages) > 0 || len(r.heads) > 0 {
+		t.Fatal("account reset retained player cursors")
+	}
+}
+
+func TestScoutingCursorCanPassTheUserListThousandRecordBoundary(t *testing.T) {
+	r := &sgpHistory{origin: "https://nj100-sgp.lol.qq.com:21019", platform: "NJ100", token: "synthetic", expires: time.Now().Add(time.Minute)}
+	r.http = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Query().Get("startIndex") != "1000" {
+			t.Fatal("scouting cursor was truncated")
+		}
+		return jsonResponse(`{"games":[{"metadata":{"product":"lol","info_type":"summary","match_id":"NJ100_1001"},"json":{"gameId":1001,"platformId":"NJ100","queueId":420,"participants":[{"puuid":"target"}]}}]}`), nil
+	})}
+	s := &TencentLCU{sgp: r}
+	p, err := s.ScoutPage(context.Background(), "target", 1000)
+	if err != nil || p.NextOffset != 1001 {
+		t.Fatal("independent season cursor inherited list limit")
+	}
+	if _, err := s.HistoryPage(context.Background(), "target", 1000); err == nil {
+		t.Fatal("user list limit changed")
+	}
+}
+
 func TestSGPRejectsUntrustedOriginsAndFallbackDoesNotPretendExhaustion(t *testing.T) {
 	for _, origin := range []string{"http://nj100-sgp.lol.qq.com:21019", "https://evil.example", "https://nj100-sgp.lol.qq.com.evil.example:21019", "https://hn1-sgp.lol.qq.com:21019", "https://nj100-sgp.lol.qq.com:21019/path", "https://user@nj100-sgp.lol.qq.com:21019"} {
 		if _, err := trustedSGPOrigin("NJ100", origin); err == nil {

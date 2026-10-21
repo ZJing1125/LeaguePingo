@@ -5,6 +5,7 @@ import { date, number, playerName } from "../presentation";
 import { rankPresentation } from "../rankPresentation";
 import { hasPlayerName } from "../playerState";
 import AppIcon from "./AppIcon.vue";
+import RankEmblem from "./RankEmblem.vue";
 const props = defineProps<{
   player: Participant;
   busy?: boolean;
@@ -119,7 +120,7 @@ async function copyID() {
         class="rank-card"
         :title="item.title"
       >
-        <AppIcon v-if="!compact" name="shield" :size="24" />
+        <RankEmblem v-if="!compact" :tier="item.rank?.tier" />
         <div>
           <small>{{
             item.queue === "RANKED_SOLO_5x5" ? "单双排" : "灵活排位"

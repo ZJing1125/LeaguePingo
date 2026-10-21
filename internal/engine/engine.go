@@ -60,6 +60,7 @@ type Engine struct {
 	preferred           string
 	details             map[string]core.MatchDetail
 	initialMatch        initialMatchPreparation
+	scouting            scoutPreparation
 }
 
 func New(discover Discoverer, onChange func(core.Snapshot)) *Engine {
@@ -101,6 +102,7 @@ func (e *Engine) Run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			e.mu.Lock()
+			e.stopScoutingLocked()
 			if e.homeCancel != nil {
 				e.homeCancel()
 			}
@@ -329,10 +331,15 @@ func (e *Engine) poll(ctx context.Context) {
 	}
 	e.startPreparationLocked()
 	e.startInitialMatchLocked()
+	e.syncScoutingLocked()
 }
 
 // Retained data can still be displayed, but can never become a new connection's cache.
 func (e *Engine) invalidateConnectionLocked() {
+	e.stopScoutingLocked()
+	e.scouting.scope = ""
+	e.scouting.cache = nil
+	e.scouting.attempted = nil
 	if e.homeCancel != nil {
 		e.homeCancel()
 	}
@@ -366,6 +373,7 @@ func (e *Engine) invalidateConnectionLocked() {
 
 // Keep the frozen match available while exposing why reconnection failed.
 func (e *Engine) disconnectLocked(message string) {
+	e.stopScoutingLocked()
 	if e.homeCancel != nil {
 		e.homeCancel()
 	}
@@ -457,6 +465,7 @@ func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.
 					roster[i].HistoryMeta = old.HistoryMeta
 					roster[i].Stats = old.Stats
 					roster[i].Profile = old.Profile
+					roster[i].Scout = old.Scout
 					roster[i].PrivacyState = old.PrivacyState
 					roster[i].Cached = old.Cached
 					roster[i].Stale = old.Stale
@@ -503,6 +512,7 @@ func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.
 	}
 	e.startPreparationLocked()
 	e.startInitialMatchLocked()
+	e.syncScoutingLocked()
 }
 
 func (e *Engine) startPreparationLocked() {
@@ -1002,6 +1012,15 @@ func (e *Engine) RefreshRoster(ctx context.Context) (core.Snapshot, error) {
 	}
 	if phase == "InProgress" && e.snapshot.Phase == "GameStart" && !e.matchRosterComplete {
 		e.matchRosterAttempts = 0
+	}
+	// Explicit refresh also renews the independent scouting round. Ordinary
+	// polls, card selection and overlay visibility do not reset it.
+	e.stopScoutingLocked()
+	e.scouting.attempted = map[string]bool{}
+	e.scouting.deadline = time.Time{}
+	e.scouting.pages = 0
+	for _, p := range roster {
+		delete(e.scouting.cache, p.PUUID)
 	}
 	e.replaceLocked(stage, phase, gameID, roster, "")
 	if activeMatch(phase) && gameID != 0 && completeRoster(roster) {

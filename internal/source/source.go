@@ -44,6 +44,16 @@ type HistoryPager interface {
 	HistoryPage(context.Context, string, int) (core.HistoryPage, error)
 }
 
+// Independent season/time-window preparation; never changes recent-history pages.
+type ScoutSource interface {
+	ScoutSeason(context.Context) (*core.ScoutSeason, error)
+	ChampionMasteries(context.Context, string) ([]core.ChampionMastery, error)
+	ScoutPage(context.Context, string, int) (core.HistoryPage, error)
+}
+
+// Queue identity already obtained while reading the local session/lobby.
+type QueueSource interface{ CurrentQueue() int }
+
 type MatchDetailSource interface {
 	MatchDetail(context.Context, int64, string) (core.MatchDetail, error)
 }

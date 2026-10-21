@@ -46,7 +46,10 @@ export function newestPlayer(
     : hasPlayerName(retained)
       ? retained.displayName
       : history.displayName;
-  const merged = { ...history, displayName };
+  const currentScoutTime = Date.parse(current.scout?.fetchedAt ?? "") || 0;
+  const retainedScoutTime = Date.parse(retained.scout?.fetchedAt ?? "") || 0;
+  const scout = (currentScoutTime >= retainedScoutTime ? current.scout : retained.scout) ?? current.scout ?? retained.scout;
+  const merged = { ...history, displayName, scout, ...(current.championState !== undefined ? { championId: current.championId, championState: current.championState } : {}) };
   return profile
     ? { ...merged, profile, privacyState: profile.privacyState }
     : merged;

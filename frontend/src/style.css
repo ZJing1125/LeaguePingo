@@ -2,6 +2,7 @@
 @import "./theme.css";
 @import "./home.css";
 @import "./scout.css";
+@import "./controls.css";
 
 /* Approved paper / ink / orange design. All game data remains in the existing workspaces. */
 :root {

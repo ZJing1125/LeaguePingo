@@ -101,3 +101,12 @@ PlayerProfileHeader 只呈现头像/等级/两种段位/简短隐私状态，不
 当前卡片视觉以 UI_DESIGN 的 BUG-0049 为准，替代上文 BUG-0047 全卡原画；删除未再引用的 PlayerCardArt，档案原画资源保留。组件预览仍为 5 组/23 变体，名单最后一项改为英雄/段位并列状态。
 
 `node frontend/tests/scout-stats.cjs` 使用既有 TypeScript 编译器运行实际纯模块，核对时段边界/未来或无效时间、未知与零、位置证据/并列、前 20 场上限、KDA 和事实标签；已接入产品 test:smoke。时段基准固定在 historyMeta.fetchedAt，不由计时器或最新一场时间代替。无位置不从 lane 补，空样本不生成评价。卡片选择、模态焦点/筛选隔离及游戏请求预算沿用现有逻辑。
+
+
+## BUG-0050 当前实现
+
+完整口径与核对清单见 SCOUTING.md。PlayerCardData/scoutStats 只消费 Participant.scout；不使用 history 近20场回退。模式来自 Snapshot.scoutQueue，SetScoutQueue 只切缓存并推送双窗口；QueueSwitch 是无数据请求的展示控件。英雄当前状态优先于较旧历史，报告/历史/资料分别按自己的时间合并。HomeView 复用 useHistoryBrowser，维护独立的账号浏览状态；隐藏和换号停止扫描。
+
+controls.css 统一控件/滚动条并保留键盘行为；首页用 ChampionSplash，档案的纵向 ChampionPortrait 仍保留。RankEmblem 使用原始官方PNG及本地回退，不再自绘段位。资源维护与体积检查见 THIRD_PARTY_NOTICES、ui-assets.test.mjs；不改变运行时依赖和固定Wails版本。
+
+scout-stats.cjs 验证实际纯展示模块只用独立报告，scouting-browser.cjs 验证超过20场的英雄经验、排位联动且无额外查询、快览缓存、高清/官方素材、首页筛选/分页与工作区隔离；均接入 test:smoke。原五组产品回归与组件工作台继续验证。Windows交付仍用 build.sh，不能把合成数据当作真实国服结果。

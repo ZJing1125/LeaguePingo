@@ -62,7 +62,7 @@ async function main() {
     await page.goto("http://127.0.0.1:43202/");
     await page.locator(".home-account h2").filter({ hasText: self.displayName }).waitFor();
     assert.equal(await nav.getByRole("button", { name: "首页", exact: true }).getAttribute("aria-current"), "page");
-    assert.equal(await page.locator(".home-match").count(), 5);
+    assert.equal(await page.locator(".home-match").count(), 20);
     assert.equal(await page.locator(".home-champion").count(), 5);
     assert((await page.locator(".home-ranks").innerText()).includes("翡翠 II"));
     assert((await page.locator(".home-ranks").innerText()).includes("黄金 I"));

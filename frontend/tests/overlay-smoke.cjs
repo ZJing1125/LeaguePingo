@@ -975,7 +975,7 @@ async function main() {
       .getByRole("button", { name: /当前对局/ })
       .click();
     await page
-      .getByRole("button", { name: "刷新对局名单", exact: true })
+      .getByRole("button", { name: "刷新对局数据", exact: true })
       .click();
     if (process.env.UI_SCREENSHOT_PREFIX)
       await page.screenshot({

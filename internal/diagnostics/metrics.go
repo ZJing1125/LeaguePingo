@@ -39,6 +39,10 @@ func Category(path string) string {
 		return "history"
 	case strings.HasPrefix(path, "/lol-ranked/"):
 		return "rank"
+	case strings.HasPrefix(path, "/lol-seasons/"):
+		return "season"
+	case strings.HasPrefix(path, "/lol-champion-mastery/"):
+		return "mastery"
 	case strings.HasPrefix(path, "/lol-summoner/"):
 		return "profile"
 	default:

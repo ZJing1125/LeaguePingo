@@ -14,6 +14,7 @@ import SettingsPanel from "./components/SettingsPanel.vue";
 import AppIcon from "./components/AppIcon.vue";
 import DesktopTitleBar from "./components/DesktopTitleBar.vue";
 import HomeView from "./components/HomeView.vue";
+import QueueSwitch from "./components/QueueSwitch.vue";
 import { useTransientMessages } from "./transientMessages";
 import { errorMessage } from "./presentation";
 import { operationKey, playerTabId } from "./playerState";
@@ -67,6 +68,14 @@ const historyUnknown = computed(
     players.value.filter((player) => player.identityState === "unavailable")
       .length,
 );
+const scoutQueueBusy = ref(false);
+async function changeScoutQueue(queue: number) {
+  if (scoutQueueBusy.value) return;
+  scoutQueueBusy.value = true;
+  try { acceptSnapshot(await Service.SetScoutQueue(queue)); }
+  catch (reason) { setMessage("roster", errorMessage(reason)); }
+  finally { scoutQueueBusy.value = false; }
+}
 function acceptSnapshot(next: SnapshotModel) {
   if (league.acceptSnapshot(next)) workspace.acceptSnapshot(next);
 }
@@ -250,6 +259,7 @@ onUnmounted(() => {
       />
       <HomeView
         v-show="view === 'home'"
+        :active="view === 'home'"
         :player="homePlayer"
         :snapshot="snapshot"
         :status="status"
@@ -305,6 +315,7 @@ onUnmounted(() => {
             </h1>
             <p class="roster-subtitle muted">{{ status }}</p>
           </div>
+          <QueueSwitch :value="snapshot?.scoutQueue ?? 420" :busy="scoutQueueBusy" @change="changeScoutQueue" />
           <span class="hold-hint" :title="overlay?.holdWarning"
             ><kbd>{{
               overlay?.holdKey === "Backquote" ? "~" : overlay?.holdKey || "~"
@@ -317,10 +328,10 @@ onUnmounted(() => {
           >
           <button
             class="secondary"
-            :disabled="rosterBusy || !canRefresh"
+            :disabled="rosterBusy || manualBusy || !canRefresh"
             @click="refreshRoster"
           >
-            {{ rosterBusy ? "刷新中…" : "刷新对局名单" }}
+            {{ rosterBusy ? "刷新中…" : "刷新对局数据" }}
           </button>
         </header>
         <div
@@ -371,6 +382,7 @@ onUnmounted(() => {
             <p class="muted">排队和接受确认阶段通常无法取得双方十人的身份。</p>
           </div>
           <MatchRoster
+            :queue="snapshot?.scoutQueue ?? 420"
             v-else
             :players="players"
             :selected-key="selectedKey"

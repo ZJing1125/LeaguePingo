@@ -21,6 +21,10 @@ type AppService struct {
 
 func (s *AppService) Snapshot() core.Snapshot { return s.engine.Snapshot() }
 
+func (s *AppService) SetScoutQueue(queue int) (core.Snapshot, error) {
+	return s.engine.SetScoutQueue(queue)
+}
+
 func (s *AppService) CurrentPlayer(ctx context.Context, connectionID uint64) (core.Participant, error) {
 	return s.engine.CurrentPlayer(ctx, connectionID)
 }

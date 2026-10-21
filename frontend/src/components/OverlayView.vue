@@ -5,6 +5,7 @@ import type { OverlayState } from "../../bindings/leaguepingo/models";
 import { date } from "../presentation";
 import AppIcon from "./AppIcon.vue";
 import PlayerScoutCard from "./PlayerScoutCard.vue";
+import { rankedMode } from "../scoutStats";
 const props = defineProps<{
   snapshot: Snapshot | null;
   state: OverlayState | null;
@@ -54,7 +55,7 @@ defineEmits<{ hide: []; pin: [] }>();
           class="connection-light"
           :class="{ online: snapshot?.connected }"
         ></span
-        >{{ status }}
+        >{{ status }} · {{ rankedMode(snapshot?.scoutQueue ?? 420) }}
       </div>
       <p v-if="state?.warning || error" class="error-banner" role="status">
         {{ error || state?.warning }}
@@ -95,7 +96,7 @@ defineEmits<{ hide: []; pin: [] }>();
               outdated: p.stale,
             }"
           >
-            <PlayerScoutCard :player="p" :frozen="snapshot?.frozen" :party="snapshot?.stage === 'party'" />
+            <PlayerScoutCard :player="p" :frozen="snapshot?.frozen" :party="snapshot?.stage === 'party'" :queue="snapshot?.scoutQueue ?? 420" />
           </div>
         </section>
       </div>

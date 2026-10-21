@@ -37,6 +37,7 @@ type Participant struct {
 	Stats         Stats         `json:"stats"`
 	Error         string        `json:"error,omitempty"`
 	Profile       *Profile      `json:"profile,omitempty"`
+	Scout         *ScoutReport  `json:"scout,omitempty"`
 }
 
 // Optional capabilities: absent fields are never presented as unranked or zero.
@@ -154,6 +155,8 @@ type Snapshot struct {
 	Connected    bool          `json:"connected"`
 	Region       string        `json:"region"`
 	GameID       int64         `json:"gameId"`
+	QueueID      int           `json:"queueId"`
+	ScoutQueue   int           `json:"scoutQueue"`
 	Frozen       bool          `json:"frozen"`
 	UpdatedAt    time.Time     `json:"updatedAt"`
 	Participants []Participant `json:"participants"`
