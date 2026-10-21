@@ -13,4 +13,3 @@ build/windows/nsis/*-installer.exe
 .DS_Store
 /AGENTS.local.md
 /.leaguepingo/
-/.taste-skill/
