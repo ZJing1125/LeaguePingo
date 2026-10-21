@@ -26,6 +26,7 @@
 - 不注入游戏、不读游戏内存、不代理游戏流量。不宣称零 FPS/延迟开销；合成回归、离线采样、单账号读取和真实整局验收必须分开描述。
 - 参阅 `docs/ARCHITECTURE.md`、`docs/OPEN_ISSUES.md`、`docs/ACCEPTANCE.md`。修复先复现/定位，再增加针对性回归；批次完成更新 `BUGFIX_LOG.md`。
 - 前端迭代另读 `docs/UI_DESIGN.md`、`docs/FRONTEND_GUIDE.md`；组件预览是独立开发工具，不代替产品构建或实机验收。
+- 用户已要求将 Taste Skill 保存供后续设计使用：项目副本在 `.agents/skills/design-taste-frontend/SKILL.md`，使用前读 `docs/DESIGN_TOOLS.md` 的适配和范围。助手界面使用 app-screens 流程，应用图标另做真实小尺寸核对；用户已确认的产品、数据和架构要求优先于上游风格默认值。版本/许可和原文件校验见 UPSTREAM.json 与 LICENSE，设计产物留在忽略的 artifacts，不增加产品运行时或常规构建步骤。
 
 ## 构建入口与交付（必须遵守）
 

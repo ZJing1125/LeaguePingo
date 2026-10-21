@@ -2,6 +2,8 @@
 
 本指南对应现有 Windows 桌面助手的增量改进。视觉基准仍是 [UI_DESIGN.md](UI_DESIGN.md)，数据与请求边界仍以 [ARCHITECTURE.md](ARCHITECTURE.md) 为准。
 
+项目已保存 Taste Skill 的完整设计技能，入口、固定版本、使用命令和本项目适配见 [DESIGN_TOOLS.md](DESIGN_TOOLS.md)。后续设计可复用其应用界面/视觉审阅方法，已有产品方向与玩家数据边界保持优先。
+
 ## 模块边界
 
 - `useTheme.ts` 负责浅色/深色/跟随系统、系统外观变化及本机保存，首帧选择在 index.html 解析；`theme.css` 为语义颜色，不能只替换首页背景。快览保持深色，不随主窗口使用浅色。

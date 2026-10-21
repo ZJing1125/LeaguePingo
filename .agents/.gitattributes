@@ -1,0 +1,2 @@
+# Keep the vendored source byte-for-byte, including on Windows checkouts.
+skills/design-taste-frontend/** -text
