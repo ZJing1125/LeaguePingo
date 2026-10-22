@@ -400,6 +400,14 @@ async function main() {
       document.querySelector(".toolbar-status")?.textContent.includes("对局中"),
     );
     const chromeServiceCalls = calls.length;
+    assert.equal(await page.locator(".desktop-titlebar").count(), 1);
+    assert.equal(await page.locator("img.brand-mark").count(), 1, "a unified header must not repeat the application logo");
+    assert.equal(await page.locator(".desktop-titlebar .global-search").count(), 1);
+    await page.getByRole("textbox", { name: "玩家完整 ID" }).dblclick();
+    await page.locator(".workspace-nav").dispatchEvent("dblclick");
+    assert.equal(desktopWindow.calls.filter(m => m === "ToggleMaximise").length, 0, "double-clicking input or navigation must not maximise the window");
+    assert(await page.locator(".toolbar-content :is(nav, form, select, button, input)").evaluateAll(nodes => nodes.every(node => getComputedStyle(node).getPropertyValue("--wails-draggable").trim() === "no-drag")), "toolbar interactions must be excluded from native drag regions");
+    assert.equal(await page.getByRole("textbox", { name: "玩家完整 ID" }).evaluate(input => getComputedStyle(input).userSelect), "text");
     await page.getByRole("button", { name: "最小化窗口", exact: true }).click();
     await page.getByRole("button", { name: "最大化窗口", exact: true }).click();
     await page.getByRole("button", { name: "还原窗口", exact: true }).waitFor();
@@ -1110,6 +1118,7 @@ async function main() {
       "caption controls must remain available without stealing modal focus",
     );
     assert.equal(await page.locator(".app-main").getAttribute("inert"), "");
+    assert.equal(await page.locator(".toolbar-content").getAttribute("inert"), "", "modal background includes toolbar interactions but excludes window controls");
     await page.getByRole("dialog", { name: "设置与诊断" }).press("Shift+Tab");
     assert.equal(
       await page

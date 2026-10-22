@@ -2,7 +2,6 @@
 import { onMounted, onUnmounted, ref } from "vue";
 import { Events, Window } from "@wailsio/runtime";
 import AppIcon from "./AppIcon.vue";
-import BrandIcon from "./BrandIcon.vue";
 
 defineProps<{ modalOpen: boolean }>();
 const maximised = ref(false);
@@ -40,7 +39,7 @@ async function control(action: "Minimise" | "ToggleMaximise" | "Close") {
 }
 
 function doubleClick(event: MouseEvent) {
-  if ((event.target as Element).closest("button")) return;
+  if ((event.target as Element).closest("button, input, select, textarea, a, form, nav, [contenteditable='true']")) return;
   void control("ToggleMaximise");
 }
 
@@ -89,15 +88,13 @@ onUnmounted(() => {
 
 <template>
   <header
-    class="desktop-titlebar"
+    class="desktop-titlebar app-toolbar"
     :class="{ 'window-inactive': !focused, 'window-maximised': maximised }"
     aria-label="LeaguePingo 窗口标题栏"
     @dblclick="doubleClick"
   >
-    <div class="window-brand">
-      <BrandIcon />
-      <strong>LeaguePingo</strong>
-      <span class="window-subtitle">英雄联盟助手</span>
+    <div class="toolbar-content" :inert="modalOpen">
+      <slot />
     </div>
     <span v-if="error" class="window-control-error" role="status">{{
       error

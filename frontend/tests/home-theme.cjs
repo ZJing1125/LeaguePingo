@@ -79,7 +79,8 @@ async function main() {
         background: getComputedStyle(img).backgroundColor,
         dpr: window.devicePixelRatio,
       })));
-      assert.equal(marks.length, 2, "titlebar and navigation must share the approved icon");
+      assert.equal(marks.length, 1, "the unified toolbar must show the approved logo only once");
+      assert.equal(await page.locator("header.desktop-titlebar.app-toolbar").count(), 1);
       for (const mark of marks) {
         assert(mark.loaded && /^\/brand\/icon-(32|64|96)\.png$/.test(mark.source), "brand asset must load locally");
         assert.equal(mark.source, `/brand/icon-${mark.dpr <= 1 ? 32 : mark.dpr <= 2 ? 64 : 96}.png`, "brand source must follow display density");
@@ -156,6 +157,11 @@ async function main() {
     for (const size of [{ width: 1100, height: 760 }, { width: 880, height: 620 }]) {
       await page.setViewportSize(size);
       assert(await page.locator(".app-toolbar").evaluate(el => el.scrollWidth <= el.clientWidth + 1), "toolbar overflow");
+      assert(await page.locator(".toolbar-content").evaluate(el => el.scrollWidth <= el.clientWidth + 1), "toolbar content overflow");
+      assert(await page.locator(".window-controls button").evaluateAll(buttons => buttons.every(button => {
+        const rect = button.getBoundingClientRect();
+        return rect.width > 0 && rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= 64;
+      })), "window controls must stay visible in the same top row");
       assert(await page.locator(".home-workspace").evaluate(el => el.scrollWidth <= el.clientWidth + 1), "home overflow");
       await screenshot(`dark-${size.width}`);
     }

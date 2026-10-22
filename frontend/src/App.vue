@@ -168,14 +168,8 @@ onUnmounted(() => {
     @pin="pinOverlay"
   />
   <main v-else class="desktop-app">
-    <DesktopTitleBar :modal-open="settingsOpen || matchModalOpen" />
-    <div
-      ref="mainElement"
-      class="app-main"
-      :inert="settingsOpen || matchModalOpen"
-    >
-      <header class="app-toolbar">
-        <span class="nav-wordmark"
+    <DesktopTitleBar :modal-open="settingsOpen || matchModalOpen">
+        <span class="nav-wordmark window-brand"
           ><BrandIcon />League<span>Pingo</span></span
         >
         <nav class="workspace-nav" aria-label="工作区">
@@ -240,7 +234,12 @@ onUnmounted(() => {
         ><button class="icon-button small-control" @click="hideOverlay">
           隐藏快览
         </button>
-      </header>
+    </DesktopTitleBar>
+    <div
+      ref="mainElement"
+      class="app-main"
+      :inert="settingsOpen || matchModalOpen"
+    >
       <p
         v-if="overlayError || overlay?.warning"
         class="error-banner workspace-message"

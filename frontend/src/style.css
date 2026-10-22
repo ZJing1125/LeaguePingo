@@ -89,25 +89,13 @@ select {
   display: flex;
   flex-direction: column;
 }
-.desktop-titlebar {
-  height: 36px;
+.desktop-titlebar.app-toolbar {
+  height: 64px;
   flex: none;
-  background: var(--titlebar-bg);
-  border-color: #1d282f0c;
 }
 .window-brand {
-  color: var(--muted);
-}
-.window-brand .brand-mark {
-  width: 18px;
-  height: 18px;
-  border-radius: 0;
-}
-.window-brand strong {
-  font-size: 11px;
-}
-.window-subtitle {
-  font-size: 10px;
+  gap: 0;
+  padding-left: 0;
 }
 .window-controls button {
   color: var(--muted);
@@ -129,11 +117,43 @@ select {
     radial-gradient(ellipse at 55% 0, var(--page-glow), transparent 65%), var(--surface);
 }
 .app-toolbar {
-  height: 62px;
-  gap: 18px;
-  padding: 0 28px;
+  height: 64px;
+  gap: 12px;
+  padding: 0 0 0 24px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
+}
+.toolbar-content {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 100%;
+  flex: 1;
+  min-width: 0;
+}
+.toolbar-content :is(nav, form, select, button, input, a) {
+  --wails-draggable: no-drag;
+}
+.toolbar-content input {
+  user-select: text;
+}
+.desktop-titlebar .window-controls {
+  flex: none;
+  margin-left: 0;
+}
+.desktop-titlebar .window-control-error {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 12px;
+  z-index: 30;
+  margin: 0;
+  padding: 8px 12px;
+  max-width: min(340px, calc(100vw - 24px));
+  border: 1px solid var(--warning-border);
+  border-radius: 6px;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  --wails-draggable: no-drag;
 }
 .nav-wordmark {
   display: flex;
@@ -180,7 +200,10 @@ select {
   right: 0;
 }
 .global-search {
-  width: min(360px, 34%);
+  flex: 1;
+  width: auto;
+  min-width: 180px;
+  max-width: 360px;
   background: var(--search-bg);
   border: 0;
   border-radius: 3px;
@@ -199,14 +222,14 @@ select {
 .connection-light.online {
   background: #529683;
 }
-.app-toolbar > .icon-button {
+.toolbar-content > .icon-button {
   font-size: 11px;
   white-space: nowrap;
   padding: 6px;
   gap: 5px;
   border: 0;
 }
-.app-toolbar > .small-control {
+.toolbar-content > .small-control {
   display: none;
 }
 .match-workspace {
@@ -826,7 +849,7 @@ select {
   grid-column: 1/-1;
 }
 .drawer-floating {
-  inset: 36px 0 0;
+  inset: var(--titlebar-height) 0 0;
   background: #1c2b2e88;
   padding: 18px;
   align-items: flex-end;
@@ -1327,8 +1350,11 @@ select {
 }
 @media (max-width: 1150px) {
   .app-toolbar {
-    padding: 0 20px;
-    gap: 12px;
+    padding: 0 0 0 20px;
+    gap: 8px;
+  }
+  .toolbar-content {
+    gap: 10px;
   }
   .workspace-nav {
     margin-left: 2px;
@@ -1338,7 +1364,7 @@ select {
     font-size: 16px;
   }
   .global-search {
-    width: 32%;
+    width: auto;
   }
   .toolbar-status {
     display: none;
@@ -1413,8 +1439,11 @@ select {
 }
 @media (max-width: 999px) {
   .app-toolbar {
-    gap: 10px;
-    padding-inline: 18px;
+    gap: 6px;
+    padding-inline: 12px 0;
+  }
+  .toolbar-content {
+    gap: 7px;
   }
   .nav-wordmark {
     font-size: 14px;
@@ -1431,14 +1460,14 @@ select {
     font-size: 11px;
   }
   .global-search {
-    width: 34%;
+    width: auto;
     gap: 5px;
   }
   .global-search button {
     padding: 4px 6px;
     font-size: 10px;
   }
-  .app-toolbar > .icon-button span {
+  .toolbar-content > .icon-button span {
     display: none;
   }
   .match-workspace {
@@ -2108,7 +2137,7 @@ select {
 
 /* Details float above the roster, preserving every card's geometry. */
 .drawer-floating {
-  inset: 36px 0 0;
+  inset: var(--titlebar-height) 0 0;
   display: flex;
   align-items: center;
   justify-content: center;

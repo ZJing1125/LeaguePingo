@@ -6,7 +6,7 @@
 
 - `build/appicon.png`：1254 × 1254 的定稿原始 PNG，保留原字节及透明外沿。SHA-256 为 `cb5224d8f1869795eb7966e0af798e2cd2ce7eb7979551b4b2a2ffc8ba061f3a`。
 - `build/windows/icon.ico`：由固定 Wails beta.29 生成，包含 16、20、24、32、40、48、64、96、128、256 像素十帧，涵盖常见任务栏/托盘尺寸和 DPI 比例。框架按原生系统指标选择 ICO 帧，原生实际效果仍须实机核验。
-- `frontend/public/brand/icon-*.png`：直接提取 ICO 中的无损 PNG 帧，与原生资源保持同一套像素；标题栏、导航、快览共用 `BrandIcon.vue`，提供 1×/2×/3×源，favicon 使用 32 像素版本。
+- `frontend/public/brand/icon-*.png`：直接提取 ICO 中的无损 PNG 帧，与原生资源保持同一套像素；主窗口统一顶部栏与快览共用 `BrandIcon.vue`，每个窗口仅一份，提供 1×/2×/3×源，favicon 使用 32 像素版本。
 - `build/brand.json`：记录原稿及全部派生资源的字节数与 SHA-256。检查不改文件；缺失、不同步或损坏直接报错。
 
 上述文件是正式产品资源。设计工具、副本、草稿、预览截图和过程记录继续留在忽略的本地目录，不进入产品或仓库。
