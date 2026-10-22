@@ -13,7 +13,7 @@
   --raised: #e8e8e0;
   --border: #1d282f26;
   --text: #1d282f;
-  --muted: #69756d;
+  --muted: #59665e;
   --accent: #c94b26;
   --win: #287965;
   --loss: #ac4b50;
@@ -213,7 +213,7 @@ select {
   font-size: 11px;
 }
 .toolbar-status {
-  font-size: 10px;
+  font-size: 11px;
   white-space: nowrap;
   max-width: 100px;
   overflow: hidden;
@@ -897,7 +897,7 @@ select {
 }
 .players-workspace > .player-view:not(.compact) {
   display: grid;
-  grid-template-columns: 29% minmax(0, 1fr);
+  grid-template-columns: minmax(230px, 24%) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   padding: 18px 28px 20px;
   gap: 24px;
@@ -1465,7 +1465,7 @@ select {
   }
   .global-search button {
     padding: 4px 6px;
-    font-size: 10px;
+    font-size: 11px;
   }
   .toolbar-content > .icon-button span {
     display: none;

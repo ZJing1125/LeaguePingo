@@ -299,6 +299,11 @@ async function main() {
     await page.waitForFunction(() =>
       document.activeElement?.textContent.includes("在战绩页打开"),
     );
+    assert(await drawer.locator('.player-profile').evaluate(el=>el.getBoundingClientRect().height<150), 'narrow details must keep the identity summary compact');
+    assert(await drawer.locator('.match-items').first().evaluate(el=>{
+      const row=el.closest('.match-main').getBoundingClientRect();
+      return Array.from(el.children).every(item=>{const r=item.getBoundingClientRect();return r.left>=row.left && r.right<=row.right;});
+    }), 'all seven equipment slots must remain inside the row');
     await screenshot("details-880");
     await page.keyboard.press("Escape");
     await drawer.waitFor({ state: "detached" });
@@ -405,7 +410,7 @@ async function main() {
     await publish();
     await rows.first().locator(".scout-ring-metric").first().getByText("胜负未记录", { exact: true }).waitFor();
     assert((await rows.first().locator(".scout-ring-metric").first().innerText()).includes("—"));
-    await rows.first().getByText("来源未提供段位", { exact: true }).waitFor();
+    await rows.first().getByText("段位待确认", { exact: true }).waitFor();
     await screenshot("cards-partial");
     assert(
       !calls.some((c) =>

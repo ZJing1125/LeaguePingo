@@ -65,6 +65,7 @@ async function main() {
   assert((await first.locator('.scout-rings').innerText()).includes('上路'));
   assert((await first.locator('.scout-rings').innerText()).includes('100 场'));
   assert.deepEqual(calls.slice(before),['SetScoutQueue'],'mode switch must be cache-only');
+  assert((await page.getByLabel('本局资料准备进度').innerText()).replace(/\s/g,'').includes('统计完整10/10'));
   await screenshot('season-solo');
   await page.getByRole('button',{name:'灵活组排',exact:true}).click();
   await first.locator('.scout-kda').filter({hasText:'4.0 / 5.0 / 18.0'}).waitFor();
@@ -73,6 +74,8 @@ async function main() {
   await overlay.goto(base+'/?view=overlay');
   await overlay.locator('.overlay-player .rank-line').first().filter({hasText:'黄金 III'}).waitFor();
   assert.equal(await overlay.locator('button').count(),0,'hold overlay is read-only');
+  const expectedTime=await overlay.evaluate(value=>new Date(value).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}),fixed);
+  assert((await overlay.locator('.overlay-footer').innerText()).includes(expectedTime), 'overlay time must come from the independent report');
   const noCalls=calls.length;await overlay.reload();await overlay.locator('.overlay-player').nth(9).waitFor();assert(calls.slice(noCalls).every(c=>['Snapshot','OverlayStatus'].includes(c)));
   if(process.env.UI_SCREENSHOT_PREFIX)await overlay.screenshot({path:`${process.env.UI_SCREENSHOT_PREFIX}-season-overlay.png`});
   await nav.getByRole('button',{name:'首页',exact:true}).click();
@@ -81,7 +84,10 @@ async function main() {
   assert(await page.locator('.hero-splash').evaluate(img=>img.naturalWidth>=1000));
   assert.equal(await page.locator('.home-rank img.rank-emblem').count(),2);
   assert.equal(await page.locator('.home-workspace').evaluate(el=>getComputedStyle(el).scrollbarWidth),'auto','custom WebView scrollbar must not be replaced by the native thin style');
-  const bounds=await page.locator('.home-ranks,.home-recent,.home-mains').evaluateAll(els=>els.map(el=>el.getBoundingClientRect().bottom));assert(Math.max(...bounds)-Math.min(...bounds)<2,'overview columns must align at the bottom');
+  const boxes=await page.locator('.home-ranks,.home-recent,.home-mains').evaluateAll(els=>els.map(el=>({top:el.getBoundingClientRect().top,bottom:el.getBoundingClientRect().bottom})));
+  const sparseLayout=await page.locator('.home-grid').evaluate(el=>el.classList.contains('sparse-mains'));
+  assert(Math.abs(boxes[0].bottom-boxes[1].bottom)<2,'overview main columns must align at the bottom');
+  assert(sparseLayout ? boxes[2].top>=boxes[1].bottom : Math.abs(boxes[2].bottom-boxes[1].bottom)<2,'champion summary must use an aligned column or its own compact row');
   await page.getByRole('combobox',{name:'首页战绩模式',exact:true}).selectOption('420');
   await page.waitForFunction(()=>!document.querySelector('.home-browse-status')?.textContent.includes('正在查找'));
   await page.getByRole('combobox',{name:'首页分析场数',exact:true}).selectOption('30');
@@ -90,9 +96,16 @@ async function main() {
   await page.getByRole('navigation',{name:'首页战绩分页'}).getByRole('button',{name:'下一页',exact:true}).click();
   assert((await page.locator('.home-pagination').innerText()).includes('第 2 页'));
   assert.equal(calls.filter(c=>c==='HistoryPage').length,2,'home cached pagination fetched twice');
+  assert(await page.locator('.home-grid').evaluate(el=>el.classList.contains('sparse-mains')));
+  assert(await page.locator('.home-mains').evaluate(el=>el.getBoundingClientRect().height<140), 'small champion sets should use a compact strip, not a stretched panel');
   await screenshot('home-filtered');
   await nav.getByRole('button',{name:'当前对局',exact:true}).click();
   assert((await first.innerText()).includes('1360 场'));assert((await first.locator('.scout-rings').innerText()).includes('72 场'));
+  snapshot.participants[0].scout={...structuredClone(report),state:'loading',complete:false,complete12:false,complete30:false};
+  await emit();
+  await page.getByLabel('本局资料准备进度').getByText('正在补齐 1 人统计').waitFor();
+  const progress=await page.getByLabel('本局资料准备进度').innerText();
+  assert(progress.replace(/\s/g,'').includes('近期战绩10/10') && progress.replace(/\s/g,'').includes('统计完整9/10'));
   const empty=stats([]);snapshot.participants[0].scout={...structuredClone(report),state:'partial',complete:false,complete12:false,complete30:false,champions:[{...report.champions[0],games:null,queues:[{queueId:420,stats:empty,average:[]},{queueId:440,stats:empty,average:[]}]}]};
   await emit();await first.getByText('本季记录未完整',{exact:true}).waitFor();
   assert(!(await first.innerText()).includes('样本不足'));assert(!(await first.innerText()).includes('累计数据暂不可用'));

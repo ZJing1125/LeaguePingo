@@ -14,6 +14,7 @@ function load(file) {
   return mod.exports;
 }
 const { scoutStats, rankedMode } = load('scoutStats');
+const { scoutStatus } = load('scoutStatus');
 const stats = (n, rate = 60) => ({ games: n, wins: n * rate / 100, losses: n * (100-rate) / 100, outcomeGames: n, kdaGames: n, winRate: rate, kda: 3 });
 const player = {
   championId: 23, identityState: 'known', history: Array.from({ length: 20 }, () => ({ championId: 25, queueId: 450, win: false })),
@@ -40,3 +41,15 @@ assert.equal(scoutStats(unknownSeason).periods[1].games, 100, 'verified time-win
 const sparse = structuredClone(player); sparse.scout.queues[0].positions = [{ position: 'TOP', games: 2 }];
 assert.equal(scoutStats(sparse).role.label, '位置记录较少', 'two records in the same role are not a scattered role distribution');
 console.log('PASS: independent season hero experience, mastery, ranked queue/window/role switching, no list-sample fallback, unknown identity and zero vs missing.');
+
+const pending = { ...player, historyState: 'ready', scout: { ...player.scout, state: 'loading', complete: false, complete12: false, complete30: false } };
+let progress = scoutStatus([pending]);
+assert.equal(progress.recent, 1); assert.equal(progress.complete, 0); assert.equal(progress.loading, 1, 'history readiness is not independent-statistics coverage');
+progress = scoutStatus([{ ...player, historyState: 'ready', historyMeta: { fetchedAt: '2099-01-01T00:00:00Z' } }, { ...pending, scout: { ...pending.scout, retained: true, fetchedAt: '2026-10-20T12:00:00Z' } }]);
+assert.equal(progress.complete, 1); assert.equal(progress.retained, 1);
+assert.equal(progress.earliest, '2026-10-20T12:00:00Z'); assert.equal(progress.latest, player.scout.fetchedAt, 'history timestamp cannot represent statistics freshness');
+assert.equal(scoutStatus([player], 999).complete, 0, 'missing mode cannot claim complete statistics');
+assert.equal(scoutStatus([{ ...player, identityState: 'unavailable' }]).known, 0);
+assert.equal(scoutStatus([{ ...player, scout: { ...player.scout, fetchedAt: 'invalid' } }]).untimed, 1);
+assert.equal(scoutStatus([]).complete, 0);
+console.log('PASS: coverage, retained reports, independent freshness range, unknown timestamps and roster-derived counts.');

@@ -120,7 +120,7 @@ async function copyID() {
         class="rank-card"
         :title="item.title"
       >
-        <RankEmblem v-if="!compact" :tier="item.rank?.tier" />
+        <RankEmblem :tier="item.rank?.tier" />
         <div>
           <small>{{
             item.queue === "RANKED_SOLO_5x5" ? "单双排" : "灵活排位"

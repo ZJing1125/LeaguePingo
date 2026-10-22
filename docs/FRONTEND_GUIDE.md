@@ -1,5 +1,14 @@
 # 前端迭代与组件预览
 
+## BUG-0053 当前界面行为
+
+scoutStatus.ts 为纯展示聚合，RosterProgress 在主窗口和快览复用。它从实际 participants 计算身份/近期战绩/当前模式独立统计覆盖；时效只使用报告 fetchedAt，覆盖标记必须包含对应队列。ScoutRing 保留图形和数值，移除重复短标签；卡片和固定/按住快览不会因可读性调整发请求。PlayerView 的“本局统计说明”读取独立报告，与该浮层的战绩筛选分离。
+
+App 的等待查询只保留一次用户明确提交，等 homeLoading/manualBusy 均结束后走原 search；输入变化、换连接、断线取消，不并发争用后端查询通道。保持原12秒预算，无新增桥接或后台请求。设置导航不请求玩家；仅保存有变化的快捷键项，失败时以返回的实际 AppInfo 为生效依据。
+
+布局检查包括300px十人卡、236px快览、880宽资料摘要和七装备可见性；少量常用英雄采用整组布局，保持首页筛选/分页独立和键盘跳页。PlayerProfileHeader/MatchHistoryRow 属子组件，父级局部样式须用 deep 选择器，避免只移动外层但仍继承旧纵向布局。不能以容器不溢出代替内容不被裁切的检查。controls/theme共享规则同时覆盖被Teleport到主应用外的drawer-floating，避免详情继承原生控件或浅色悬停背景。
+
+
 本指南对应现有 Windows 桌面助手的增量改进。视觉基准仍是 [UI_DESIGN.md](UI_DESIGN.md)，数据与请求边界仍以 [ARCHITECTURE.md](ARCHITECTURE.md) 为准。
 
 ## 模块边界

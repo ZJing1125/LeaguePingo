@@ -74,18 +74,17 @@ const emit = defineEmits<{ toggle: [] }>();
         ><span>英雄伤害 {{ number(match.damage) }}</span>
       </div>
       <div class="match-context-detail" aria-label="对局上下文">
-        <span>{{ mapName(match.mapId) }}</span>
-        <span>{{ positionName(match.position) }}</span>
+        <span v-if="match.mapId">{{ mapName(match.mapId) }}</span>
+        <span v-if="match.position">{{ positionName(match.position) }}</span>
         <span v-if="match.lane && !match.position"
-          >客户端线路：{{ match.lane }}</span
+          >线路：{{ match.lane }}</span
         >
         <span
           v-if="match.earlyEnd === true"
           class="early-end"
-          title="客户端标记提前结束；不等同于确认重开，不自动从统计中排除"
+          title="提前结束，不代表已确认重开"
           >提前结束</span
         >
-        <span v-else-if="match.earlyEnd == null">提前结束信号未获取</span>
       </div>
       <div class="match-runes" aria-label="本玩家符文">
         <template v-if="match.runeIds?.length">
@@ -105,9 +104,13 @@ const emit = defineEmits<{ toggle: [] }>();
         </template>
         <small v-else>符文未获取</small>
       </div>
-      <slot name="details" /><span class="detail-note"
-        >对局 #{{ match.gameId }} · 双方详情按需读取 · 缺失字段显示 —</span
-      >
+      <slot name="details" />
+      <details class="detail-note"><summary>统计说明</summary><p>对局 #{{ match.gameId }}。未取得的数值显示 —；提前结束不代表已确认重开，仍计入当前样本。</p></details>
     </div>
   </article>
 </template>
+<style scoped>
+.detail-note { font-size: 11px; color: var(--muted); line-height: 1.6; }
+.detail-note summary { cursor: pointer; }
+.detail-note p { margin: 8px 0; }
+</style>

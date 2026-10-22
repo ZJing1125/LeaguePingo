@@ -27,10 +27,10 @@ export function rankPresentation(
       : "段位查询失败";
     title = profile.rankMessage || "查询失败，可重试；战绩仍可独立使用";
   } else if (profile?.rankState === "ready") {
-    label = "该模式段位未返回";
+    label = "该模式段位待确认";
     title = "客户端未返回此模式的可核验段位，不能据此判断未定级";
   } else if (profile?.rankState === "unavailable") {
-    label = "来源未提供段位";
+    label = "段位待确认";
     title = profile.rankMessage || "客户端未提供可核验段位，可手动重试";
   }
   return { rank, retained, label, title };

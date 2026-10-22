@@ -19,6 +19,7 @@ import RecentForm from "./RecentForm.vue";
 import TransientNotice from "./TransientNotice.vue";
 import ChampionPortrait from "./ChampionPortrait.vue";
 import { championName } from "../gameAssets";
+import { scoutStats, roleNames } from "../scoutStats";
 import {
   HISTORY_PAGE_SIZE,
   SAMPLE_SIZES,
@@ -33,11 +34,14 @@ const props = defineProps<{
   compact?: boolean;
   active?: boolean;
   error?: string;
+  scoutQueue?: number;
 }>();
 const emit = defineEmits<{
   refresh: [player: Participant];
 }>();
 const historyScroll = ref<HTMLElement | null>(null);
+const profileCollapsed = ref(false);
+const scouting = computed(() => scoutStats(props.player, props.scoutQueue ?? 420));
 const {
   allMatches,
   matches,
@@ -85,11 +89,11 @@ function toggle(id: number) {
 }
 </script>
 <template>
-  <section class="player-view" :class="{ compact }">
+  <section class="player-view" :class="{ compact, 'profile-collapsed': !compact && profileCollapsed }">
     <div v-if="!compact" class="dossier-poster">
       <ChampionPortrait :id="player.championId || heroes[0]?.id" /><span
         class="poster-label"
-        >PLAYER DOSSIER<small>英雄原画背景 · 非玩家头像</small></span
+        >玩家档案<small>英雄原画背景</small></span
       >
     </div>
     <PlayerProfileHeader
@@ -115,7 +119,7 @@ function toggle(id: number) {
           <strong>{{ percent(stats.winRate) }}</strong
           ><span
             >胜率
-            <small>{{ stats.wins }} 胜 / {{ stats.losses }} 负</small></span
+            <small>{{ stats.outcomeGames ? `${stats.wins} 胜 / ${stats.losses} 负` : '胜负待确认' }}</small></span
           >
         </div>
         <dl class="summary-numbers">
@@ -192,6 +196,7 @@ function toggle(id: number) {
             </select>
           </div>
           <div class="history-actions">
+            <button v-if="!compact" class="text-button profile-toggle" :aria-expanded="!profileCollapsed" @click="profileCollapsed = !profileCollapsed">{{ profileCollapsed ? '展开资料' : '收起资料' }}</button>
             <span
               class="toolbar-time"
               :title="`战绩获取于 ${date(player.historyMeta?.fetchedAt)}`"
@@ -207,6 +212,13 @@ function toggle(id: number) {
             </button>
           </div>
         </div>
+        <details v-if="compact && player.scout" class="scout-explanation">
+          <summary>本局统计说明 · {{ scouting.queueLabel }}</summary>
+          <p v-if="scouting.hero?.games != null && scouting.report?.season">{{ scouting.report.season.name }} · 本英雄{{ scouting.report.complete ? '全部模式' : '已读全模式' }} {{ scouting.hero.games }} 场。</p>
+          <p v-if="scouting.hero?.mastery">英雄熟练度 {{ scouting.hero.mastery.level }} 级 · {{ scouting.hero.mastery.points.toLocaleString() }} 分，独立于赛季场次。</p>
+          <p>排位统计截至 {{ date(scouting.report?.fetchedAt) }}{{ scouting.report?.retained ? '，本次保留上次结果' : '' }}。近30天胜负有效 {{ scouting.overall.outcomeGames ?? 0 }} 场，KDA 有效 {{ scouting.overall.kdaGames ?? 0 }} 场。{{ scouting.report?.complete30 ? '' : '当前为已读范围。' }}</p>
+          <p>近30天位置：{{ scouting.role.positions.map(p => `${roleNames[p.position]} ${p.games} 场`).join('、') || '暂无有效记录' }}；不代表本局分路。</p>
+        </details>
         <details
           v-if="noticePlayer.historyMeta?.excluded"
           class="quality-warning"
@@ -382,3 +394,32 @@ function toggle(id: number) {
     </div>
   </section>
 </template>
+<style scoped>
+.scout-explanation { padding: 7px 0; font-size: 12px; color: var(--muted); border-top: 1px solid var(--border); flex: none; }
+.scout-explanation summary { cursor: pointer; color: var(--text); }
+.scout-explanation p { margin: 8px 0; line-height: 1.6; }
+.players-workspace > .player-view.profile-collapsed { grid-template-columns: minmax(0, 1fr); }
+.players-workspace .profile-collapsed > .dossier-poster, .players-workspace .player-view.profile-collapsed :deep(.player-profile) { display: none; }
+.players-workspace .player-view.profile-collapsed > .player-columns { grid-column: 1; }
+.players-workspace .player-view.profile-collapsed > .player-error { grid-column: 1; }
+.poster-label { font-size: 12px; letter-spacing: 0; }.poster-label small { font-size: 11px; }
+.players-workspace .player-view :deep(.profile-meta) { font-size: 12px; }
+.players-workspace .player-summary .sample-scope, .players-workspace .player-summary .common-hero small, .players-workspace .player-view :deep(.match-performance > small) { font-size: 11px; }
+.players-workspace .player-summary .common-hero strong { font-size: 12px; }
+.players-workspace .player-view :deep(.match-main) { font-size: 12px; }
+.players-workspace .player-view :deep(.match-context > small), .players-workspace .player-view :deep(.outcome > span) { font-size: 11px; }
+.profile-toggle { white-space: nowrap; font-size: 12px; }
+@media (max-width: 1000px) {
+  .drawer-floating .player-view.compact { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .drawer-floating .player-view.compact :deep(.player-profile) { grid-column: 1; grid-row: 1; padding: 10px 14px; flex-wrap: nowrap; align-items: center; gap: 10px; border-right: 0; border-bottom: 1px solid var(--border); }
+  .drawer-floating .player-view.compact :deep(.profile-identity) { flex: 1; flex-basis: auto; }
+  .drawer-floating .player-view.compact :deep(.identity-title h1) { font-size: 15px; }
+  .drawer-floating .player-view.compact :deep(.profile-ranks) { flex: none; flex-basis: auto; flex-direction: row; align-items: center; gap: 12px; margin: 0; }
+  .drawer-floating .player-view.compact :deep(.rank-card) { display: flex; gap: 5px; max-width: 150px; }
+  .drawer-floating .player-view.compact :deep(.rank-card > .rank-emblem) { width: 32px; height: 32px; }
+  .drawer-floating .player-view.compact :deep(.rank-card strong) { font-size: 12px; }
+  .drawer-floating .compact > .player-columns { grid-column: 1; grid-row: 2; }
+  .drawer-floating .compact .history-toolbar { min-height: 44px; }
+  .drawer-floating .player-view.compact :deep(.match-main) { min-height: 60px; gap: 8px; }
+}
+</style>

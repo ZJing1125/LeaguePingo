@@ -7,6 +7,8 @@ import AppIcon from "./AppIcon.vue";
 import BrandIcon from "./BrandIcon.vue";
 import PlayerScoutCard from "./PlayerScoutCard.vue";
 import { rankedMode } from "../scoutStats";
+import { scoutStatus } from "../scoutStatus";
+import RosterProgress from "./RosterProgress.vue";
 const props = defineProps<{
   snapshot: Snapshot | null;
   state: OverlayState | null;
@@ -15,13 +17,13 @@ const props = defineProps<{
   error: string;
 }>();
 const players = computed(() => props.snapshot?.participants ?? []);
-const newest = computed(() =>
-  players.value
-    .map((p) => p.historyMeta?.fetchedAt)
-    .filter(Boolean)
-    .sort()
-    .at(-1),
-);
+const reports = computed(() => scoutStatus(players.value, props.snapshot?.scoutQueue ?? 420));
+const reportTime = computed(() => {
+  const p = reports.value;
+  if (!p.earliest) return "统计时间待确认";
+  const first = date(p.earliest), last = date(p.latest);
+  return `统计截至 ${first}${last !== first ? `–${last}` : ''}${p.untimed ? ' · 部分待确认' : ''}`;
+});
 defineEmits<{ hide: []; pin: [] }>();
 </script>
 <template>
@@ -61,15 +63,7 @@ defineEmits<{ hide: []; pin: [] }>();
       <p v-if="state?.warning || error" class="error-banner" role="status">
         {{ error || state?.warning }}
       </p>
-      <div class="overlay-readiness">
-        <span
-          >已识别
-          <b>{{ snapshot?.knownCount ?? 0 }} / {{ players.length }}</b></span
-        ><span
-          >战绩就绪
-          <b>{{ snapshot?.readyCount ?? 0 }} / {{ players.length }}</b></span
-        >
-      </div>
+      <RosterProgress v-if="players.length" :players="players" :queue="snapshot?.scoutQueue ?? 420" compact />
       <div v-if="!players.length" class="empty-state">
         <AppIcon name="match" :size="30" />
         <p>等待本局名单</p>
@@ -110,8 +104,8 @@ defineEmits<{ hide: []; pin: [] }>();
         >{{ state?.shortcut || "Ctrl+Shift+P" }}
         {{ state?.shortcutAvailable === false ? "未注册" : "显隐" }} · Esc
         隐藏</span
-      ><span :title="'各玩家获取时间以主窗口为准'"
-        >最近资料 {{ date(newest) }}</span
+      ><span :title="'独立排位统计的截止时间；各玩家段位以其资料时间为准'"
+        >{{ reportTime }}</span
       >
     </footer>
   </main>

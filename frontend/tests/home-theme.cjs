@@ -25,7 +25,7 @@ async function main() {
         profile: { updatedAt: "2026-10-20T03:00:00Z", level: 128, profileIconData: avatar, privacyState: "public", rankState: "ready", ranks: [{ queue: "RANKED_SOLO_5x5", tier: "EMERALD", division: "II", lp: 48, wins: 65, losses: 47 }, { queue: "RANKED_FLEX_SR", tier: "GOLD", division: "I", lp: 23, wins: 25, losses: 21 }], fields: { rank: { state: "ready", fetchedAt: "2026-10-20T03:00:00Z" } } },
       };
     }
-    let self = player(), failHome = false;
+    let self = player(), failHome = false, deferHome = false, releaseHome, homeEntered;
     let snapshot = { connectionId: 1, selfKey: self.key, generation: 1, connected: true, phase: "None", stage: "idle", frozen: false, updatedAt: "2026-10-20T03:00:00Z", participants: [] };
     await page.route("**/*", route => { external.push(route.request().url()); return route.abort(); });
     await page.route("http://127.0.0.1:43202/**", async route => {
@@ -40,9 +40,10 @@ async function main() {
         if (method === "Snapshot") result = snapshot;
         else if (method === "OverlayStatus") result = { visible: false, pinned: true, revision: 0 };
         else if (method === "CurrentPlayer") {
+          if (deferHome) await new Promise(resolve => { releaseHome = resolve; homeEntered?.(); });
           if (failHome) return route.fulfill({ status: 500, json: { message: "当前账号资料暂不可用" } });
           result = self;
-        } else if (method === "Lookup") result = player("synthetic-other");
+        } else if (method === "Lookup") result = player("synthetic-other", snapshot.connectionId);
         else if (method === "RefreshData") { self = { ...self, profile: { ...self.profile, updatedAt: "2026-10-20T03:02:00Z", level: 129 } }; result = self; }
         else if (method === "Info") result = { version: "synthetic", commit: "test", requests: {}, shortcut: "Ctrl+Shift+P", holdEnabled: true, holdKey: "Backquote", goHeapBytes: 0, goroutines: 0 };
         else throw new Error(`Unexpected service: ${method}`);
@@ -116,6 +117,11 @@ async function main() {
     await settings.getByRole("radio", { name: /深色/ }).check(); await resolved("dark");
     assert.equal(await theme.inputValue(), "dark");
     await screenshot("settings");
+    await settings.getByRole('tab', { name: '外观', exact: true }).focus();
+    await page.keyboard.press('ArrowRight');
+    assert.equal(await settings.getByRole('tab', { name: '游戏辅助' }).getAttribute('aria-selected'), 'true');
+    await page.keyboard.press('ArrowLeft');
+    assert.equal(await settings.getByRole('tab', { name: '外观', exact: true }).getAttribute('aria-selected'), 'true');
     await settings.press("Escape");
     assert(await page.getByRole("button", { name: "设置与诊断", exact: true }).evaluate(el => el === document.activeElement));
     before = calls.length;
@@ -142,6 +148,13 @@ async function main() {
     await page.getByRole("textbox", { name: "玩家完整 ID" }).fill("其他账号#DEMO");
     await page.getByRole("button", { name: "查询战绩", exact: true }).click();
     await page.locator(".players-workspace .identity-title").filter({ hasText: "查询的其他玩家#DEMO" }).waitFor();
+    const beforeCollapse = calls.length;
+    const originalWidth = await page.locator('.players-workspace .player-columns').evaluate(el=>el.getBoundingClientRect().width);
+    await page.getByRole('button', { name: '收起资料', exact: true }).click();
+    assert(await page.locator('.players-workspace .player-columns').evaluate(el=>el.getBoundingClientRect().width) > originalWidth);
+    assert.equal(await page.locator('.players-workspace .dossier-poster').isVisible(), false);
+    await page.getByRole('button', { name: '展开资料', exact: true }).click();
+    assert.equal(calls.length, beforeCollapse, 'profile layout must not query player data');
     await screenshot("history-dark");
     await nav.getByRole("button", { name: "首页", exact: true }).click();
     assert.equal(await page.locator(".home-account h2").innerText(), "我的合成账号#DEMO");
@@ -189,7 +202,7 @@ async function main() {
     self = { ...self, history: self.history.map(m => ({ ...m, win: null })), profile: { ...self.profile, rankState: "unavailable", ranks: [], updatedAt: "2099-01-01T00:00:00Z" } };
     snapshot = { ...snapshot, phase: "InProgress", stage: "in-game", participants: [self] };
     await emit();
-    assert((await page.locator(".home-ranks").innerText()).includes("来源未提供段位"));
+    assert((await page.locator(".home-ranks").innerText()).includes("段位待确认"));
     assert((await page.locator(".home-form-summary").innerText()).includes("暂无胜负样本"));
     before = calls.length; await emit();
     assert.equal(calls.length, before);
@@ -199,6 +212,29 @@ async function main() {
     await emit();
     await page.locator(".home-account h2").filter({ hasText: "查询的其他玩家#DEMO" }).waitFor();
     assert.equal(calls.length, before, "in-game startup launched another home batch");
+    // Explicit search can wait behind the bounded home request, and can be cancelled.
+    for (const cancel of [true, false]) {
+      deferHome = true;
+      const entered = new Promise(resolve => { homeEntered = resolve; });
+      const connection = snapshot.connectionId + 1;
+      self = player(`queued-${connection}`, connection);
+      snapshot = { ...snapshot, connectionId: connection, selfKey: self.key, stage: 'idle', phase: 'None', participants: [], generation: snapshot.generation + 1 };
+      await emit(); await entered;
+      const lookups = calls.filter(c => c === 'Lookup').length;
+      await page.getByRole('textbox', { name: '玩家完整 ID' }).fill('等待查询#DEMO');
+      await page.getByRole('button', { name: '查询战绩', exact: true }).click();
+      await page.getByRole('button', { name: '取消等待', exact: true }).waitFor();
+      assert.equal(calls.filter(c => c === 'Lookup').length, lookups, 'queued query must not compete with the occupied lookup lane');
+      if (cancel) await page.getByRole('button', { name: '取消等待', exact: true }).click();
+      deferHome = false; releaseHome();
+      if (cancel) {
+        await page.locator('.home-heading button').filter({ hasText: '刷新数据' }).waitFor();
+        assert.equal(calls.filter(c => c === 'Lookup').length, lookups, 'cancelled query ran after the home request');
+      } else {
+        await page.locator('.players-workspace .identity-title').filter({ hasText: '查询的其他玩家#DEMO' }).waitFor();
+        assert.equal(calls.filter(c => c === 'Lookup').length, lookups + 1);
+      }
+    }
     assert.deepEqual(errors, []); assert.deepEqual(external, []);
     console.log("PASS: home ownership/one-shot preparation/cache/refresh/failure/account switch, light/dark/system/persistence, settings focus and 1280/1100/880 layouts; no external requests (synthetic bridge).");
   } finally { await browser.close(); }

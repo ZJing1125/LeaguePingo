@@ -34,13 +34,13 @@ defineProps<{ player: Participant; stats: Stats; filtered: boolean }>()
 <style scoped>
 .history-notice {
   font-size: 11px;
-  color: #a1b5c9;
+  color: var(--muted);
   line-height: 1.6;
 }
 .history-notice p {
   margin: 8px 0;
 }
 .history-notice [role="status"] {
-  color: #edc184;
+  color: var(--warning-text);
 }
 </style>

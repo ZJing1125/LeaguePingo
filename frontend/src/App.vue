@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { Events } from "@wailsio/runtime";
 import * as Service from "../bindings/leaguepingo/appservice";
 import type { Snapshot as SnapshotModel } from "../bindings/leaguepingo/internal/core/models";
@@ -16,8 +16,9 @@ import BrandIcon from "./components/BrandIcon.vue";
 import DesktopTitleBar from "./components/DesktopTitleBar.vue";
 import HomeView from "./components/HomeView.vue";
 import QueueSwitch from "./components/QueueSwitch.vue";
+import RosterProgress from "./components/RosterProgress.vue";
 import { useTransientMessages } from "./transientMessages";
-import { errorMessage } from "./presentation";
+import { errorMessage, normalizeRiotIDInput } from "./presentation";
 import { operationKey, playerTabId } from "./playerState";
 import { useLeagueSnapshot } from "./composables/useLeagueSnapshot";
 import { usePlayerWorkspace } from "./composables/usePlayerWorkspace";
@@ -54,21 +55,6 @@ const {
 const matchModalOpen = computed(
   () => view.value === "match" && !!selected.value,
 );
-const historyReady = computed(
-  () =>
-    players.value.filter((player) =>
-      ["ready", "empty"].includes(player.historyState),
-    ).length,
-);
-const historyLoading = computed(
-  () =>
-    players.value.filter((player) => player.historyState === "loading").length,
-);
-const historyUnknown = computed(
-  () =>
-    players.value.filter((player) => player.identityState === "unavailable")
-      .length,
-);
 const scoutQueueBusy = ref(false);
 async function changeScoutQueue(queue: number) {
   if (scoutQueueBusy.value) return;
@@ -94,6 +80,28 @@ const {
 } = usePlayerActions(snapshot, workspace, acceptSnapshot, setMessage);
 const home = useHomePlayer(snapshot, view, computed(() => manualBusy.value || rosterBusy.value || isOverlay));
 const { player: homePlayer, loading: homeLoading, error: homeError } = home;
+const queuedSearch = ref(false);
+let queuedConnection = 0;
+function submitSearch() {
+  if (queuedSearch.value) { queuedSearch.value = false; setMessage("search", ""); return; }
+  if (homeLoading.value && !manualBusy.value && /^[^#]+#[^#]+$/.test(normalizeRiotIDInput(query.value))) {
+    queuedSearch.value = true;
+    queuedConnection = snapshot.value?.connectionId ?? 0;
+    setMessage("search", "查询已排队，首页资料准备完成后自动开始；再次点击可取消等待。");
+    return;
+  }
+  void search();
+}
+watch(query, () => { if (queuedSearch.value) setMessage("search", ""); queuedSearch.value = false; });
+watch([homeLoading, manualBusy], ([homeBusy, actionBusy]) => {
+  if (!homeBusy && !actionBusy && queuedSearch.value) {
+    queuedSearch.value = false;
+    if (snapshot.value?.connected && queuedConnection === snapshot.value.connectionId) void search();
+  }
+});
+watch(() => [snapshot.value?.connected, snapshot.value?.connectionId], () => {
+  if (!snapshot.value?.connected || queuedConnection !== snapshot.value.connectionId) queuedSearch.value = false;
+});
 async function refreshHome() {
   if (homePlayer.value) {
     const result = await refreshPlayer(homePlayer.value);
@@ -195,15 +203,15 @@ onUnmounted(() => {
             玩家战绩
           </button>
         </nav>
-        <form class="global-search" @submit.prevent="!homeLoading && search()">
+        <form class="global-search" @submit.prevent="submitSearch()" :aria-busy="searching || queuedSearch" :title="queuedSearch ? '等待首页资料完成后查询；点击取消等待' : manualBusy && !searching ? '正在完成当前操作，请稍候再查询' : '输入玩家名#标签，按 Enter 查询'">
           <AppIcon name="search" :size="16" />
           <input
             v-model="query"
             aria-label="玩家完整 ID"
             placeholder="搜索 玩家名#标签"
             autocomplete="off"
-          /><button class="primary" :disabled="manualBusy || homeLoading">
-            {{ searching ? "查询中…" : "查询战绩" }}
+          /><button class="primary" :disabled="manualBusy && !queuedSearch">
+            {{ searching ? "查询中…" : queuedSearch ? "取消等待" : manualBusy ? "请稍候…" : "查询战绩" }}
           </button>
         </form>
         <select class="theme-select" aria-label="界面主题" :value="themePreference" @change="setTheme(($event.target as HTMLSelectElement).value as ThemePreference)">
@@ -334,32 +342,7 @@ onUnmounted(() => {
             {{ rosterBusy ? "刷新中…" : "刷新对局数据" }}
           </button>
         </header>
-        <div
-          v-if="players.length"
-          class="roster-progress"
-          aria-label="本局资料准备进度"
-          role="status"
-        >
-          <span class="progress-summary"
-            ><b
-              >{{ historyReady }}<small>/ {{ players.length }}</small></b
-            >
-            战绩已准备</span
-          >
-          <span class="roster-progress-track" aria-hidden="true"
-            ><i :style="{ width: `${(historyReady / players.length) * 100}%` }"
-          /></span>
-          <span v-if="historyLoading">{{ historyLoading }} 人正在获取</span>
-          <span v-else-if="historyReady < players.length">{{
-            historyUnknown
-              ? `${historyUnknown} 人身份未提供`
-              : `${players.length - historyReady} 人未就绪`
-          }}</span>
-          <span v-else>战绩已就绪</span>
-          <span class="roster-known"
-            >身份 {{ snapshot?.knownCount ?? 0 }}/{{ players.length }}</span
-          >
-        </div>
+        <RosterProgress v-if="players.length" :players="players" :queue="snapshot?.scoutQueue ?? 420" />
         <p
           v-if="snapshot?.connected && snapshot?.message"
           class="roster-message muted"
@@ -440,6 +423,7 @@ onUnmounted(() => {
             <PlayerView
               :player="selected"
               :state="matchStateFor(selected.key)"
+              :scout-queue="snapshot?.scoutQueue ?? 420"
               :active="view === 'match'"
               :busy="manualBusy"
               :refreshing="refreshing(selected)"

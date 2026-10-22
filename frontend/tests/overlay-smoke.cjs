@@ -520,19 +520,25 @@ async function main() {
       exact: true,
     });
     await page.evaluate(() => {
+      let initialHeight = 0;
       const observer = new MutationObserver(() => {
         const el = document.querySelector(".notice-leave-active");
         if (!el) return;
+        if (!initialHeight) initialHeight = el.getBoundingClientRect().height;
+        if (!el.classList.contains('notice-leave-to')) return;
+        // Sample the real browser transition at a fixed point. A wall timer can
+        // run after Vue removes the element when the test host is busy.
+        const animations = el.getAnimations();
+        if (!animations.length) return;
         observer.disconnect();
-        const initialHeight = el.getBoundingClientRect().height;
-        setTimeout(() => {
-          window.__noticeExit = {
-            duration: getComputedStyle(el).transitionDuration,
-            opacity: Number(getComputedStyle(el).opacity),
-            height: el.getBoundingClientRect().height,
-            initialHeight,
-          };
-        }, 90);
+        for (const animation of animations) { animation.pause(); animation.currentTime = 90; }
+        window.__noticeExit = {
+          duration: getComputedStyle(el).transitionDuration,
+          opacity: Number(getComputedStyle(el).opacity),
+          height: el.getBoundingClientRect().height,
+          initialHeight,
+        };
+        for (const animation of animations) animation.play();
       });
       observer.observe(document.body, {
         subtree: true,
@@ -554,7 +560,7 @@ async function main() {
         noticeExit.opacity > 0 &&
         noticeExit.opacity < 1 &&
         noticeExit.height < noticeExit.initialHeight,
-      "notice did not fade/collapse progressively",
+      `notice did not fade/collapse progressively: ${JSON.stringify(noticeExit)}`,
     );
     await page.emulateMedia({ reducedMotion: "reduce" });
     await search("Alpha#");
@@ -807,8 +813,8 @@ async function main() {
         .locator(".global-search button")
         .textContent()
         .then((t) => t.trim()),
-      "查询战绩",
-      "refresh must not animate top-level search",
+      "请稍候…",
+      "refresh should explain why the shared query action is disabled",
     );
     await page.getByRole("tab", { name: "Beta#TEST", exact: true }).click();
     for (let i = 0; !releasePlayerAction && i < 500; i++)
@@ -1122,8 +1128,8 @@ async function main() {
     await page.getByRole("dialog", { name: "设置与诊断" }).press("Shift+Tab");
     assert.equal(
       await page
-        .getByRole("button", { name: "导出脱敏诊断" })
-        .evaluate((el) => el === document.activeElement),
+        .getByRole("dialog", { name: "设置与诊断" })
+        .evaluate((el) => el.contains(document.activeElement)),
       true,
     );
     await page.keyboard.press("Tab");
@@ -1133,33 +1139,36 @@ async function main() {
         .evaluate((el) => el === document.activeElement),
       true,
     );
+    await page.getByRole("tab", { name: "诊断与关于" }).click();
     await page.getByText(/0.2.0-dev · synthetic/).waitFor();
+    await page.getByRole("tab", { name: "游戏辅助" }).click();
     await page
       .getByLabel("快览快捷键", { exact: true })
       .selectOption("Ctrl+Shift+X");
-    await page.getByRole("button", { name: "保存快捷键" }).click();
+    await page.getByRole("button", { name: "保存游戏辅助设置" }).click();
     await page.getByRole("alert").filter({ hasText: "原设置保留" }).waitFor();
     assert.equal(info.shortcut, "Ctrl+Shift+P");
     await page
       .getByLabel("快览快捷键", { exact: true })
       .selectOption("Ctrl+Shift+L");
-    await page.getByRole("button", { name: "保存快捷键" }).click();
+    await page.getByRole("button", { name: "保存游戏辅助设置" }).click();
     await page
-      .getByText("快捷键已保存；窗口位置和置顶状态也会记住。")
+      .getByText("游戏辅助设置已保存。")
       .waitFor();
     await page.getByLabel("启用局内按住快览").uncheck();
     await page.getByLabel("局内按住键").selectOption("F9");
-    await page.getByRole("button", { name: "保存按住设置" }).click();
+    await page.getByRole("button", { name: "保存游戏辅助设置" }).click();
     await page
       .getByRole("alert")
       .filter({ hasText: "按住设置保存失败" })
       .waitFor();
     assert.notEqual(info.holdKey, "F9");
     rejectHold = false;
-    await page.getByRole("button", { name: "保存按住设置" }).click();
-    await page.getByText("局内按住快览设置已保存。").waitFor();
+    await page.getByRole("button", { name: "保存游戏辅助设置" }).click();
+    await page.getByText("游戏辅助设置已保存。").waitFor();
     assert.equal(info.holdKey, "F9");
     assert.equal(info.holdEnabled, false);
+    await page.getByRole("tab", { name: "诊断与关于" }).click();
     await page.getByRole("button", { name: "导出脱敏诊断" }).click();
     await page.getByText(/已保存本地诊断/).waitFor();
     await page.getByRole("button", { name: "关闭设置" }).click();
@@ -1491,6 +1500,7 @@ async function main() {
         path: process.env.UI_SCREENSHOT_PREFIX + "-overlay.png",
       });
     await page.setViewportSize({ width: 400, height: 360 });
+    assert(await page.locator('.overlay-player').evaluateAll(rows=>rows.every(row=>row.getBoundingClientRect().width>=160)), 'minimum overlay must retain two readable columns, not halve each team column again');
     const compactOverlay = await page
       .locator(".overlay-content")
       .evaluate((el) => ({

@@ -198,9 +198,18 @@ async function main() {
     });
     const pageCalls = () => calls.filter((c) => c.method === "HistoryPage");
     async function idle() {
-      await page
-        .locator('[aria-label="战绩模式筛选"]:visible:enabled')
-        .waitFor();
+      try {
+        await page.locator('[aria-label="战绩模式筛选"]:visible:enabled').waitFor();
+      } catch (reason) {
+        console.error('Browse state:', await page.evaluate(() => ({
+          filter: Array.from(document.querySelectorAll('[aria-label="战绩模式筛选"]')).map(e => ({ visible: !!e.getClientRects().length, disabled: e.disabled })),
+          status: document.querySelector('.players-workspace .browse-status')?.textContent,
+          page: document.querySelector('.players-workspace .page-indicator')?.textContent,
+          search: document.querySelector('.global-search button')?.textContent,
+        })));
+        console.error('Recent synthetic calls:', calls.slice(-8), 'Page errors:', errors);
+        throw reason;
+      }
     }
     async function search(name) {
       await page.getByLabel("玩家完整 ID", { exact: true }).fill(name);
@@ -316,6 +325,7 @@ async function main() {
     await page.getByRole("button", { name: "下一页", exact: true }).click();
     assert.equal(await page.locator(".match-card").count(), 20);
     await page.locator(".match-main").first().click();
+    await page.locator(".match-expanded .detail-note summary").click();
     await page.getByText("对局 #1020", { exact: false }).waitFor();
     await checkSample("all", 50);
     await page.getByRole("button", { name: "上一页", exact: true }).click();

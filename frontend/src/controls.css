@@ -1,4 +1,4 @@
-/* Shared LeaguePingo controls, with native keyboard and scrolling semantics. */
+/* Shared controls also cover the player dialog teleported outside .desktop-app. */
 :root { --control-radius: 7px; --scroll-thumb: #aeb5ab; --scroll-hover: #7d897e; }
 :root[data-theme="dark"] { --scroll-thumb: #545361; --scroll-hover: #868295; }
 :root body * { scrollbar-width: auto; scrollbar-color: auto; }
@@ -9,39 +9,40 @@
 *::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
 *::-webkit-scrollbar-corner { background: transparent; }
 @supports not selector(::-webkit-scrollbar) { :root body * { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; } }
-.desktop-app button, .overlay-shell button { font-family: inherit; transition: border-color .12s, box-shadow .12s; }
-.desktop-app :is(.secondary, .icon-button, .text-button), .overlay-controls button { border-radius: var(--control-radius); }
-.desktop-app :is(.secondary, .icon-button):hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 48%, var(--border)); background: var(--hover); }
-.desktop-app :is(.secondary, .icon-button):active:not(:disabled) { background: color-mix(in srgb, var(--accent) 15%, var(--panel)); }
-.desktop-app :is(button, input, select):focus-visible, .overlay-shell button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.desktop-app :is(button, input, select):disabled { opacity: .48; cursor: default; }
-.desktop-app select { appearance: none; -webkit-appearance: none; border-radius: var(--control-radius); padding: 6px 28px 6px 10px; background-color: var(--raised); color: var(--text); border: 1px solid var(--border); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='m3 4.5 3 3 3-3' fill='none' stroke='%238d929e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 9px center; }
-.desktop-app select:hover:not(:disabled) { border-color: var(--muted); }
-.desktop-app select option { color: var(--text); background: var(--panel); }
-.desktop-app input:not([type="checkbox"]) { border-radius: var(--control-radius); }
-.desktop-app input[type="checkbox"] { accent-color: var(--accent); }
-.desktop-app .desktop-titlebar { position: relative; height: 64px; border-bottom: 1px solid var(--border); }
-.desktop-app .window-controls { gap: 3px; padding: 3px 6px; align-items: center; }
-.desktop-app .window-controls button { position: relative; width: 38px; height: 28px; min-height: 0; border: 1px solid transparent; border-radius: 6px; color: var(--muted); background: transparent; padding: 0; }
-.desktop-app .window-controls button:hover:not(:disabled) { color: var(--text); background: color-mix(in srgb, var(--accent) 13%, transparent); border-color: color-mix(in srgb, var(--accent) 22%, transparent); }
-.desktop-app .window-controls button:active:not(:disabled) { background: color-mix(in srgb, var(--accent) 25%, transparent); }
-.desktop-app .window-controls .window-close:hover:not(:disabled) { background: #d85e6d; border-color: #d85e6d; color: #fff; }
-.desktop-app .window-controls .app-icon { width: 14px; height: 14px; }
+:is(.desktop-app, .drawer-floating) button, .overlay-shell button { font-family: inherit; transition: border-color .12s, box-shadow .12s; }
+:is(.desktop-app, .drawer-floating) :is(.secondary, .icon-button, .text-button), .overlay-controls button { border-radius: var(--control-radius); }
+:is(.desktop-app, .drawer-floating) :is(.secondary, .icon-button):hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 48%, var(--border)); background: var(--hover); }
+:is(.desktop-app, .drawer-floating) :is(.secondary, .icon-button):active:not(:disabled) { background: color-mix(in srgb, var(--accent) 15%, var(--panel)); }
+:is(.desktop-app, .drawer-floating) :is(button, input, select):focus-visible, .overlay-shell button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+:is(.desktop-app, .drawer-floating) :is(button, input, select):disabled { opacity: .75; cursor: not-allowed; }
+:is(.desktop-app, .drawer-floating) select { appearance: none; -webkit-appearance: none; border-radius: var(--control-radius); padding: 6px 28px 6px 10px; background-color: var(--raised); color: var(--text); border: 1px solid var(--border); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='m3 4.5 3 3 3-3' fill='none' stroke='%238d929e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 9px center; }
+:is(.desktop-app, .drawer-floating) select:hover:not(:disabled) { border-color: var(--muted); }
+:is(.desktop-app, .drawer-floating) select option { color: var(--text); background: var(--panel); }
+:is(.desktop-app, .drawer-floating) input:not([type="checkbox"]) { border-radius: var(--control-radius); }
+:is(.desktop-app, .drawer-floating) input[type="checkbox"] { accent-color: var(--accent); }
+:is(.desktop-app, .drawer-floating) .desktop-titlebar { position: relative; height: 64px; border-bottom: 1px solid var(--border); }
+:is(.desktop-app, .drawer-floating) .window-controls { gap: 3px; padding: 3px 6px; align-items: center; }
+:is(.desktop-app, .drawer-floating) .window-controls button { position: relative; width: 38px; height: 28px; min-height: 0; border: 1px solid transparent; border-radius: 6px; color: var(--muted); background: transparent; padding: 0; }
+:is(.desktop-app, .drawer-floating) .window-controls button:hover:not(:disabled) { color: var(--text); background: color-mix(in srgb, var(--accent) 13%, transparent); border-color: color-mix(in srgb, var(--accent) 22%, transparent); }
+:is(.desktop-app, .drawer-floating) .window-controls button:active:not(:disabled) { background: color-mix(in srgb, var(--accent) 25%, transparent); }
+:is(.desktop-app, .drawer-floating) .window-controls .window-close:hover:not(:disabled) { background: #d85e6d; border-color: #d85e6d; color: #fff; }
+:is(.desktop-app, .drawer-floating) .window-controls .app-icon { width: 14px; height: 14px; }
 .queue-switch { display: inline-flex; padding: 3px; gap: 3px; background: var(--raised); border: 1px solid var(--border); border-radius: 9px; align-self: center; flex: none; }
-.queue-switch button { border: 1px solid transparent; color: var(--muted); background: transparent; min-height: 28px; padding: 5px 13px; font-size: 12px; border-radius: 6px; white-space: nowrap; }
+.queue-switch button { border: 1px solid transparent; color: var(--muted); background: transparent; min-height: 30px; padding: 5px 13px; font-size: 12px; border-radius: 6px; white-space: nowrap; }
 .queue-switch button:hover:not(:disabled) { background: var(--hover); color: var(--text); }
 .queue-switch button[aria-pressed="true"] { color: var(--on-accent); background: var(--primary-bg); box-shadow: 0 2px 5px #0002; }
 .rank-emblem { object-fit: contain; }
 .rank-placeholder { display: grid; place-items: center; color: var(--muted); font-size: 20px; opacity: .5; }
 .rank-card > .rank-emblem { width: 40px; height: 40px; object-fit: contain; flex: none; }
-.scout-card .scout-queue-label { color: var(--scout-muted); font-size: 9px; line-height: 11px; }
+:is(.desktop-app, .drawer-floating) .player-view .match-items { max-width: none; flex-wrap: nowrap; }
+.scout-card .scout-queue-label { color: var(--scout-muted); font-size: 11px; line-height: 11px; }
 .scout-card .scout-rank { gap: 0; padding: 2px 4px; }
 .scout-card .scout-rank .rank-emblem { width: 49px; height: 37px; }
 .scout-card .scout-champion .card-pick small { overflow: hidden; text-overflow: ellipsis; }
 .scout-card .scout-no-kda { overflow: hidden; text-overflow: ellipsis; }
-.scout-card .scout-empty-tags { font-size: 10px; line-height: 18px; color: var(--scout-muted); }
+.scout-card .scout-empty-tags { font-size: 11px; line-height: 18px; color: var(--scout-muted); }
 .scout-card .scout-level { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.scout-card .history-preparation { font-size: 9px; color: var(--scout-muted); }
+.scout-card .history-preparation { font-size: 11px; color: var(--scout-muted); }
 .scout-position-cell { display: flex; flex-direction: column; align-items: center; border-inline: 1px solid var(--scout-border); min-width: 0; position: relative; }
 .scout-position-cell .scout-ring-metric { width: 100%; }
 .scout-position-cell + .scout-ring-metric { border-left: 0; }
@@ -49,10 +50,10 @@
 .role-distribution i { min-width: 2px; background: #d5b56f; }
 .role-distribution .jungle { background: #61ba91; }.role-distribution .middle { background: #a494e4; }.role-distribution .bottom { background: #68b6db; }.role-distribution .utility { background: #d78da9; }
 .overlay-shell .scout-card .scout-rank .rank-emblem { width: 33px; height: 27px; }
-.overlay-shell .scout-queue-label { font-size: 8px; line-height: 9px; }
-.overlay-shell .scout-empty-tags { font-size: 9px; }
-@media (max-width: 999px) { .desktop-app .roster-toolbar .hold-hint { display: none; } .queue-switch button { padding-inline: 10px; } }
-@media (prefers-reduced-motion: reduce) { .desktop-app button, .overlay-shell button { transition: none; } }
+.overlay-shell .scout-queue-label { font-size: 11px; line-height: 9px; }
+.overlay-shell .scout-empty-tags { font-size: 11px; }
+@media (max-width: 999px) { :is(.desktop-app, .drawer-floating) .roster-toolbar .hold-hint { display: none; } .queue-switch button { padding-inline: 10px; } }
+@media (prefers-reduced-motion: reduce) { :is(.desktop-app, .drawer-floating) button, .overlay-shell button { transition: none; } }
 
 .queue-switch button[aria-pressed="true"]:hover:not(:disabled) { background: var(--primary-bg); color: var(--on-accent); filter: brightness(1.07); }
 .overlay-shell .scout-tags .scout-tag { flex: 0 1 auto; max-width: 100%; }

@@ -13,8 +13,8 @@ export function scoutStats(player: Participant, queue = 420) {
   const selectedHero = report?.season ? hero?.queues?.find(q => q.queueId === queue) : undefined;
   const empty = sampleStats([]);
   const periods = [
-    { hours: 12, complete: report?.complete12 ?? false, ...(mode?.twelve ?? empty) },
-    { hours: 720, complete: report?.complete30 ?? false, ...(mode?.month ?? empty) },
+    { hours: 12, complete: !!mode && (report?.complete12 ?? false), ...(mode?.twelve ?? empty) },
+    { hours: 720, complete: !!mode && (report?.complete30 ?? false), ...(mode?.month ?? empty) },
   ];
   const positions = [...(mode?.positions ?? [])].filter(p => !!roleNames[p.position] && p.games > 0).sort((a, b) => b.games - a.games);
   const known = positions.reduce((n, p) => n + p.games, 0);
@@ -25,6 +25,5 @@ export function scoutStats(player: Participant, queue = 420) {
   const tags: { label: string; title: string; tone: string; heroId?: number }[] = [];
   if (hero?.games != null && report?.season) tags.push({ label: `${report.complete ? '本季全模式' : '本季已读'} ${hero.games} 场`, title: `${report.season.name} · 本英雄全部模式${report.complete ? '' : '已读取范围'}；不受战绩列表筛选影响`, tone: "accent" });
   if (hero?.mastery) tags.push({ label: `熟练度 ${hero.mastery.level} 级`, title: `全部模式英雄熟练度 ${hero.mastery.points.toLocaleString()} 分；熟练度不换算为场次`, tone: "positive" });
-  if (mode?.month.games) tags.push({ label: `30天 ${mode.month.games} 场`, title: `最近30天 · ${rankedMode(queue)}${report?.complete30 ? '' : ' · 已读取范围'}`, tone: "neutral" });
   return { report, mode, hero, champion, periods, role, overall: mode?.month ?? empty, tags: tags.slice(0, 3), queueLabel: rankedMode(queue) };
 }
