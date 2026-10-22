@@ -8,7 +8,7 @@ const { mockWindowRuntime } = require("./window-runtime.cjs");
 async function main() {
   const browser = await chromium.launch({ headless: true, executablePath: process.env.BROWSER_EXECUTABLE });
   try {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: Number(process.env.UI_DEVICE_SCALE_FACTOR || 1) });
     const page = await context.newPage();
     page.setDefaultTimeout(10000);
     const errors = [], external = [], calls = [];
@@ -71,7 +71,25 @@ async function main() {
     await page.getByRole("img", { name: "玩家账号头像", exact: true }).waitFor();
     await resolved("dark");
     assert.equal(await theme.inputValue(), "dark", "a new player should start in dark mode");
+    async function checkBrand() {
+      const marks = await page.locator("img.brand-mark").evaluateAll(images => images.map(img => ({
+        loaded: img.complete && img.naturalWidth > 0,
+        source: new URL(img.currentSrc).pathname,
+        clip: getComputedStyle(img).clipPath,
+        background: getComputedStyle(img).backgroundColor,
+        dpr: window.devicePixelRatio,
+      })));
+      assert.equal(marks.length, 2, "titlebar and navigation must share the approved icon");
+      for (const mark of marks) {
+        assert(mark.loaded && /^\/brand\/icon-(32|64|96)\.png$/.test(mark.source), "brand asset must load locally");
+        assert.equal(mark.source, `/brand/icon-${mark.dpr <= 1 ? 32 : mark.dpr <= 2 ? 64 : 96}.png`, "brand source must follow display density");
+        assert.equal(mark.clip, "none", "the old letter P cutout must not crop the scout");
+        assert.equal(mark.background, "rgba(0, 0, 0, 0)", "theme accent must not recolour the icon");
+      }
+    }
+    await checkBrand();
     await theme.selectOption("light"); await resolved("light");
+    await checkBrand();
     await page.reload();
     await page.locator(".home-account h2").filter({ hasText: self.displayName }).waitFor();
     await resolved("light");

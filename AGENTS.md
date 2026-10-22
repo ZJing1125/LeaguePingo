@@ -29,6 +29,8 @@
 
 ## 构建入口与交付（必须遵守）
 
+- BUG-0051：正式 C 款图标以 `build/appicon.png` 为源、`build/brand.json` 为完整性清单；仅显式 `node scripts/app-icons.mjs generate` 使用固定 CLI 派生 Windows ICO/前端 PNG，常规构建只校验资源。Windows 完整验证与热重载必须在 Go 链接前重新生成 `wails_windows_amd64.syso`（当前 ICO/manifest/info、amd64），不提交该对象或绕过统一构建。浏览器、目标编译与 Windows 原生任务栏/托盘/DPI 验收分开报告，见 `docs/APP_ICON.md`。
+
 - 给用户运行/验收的程序必须通过 `bash scripts/build.sh [尚不存在的 bin/leaguepingo*.exe 路径]` 生成。`wails3 build` / `wails3 task build` / `wails3 task windows:build` 必须转到同一脚本。
 - 禁止直接执行 `go build -o bin/...`、调用旧模板或临时修改脚本绕过验证来交付；不要覆盖旧文件、手工冒填构建清单或以脏构建冒称干净提交。
 - 交付链路：入口检查 → 完整验证 → 编译 → 登记 SHA-256/提交 → 清理过期产物 → 只读交付审计。出错停止并报告，不能把失败步骤当作已完成。

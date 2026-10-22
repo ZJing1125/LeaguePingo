@@ -4,6 +4,7 @@ import type { Snapshot } from "../../bindings/leaguepingo/internal/core/models";
 import type { OverlayState } from "../../bindings/leaguepingo/models";
 import { date } from "../presentation";
 import AppIcon from "./AppIcon.vue";
+import BrandIcon from "./BrandIcon.vue";
 import PlayerScoutCard from "./PlayerScoutCard.vue";
 import { rankedMode } from "../scoutStats";
 const props = defineProps<{
@@ -27,7 +28,7 @@ defineEmits<{ hide: []; pin: [] }>();
   <main class="overlay-shell" :class="{ 'hold-mode': state?.mode === 'hold' }">
     <header class="overlay-head">
       <div class="overlay-title">
-        <span class="brand-mark">P</span>
+        <BrandIcon />
         <div><strong>LeaguePingo</strong><small>对局快览</small></div>
       </div>
       <div v-if="state?.mode !== 'hold'" class="overlay-controls">

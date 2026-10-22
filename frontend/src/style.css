@@ -79,11 +79,11 @@ select {
   background: transparent;
 }
 .brand-mark {
-  background: var(--accent-art);
-  color: #fff6e9;
+  display: block;
+  object-fit: contain;
+  background: transparent;
   border-radius: 0;
-  clip-path: polygon(0 0, 100% 0, 100% 72%, 72% 100%, 0 100%);
-  font-style: italic;
+  clip-path: none;
 }
 .desktop-app {
   display: flex;
@@ -99,10 +99,9 @@ select {
   color: var(--muted);
 }
 .window-brand .brand-mark {
-  width: 17px;
-  height: 17px;
+  width: 18px;
+  height: 18px;
   border-radius: 0;
-  font-size: 13px;
 }
 .window-brand strong {
   font-size: 11px;
@@ -148,7 +147,6 @@ select {
   margin-right: 8px;
   width: 26px;
   height: 26px;
-  font-size: 21px;
 }
 .nav-wordmark > span:last-child {
   color: var(--accent-art);
@@ -1195,7 +1193,6 @@ select {
 .overlay-title .brand-mark {
   width: 25px;
   height: 25px;
-  font-size: 21px;
 }
 .overlay-controls button {
   background: #25322e;

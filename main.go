@@ -68,6 +68,7 @@ func main() {
 	}
 	app := application.New(application.Options{
 		Name:           "LeaguePingo",
+		Icon:           appIcon,
 		Description:    "低干扰的英雄联盟战绩助手",
 		Services:       []application.Service{application.NewService(backend)},
 		Assets:         application.AssetOptions{Handler: application.AssetFileServerFS(assets)},
@@ -99,7 +100,7 @@ func main() {
 		event.Cancel()
 	})
 	tray := app.SystemTray.New()
-	tray.SetIcon(makeTrayIcon())
+	tray.SetIcon(appIcon)
 	tray.SetTooltip("LeaguePingo")
 	menu := app.NewMenu()
 	menu.Add("打开 LeaguePingo").OnClick(func(*application.Context) {

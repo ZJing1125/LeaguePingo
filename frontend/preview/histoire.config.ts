@@ -11,6 +11,7 @@ export default defineConfig({
   storyMatch: ["./stories/**/*.story.vue"],
   outDir: "../../artifacts/component-preview",
   vite: {
+    publicDir: fileURLToPath(new URL("../public", import.meta.url)),
     plugins: [
       {
         name: "leaguepingo-offline-preview-assets",

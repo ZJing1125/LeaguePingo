@@ -1,0 +1,65 @@
+{
+  "design": "C-satin-enamel-scout",
+  "sizes": [
+    16,
+    20,
+    24,
+    32,
+    40,
+    48,
+    64,
+    96,
+    128,
+    256
+  ],
+  "files": {
+    "build/appicon.png": {
+      "bytes": 1421927,
+      "sha256": "cb5224d8f1869795eb7966e0af798e2cd2ce7eb7979551b4b2a2ffc8ba061f3a"
+    },
+    "build/windows/icon.ico": {
+      "bytes": 117113,
+      "sha256": "f4dca91cb65ae4d22425c26792dd22105a740d6f0a86626185ce2d1eb48f961e"
+    },
+    "frontend/public/brand/icon-16.png": {
+      "bytes": 860,
+      "sha256": "0dc1180a73dc1ac021da7534f6c07b2fc5f95002d7d1e925f43e384751daf264"
+    },
+    "frontend/public/brand/icon-20.png": {
+      "bytes": 1140,
+      "sha256": "0a3813ba03a69410b592b8fa063d749fbd6c645c90832bd7310a31a90a5bf909"
+    },
+    "frontend/public/brand/icon-24.png": {
+      "bytes": 1535,
+      "sha256": "ff4724a9c261ef99ef6d411508570705a04419102a6fb1df4fdf1ff7a3cd6a75"
+    },
+    "frontend/public/brand/icon-32.png": {
+      "bytes": 2306,
+      "sha256": "e2f1a3c729454d4773267d7f71160d58338a7b293f03988061910e255b39f368"
+    },
+    "frontend/public/brand/icon-40.png": {
+      "bytes": 3281,
+      "sha256": "b0a68ec4a34eb856a669f8aa169732c54e7ed2541ac7e1ee3807e430d852de47"
+    },
+    "frontend/public/brand/icon-48.png": {
+      "bytes": 4356,
+      "sha256": "adf9a7c8ecef5079aa05b1670a2c9a4a540f8b4fa7decea1996752f48fc116b8"
+    },
+    "frontend/public/brand/icon-64.png": {
+      "bytes": 6777,
+      "sha256": "80878c8aae8f2f8b3e442253243333a60b9aa4803d3e290940cc9c80876eae57"
+    },
+    "frontend/public/brand/icon-96.png": {
+      "bytes": 13012,
+      "sha256": "844477668618833d56c9601079391844b3b923b4e988e417db68c3361b3b43e3"
+    },
+    "frontend/public/brand/icon-128.png": {
+      "bytes": 20477,
+      "sha256": "1daa34686a4c4bc3a8bb6ea4fd1a5d5923ac45368fe6029a7c9954c24fcb9036"
+    },
+    "frontend/public/brand/icon-256.png": {
+      "bytes": 63203,
+      "sha256": "165bc5626159174544589fefbade313a490d8101382df9cc15685f68e6d6096a"
+    }
+  }
+}

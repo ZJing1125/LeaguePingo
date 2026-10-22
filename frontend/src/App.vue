@@ -12,6 +12,7 @@ import PlayerDrawer from "./components/PlayerDrawer.vue";
 import TransientNotice from "./components/TransientNotice.vue";
 import SettingsPanel from "./components/SettingsPanel.vue";
 import AppIcon from "./components/AppIcon.vue";
+import BrandIcon from "./components/BrandIcon.vue";
 import DesktopTitleBar from "./components/DesktopTitleBar.vue";
 import HomeView from "./components/HomeView.vue";
 import QueueSwitch from "./components/QueueSwitch.vue";
@@ -175,7 +176,7 @@ onUnmounted(() => {
     >
       <header class="app-toolbar">
         <span class="nav-wordmark"
-          ><span class="brand-mark">P</span>League<span>Pingo</span></span
+          ><BrandIcon />League<span>Pingo</span></span
         >
         <nav class="workspace-nav" aria-label="工作区">
           <button

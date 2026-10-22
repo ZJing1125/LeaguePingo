@@ -26,6 +26,9 @@ test('policy regression mutations are rejected', () => {
     ['scripts/build.sh', 'node scripts/artifacts.mjs audit\n', 'echo no audit\n'],
     ['scripts/dev.sh', '-o artifacts/hot-reload/leaguepingo-hot-reload.exe', '-o bin/leaguepingo.exe'],
     ['scripts/verify.sh', 'scripts/workflow.test.mjs', ''],
+    ['scripts/verify.sh', 'wails3 generate syso -arch amd64', 'echo skipped Windows resources'],
+    ['scripts/dev.sh', 'node scripts/app-icons.mjs check', 'echo skipped brand validation'],
+    ['build/Taskfile.yml', 'node ../scripts/app-icons.mjs generate', 'echo skipped icon generation'],
     ['AGENTS.md', 'node scripts/artifacts.mjs audit', 'skip audit'],
     ['docs/ci/verify.yml.example', 'bash scripts/build.sh bin/leaguepingo-ci.exe', 'go build .'],
   ]) {

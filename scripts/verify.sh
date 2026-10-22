@@ -18,7 +18,7 @@ if [[ "$task_scope" == windows ]]; then
 fi
 echo "Verification scope: $task_scope (not real-game acceptance)"
 node scripts/workflow.mjs check
-node --test scripts/artifacts.test.mjs scripts/workflow.test.mjs scripts/environment.test.mjs scripts/champion-portraits.test.mjs scripts/ui-assets.test.mjs
+node --test scripts/artifacts.test.mjs scripts/workflow.test.mjs scripts/environment.test.mjs scripts/champion-portraits.test.mjs scripts/ui-assets.test.mjs scripts/app-icons.test.mjs
 if [[ "$task_scope" == portable ]]; then
   npm --prefix frontend run build
   go test ./internal/...
@@ -35,6 +35,7 @@ if [[ "v$task_runtime" != "$task_backend" ]]; then
 fi
 wails3 generate bindings -clean=true -ts -i
 npm --prefix frontend run build
+wails3 generate syso -arch amd64 -icon build/windows/icon.ico -manifest build/windows/wails.exe.manifest -info build/windows/info.json -out wails_windows_amd64.syso
 go test ./...
 go vet ./...
 if [[ -z "${BROWSER_EXECUTABLE:-}" ]]; then

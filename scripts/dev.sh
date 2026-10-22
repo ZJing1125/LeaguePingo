@@ -8,12 +8,14 @@ case "${1:-}" in
   build)
     node scripts/workflow.mjs check
     node scripts/workflow.mjs dev-check
+    node scripts/app-icons.mjs check
     mkdir -p bin artifacts/hot-reload
     # Share the delivery build lock: both modes generate bindings/frontend files.
     mkdir bin/.build-lock || { echo 'Another build/uncleared build lock exists' >&2; exit 1; }
     trap 'rmdir bin/.build-lock' EXIT
     wails3 generate bindings -clean=true -ts -i
     npm --prefix frontend run build:dev
+    wails3 generate syso -arch amd64 -icon build/windows/icon.ico -manifest build/windows/wails.exe.manifest -info build/windows/info.json -out wails_windows_amd64.syso
     # Fixed scratch output: never added to the delivery manifest or promoted.
     go build -buildvcs=false -gcflags=all="-l" -o artifacts/hot-reload/leaguepingo-hot-reload.exe .
     ;;

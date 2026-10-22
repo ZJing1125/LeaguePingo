@@ -78,6 +78,12 @@ export function checkWorkflow(read) {
   if (/scripts\/build\.sh|artifacts\.mjs (?:register|clean|accept)|-tags production/.test(contents['scripts/dev.sh'])) throw new Error('Hot reload must not promote/rotate delivery');
   requireText('scripts/verify.sh', 'node scripts/workflow.mjs check');
   requireText('scripts/verify.sh', 'scripts/workflow.test.mjs');
+  requireText('scripts/verify.sh', 'scripts/app-icons.test.mjs');
+  requireText('build/Taskfile.yml', 'node ../scripts/app-icons.mjs generate');
+  requireText('scripts/dev.sh', 'node scripts/app-icons.mjs check');
+  for (const file of ['scripts/verify.sh', 'scripts/dev.sh']) {
+    requireText(file, 'wails3 generate syso -arch amd64 -icon build/windows/icon.ico -manifest build/windows/wails.exe.manifest -info build/windows/info.json -out wails_windows_amd64.syso');
+  }
   requireText('scripts/verify.sh', 'task_scope=${1:-windows}');
   requireText('scripts/verify.sh', 'windows) export LEAGUEPINGO_VERIFY_SCOPE=windows');
   for (const file of ['scripts/build.sh', 'scripts/verify.sh', 'scripts/dev.sh', 'scripts/run.sh']) {

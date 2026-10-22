@@ -2,6 +2,7 @@
 import { onMounted, onUnmounted, ref } from "vue";
 import { Events, Window } from "@wailsio/runtime";
 import AppIcon from "./AppIcon.vue";
+import BrandIcon from "./BrandIcon.vue";
 
 defineProps<{ modalOpen: boolean }>();
 const maximised = ref(false);
@@ -94,7 +95,7 @@ onUnmounted(() => {
     @dblclick="doubleClick"
   >
     <div class="window-brand">
-      <span class="brand-mark" aria-hidden="true">P</span>
+      <BrandIcon />
       <strong>LeaguePingo</strong>
       <span class="window-subtitle">英雄联盟助手</span>
     </div>

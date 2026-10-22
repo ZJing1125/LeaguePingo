@@ -1364,6 +1364,10 @@ async function main() {
     );
     await page.setViewportSize({ width: 1100, height: 640 });
     await page.getByRole("button", { name: "取消置顶", exact: true }).waitFor();
+    await page.locator(".overlay-head img.brand-mark").evaluate(async img => {
+      await img.decode();
+      if (!img.currentSrc.includes("/brand/icon-") || getComputedStyle(img).clipPath !== "none") throw new Error("Overlay brand icon is missing or cropped");
+    });
     assert.equal(
       await page
         .locator(".overlay-head")
