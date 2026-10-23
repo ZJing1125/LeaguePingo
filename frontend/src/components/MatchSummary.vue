@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { Match } from '../../bindings/leaguepingo/internal/core/models';
-import { decimal, number, mapName, positionName, runeName, sampleStats } from '../presentation';
+import { decimal, number, percent, mapName, positionName, runeName, sampleStats } from '../presentation';
 import GameIcon from './GameIcon.vue';
 const props=defineProps<{match:Match}>();
 const perMinute=(value:number|null|undefined)=>value!=null && props.match.duration && props.match.duration>0?`${decimal(value*60/props.match.duration)} / 分`:'—';
@@ -10,6 +10,8 @@ const stats=computed(()=>[
   {label:'补刀',value:number(props.match.cs),note:perMinute(props.match.cs)},
   {label:'英雄伤害',value:number(props.match.damage),note:perMinute(props.match.damage)},
   {label:'获得金币',value:number(props.match.gold),note:perMinute(props.match.gold)},
+  {label:'参团率',value:percent(props.match.participation),note:'完整阵容的本队击杀占比'},
+  {label:'视野得分',value:number(props.match.visionScore),note:`放置 ${number(props.match.wardsPlaced)} / 排除 ${number(props.match.wardsKilled)}`},
 ]);
 </script>
 <template>
@@ -27,7 +29,7 @@ const stats=computed(()=>[
 .personal-heading{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
 .personal-heading h3{font-size:14px;margin:0;}
 .personal-heading .match-context-detail{margin:0;gap:12px;font-size:12px;}
-.personal-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 20px;}
+.personal-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 20px;}
 .personal-metrics dt{font-size:12px;color:var(--muted);}
 .personal-metrics dd{font-size:22px;font-weight:650;font-variant-numeric:tabular-nums;margin:6px 0;}
 .personal-metrics small{display:block;font-size:11px;color:var(--muted);line-height:1.5;}

@@ -73,12 +73,30 @@ func parseScoutSeason(raw []byte, now time.Time) (*core.ScoutSeason, error) {
 }
 
 func (s *TencentLCU) ChampionMasteries(ctx context.Context, puuid string) ([]core.ChampionMastery, error) {
+	items, _, err := s.championMasteries(ctx, puuid)
+	return items, err
+}
+
+type cachedMastery struct {
+	items []core.ChampionMastery
+	at    time.Time
+}
+
+func (s *TencentLCU) championMasteries(ctx context.Context, puuid string) ([]core.ChampionMastery, time.Time, error) {
 	if !core.IsKnownPUUID(puuid) {
-		return nil, errors.New("身份未提供")
+		return nil, time.Time{}, errors.New("身份未提供")
+	}
+	s.masteryMu.Lock()
+	defer s.masteryMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return nil, time.Time{}, err
+	}
+	if cached, ok := s.masteries[puuid]; ok && time.Since(cached.at) < 5*time.Minute {
+		return append([]core.ChampionMastery{}, cached.items...), cached.at, nil
 	}
 	raw, err := s.client.Get(ctx, "/lol-champion-mastery/v1/"+url.PathEscape(puuid)+"/champion-mastery")
 	if err != nil {
-		return nil, err
+		return nil, time.Time{}, err
 	}
 	var items []struct {
 		PUUID  string `json:"puuid"`
@@ -87,20 +105,25 @@ func (s *TencentLCU) ChampionMasteries(ctx context.Context, puuid string) ([]cor
 		Points *int   `json:"championPoints"`
 	}
 	if json.Unmarshal(raw, &items) != nil || items == nil || len(items) > 1000 {
-		return nil, errors.New("英雄经验格式暂不兼容")
+		return nil, time.Time{}, errors.New("英雄经验格式暂不兼容")
 	}
 	out := []core.ChampionMastery{}
 	seen := map[int]bool{}
 	for _, m := range items {
 		if m.PUUID != "" && m.PUUID != puuid {
-			return nil, errors.New("英雄经验身份不匹配")
+			return nil, time.Time{}, errors.New("英雄经验身份不匹配")
 		}
 		if m.ID > 0 && !seen[m.ID] && m.Level != nil && m.Points != nil && *m.Level >= 0 && *m.Points >= 0 {
 			out = append(out, core.ChampionMastery{ChampionID: m.ID, Level: *m.Level, Points: *m.Points})
 			seen[m.ID] = true
 		}
 	}
-	return out, nil
+	at := time.Now()
+	if s.masteries == nil || len(s.masteries) >= 64 {
+		s.masteries = map[string]cachedMastery{}
+	}
+	s.masteries[puuid] = cachedMastery{items: out, at: at}
+	return append([]core.ChampionMastery{}, out...), at, nil
 }
 
 func (s *TencentLCU) ScoutPage(ctx context.Context, puuid string, offset int) (core.HistoryPage, error) {

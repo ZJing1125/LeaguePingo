@@ -58,6 +58,10 @@ type MatchDetailSource interface {
 	MatchDetail(context.Context, int64, string) (core.MatchDetail, error)
 }
 
+type MatchTimelineSource interface {
+	MatchTimeline(context.Context, core.MatchDetail, string) (core.MatchTimeline, error)
+}
+
 type LobbySource interface {
 	Lobby(context.Context) ([]core.Participant, error)
 }

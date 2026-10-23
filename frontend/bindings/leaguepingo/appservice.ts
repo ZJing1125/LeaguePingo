@@ -78,6 +78,10 @@ export function MatchDetail(key: string, connectionID: number, gameID: number): 
     return $Call.ByID(2263217354, key, connectionID, gameID);
 }
 
+export function MatchTimeline(key: string, connectionID: number, gameID: number): $CancellablePromise<core$0.MatchTimeline> {
+    return $Call.ByID(2795946624, key, connectionID, gameID);
+}
+
 export function OverlayStatus(): $CancellablePromise<$models.OverlayState> {
     return $Call.ByID(2104693908);
 }

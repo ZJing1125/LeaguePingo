@@ -42,15 +42,17 @@ type Participant struct {
 
 // Optional capabilities: absent fields are never presented as unranked or zero.
 type Profile struct {
-	UpdatedAt       *time.Time                `json:"updatedAt"`
-	Fields          map[string]FieldFreshness `json:"fields"`
-	PrivacyState    string                    `json:"privacyState"`
-	ProfileIconID   *int                      `json:"profileIconId"`
-	ProfileIconData string                    `json:"profileIconData"`
-	Level           *int                      `json:"level"`
-	RankState       string                    `json:"rankState"`
-	RankMessage     string                    `json:"rankMessage,omitempty"`
-	Ranks           []Rank                    `json:"ranks"`
+	UpdatedAt        *time.Time                `json:"updatedAt"`
+	Fields           map[string]FieldFreshness `json:"fields"`
+	PrivacyState     string                    `json:"privacyState"`
+	ProfileIconID    *int                      `json:"profileIconId"`
+	ProfileIconData  string                    `json:"profileIconData"`
+	Level            *int                      `json:"level"`
+	RankState        string                    `json:"rankState"`
+	RankMessage      string                    `json:"rankMessage,omitempty"`
+	Ranks            []Rank                    `json:"ranks"`
+	Masteries        []ChampionMastery         `json:"masteries"`
+	MasteryFetchedAt *time.Time                `json:"masteryFetchedAt,omitempty"`
 }
 
 // A retained value remains useful but is not verified by the latest request.
@@ -59,39 +61,64 @@ type FieldFreshness struct {
 	FetchedAt *time.Time `json:"fetchedAt"`
 }
 type Rank struct {
-	Queue    string `json:"queue"`
-	Tier     string `json:"tier"`
-	Division string `json:"division"`
-	LP       *int   `json:"lp"`
-	Wins     *int   `json:"wins"`
-	Losses   *int   `json:"losses"`
-	Source   string `json:"source,omitempty"`
-	SeasonID *int   `json:"seasonId,omitempty"`
+	Queue            string `json:"queue"`
+	Tier             string `json:"tier"`
+	Division         string `json:"division"`
+	LP               *int   `json:"lp"`
+	Wins             *int   `json:"wins"`
+	Losses           *int   `json:"losses"`
+	Source           string `json:"source,omitempty"`
+	SeasonID         *int   `json:"seasonId,omitempty"`
+	HighestTier      string `json:"highestTier,omitempty"`
+	HighestDivision  string `json:"highestDivision,omitempty"`
+	PreviousTier     string `json:"previousTier,omitempty"`
+	PreviousDivision string `json:"previousDivision,omitempty"`
 }
 
 type Match struct {
-	GameID        int64      `json:"gameId"`
-	PlayedAt      *time.Time `json:"playedAt"`
-	QueueID       int        `json:"queueId"`
-	ChampionID    int        `json:"championId"`
-	Win           *bool      `json:"win"`
-	Kills         *int       `json:"kills"`
-	Deaths        *int       `json:"deaths"`
-	Assists       *int       `json:"assists"`
-	Duration      *int       `json:"duration"`
-	Gold          *int       `json:"gold"`
-	Damage        *int       `json:"damage"`
-	CS            *int       `json:"cs"`
-	Items         []*int     `json:"items"`
-	Spell1        *int       `json:"spell1"`
-	Spell2        *int       `json:"spell2"`
-	MapID         *int       `json:"mapId"`
-	Position      string     `json:"position"`
-	Lane          string     `json:"lane"`
-	EarlyEnd      *bool      `json:"earlyEnd"`
-	RuneIDs       []int      `json:"runeIds"`
-	RunePrimary   *int       `json:"runePrimary"`
-	RuneSecondary *int       `json:"runeSecondary"`
+	GameID        int64       `json:"gameId"`
+	PlayedAt      *time.Time  `json:"playedAt"`
+	QueueID       int         `json:"queueId"`
+	ChampionID    int         `json:"championId"`
+	Win           *bool       `json:"win"`
+	Kills         *int        `json:"kills"`
+	Deaths        *int        `json:"deaths"`
+	Assists       *int        `json:"assists"`
+	Duration      *int        `json:"duration"`
+	Gold          *int        `json:"gold"`
+	Damage        *int        `json:"damage"`
+	CS            *int        `json:"cs"`
+	Items         []*int      `json:"items"`
+	Spell1        *int        `json:"spell1"`
+	Spell2        *int        `json:"spell2"`
+	MapID         *int        `json:"mapId"`
+	Position      string      `json:"position"`
+	Lane          string      `json:"lane"`
+	EarlyEnd      *bool       `json:"earlyEnd"`
+	RuneIDs       []int       `json:"runeIds"`
+	RunePrimary   *int        `json:"runePrimary"`
+	RuneSecondary *int        `json:"runeSecondary"`
+	RuneShards    []int       `json:"runeShards,omitempty"`
+	ChampionLevel *int        `json:"championLevel"`
+	DamageTaken   *int        `json:"damageTaken"`
+	VisionScore   *int        `json:"visionScore"`
+	WardsPlaced   *int        `json:"wardsPlaced"`
+	WardsKilled   *int        `json:"wardsKilled"`
+	ControlWards  *int        `json:"controlWards"`
+	TripleKills   *int        `json:"tripleKills"`
+	QuadraKills   *int        `json:"quadraKills"`
+	PentaKills    *int        `json:"pentaKills"`
+	Participation *float64    `json:"participation"`
+	Roster        []MatchPeer `json:"roster,omitempty"`
+}
+
+// A compact preview from the already returned game; never a per-row lookup.
+type MatchPeer struct {
+	ParticipantID int    `json:"participantId"`
+	TeamID        int    `json:"teamId"`
+	ChampionID    int    `json:"championId"`
+	DisplayName   string `json:"displayName"`
+	Target        bool   `json:"target"`
 }
 
 type HistoryMeta struct {
@@ -133,6 +160,18 @@ type MatchDetail struct {
 	Players      []MatchPlayer `json:"players"`
 	Partial      bool          `json:"partial"`
 	FetchedAt    time.Time     `json:"fetchedAt"`
+	MapID        *int          `json:"mapId"`
+	Teams        []MatchTeam   `json:"teams"`
+}
+
+type MatchTeam struct {
+	TeamID     int  `json:"teamId"`
+	Towers     *int `json:"towers"`
+	Dragons    *int `json:"dragons"`
+	Barons     *int `json:"barons"`
+	Inhibitors *int `json:"inhibitors"`
+	Heralds    *int `json:"heralds"`
+	Hordes     *int `json:"hordes"`
 }
 
 type Stats struct {

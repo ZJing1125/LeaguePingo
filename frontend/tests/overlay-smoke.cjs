@@ -607,7 +607,7 @@ async function main() {
       await page.getByLabel("玩家完整 ID", { exact: true }).inputValue(),
       "Alpha#TEST",
     );
-    assert.equal(await page.locator(".match-card").count(), 20);
+    assert.equal(await page.locator(".players-workspace .match-card").count(), 20);
     const beforeDodge = snapshot;
     snapshot = {
       ...snapshot,
@@ -666,7 +666,7 @@ async function main() {
     );
     await invalidNotice.waitFor({ state: "hidden", timeout: 3000 });
     assert.equal(
-      await page.locator(".match-card").count(),
+      await page.locator(".players-workspace .match-card").count(),
       20,
       "dismissal cleared the existing history",
     );
@@ -678,7 +678,7 @@ async function main() {
       assert(queueOptions.includes(label), `missing queue: ${label}`);
     assert.equal(
       await page
-        .locator(".match-main")
+        .locator(".players-workspace .match-main")
         .first()
         .locator(".match-items .game-icon")
         .count(),
@@ -687,7 +687,7 @@ async function main() {
     );
     assert.equal(
       await page
-        .locator(".match-main")
+        .locator(".players-workspace .match-main")
         .first()
         .locator(".match-spells .game-icon")
         .count(),
@@ -699,7 +699,7 @@ async function main() {
       "rendering rich rows must not fetch full matches",
     );
     await page.setViewportSize({ width: 1280, height: 800 });
-    const standardRows = await page.locator(".match-card").evaluateAll(
+    const standardRows = await page.locator(".players-workspace .match-card").evaluateAll(
       (rows) =>
         rows.filter((row) => {
           const b = row.getBoundingClientRect(),
@@ -722,10 +722,10 @@ async function main() {
       const img = document.querySelector(".profile-avatar img");
       return img?.complete && img.naturalWidth > 0;
     });
-    const rankedCards = page.locator(".player-profile .rank-card");
+    const rankedCards = page.locator(".players-workspace .rank-panel");
     assert((await rankedCards.nth(0).innerText()).includes("36 胜 / 38 负"), "solo rank card dropped the ranked-service losses");
     assert((await rankedCards.nth(1).innerText()).includes("20 胜 / 30 负"), "flex rank card dropped the ranked-service losses");
-    const visibleRows = await page.locator(".match-card").evaluateAll(
+    const visibleRows = await page.locator(".players-workspace .match-card").evaluateAll(
       (rows) =>
         rows.filter((row) => {
           const b = row.getBoundingClientRect();
@@ -744,7 +744,7 @@ async function main() {
     await page.waitForFunction(
       () => !document.querySelector('[aria-label="战绩模式筛选"]').disabled,
     );
-    assert.equal(await page.locator(".match-card").count(), 10);
+    assert.equal(await page.locator(".players-workspace .match-card").count(), 10);
     assert((await rankedCards.nth(0).innerText()).includes("36 胜 / 38 负"), "filtered history replaced ranked counters");
     assert((await rankedCards.nth(1).innerText()).includes("20 胜 / 30 负"), "solo history filter changed the flex rank record");
     await page.locator(".history-notice summary").click();
@@ -754,7 +754,7 @@ async function main() {
       ),
       "notice must use the filtered denominator",
     );
-    await page.locator(".match-main").first().click();
+    await page.locator(".players-workspace .match-main").first().click();
     assert.equal(await page.locator(".match-expanded").count(), 1);
     await page
       .getByLabel("对局上下文")
@@ -805,7 +805,7 @@ async function main() {
     assert.equal(await page.locator('.full-match-detail tbody .detail-loadout .game-icon').count(),70,'both teams must retain all seven equipment slots');
     assert.equal(
       await page
-        .locator(".match-main")
+        .locator(".players-workspace .match-main")
         .first()
         .locator(".match-items .game-icon")
         .count(),
@@ -893,13 +893,13 @@ async function main() {
     await page.getByLabel("战绩模式筛选").selectOption("all");
     await page.getByRole("button", { name: "下一页", exact: true }).click();
     await page.waitForFunction(
-      () => document.querySelectorAll(".match-card").length === 1,
+      () => document.querySelectorAll(".players-workspace .match-card").length === 1,
     );
     await page.getByRole("button", { name: "上一页", exact: true }).click();
-    assert.equal(await page.locator(".match-card").count(), 20);
+    assert.equal(await page.locator(".players-workspace .match-card").count(), 20);
     assert(
       (await page
-        .locator(".match-card")
+        .locator(".players-workspace .match-card")
         .filter({ hasText: "19 / 2 / 8" })
         .count()) === 1,
       "an overlapping page must not erase already verified fields",
@@ -953,7 +953,7 @@ async function main() {
     const navigationCalls = calls.length;
     async function assertFocusedTab(index) {
       await page.waitForFunction((i) => {
-        const tabs = document.querySelectorAll('[role="tab"]');
+        const tabs = document.querySelectorAll('.player-tabs [role="tab"]');
         const tab = tabs[i];
         const panel = document.getElementById("player-panel");
         return (
@@ -965,20 +965,20 @@ async function main() {
         );
       }, index);
     }
-    await page.getByRole("tab", { selected: true }).press("Home");
+    await page.getByRole("tablist", {name:"已查看玩家"}).getByRole("tab", { selected: true }).press("Home");
     await assertFocusedTab(0);
-    await page.getByRole("tab", { selected: true }).press("ArrowLeft");
+    await page.getByRole("tablist", {name:"已查看玩家"}).getByRole("tab", { selected: true }).press("ArrowLeft");
     await assertFocusedTab(7);
-    await page.getByRole("tab", { selected: true }).press("ArrowRight");
+    await page.getByRole("tablist", {name:"已查看玩家"}).getByRole("tab", { selected: true }).press("ArrowRight");
     await assertFocusedTab(0);
-    await page.getByRole("tab", { selected: true }).press("End");
+    await page.getByRole("tablist", {name:"已查看玩家"}).getByRole("tab", { selected: true }).press("End");
     await assertFocusedTab(7);
     assert.equal(
       calls.length,
       navigationCalls,
       "keyboard navigation must only switch cached views",
     );
-    await page.getByRole("tab", { selected: true }).press("Delete");
+    await page.getByRole("tablist", {name:"已查看玩家"}).getByRole("tab", { selected: true }).press("Delete");
     assert.equal(await page.getByRole("tab").count(), 7);
     await assertFocusedTab(6);
     await search("Extra5#TEST");

@@ -86,6 +86,10 @@ func (s *AppService) MatchDetail(ctx context.Context, key string, connectionID u
 	return s.engine.MatchDetail(ctx, key, connectionID, gameID)
 }
 
+func (s *AppService) MatchTimeline(ctx context.Context, key string, connectionID uint64, gameID int64) (core.MatchTimeline, error) {
+	return s.engine.MatchTimeline(ctx, key, connectionID, gameID)
+}
+
 func (s *AppService) LoadProfile(ctx context.Context, key string, connectionID uint64) (core.Participant, error) {
 	return s.engine.LoadProfile(ctx, key, connectionID)
 }

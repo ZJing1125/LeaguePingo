@@ -122,5 +122,5 @@ onBeforeUnmount(() => {
   </Teleport>
 </template>
 <style scoped>
-.drawer-floating .player-drawer.drawer-fit {height:auto;min-height:0;max-height:calc(100dvh - 48px);}
+.drawer-floating .player-drawer.drawer-fit {height:auto;min-height:0;max-height:calc(100dvh - var(--titlebar-height) - 48px);}
 </style>

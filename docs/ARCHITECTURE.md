@@ -1,5 +1,14 @@
 # 架构与技术选型
 
+## BUG-0059：已读分析与显式时间线
+
+Match新增等级/承伤/视野/守卫/连杀/属性碎片、可核验参团及无PUUID的紧凑阵容；LCU嵌套与SGP扁平SUMMARY共用归一化与身份核验。MatchDetail保留mapId及真实队伍资源目标。没有为战绩行添加请求。Profile保留最高/上季段位，熟练度仅在既有串行资料任务/父预算剩余时间内用300ms补读一次，与独立Scout共享5分钟/64身份缓存，换账号清除；失败不改已保存字段时效。
+
+新增可选MatchTimelineSource与桥接MatchTimeline。用户明确读取后，在同一12秒手动门控/串行调度中复用已核验详情或按需取得详情，再取时间线；最多8局/5分钟，仅内存、连接失效清理，拒绝迟到写回。返回同时带核验详情，出装标签不再二次请求。LCU路径为 /lol-match-history/v1/game-timelines/{gameId}；本地请求失败才可用既有HTTPS官方源/entitlements访问 /match-history-query/v1/products/lol/{platform}_{gameId}/DETAILS。详情SUMMARY采用相同回退规则；本地成功但格式/比赛或身份不匹配直接失败，不掩盖异常。授权继续与排位league-session分开，固定sgp-detail/sgp-timeline诊断不记身份或原始响应。
+
+解析只接收核验比赛与参与者，限制8MiB、720帧、20000相关事件、12小时范围；严格帧顺序与参与者ID，SGP还核对platform/game/target。保留空字段，只有实际记录才能生成事件/位置/经济曲线；不反推比赛过程。团队总量只在完整5v5且该字段齐全时提供。渲染、标签、翻页、侧栏/快览和游戏阶段准备不调用新来源，原Scout与首批资料预算不变。
+
+
 ## BUG-0058：侧栏外侧空间与间距
 
 internal/companion.Place仍只接受物理像素边界，缩放换算由现有controller负责。左右余量达到侧栏配置宽度就视为可停靠，不把6逻辑像素装饰间距算作硬门槛；选左优先，间距取配置值与该侧剩余空白的较小值。宽度、同高、工作区钳位、负坐标支持以及真正不足时的窄入口/显式内覆保持原策略。

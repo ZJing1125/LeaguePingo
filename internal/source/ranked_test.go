@@ -2,6 +2,7 @@ package source
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -26,6 +27,8 @@ func rankedTestSource(t *testing.T, response string) (*TencentLCU, *int, *int) {
 			return jsonResponse(`"https://nj100-sgp.lol.qq.com:21019"`), nil
 		case "/lol-league-session/v1/league-session-token":
 			return jsonResponse(`"synthetic-ranked-token"`), nil
+		case "/lol-champion-mastery/v1/target/champion-mastery":
+			return jsonResponse(`[]`), nil
 		case "/entitlements/v1/token":
 			return jsonResponse(`{"accessToken":"synthetic-history-token"}`), nil
 		case "/lol-ranked/v1/ranked-stats/target":
@@ -65,7 +68,7 @@ func TestUnifiedProfileAndRankQueryUseRankedServiceCounters(t *testing.T) {
 		t.Fatal("local zero-loss fixture failed")
 	}
 	p := s.Profile(context.Background(), "target")
-	if p.RankState != "ready" || p.Level == nil || len(p.Ranks) != 2 || *local != 5 || *remote != 1 {
+	if p.RankState != "ready" || p.Level == nil || len(p.Ranks) != 2 || *local != 6 || *remote != 1 {
 		t.Fatal("unified profile failed or repeated local rank lookup")
 	}
 	for i, want := range []struct {
@@ -77,10 +80,10 @@ func TestUnifiedProfileAndRankQueryUseRankedServiceCounters(t *testing.T) {
 			t.Fatal("ranked source, counter, season or division lost")
 		}
 	}
-	if s.Ranks(context.Background(), "target").RankState != "ready" || *local != 5 || *remote != 2 {
+	if s.Ranks(context.Background(), "target").RankState != "ready" || *local != 6 || *remote != 2 {
 		t.Fatal("rank-only query did not reuse its session")
 	}
-	if _, err := s.HistoryPage(context.Background(), "target", 20); err != nil || *local != 6 || *remote != 3 {
+	if _, err := s.HistoryPage(context.Background(), "target", 20); err != nil || *local != 7 || *remote != 3 {
 		t.Fatal("ranked and history credentials were confused or origin not reused")
 	}
 	s.ResetIdentity()
@@ -189,5 +192,19 @@ func TestRankedAuthorizationRejectsWrongTokenShapeAndUntrustedOrigin(t *testing.
 	})
 	if _, err := s.sgpRanks(context.Background(), "target"); err == nil || *remote != 0 {
 		t.Fatal("unverified ranked destination was accepted")
+	}
+}
+
+func TestRankHistoryKeepsQueueContractWithoutInventingSeasonYearsOrLP(t *testing.T) {
+	for _, source := range []string{"lcu", "sgp"} {
+		division := "Division"
+		if source == "sgp" {
+			division = "Rank"
+		}
+		raw := fmt.Sprintf(`{"queues":[{"queueType":"RANKED_SOLO_5x5","tier":"GOLD","highestTier":"DIAMOND","highest%s":"II","previousSeasonEndTier":"PLATINUM","previousSeasonEnd%s":"I"},{"queueType":"RANKED_FLEX_SR","tier":"SILVER"}]}`, division, division)
+		ranks, err := decodeRankedStats([]byte(raw), "target", source)
+		if err != nil || len(ranks) != 2 || ranks[0].HighestTier != "DIAMOND" || ranks[0].HighestDivision != "II" || ranks[0].PreviousDivision != "I" || ranks[1].HighestTier != "" {
+			t.Fatal("rank history crossed queue or schema", source, err, ranks)
+		}
 	}
 }

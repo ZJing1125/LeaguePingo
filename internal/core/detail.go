@@ -13,7 +13,7 @@ func ParseMatchDetail(raw []byte, gameID int64, target string) (MatchDetail, err
 		return MatchDetail{}, errors.New("对局详情格式或比赛编号不匹配")
 	}
 	now := time.Now()
-	out := MatchDetail{GameID: gameID, FetchedAt: now, Players: []MatchPlayer{}}
+	out := MatchDetail{GameID: gameID, FetchedAt: now, Players: []MatchPlayer{}, MapID: nonNegative(game.MapID), Teams: []MatchTeam{}}
 	seen := map[int]bool{}
 	for _, item := range game.Participants {
 		var p historyParticipant
@@ -22,6 +22,9 @@ func ParseMatchDetail(raw []byte, gameID int64, target string) (MatchDetail, err
 		}
 		seen[p.ParticipantID] = true
 		name := fmt.Sprintf("玩家 %d（身份未提供）", p.ParticipantID)
+		if value := historyName(game, p); value != "" {
+			name = value
+		}
 		verified := p.PUUID == target
 		for _, identity := range game.ParticipantIdentities {
 			if identity.ParticipantID != p.ParticipantID {
@@ -53,6 +56,20 @@ func ParseMatchDetail(raw []byte, gameID int64, target string) (MatchDetail, err
 		return MatchDetail{}, errors.New("对局详情不能唯一核验目标玩家")
 	}
 	out.Partial = len(out.Players) != 10 || counts[100] != 5 || counts[200] != 5
+	teamSeen := map[int]bool{}
+	for _, team := range game.Teams {
+		if teamSeen[team.TeamID] || (team.TeamID != 100 && team.TeamID != 200) {
+			continue
+		}
+		teamSeen[team.TeamID] = true
+		value := func(local *int, key string) *int {
+			if local != nil {
+				return nonNegative(local)
+			}
+			return nonNegative(team.Objectives[key].Kills)
+		}
+		out.Teams = append(out.Teams, MatchTeam{TeamID: team.TeamID, Towers: value(team.Towers, "tower"), Dragons: value(team.Dragons, "dragon"), Barons: value(team.Barons, "baron"), Inhibitors: value(team.Inhibitors, "inhibitor"), Heralds: value(team.Heralds, "riftHerald"), Hordes: value(team.Hordes, "horde")})
+	}
 	if !out.Partial {
 		for i := range out.Players {
 			p := &out.Players[i]
@@ -61,6 +78,7 @@ func ParseMatchDetail(raw []byte, gameID int64, target string) (MatchDetail, err
 			if p.Summary.Kills != nil && p.Summary.Assists != nil {
 				ka := *p.Summary.Kills + *p.Summary.Assists
 				p.Participation = teamShare(out.Players, p.TeamID, &ka, func(m Match) *int { return m.Kills })
+				p.Summary.Participation = p.Participation
 			}
 		}
 	}

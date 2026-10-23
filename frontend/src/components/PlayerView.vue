@@ -12,13 +12,17 @@ import {
 import PlayerProfileHeader from "./PlayerProfileHeader.vue";
 import MatchHistoryRow from "./MatchHistoryRow.vue";
 import HistoryNotice from "./HistoryNotice.vue";
-import GameIcon from "./GameIcon.vue";
+
 import AppIcon from "./AppIcon.vue";
 import MatchDetails from "./MatchDetails.vue";
-import RecentForm from "./RecentForm.vue";
+
 import TransientNotice from "./TransientNotice.vue";
-import ChampionPortrait from "./ChampionPortrait.vue";
-import { championName } from "../gameAssets";
+import OverviewPerformance from './OverviewPerformance.vue';
+import RankPanel from './RankPanel.vue';
+import ChampionAnalysis from './ChampionAnalysis.vue';
+import PlaystylePanel from './PlaystylePanel.vue';
+import MasteryPanel from './MasteryPanel.vue';
+
 import { scoutStats, roleNames } from "../scoutStats";
 import {
   HISTORY_PAGE_SIZE,
@@ -61,28 +65,10 @@ const {
   goPage,
   fill,
 } = useHistoryBrowser(props, historyScroll);
-const currentHeroStats = computed(() =>
-  sampleStats(
-    analysisMatches.value.filter(
-      (m) => m.championId === props.player.championId,
-    ),
-  ),
-);
 const stats = computed(() => sampleStats(analysisMatches.value));
 const modes = computed(() => [
   ...new Set([420, 440, 450, 2400, ...allMatches.value.map((m) => m.queueId)]),
 ]);
-const heroes = computed(() =>
-  [...new Set(analysisMatches.value.map((m) => m.championId).filter(Boolean))]
-    .map((id) => ({
-      id,
-      stats: sampleStats(
-        analysisMatches.value.filter((m) => m.championId === id),
-      ),
-    }))
-    .sort((a, b) => b.stats.games - a.stats.games)
-    .slice(0, 5),
-);
 function toggle(id: number) {
   const i = props.state.expanded.indexOf(id);
   if (i < 0) props.state.expanded.push(id);
@@ -90,74 +76,25 @@ function toggle(id: number) {
 }
 </script>
 <template>
-  <section class="player-view" :class="{ compact, 'profile-collapsed': !compact && profileCollapsed }">
-    <div v-if="!compact" class="dossier-poster">
-      <ChampionPortrait :id="player.championId || heroes[0]?.id" /><span
-        class="poster-label"
-        >玩家档案<small>英雄原画背景</small></span
-      >
-    </div>
+  <section class="player-view analysis-layout" :class="{ compact, 'profile-collapsed': !compact && profileCollapsed }">
     <PlayerProfileHeader
       :player="player"
       :busy="busy"
       :connected="connected"
       :compact="compact"
+      :hide-ranks="!compact"
     />
     <TransientNotice :message="error" banner-class="player-error" />
     <div class="player-columns">
-      <aside v-if="!compact" class="player-summary">
-        <div class="section-heading">
-          <h2>近期表现</h2>
-        </div>
-        <p class="sample-scope" role="status">
-          {{ sampleLabel
-          }}<span v-if="player.championId">
-            · 本英雄 {{ currentHeroStats.games }} 场 ·
-            {{ percent(currentHeroStats.winRate) }}</span
-          >
-        </p>
-        <div class="winrate-display">
-          <strong>{{ percent(stats.winRate) }}</strong
-          ><span
-            >胜率
-            <small>{{ stats.outcomeGames ? `${stats.wins} 胜 / ${stats.losses} 负` : '胜负待确认' }}</small></span
-          >
-        </div>
-        <dl class="summary-numbers">
-          <div>
-            <dt>汇总 KDA</dt>
-            <dd>{{ decimal(stats.kda) }}</dd>
-          </div>
-          <div>
-            <dt>有效胜负</dt>
-            <dd>{{ stats.outcomeGames }} 场</dd>
-          </div>
-        </dl>
-        <RecentForm :matches="analysisMatches" />
-        <div class="section-heading heroes-heading">
-          <h2>常用英雄</h2>
-          <span>分析样本</span>
-        </div>
-        <p v-if="!heroes.length" class="muted">暂无有效样本</p>
-        <div v-for="hero in heroes" :key="hero.id" class="common-hero">
-          <GameIcon :id="hero.id" :size="32" />
-          <div>
-            <strong :title="championName(hero.id)">{{
-              championName(hero.id).split("·")[0]
-            }}</strong
-            ><small
-              >{{ hero.stats.games }} 场 ·
-              {{ percent(hero.stats.winRate) }} 胜率</small
-            >
-          </div>
-          <b>{{ decimal(hero.stats.kda) }}</b>
-        </div>
-        <p class="sample-caption">
-          胜率、KDA、近况和常用英雄均使用当前模式最近
-          {{ stats.games }} 场；翻页不改变分析范围。
-        </p>
+      <aside v-if="!compact && !profileCollapsed" class="analysis-sidebar">
+        <RankPanel :player="player"/>
+        <RankPanel :player="player" queue="RANKED_FLEX_SR"/>
+        <ChampionAnalysis :matches="analysisMatches" :scope="sampleLabel" :fetched-at="player.historyMeta?.fetchedAt"/>
+        <PlaystylePanel :matches="analysisMatches" :scope="sampleLabel"/>
+        <MasteryPanel :player="player"/>
       </aside>
       <div class="history-column">
+        <details v-if="!compact" class="analysis-overview"><summary><strong>近期分析</strong><span>{{stats.outcomeGames?`${stats.wins} 胜 ${stats.losses} 负`:'胜负待获取'}} <b class="analysis-sample-win">{{percent(stats.winRate)}}</b></span><span>KDA <b class="analysis-sample-kda">{{decimal(stats.kda)}}</b></span><small class="analysis-scope">{{sampleLabel}}</small><span class="overview-expand">展开分析</span></summary><OverviewPerformance :matches="analysisMatches" :scope="sampleLabel"/></details>
         <div class="history-toolbar">
           <div class="history-filter">
             <strong class="history-count"
@@ -322,6 +259,7 @@ function toggle(id: number) {
                 <MatchDetails
                   :player="player"
                   :game-id="match.gameId"
+                  :match="match"
                   :connected="connected"
                 />
               </template>
@@ -399,16 +337,6 @@ function toggle(id: number) {
 .scout-explanation { padding: 7px 0; font-size: 12px; color: var(--muted); border-top: 1px solid var(--border); flex: none; }
 .scout-explanation summary { cursor: pointer; color: var(--text); }
 .scout-explanation p { margin: 8px 0; line-height: 1.6; }
-.players-workspace > .player-view.profile-collapsed { grid-template-columns: minmax(0, 1fr); }
-.players-workspace .profile-collapsed > .dossier-poster, .players-workspace .player-view.profile-collapsed :deep(.player-profile) { display: none; }
-.players-workspace .player-view.profile-collapsed > .player-columns { grid-column: 1; }
-.players-workspace .player-view.profile-collapsed > .player-error { grid-column: 1; }
-.poster-label { font-size: 12px; letter-spacing: 0; }.poster-label small { font-size: 11px; }
-.players-workspace .player-view :deep(.profile-meta) { font-size: 12px; }
-.players-workspace .player-summary .sample-scope, .players-workspace .player-summary .common-hero small, .players-workspace .player-view :deep(.match-performance > small) { font-size: 11px; }
-.players-workspace .player-summary .common-hero strong { font-size: 12px; }
-.players-workspace .player-view :deep(.match-main) { font-size: 12px; }
-.players-workspace .player-view :deep(.match-context > small), .players-workspace .player-view :deep(.outcome > span) { font-size: 11px; }
 .profile-toggle { white-space: nowrap; font-size: 12px; }
 @media (max-width: 1000px) {
   .drawer-floating .player-view.compact { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }

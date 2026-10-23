@@ -13,8 +13,11 @@ export type {
     HistoryPage,
     Match,
     MatchDetail,
+    MatchPeer,
     MatchPlayer,
     MatchReview,
+    MatchTeam,
+    MatchTimeline,
     Participant,
     Profile,
     Rank,
@@ -25,5 +28,9 @@ export type {
     ScoutReport,
     ScoutSeason,
     Snapshot,
-    Stats
+    Stats,
+    TimelineEvent,
+    TimelineFrame,
+    TimelinePlayer,
+    TimelinePosition
 } from "./models.js";

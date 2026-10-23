@@ -30,3 +30,18 @@ test('official emblems and HD splash images retain source integrity within the U
   }
   assert(total < 50*1024*1024, 'UI art bundle exceeds 50 MiB');
 });
+
+test('analysis rune trees and minimap are local original official images with a bounded budget',async()=>{
+ const root=new URL('../frontend/src/assets/game/analysis/',import.meta.url);
+ const manifest=JSON.parse(await readFile(new URL('manifest.json',root)));
+ const catalog=JSON.parse(await readFile(new URL('../catalog.json',root)));
+ const styles=JSON.parse(await readFile(new URL('runes.json',root)));
+ assert.equal(manifest.version,catalog.version);
+ assert.equal(manifest.source,`https://ddragon.leagueoflegends.com/cdn/${catalog.version}/data/zh_CN/runesReforged.json`);
+ const ids=styles.flatMap(style=>[style.id,...style.slots.flatMap(slot=>slot.runes.map(r=>r.id))]).map(String);
+ assert.deepEqual(Object.keys(manifest.images).sort(),[...ids,'map11'].sort());let bytes=0;
+ for(const [id,entry] of Object.entries(manifest.images)){
+  const image=await readFile(new URL(`${id}.png`,root));assert.equal(image.length,entry.bytes);assert.equal(createHash('sha256').update(image).digest('hex'),entry.sha256);assert.equal(image.subarray(0,8).toString('hex'),'89504e470d0a1a0a');assert(entry.url.startsWith('https://ddragon.leagueoflegends.com/cdn/'));bytes+=image.length;
+ }
+ assert(bytes<3*1024*1024,'analysis assets exceed 3MiB');
+});

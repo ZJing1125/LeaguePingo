@@ -31,6 +31,7 @@ export function makeMatch(index = 0, overrides: Partial<Match> = {}): Match {
     position: "TOP",
     lane: "TOP",
     earlyEnd: null,
+    championLevel:16,damageTaken:18000,visionScore:22,wardsPlaced:8,wardsKilled:3,controlWards:1,tripleKills:0,quadraKills:0,pentaKills:0,participation:null,
     runeIds: [8005],
     runePrimary: 8000,
     runeSecondary: 8100,

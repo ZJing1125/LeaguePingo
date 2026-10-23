@@ -32,6 +32,7 @@ func TestScoutSeasonRequiresExplicitCurrentServiceBounds(t *testing.T) {
 func TestChampionMasteryReadOnlyIdentityAndNoFabricatedCounts(t *testing.T) {
 	s := &TencentLCU{client: lcu.NewClient(lcu.Credentials{})}
 	for _, mismatch := range []bool{false, true} {
+		s.ResetIdentity()
 		s.client.HTTP.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
 			if r.Method != "GET" || r.URL.Path != "/lol-champion-mastery/v1/target/champion-mastery" {
 				t.Fatal("unexpected request")
@@ -65,5 +66,32 @@ func TestChampionMasteryReadOnlyIdentityAndNoFabricatedCounts(t *testing.T) {
 	s.rememberQueue([]byte(`{"gameConfig":{"queueId":0}}`), true)
 	if s.CurrentQueue() != 0 {
 		t.Fatal("custom game retained the previous ranked queue")
+	}
+}
+
+func TestMasteryCacheSharedWithProfileKeepsAgeAndRejectsCanceledReads(t *testing.T) {
+	s := &TencentLCU{client: lcu.NewClient(lcu.Credentials{})}
+	calls := 0
+	s.client.HTTP.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`[{"puuid":"target","championId":23,"championLevel":10,"championPoints":1000}]`))}, nil
+	})
+	first, at, err := s.championMasteries(context.Background(), "target")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first[0].Points = 99
+	second, age, err := s.championMasteries(context.Background(), "target")
+	if err != nil || second[0].Points != 1000 || calls != 1 || !at.Equal(age) {
+		t.Fatal("cache mutated or refreshed its age", err)
+	}
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, _, err := s.championMasteries(canceled, "target"); err == nil || calls != 1 {
+		t.Fatal("canceled request reached cache/source")
+	}
+	s.ResetIdentity()
+	if _, _, err := s.championMasteries(context.Background(), "target"); err != nil || calls != 2 {
+		t.Fatal("identity reset did not clear cache")
 	}
 }

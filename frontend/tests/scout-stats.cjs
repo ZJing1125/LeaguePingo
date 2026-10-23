@@ -103,3 +103,16 @@ assert.equal(rankRecord({...seasonPlayer,history:[]},'RANKED_SOLO_5x5',aggregate
 assert.equal(rankRecord({...seasonPlayer,scout:undefined},'RANKED_SOLO_5x5',{...aggregateRank,wins:3,losses:0}).rate,100,'explicit ranked zero losses are not heuristically erased');
 assert.equal(rankRecord({...seasonPlayer,scout:undefined},'RANKED_SOLO_5x5',{...aggregateRank,losses:null}),null,'missing ranked losses cannot become zero');
 console.log('PASS: ranked-service counters in query without scout, aggregate precedence, list independence and reported zero versus missing.');
+
+const {overviewData,heroRows,recentSeven,masteryData,teamMetric,teamGold,matchBadges}=load('analysisData');
+const analysisGames=[{championId:23,queueId:420,mapId:11,position:'TOP',kills:0,deaths:0,assists:0,win:false,cs:0,duration:120,participation:0,playedAt:'2026-10-23T00:00:00Z'}, {championId:23,queueId:450,mapId:12,position:'MIDDLE',kills:null,deaths:2,assists:3,win:null,cs:120,duration:0,participation:null,playedAt:null}, {championId:64,queueId:440,mapId:11,lane:'JUNGLE',kills:6,deaths:2,assists:4,win:true,duration:600,cs:100,playedAt:'2026-10-14T00:00:00Z'}];
+const overview=overviewData(analysisGames);
+assert.equal(overview.games,3);assert.equal(overview.outcomeGames,2);assert.equal(overview.winRate,50);assert.equal(overview.participation,0);assert.equal(overview.participationGames,1);assert.equal(overview.knownPositions,1,'ARAM/lane may not become a known Rift role');
+assert.deepEqual(overview.average,[3,1,2]);assert.equal(heroRows(analysisGames)[0].csRate,0,'unknown duration cannot become a zero per-minute record');
+assert.equal(recentSeven(analysisGames,'2026-10-23T12:00:00Z').length,1);assert.equal(recentSeven(analysisGames,null).length,0);assert.equal(recentSeven(analysisGames,'2026-10-22T12:00:00Z').length,0,'future match not inside fetched scope');
+assert.deepEqual(masteryData({profile:{masteries:[]},scout:{champions:[{mastery:{championId:1,points:100}}]}}),[],'known-empty profile must not inherit unrelated mastery');
+const detail={partial:false,players:Array.from({length:10},(_,i)=>({participantId:i+1,teamId:i<5?100:200,summary:{kills:i}}))};
+assert.equal(teamMetric(detail,'kills').teams[0].total,10);assert.equal(teamMetric({...detail,partial:true},'kills').teams[0].total,null);assert.equal(teamMetric(detail,'visionScore').teams[0].total,null);
+const frame={players:detail.players.map(p=>({participantId:p.participantId,gold:0}))};assert.equal(teamGold(frame,detail,100),0);assert.equal(teamGold({players:[]},detail,100),null);
+assert.deepEqual(matchBadges({kills:0,deaths:null,assists:0}),[]);assert.deepEqual(matchBadges({kills:1,deaths:0,assists:1,pentaKills:1}),['五杀','零死亡']);
+console.log('PASS: overview sample/denominators, explicit position evidence, seven-day boundaries, known-empty mastery, complete-team totals, timeline zero vs missing and factual badges.');

@@ -79,6 +79,18 @@ export interface Match {
     "runeIds": number[] | null;
     "runePrimary": number | null;
     "runeSecondary": number | null;
+    "runeShards"?: number[] | null;
+    "championLevel": number | null;
+    "damageTaken": number | null;
+    "visionScore": number | null;
+    "wardsPlaced": number | null;
+    "wardsKilled": number | null;
+    "controlWards": number | null;
+    "tripleKills": number | null;
+    "quadraKills": number | null;
+    "pentaKills": number | null;
+    "participation": number | null;
+    "roster"?: MatchPeer[] | null;
 }
 
 export interface MatchDetail {
@@ -87,6 +99,19 @@ export interface MatchDetail {
     "players": MatchPlayer[] | null;
     "partial": boolean;
     "fetchedAt": string;
+    "mapId": number | null;
+    "teams": MatchTeam[] | null;
+}
+
+/**
+ * A compact preview from the already returned game; never a per-row lookup.
+ */
+export interface MatchPeer {
+    "participantId": number;
+    "teamId": number;
+    "championId": number;
+    "displayName": string;
+    "target": boolean;
 }
 
 export interface MatchPlayer {
@@ -119,6 +144,26 @@ export interface MatchReview {
     "state": string;
     "participants": Participant[] | null;
     "result"?: MatchDetail | null;
+}
+
+export interface MatchTeam {
+    "teamId": number;
+    "towers": number | null;
+    "dragons": number | null;
+    "barons": number | null;
+    "inhibitors": number | null;
+    "heralds": number | null;
+    "hordes": number | null;
+}
+
+export interface MatchTimeline {
+    "connectionId": number;
+    "gameId": number;
+    "frames": TimelineFrame[] | null;
+    "events": TimelineEvent[] | null;
+    "partial": boolean;
+    "fetchedAt": string;
+    "detail"?: MatchDetail | null;
 }
 
 export interface Participant {
@@ -159,6 +204,8 @@ export interface Profile {
     "rankState": string;
     "rankMessage"?: string;
     "ranks": Rank[] | null;
+    "masteries": ChampionMastery[] | null;
+    "masteryFetchedAt"?: string | null;
 }
 
 export interface Rank {
@@ -170,6 +217,10 @@ export interface Rank {
     "losses": number | null;
     "source"?: string;
     "seasonId"?: number | null;
+    "highestTier"?: string;
+    "highestDivision"?: string;
+    "previousTier"?: string;
+    "previousDivision"?: string;
 }
 
 export interface ScoutChampion {
@@ -251,4 +302,38 @@ export interface Stats {
     "kdaGames": number;
     "winRate": number | null;
     "kda": number | null;
+}
+
+export interface TimelineEvent {
+    "timestamp": number;
+    "type": string;
+    "participantId": number;
+    "killerId": number;
+    "victimId": number;
+    "teamId": number;
+    "itemId": number;
+    "beforeId": number;
+    "afterId": number;
+    "skillSlot": number;
+    "monster": string;
+    "building": string;
+    "position"?: TimelinePosition | null;
+}
+
+export interface TimelineFrame {
+    "timestamp": number;
+    "players": TimelinePlayer[] | null;
+}
+
+export interface TimelinePlayer {
+    "participantId": number;
+    "gold": number | null;
+    "cs": number | null;
+    "level": number | null;
+    "position"?: TimelinePosition | null;
+}
+
+export interface TimelinePosition {
+    "x": number;
+    "y": number;
 }

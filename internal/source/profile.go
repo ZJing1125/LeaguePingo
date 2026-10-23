@@ -24,6 +24,14 @@ func (s *TencentLCU) Profile(ctx context.Context, puuid string) (out core.Profil
 		return out
 	}
 	s.loadRanks(ctx, puuid, &out)
+	if ctx.Err() == nil {
+		masteryCtx, stop := context.WithTimeout(ctx, 300*time.Millisecond)
+		items, at, err := s.championMasteries(masteryCtx, puuid)
+		stop()
+		if err == nil {
+			out.Masteries, out.MasteryFetchedAt = items, &at
+		}
+	}
 	return out
 }
 

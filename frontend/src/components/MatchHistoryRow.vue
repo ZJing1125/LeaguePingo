@@ -1,82 +1,23 @@
 <script setup lang="ts">
-import type { Match } from "../../bindings/leaguepingo/internal/core/models";
-import {
-  date,
-  decimal,
-  duration,
-  number,
-  kda,
-  outcome,
-  queueName,
-  sampleStats,
-} from "../presentation";
-import { championName } from "../gameAssets";
-import GameIcon from "./GameIcon.vue";
-import AppIcon from "./AppIcon.vue";
+import {computed} from 'vue';
+import type {Match} from '../../bindings/leaguepingo/internal/core/models';
+import {date,decimal,duration,number,kda,outcome,queueName,sampleStats,percent} from '../presentation';
+import {championName} from '../gameAssets';
+import {perMinute,matchBadges} from '../analysisData';
+import GameIcon from './GameIcon.vue';
+import RuneIcon from './RuneIcon.vue';
+import AppIcon from './AppIcon.vue';
 import MatchSummary from './MatchSummary.vue';
-defineProps<{ match: Match; expanded: boolean; compact?: boolean; fixed?: boolean }>();
-const emit = defineEmits<{ toggle: [] }>();
+const props=defineProps<{match:Match;expanded:boolean;compact?:boolean;fixed?:boolean}>();
+const emit=defineEmits<{toggle:[]}>();
+const teams=computed(()=>[100,200].map(id=>(props.match.roster??[]).filter(p=>p.teamId===id)));
+const cs=computed(()=>perMinute(props.match.cs,props.match.duration));
 </script>
-<template>
-  <article
-    class="match-card"
-    :class="match.win == null ? 'unknown' : match.win ? 'won' : 'lost'"
-  >
-    <component :is="fixed ? 'div' : 'button'"
-      class="match-main"
-      :class="{'match-static':fixed}"
-      :aria-expanded="fixed ? undefined : expanded"
-      @click="!fixed && emit('toggle')"
-    >
-      <span class="match-context"
-        ><strong>{{ queueName(match.queueId) }}</strong
-        ><small>{{ date(match.playedAt) }}</small
-        ><b class="outcome"
-          >{{ outcome(match) }} <span>{{ duration(match.duration) }}</span></b
-        ></span
-      >
-      <span class="match-hero"
-        ><GameIcon :id="match.championId" :size="compact ? 32 : 40" /><small>{{
-          championName(match.championId).split("·")[0]
-        }}</small></span
-      >
-      <span class="match-spells"
-        ><GameIcon kind="spells" :id="match.spell1" :size="19" /><GameIcon
-          kind="spells"
-          :id="match.spell2"
-          :size="19"
-      /></span>
-      <span class="match-performance"
-        ><strong>{{ kda(match) }}</strong
-        ><small>{{ decimal(sampleStats([match]).kda) }} KDA</small
-        ><small
-          >补刀 {{ number(match.cs) }} · 伤害 {{ number(match.damage) }}</small
-        ></span
-      >
-      <span class="match-items" aria-label="本玩家终局装备"
-        ><GameIcon
-          v-for="slot in 7"
-          :key="slot"
-          kind="items"
-          :id="match.items?.[slot - 1]"
-          :size="compact ? 17 : 24"
-      /></span>
-      <span v-if="!fixed" class="expand-indicator"
-        ><AppIcon name="chevron" :size="16"
-      /></span>
-    </component>
-    <div v-if="expanded" class="match-expanded">
-      <MatchSummary :match="match"/>
-      <slot name="details" />
-      <details class="detail-note"><summary>统计说明</summary><p>对局 #{{ match.gameId }}。未取得的数值显示 —；提前结束不代表已确认重开，仍计入当前样本。</p></details>
-    </div>
-  </article>
-</template>
+<template><article class="match-card" :class="[match.win==null?'unknown':match.win?'won':'lost',{'match-open':expanded}]"><component :is="fixed?'div':'button'" class="match-main" :class="{'match-static':fixed}" :aria-expanded="fixed?undefined:expanded" @click="!fixed&&emit('toggle')"><span class="match-context"><strong>{{queueName(match.queueId)}}</strong><small>{{date(match.playedAt)}}</small><b class="outcome">{{outcome(match)}} <span>{{duration(match.duration)}}</span></b></span><span class="match-champion"><span class="match-hero"><GameIcon :id="match.championId" :size="42"/><small v-if="match.championLevel!=null" class="champion-level">{{match.championLevel}}</small></span><span class="match-spells"><GameIcon kind="spells" :id="match.spell1" :size="19"/><GameIcon kind="spells" :id="match.spell2" :size="19"/></span></span><span class="match-build-summary"><span class="match-performance"><strong>{{kda(match)}}</strong><small>{{decimal(sampleStats([match]).kda)}} KDA</small><span v-if="match.runeIds?.length || match.runeSecondary" class="match-rune-icons"><RuneIcon v-if="match.runeIds?.[0]" :id="match.runeIds?.[0]" :size="18"/><RuneIcon v-if="match.runeSecondary" :id="match.runeSecondary" :size="16"/></span></span><span class="match-items" aria-label="本玩家终局装备"><GameIcon v-for="slot in 7" :key="slot" kind="items" :id="match.items?.[slot-1]" :size="20"/></span></span><span class="match-efficiency"><span>参团 <b>{{percent(match.participation)}}</b></span><span>CS {{number(match.cs)}} <small>({{cs==null?'—':cs.toFixed(1)}})</small></span><span>伤害 {{number(match.damage)}}</span><span v-if="matchBadges(match).length" class="match-facts">{{matchBadges(match).join(' · ')}}</span></span><span v-if="match.roster?.length" class="match-mini-roster" aria-label="双方阵容"><span v-for="(team,index) in teams" :key="index"><span v-for="p in team" :key="p.participantId" :title="`${p.displayName} · ${championName(p.championId)}`" :class="{target:p.target}"><GameIcon :id="p.championId" :size="12"/><span>{{p.displayName}}</span></span></span></span><span v-else class="match-roster-missing">阵容未记录</span><span v-if="!fixed" class="expand-indicator"><AppIcon name="chevron" :size="15"/></span></component><div v-if="expanded" class="match-expanded"><slot name="details"><MatchSummary :match="match"/></slot></div></article></template>
 <style scoped>
-.match-expanded {padding:20px;container-type:inline-size;background:var(--panel);}
-.match-main.match-static {cursor:default;}
-.match-main.match-static:hover {background:none;}
-.detail-note { font-size: 11px; color: var(--muted); line-height: 1.6; }
-.detail-note summary { cursor: pointer; }
-.detail-note p { margin: 8px 0; }
+.match-card{container-type:inline-size;min-width:0;border-left:3px solid var(--muted);border-bottom:1px solid var(--border);background:var(--match-bg);margin:0;}.match-card.won{border-left-color:var(--win);background:var(--win-bg);}.match-card.lost{border-left-color:var(--loss);background:var(--loss-bg);}.match-card>.match-main{width:100%;display:grid;grid-template-columns:86px 68px minmax(145px,1fr) 98px minmax(100px,150px) 16px;align-items:center;gap:10px;min-height:82px;padding:7px 10px;border:0;border-radius:0;text-align:left;background:none;color:var(--text);font-variant-numeric:tabular-nums;}.match-card>.match-main:hover:not(.match-static){background:color-mix(in srgb,var(--text) 4%,transparent);}.match-card>.match-main.match-static{cursor:default;grid-template-columns:86px 68px minmax(145px,1fr) 98px minmax(100px,150px);}.match-main>span{min-width:0;}.match-context{display:flex;flex-direction:column;gap:5px;width:auto;}.match-context>strong{font-size:13px;color:var(--muted);font-weight:600;white-space:nowrap;}.match-context>small{font-size:11px;color:var(--muted);white-space:nowrap;margin:0;}.match-context>.outcome{font-size:12px;font-weight:600;display:flex;align-items:center;gap:8px;margin:0;}.won .outcome{color:var(--win);}.lost .outcome{color:var(--loss);}.outcome>span{color:var(--muted);font-size:11px;font-weight:400;}.match-champion{display:flex;align-items:center;gap:5px;}.match-champion>.match-hero{position:relative;display:flex;flex:none;}.champion-level{position:absolute;right:-2px;bottom:-3px;display:grid;place-items:center;min-width:17px;height:17px;background:var(--text);color:var(--surface);font-size:11px;border-radius:50%;}.match-champion>.match-spells{display:flex;flex-direction:column;gap:3px;}.match-build-summary{display:flex;flex-direction:column;gap:8px;}.match-build-summary>.match-performance{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;min-width:0;}.match-performance>strong{font-size:14px;line-height:1.25;white-space:nowrap;}.match-build-summary>.match-performance>small{font-size:11px;color:var(--muted);grid-column:1;display:block;margin:0;line-height:1.2;}.match-rune-icons{grid-column:2;grid-row:1/3;display:flex;align-items:center;justify-content:flex-end;gap:4px;}.match-build-summary>.match-items{display:flex;gap:2px;flex-wrap:nowrap;max-width:none;margin:0;}.match-items :deep(.game-icon){flex:none;}.match-efficiency{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--muted);white-space:nowrap;}.match-efficiency b{font-weight:500;color:var(--text);}.match-efficiency small{font-size:11px;}.match-facts{font-size:11px;color:var(--accent);}.match-mini-roster{display:grid;grid-template-columns:1fr 1fr;gap:7px;}.match-mini-roster>span{display:flex;flex-direction:column;gap:1px;min-width:0;}.match-mini-roster>span>span{display:flex;align-items:center;gap:4px;min-width:0;font-size:11px;color:var(--muted);line-height:12px;}.match-mini-roster>span>span>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.match-mini-roster .target>span{font-weight:650;color:var(--text);}.match-roster-missing{font-size:11px;color:var(--muted);text-align:center;}.match-card>.match-expanded{padding:0;container-type:inline-size;background:var(--panel);border-top:1px solid var(--border);}.match-open .expand-indicator{transform:rotate(90deg);}.expand-indicator{display:flex;justify-content:center;transition:transform .15s;}.match-main.match-static:hover{background:none;}@container(max-width:665px){.match-card>.match-main{grid-template-columns:76px 68px minmax(145px,1fr) 90px 38px 14px;gap:8px;}.match-card>.match-main.match-static{grid-template-columns:76px 68px minmax(145px,1fr) 90px 38px;}.match-mini-roster{gap:5px;}.match-mini-roster>span>span>span{display:none;}.match-roster-missing{font-size:11px;overflow-wrap:anywhere;}}@container(max-width:500px){.match-card>.match-main,.match-card>.match-main.match-static{grid-template-columns:76px 68px minmax(145px,1fr) 14px;}.match-efficiency,.match-mini-roster,.match-roster-missing{display:none;}.match-build-summary>.match-performance{gap:4px 6px;}}
+</style>
+<style scoped>
+/* Keep analysis tabs reachable while scrolling a long open game. */
+.match-card.match-open{overflow:visible;}
 </style>

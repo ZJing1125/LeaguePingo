@@ -29,6 +29,18 @@ type historyGame struct {
 			SummonerName string `json:"summonerName"`
 		} `json:"player"`
 	} `json:"participantIdentities"`
+	Teams []struct {
+		TeamID     int  `json:"teamId"`
+		Towers     *int `json:"towerKills"`
+		Dragons    *int `json:"dragonKills"`
+		Barons     *int `json:"baronKills"`
+		Inhibitors *int `json:"inhibitorKills"`
+		Heralds    *int `json:"riftHeraldKills"`
+		Hordes     *int `json:"hordeKills"`
+		Objectives map[string]struct {
+			Kills *int `json:"kills"`
+		} `json:"objectives"`
+	} `json:"teams"`
 }
 type historyParticipant struct {
 	TeamID        int    `json:"teamId"`
@@ -38,36 +50,51 @@ type historyParticipant struct {
 	Spell1        *int   `json:"spell1Id"`
 	Spell2        *int   `json:"spell2Id"`
 	TeamPosition  string `json:"teamPosition"`
+	GameName      string `json:"riotIdGameName"`
+	TagLine       string `json:"riotIdTagline"`
+	SummonerName  string `json:"summonerName"`
 	Timeline      struct {
 		Lane string `json:"lane"`
 		Role string `json:"role"`
 	} `json:"timeline"`
 	Stats struct {
-		EarlyEnd   *bool `json:"gameEndedInEarlySurrender"`
-		Perk0      *int  `json:"perk0"`
-		Perk1      *int  `json:"perk1"`
-		Perk2      *int  `json:"perk2"`
-		Perk3      *int  `json:"perk3"`
-		Perk4      *int  `json:"perk4"`
-		Perk5      *int  `json:"perk5"`
-		Primary    *int  `json:"perkPrimaryStyle"`
-		Secondary  *int  `json:"perkSubStyle"`
-		Win        *bool `json:"win"`
-		ChampionID int   `json:"championId"`
-		Kills      *int  `json:"kills"`
-		Deaths     *int  `json:"deaths"`
-		Assists    *int  `json:"assists"`
-		Gold       *int  `json:"goldEarned"`
-		Damage     *int  `json:"totalDamageDealtToChampions"`
-		Minions    *int  `json:"totalMinionsKilled"`
-		Neutral    *int  `json:"neutralMinionsKilled"`
-		Item0      *int  `json:"item0"`
-		Item1      *int  `json:"item1"`
-		Item2      *int  `json:"item2"`
-		Item3      *int  `json:"item3"`
-		Item4      *int  `json:"item4"`
-		Item5      *int  `json:"item5"`
-		Item6      *int  `json:"item6"`
+		EarlyEnd      *bool `json:"gameEndedInEarlySurrender"`
+		Perk0         *int  `json:"perk0"`
+		Perk1         *int  `json:"perk1"`
+		Perk2         *int  `json:"perk2"`
+		Perk3         *int  `json:"perk3"`
+		Perk4         *int  `json:"perk4"`
+		Perk5         *int  `json:"perk5"`
+		Primary       *int  `json:"perkPrimaryStyle"`
+		Secondary     *int  `json:"perkSubStyle"`
+		Win           *bool `json:"win"`
+		ChampionID    int   `json:"championId"`
+		Kills         *int  `json:"kills"`
+		Deaths        *int  `json:"deaths"`
+		Assists       *int  `json:"assists"`
+		Gold          *int  `json:"goldEarned"`
+		Damage        *int  `json:"totalDamageDealtToChampions"`
+		Minions       *int  `json:"totalMinionsKilled"`
+		Neutral       *int  `json:"neutralMinionsKilled"`
+		Item0         *int  `json:"item0"`
+		Item1         *int  `json:"item1"`
+		Item2         *int  `json:"item2"`
+		Item3         *int  `json:"item3"`
+		Item4         *int  `json:"item4"`
+		Item5         *int  `json:"item5"`
+		Item6         *int  `json:"item6"`
+		ChampionLevel *int  `json:"champLevel"`
+		DamageTaken   *int  `json:"totalDamageTaken"`
+		VisionScore   *int  `json:"visionScore"`
+		WardsPlaced   *int  `json:"wardsPlaced"`
+		WardsKilled   *int  `json:"wardsKilled"`
+		ControlWards  *int  `json:"visionWardsBoughtInGame"`
+		TripleKills   *int  `json:"tripleKills"`
+		QuadraKills   *int  `json:"quadraKills"`
+		PentaKills    *int  `json:"pentaKills"`
+		Shard0        *int  `json:"statPerk0"`
+		Shard1        *int  `json:"statPerk1"`
+		Shard2        *int  `json:"statPerk2"`
 	} `json:"stats"`
 }
 
@@ -113,7 +140,9 @@ func ParseHistory(data []byte, puuid string) (HistoryResult, error) {
 			if p.PUUID != puuid && (IsKnownPUUID(p.PUUID) || p.ParticipantID <= 0 || identity[p.ParticipantID] != puuid) {
 				continue
 			}
-			result.Matches = append(result.Matches, matchSummary(game, p, now))
+			match := matchSummary(game, p, now)
+			match.Roster, match.Participation = historyPeers(game, p)
+			result.Matches = append(result.Matches, match)
 			seen[game.GameID], found = true, true
 			break
 		}
@@ -174,7 +203,75 @@ func matchSummary(game historyGame, p historyParticipant, now time.Time) Match {
 		Items: []*int{nonNegative(p.Stats.Item0), nonNegative(p.Stats.Item1), nonNegative(p.Stats.Item2), nonNegative(p.Stats.Item3), nonNegative(p.Stats.Item4), nonNegative(p.Stats.Item5), nonNegative(p.Stats.Item6)},
 		MapID: nonNegative(game.MapID), Position: p.TeamPosition, Lane: p.Timeline.Lane, EarlyEnd: p.Stats.EarlyEnd,
 		RuneIDs: runes, RunePrimary: nonNegative(p.Stats.Primary), RuneSecondary: nonNegative(p.Stats.Secondary),
+		ChampionLevel: nonNegative(p.Stats.ChampionLevel), DamageTaken: nonNegative(p.Stats.DamageTaken), VisionScore: nonNegative(p.Stats.VisionScore),
+		WardsPlaced: nonNegative(p.Stats.WardsPlaced), WardsKilled: nonNegative(p.Stats.WardsKilled), ControlWards: nonNegative(p.Stats.ControlWards),
+		TripleKills: nonNegative(p.Stats.TripleKills), QuadraKills: nonNegative(p.Stats.QuadraKills), PentaKills: nonNegative(p.Stats.PentaKills),
+		RuneShards: positiveIDs(p.Stats.Shard0, p.Stats.Shard1, p.Stats.Shard2),
 	}
+}
+
+func positiveIDs(values ...*int) []int {
+	result := []int{}
+	for _, value := range values {
+		if value != nil && *value > 0 {
+			result = append(result, *value)
+		}
+	}
+	return result
+}
+
+func historyName(game historyGame, p historyParticipant) string {
+	if p.GameName != "" && p.TagLine != "" {
+		return p.GameName + "#" + p.TagLine
+	}
+	for _, identity := range game.ParticipantIdentities {
+		if identity.ParticipantID != p.ParticipantID || (IsKnownPUUID(p.PUUID) && p.PUUID != identity.Player.PUUID) {
+			continue
+		}
+		if identity.Player.GameName != "" && identity.Player.TagLine != "" {
+			return identity.Player.GameName + "#" + identity.Player.TagLine
+		}
+		if identity.Player.SummonerName != "" {
+			return identity.Player.SummonerName
+		}
+	}
+	return p.SummonerName
+}
+
+func historyPeers(game historyGame, target historyParticipant) ([]MatchPeer, *float64) {
+	peers := []MatchPeer{}
+	seen := map[int]bool{}
+	counts := map[int]int{}
+	total, complete := 0, true
+	for _, raw := range game.Participants {
+		var p historyParticipant
+		if json.Unmarshal(raw, &p) != nil || p.ParticipantID <= 0 || seen[p.ParticipantID] {
+			return nil, nil
+		}
+		seen[p.ParticipantID] = true
+		counts[p.TeamID]++
+		champion := p.ChampionID
+		if champion == 0 {
+			champion = p.Stats.ChampionID
+		}
+		peers = append(peers, MatchPeer{ParticipantID: p.ParticipantID, TeamID: p.TeamID, ChampionID: champion, DisplayName: historyName(game, p), Target: p.ParticipantID == target.ParticipantID})
+		if p.TeamID == target.TeamID {
+			if p.Stats.Kills == nil || *p.Stats.Kills < 0 {
+				complete = false
+			} else {
+				total += *p.Stats.Kills
+			}
+		}
+	}
+	if len(peers) != 10 || counts[100] != 5 || counts[200] != 5 || !complete || target.Stats.Kills == nil || target.Stats.Assists == nil || *target.Stats.Kills < 0 || *target.Stats.Assists < 0 || total <= 0 {
+		return peers, nil
+	}
+	ka := *target.Stats.Kills + *target.Stats.Assists
+	if ka > total {
+		return peers, nil
+	}
+	rate := float64(ka) * 100 / float64(total)
+	return peers, &rate
 }
 func nonNegative(value *int) *int {
 	if value != nil && *value < 0 {

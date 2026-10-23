@@ -11,6 +11,7 @@ const props = defineProps<{
   busy?: boolean;
   connected?: boolean;
   compact?: boolean;
+  hideRanks?: boolean;
 }>();
 const rankCards = computed(() =>
   ["RANKED_SOLO_5x5", "RANKED_FLEX_SR"].map((queue) => ({
@@ -113,7 +114,7 @@ async function copyID() {
         >
       </div>
     </div>
-    <div class="profile-ranks">
+    <div v-if="!hideRanks" class="profile-ranks">
       <div
         v-for="item in rankCards"
         :key="item.queue"

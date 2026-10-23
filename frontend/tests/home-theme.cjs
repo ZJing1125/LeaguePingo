@@ -65,7 +65,7 @@ async function main() {
     await page.locator(".home-account h2").filter({ hasText: self.displayName }).waitFor();
     assert.equal(await nav.getByRole("button", { name: "首页", exact: true }).getAttribute("aria-current"), "page");
     assert.equal(await page.locator(".home-match").count(), 20);
-    assert.equal(await page.locator(".home-champion").count(), 5);
+    assert.equal(await page.locator(".home-analysis-main .champion-table tbody tr").count(), 5);
     assert((await page.locator(".home-ranks").innerText()).includes("翡翠 II"));
     assert((await page.locator(".home-ranks").innerText()).includes("黄金 I"));
     assert.equal(calls.filter(c => c === "CurrentPlayer").length, 1);
@@ -74,19 +74,19 @@ async function main() {
     await resolved("dark");
     assert.equal(await theme.inputValue(), "dark", "a new player should start in dark mode");
     const callsBeforeSingleGame=calls.length;
-    await page.locator('.home-match').first().click();
+    await page.locator('.home-match .match-main').first().click();
     const singleGame=page.getByRole('dialog',{name:'对局详情',exact:true});
     await singleGame.waitFor();
     assert.equal(await nav.getByRole('button',{name:'首页',exact:true}).getAttribute('aria-current'),'page','single match left the home workspace');
     assert((await singleGame.innerText()).includes('个人表现'));
-    assert((await singleGame.locator('.detail-note p').textContent()).includes('50000'),'home detail opened a different game');
+    assert((await singleGame.locator('.analysis-tabs [role=tab]').first().getAttribute('id')).includes('50000'),'home detail opened a different game');
     assert.equal(await singleGame.locator('.personal-items .game-icon').count(),7);
     assert.equal(calls.length,callsBeforeSingleGame,'local match preview queried player data');
     for(const [width,height] of [[1280,800],[1100,760],[880,620]]){
       await page.setViewportSize({width,height});
       assert(await singleGame.evaluate(el=>el.scrollWidth<=el.clientWidth+1),'single-game dialog overflow');
       assert(await singleGame.locator('.match-items').evaluate(el=>new Set([...el.children].map(child=>Math.round(child.getBoundingClientRect().top))).size===1),'seven equipment slots wrapped in single-game header');
-      const fit=await singleGame.boundingBox();assert(fit.x>=0 && fit.y>=0 && fit.x+fit.width<=width+1 && fit.y+fit.height<=height+1,'single-game dialog escaped viewport');
+      const fit=await singleGame.boundingBox();assert(fit.x>=0 && fit.y>=0 && fit.x+fit.width<=width+1 && fit.y+fit.height<=height+1,`single-game dialog escaped ${width}x${height}: ${JSON.stringify(fit)}`);
       await screenshot(`single-game-${width}`);
     }
     await page.evaluate(()=>{localStorage.setItem('leaguepingo.theme','light');dispatchEvent(new StorageEvent('storage',{key:'leaguepingo.theme',newValue:'light'}));});
@@ -95,7 +95,7 @@ async function main() {
     await page.setViewportSize({width:1280,height:800});
     await singleGame.press('Escape');
     await singleGame.waitFor({state:'detached'});
-    assert.equal(await page.locator('.home-match').first().evaluate(el=>el===document.activeElement),true,'closing detail lost row focus');
+    assert.equal(await page.locator('.home-match .match-main').first().evaluate(el=>el===document.activeElement),true,'closing detail lost row focus');
     async function checkBrand() {
       const marks = await page.locator("img.brand-mark").evaluateAll(images => images.map(img => ({
         loaded: img.complete && img.naturalWidth > 0,
@@ -173,10 +173,10 @@ async function main() {
     await page.getByRole("button", { name: "查询战绩", exact: true }).click();
     await page.locator(".players-workspace .identity-title").filter({ hasText: "查询的其他玩家#DEMO" }).waitFor();
     const beforeCollapse = calls.length;
-    const originalWidth = await page.locator('.players-workspace .player-columns').evaluate(el=>el.getBoundingClientRect().width);
+    const originalWidth = await page.locator('.players-workspace .history-column').evaluate(el=>el.getBoundingClientRect().width);
     await page.getByRole('button', { name: '收起资料', exact: true }).click();
-    assert(await page.locator('.players-workspace .player-columns').evaluate(el=>el.getBoundingClientRect().width) > originalWidth);
-    assert.equal(await page.locator('.players-workspace .dossier-poster').isVisible(), false);
+    assert(await page.locator('.players-workspace .history-column').evaluate(el=>el.getBoundingClientRect().width) > originalWidth);
+    assert.equal(await page.locator('.players-workspace .analysis-sidebar').isVisible(), false);
     await page.getByRole('button', { name: '展开资料', exact: true }).click();
     assert.equal(calls.length, beforeCollapse, 'profile layout must not query player data');
     await screenshot("history-dark");
@@ -227,7 +227,7 @@ async function main() {
     snapshot = { ...snapshot, phase: "InProgress", stage: "in-game", participants: [self] };
     await emit();
     assert((await page.locator(".home-ranks").innerText()).includes("段位待确认"));
-    assert((await page.locator(".home-form-summary").innerText()).includes("暂无胜负样本"));
+    assert((await page.locator(".home-analysis-main .overview-performance").innerText()).includes("胜负样本待获取"));
     before = calls.length; await emit();
     assert.equal(calls.length, before);
     await screenshot("partial");

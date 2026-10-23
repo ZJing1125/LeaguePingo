@@ -15,13 +15,19 @@ import (
 const rankedAttemptBudget = 1200 * time.Millisecond
 
 type rankedQueue struct {
-	Queue    string  `json:"queueType"`
-	Tier     *string `json:"tier"`
-	Division string  `json:"division"`
-	Rank     string  `json:"rank"`
-	LP       *int    `json:"leaguePoints"`
-	Wins     *int    `json:"wins"`
-	Losses   *int    `json:"losses"`
+	Queue            string  `json:"queueType"`
+	Tier             *string `json:"tier"`
+	Division         string  `json:"division"`
+	Rank             string  `json:"rank"`
+	LP               *int    `json:"leaguePoints"`
+	Wins             *int    `json:"wins"`
+	Losses           *int    `json:"losses"`
+	HighestTier      string  `json:"highestTier"`
+	HighestRank      string  `json:"highestRank"`
+	HighestDivision  string  `json:"highestDivision"`
+	PreviousTier     string  `json:"previousSeasonEndTier"`
+	PreviousRank     string  `json:"previousSeasonEndRank"`
+	PreviousDivision string  `json:"previousSeasonEndDivision"`
 }
 
 func (s *TencentLCU) loadRanks(ctx context.Context, puuid string, out *core.Profile) {
@@ -153,6 +159,20 @@ func decodeRankedStats(raw []byte, puuid, source string) ([]core.Rank, error) {
 			division = q.Rank
 		}
 		rank := core.Rank{Queue: q.Queue, Tier: *q.Tier, Division: division, LP: validCount(q.LP), Wins: validCount(q.Wins), Losses: validCount(q.Losses), Source: source}
+		if validTier(q.HighestTier) {
+			rank.HighestTier = q.HighestTier
+			rank.HighestDivision = q.HighestDivision
+			if source == "sgp" {
+				rank.HighestDivision = q.HighestRank
+			}
+		}
+		if validTier(q.PreviousTier) {
+			rank.PreviousTier = q.PreviousTier
+			rank.PreviousDivision = q.PreviousDivision
+			if source == "sgp" {
+				rank.PreviousDivision = q.PreviousRank
+			}
+		}
 		if source == "sgp" {
 			if id := response.Seasons[q.Queue].ID; id != nil && *id > 0 {
 				rank.SeasonID = id

@@ -256,6 +256,13 @@ func mergeProfile(next core.Profile, previous *core.Profile, fields ...string) c
 	}
 	privacyKnown := func(p core.Profile) bool { return p.PrivacyState == "public" || p.PrivacyState == "private" }
 	track("privacy", privacyKnown(next), privacyKnown(old))
+	track("mastery", next.Masteries != nil, old.Masteries != nil)
+	if next.Masteries != nil && next.MasteryFetchedAt != nil {
+		next.Fields["mastery"] = core.FieldFreshness{State: "ready", FetchedAt: next.MasteryFetchedAt}
+	}
+	if next.Masteries == nil {
+		next.Masteries, next.MasteryFetchedAt = old.Masteries, old.MasteryFetchedAt
+	}
 	if next.Level == nil {
 		next.Level = old.Level
 	}
@@ -274,7 +281,7 @@ func mergeProfile(next core.Profile, previous *core.Profile, fields ...string) c
 		next.PrivacyState = old.PrivacyState
 	}
 	// Fields omitted by this operation retain their values AND freshness.
-	for _, field := range []string{"level", "icon", "avatar", "privacy", "rank"} {
+	for _, field := range []string{"level", "icon", "avatar", "privacy", "rank", "mastery"} {
 		if (field != "rank" && requested(field)) || (field == "rank" && rankRequested) {
 			continue
 		}
@@ -291,6 +298,8 @@ func mergeProfile(next core.Profile, previous *core.Profile, fields ...string) c
 			next.ProfileIconData = old.ProfileIconData
 		case "privacy":
 			next.PrivacyState = old.PrivacyState
+		case "mastery":
+			next.Masteries, next.MasteryFetchedAt = old.Masteries, old.MasteryFetchedAt
 		case "rank":
 			next.Ranks, next.RankState, next.RankMessage = old.Ranks, old.RankState, old.RankMessage
 			if next.RankState == "" {
@@ -305,7 +314,7 @@ func mergeProfile(next core.Profile, previous *core.Profile, fields ...string) c
 }
 
 func profileAvailable(p core.Profile) bool {
-	return p.Level != nil || p.ProfileIconID != nil || p.RankState == "ready" || p.PrivacyState == "public" || p.PrivacyState == "private"
+	return p.Level != nil || p.ProfileIconID != nil || p.RankState == "ready" || p.Masteries != nil || p.PrivacyState == "public" || p.PrivacyState == "private"
 }
 
 func (e *Engine) MatchDetail(ctx context.Context, key string, connectionID uint64, gameID int64) (core.MatchDetail, error) {

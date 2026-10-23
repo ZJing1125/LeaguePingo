@@ -1,5 +1,14 @@
 # 前端迭代与组件预览
 
+## BUG-0059：分析模块与验证
+
+当前概览、查询与详情层级见 PLAYER_ANALYSIS/UI_DESIGN，替代下文纵向档案海报与平铺详情。新增共享 RankPanel、OverviewPerformance、ChampionAnalysis、PlaystylePanel、MasteryPanel；analysisData.ts集中定义有效分母、明确位置、已读7天、团队指标与经济差。查询摘要默认折叠，完整分析可随时展开；左右滚动互不挤压，面板不设等高。
+
+MatchHistoryRow只消费传入记录和阵容，不读接口；MatchDetails用键盘Tabs组织概览/团队/时间线/出装符文，MatchTimeline与MatchBuild复用同一结果。analysisCache仅在内存按连接/玩家/比赛隔离，详情32局、时间线8局、5分钟，旧连接不会跨范围命中；后端独立核验同样边界。冻结provided详情保持只读，时间线未捕获不偷偷补取。标签、主题和筛选不发新的自动请求。
+
+player-analysis.cjs加入test:smoke：合成桥接核对完整概览、丰富战绩、按需双方/时间线、六项比较、地图/滑块/符文、标签复用及1280/1100/880和两主题；scout-stats增加生产analysisData纯逻辑验证。现有四组产品交互与组件工作台继续覆盖，测试限定查询工作区，避免把隐藏首页的共享战绩行重复计数。原生窗口和真实国服覆盖单独验收。官方符文/地图由显式scripts/sync-analysis-assets.py维护，常规构建/运行不下载，资源预算与哈希纳入ui-assets.test.mjs。
+
+
 ## BUG-0055：单场详情与证据
 
 MatchSummary负责本玩家的个人指标/装备/技能/符文，MatchHistoryRow统一复用；MatchDetails只处理显式加载或已提供的双方结果。HomeView保留selectedGame本地选择，用PlayerDrawer的label/fit呈现单场内容，modal事件交由App禁用背景业务区；不创建玩家查询标签或改首页分页。PlayerDrawer原有焦点圈定、Esc与原按钮恢复继续复用。

@@ -106,18 +106,8 @@ func (s *TencentLCU) sgpSummaryPage(ctx context.Context, puuid string, offset in
 	s.sgpMu.Lock()
 	defer s.sgpMu.Unlock()
 	r := s.sgpClientLocked()
-	if r.token == "" || time.Now().After(r.expires) {
-		if err := s.ensureSGPOrigin(ctx, r); err != nil {
-			return core.HistoryPage{}, err
-		}
-		var token struct {
-			Access string `json:"accessToken"`
-		}
-		raw, err := s.client.Get(ctx, "/entitlements/v1/token")
-		if err != nil || json.Unmarshal(raw, &token) != nil || token.Access == "" || len(token.Access) > 32768 || strings.ContainsAny(token.Access, "\r\n") {
-			return core.HistoryPage{}, errors.New("当前会话暂未提供战绩授权")
-		}
-		r.token, r.expires = token.Access, time.Now().Add(2*time.Minute)
+	if err := s.ensureHistorySession(ctx, r); err != nil {
+		return core.HistoryPage{}, err
 	}
 	path := "/match-history-query/v1/products/lol/player/" + url.PathEscape(puuid) + "/SUMMARY?" + url.Values{"startIndex": {fmt.Sprint(offset)}, "count": {"20"}}.Encode()
 	if cached, ok := r.pages[path]; offset > 0 && ok && time.Now().Before(cached.expires) {
@@ -150,6 +140,23 @@ func (s *TencentLCU) sgpSummaryPage(ctx context.Context, puuid string, offset in
 	}
 	r.pages[path] = cachedSGPPage{page: page, expires: time.Now().Add(15 * time.Second)}
 	return page, nil
+}
+
+func (s *TencentLCU) ensureHistorySession(ctx context.Context, r *sgpHistory) error {
+	if r.token == "" || time.Now().After(r.expires) {
+		if err := s.ensureSGPOrigin(ctx, r); err != nil {
+			return err
+		}
+		var token struct {
+			Access string `json:"accessToken"`
+		}
+		raw, err := s.client.Get(ctx, "/entitlements/v1/token")
+		if err != nil || json.Unmarshal(raw, &token) != nil || token.Access == "" || len(token.Access) > 32768 || strings.ContainsAny(token.Access, "\r\n") {
+			return errors.New("当前会话暂未提供战绩授权")
+		}
+		r.token, r.expires = token.Access, time.Now().Add(2*time.Minute)
+	}
+	return nil
 }
 
 func (r *sgpHistory) rememberHead(puuid string, head int64) {

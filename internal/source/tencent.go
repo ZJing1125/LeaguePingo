@@ -22,6 +22,8 @@ type TencentLCU struct {
 	sgpMu     sync.Mutex
 	sgp       *sgpHistory
 	queueID   atomic.Int32
+	masteryMu sync.Mutex
+	masteries map[string]cachedMastery
 }
 
 func (*TencentLCU) Region() string { return "CN" }
@@ -39,6 +41,9 @@ func (s *TencentLCU) ResetIdentity() {
 		s.sgp.heads = nil
 	}
 	s.sgpMu.Unlock()
+	s.masteryMu.Lock()
+	s.masteries = nil
+	s.masteryMu.Unlock()
 }
 
 func DiscoverTencent() (Source, error) {
@@ -330,9 +335,18 @@ func (s *TencentLCU) MatchDetail(ctx context.Context, gameID int64, target strin
 	if gameID <= 0 || !core.IsKnownPUUID(target) {
 		return core.MatchDetail{}, errors.New("对局详情参数无效")
 	}
-	raw, err := s.client.Get(ctx, fmt.Sprintf("/lol-match-history/v1/games/%d", gameID))
-	if err != nil {
-		return core.MatchDetail{}, fmt.Errorf("当前客户端未能提供对局详情：%w", err)
+	localCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	raw, err := s.client.Get(localCtx, fmt.Sprintf("/lol-match-history/v1/games/%d", gameID))
+	cancel()
+	if err == nil {
+		return core.ParseMatchDetail(raw, gameID, target)
 	}
-	return core.ParseMatchDetail(raw, gameID, target)
+	if ctx.Err() != nil {
+		return core.MatchDetail{}, ctx.Err()
+	}
+	raw, platform, err := s.sgpGameData(ctx, gameID, "SUMMARY", "/sgp-detail")
+	if err != nil {
+		return core.MatchDetail{}, fmt.Errorf("本场双方详情暂未取得：%w", err)
+	}
+	return core.ParseSGPMatchDetail(raw, gameID, target, platform)
 }

@@ -237,13 +237,13 @@ async function main() {
         .filter((m) => queue === "all" || m.queueId === Number(queue))
         .slice(0, size);
       assert(
-        (await page.locator(".sample-scope").textContent()).includes(
+        (await page.locator(".players-workspace .analysis-scope").textContent()).includes(
           `${selected.length} / ${size} 场`,
         ),
       );
       const wins = selected.filter((m) => m.win).length;
       assert.equal(
-        (await page.locator(".winrate-display > strong").textContent()).trim(),
+        (await page.locator(".players-workspace .analysis-sample-win").textContent()).trim(),
         selected.length
           ? `${Math.round((wins * 100) / selected.length)}%`
           : "—",
@@ -253,7 +253,7 @@ async function main() {
         deaths = selected.reduce((n, m) => n + m.deaths, 0);
       assert.equal(
         (
-          await page.locator(".summary-numbers dd").first().textContent()
+          await page.locator(".players-workspace .analysis-sample-kda").first().textContent()
         ).trim(),
         selected.length
           ? ((kills + assists) / Math.max(1, deaths)).toFixed(2)
@@ -266,7 +266,7 @@ async function main() {
         }))
         .sort((a, b) => b.count - a.count);
       const visibleHeroes = await page
-        .locator(".common-hero small")
+        .locator(".players-workspace .champion-table tbody tr td:last-child small")
         .allTextContents();
       assert.deepEqual(
         visibleHeroes.map((t) => Number(t.trim().split(" ")[0])),
@@ -311,7 +311,7 @@ async function main() {
       [20, 40],
     );
     await checkSample("all", 50);
-    assert.equal(await page.locator(".match-card").count(), 20);
+    assert.equal(await page.locator(".players-workspace .match-card").count(), 20);
     const requestsAfter50 = pageCalls().length;
     for (const size of [10, 20, 30, 40, 50]) {
       await select("分析样本场数", size);
@@ -323,8 +323,8 @@ async function main() {
       "cached sample choices refetched history",
     );
     await page.getByRole("button", { name: "下一页", exact: true }).click();
-    assert.equal(await page.locator(".match-card").count(), 20);
-    await page.locator(".match-main").first().click();
+    assert.equal(await page.locator(".players-workspace .match-card").count(), 20);
+    await page.locator(".players-workspace .match-main").first().click();
     await page.locator(".match-expanded .detail-note summary").click();
     await page.getByText("对局 #1020", { exact: false }).waitFor();
     await checkSample("all", 50);
@@ -338,7 +338,7 @@ async function main() {
     await checkSample(440, 50);
     assert.equal(
       await page
-        .locator(".match-card .match-context > strong")
+        .locator(".players-workspace .match-card .match-context > strong")
         .filter({ hasText: /^灵活排位$/ })
         .count(),
       20,
@@ -366,7 +366,7 @@ async function main() {
     await page
       .getByText("当前可查询范围内仅找到 10 场该模式记录", { exact: false })
       .waitFor();
-    assert.equal(await page.locator(".match-card").count(), 10);
+    assert.equal(await page.locator(".players-workspace .match-card").count(), 10);
     assert(
       await page
         .getByRole("button", { name: "下一页", exact: true })
@@ -374,7 +374,7 @@ async function main() {
     );
     await select("战绩模式筛选", 450);
     await checkSample(450, 20);
-    assert.equal(await page.locator(".match-card").count(), 0);
+    assert.equal(await page.locator(".players-workspace .match-card").count(), 0);
     await select("战绩模式筛选", "all");
     await select("分析样本场数", 50);
     const exhaustedRequests = pageCalls().length;
@@ -387,7 +387,7 @@ async function main() {
       "refresh started unrequested scans",
     );
     assert(
-      (await page.locator(".sample-scope").textContent()).includes("20 / 50"),
+      (await page.locator(".players-workspace .analysis-scope").textContent()).includes("20 / 50"),
     );
     assert(
       (await page.locator(".page-indicator").textContent()).includes("第 1 页"),
@@ -405,7 +405,7 @@ async function main() {
       .getByText("synthetic pagination timeout", { exact: false })
       .waitFor();
     assert.equal(
-      await page.locator(".match-card").count(),
+      await page.locator(".players-workspace .match-card").count(),
       20,
       "failed navigation discarded visible records",
     );
@@ -434,9 +434,9 @@ async function main() {
       "sample scan did not continue beyond five source pages",
     );
     assert(
-      (await page.locator(".sample-scope").textContent()).includes("50 / 50"),
+      (await page.locator(".players-workspace .analysis-scope").textContent()).includes("50 / 50"),
     );
-    assert.equal(await page.locator(".match-card").count(), 20);
+    assert.equal(await page.locator(".players-workspace .match-card").count(), 20);
     assert.equal(
       await page.getByRole("button", { name: "继续查找", exact: true }).count(),
       0,
@@ -503,13 +503,13 @@ async function main() {
     );
     assert.equal(await page.getByLabel("战绩模式筛选").inputValue(), "440");
     assert.equal(
-      await page.locator(".match-card").count(),
+      await page.locator(".players-workspace .match-card").count(),
       0,
       "old page leaked into new player",
     );
     await page.getByRole("tab", { name: "Other#TEST", exact: true }).click();
     assert(
-      (await page.locator(".sample-scope").textContent()).includes("40 / 50"),
+      (await page.locator(".players-workspace .analysis-scope").textContent()).includes("40 / 50"),
     );
     await page.getByRole("button", { name: "继续查找", exact: true }).click();
     await idle();
@@ -533,7 +533,7 @@ async function main() {
       "stop started another source request",
     );
     assert(
-      (await page.locator(".sample-scope").textContent()).includes("40 / 50"),
+      (await page.locator(".players-workspace .analysis-scope").textContent()).includes("40 / 50"),
     );
     await page
       .getByText("已停止查找，已获取记录保留。", { exact: true })
@@ -565,7 +565,7 @@ async function main() {
     await page.getByRole("button", { name: "补齐样本", exact: true }).click();
     await idle();
     await page.getByText("战绩分页位置无效", { exact: false }).waitFor();
-    assert.equal(await page.locator(".match-card").count(), 20);
+    assert.equal(await page.locator(".players-workspace .match-card").count(), 20);
     await page.getByRole("button", { name: "重试", exact: true }).click();
     await idle();
     assert.deepEqual(
@@ -590,7 +590,7 @@ async function main() {
     await page
       .getByText("数据源重复返回已获取的战绩", { exact: false })
       .waitFor();
-    assert.equal(await page.locator(".match-card").count(), 20);
+    assert.equal(await page.locator(".players-workspace .match-card").count(), 20);
     assert.equal(
       await page.locator(".quality-warning").count(),
       0,
@@ -692,7 +692,7 @@ async function main() {
     await jumpInput.press("Enter");
     await idle();
     await checkSample(440, 20);
-    assert.equal(await page.locator(".match-card").count(), 20);
+    assert.equal(await page.locator(".players-workspace .match-card").count(), 20);
     assert.equal(
       await page
         .locator(".match-context > strong")
@@ -750,7 +750,7 @@ async function main() {
       ),
     );
     assert.equal(await jumpInput.inputValue(), "10");
-    assert.equal(await page.locator(".match-card").count(), 20);
+    assert.equal(await page.locator(".players-workspace .match-card").count(), 20);
     await checkSample("all", 20);
     await page.getByRole("tab", { name: "Other#TEST", exact: true }).click();
 

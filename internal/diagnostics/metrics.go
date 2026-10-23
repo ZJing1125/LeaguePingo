@@ -27,6 +27,10 @@ func Category(path string) string {
 		return "sgp-history"
 	case path == "/sgp-rank":
 		return "sgp-rank"
+	case path == "/sgp-detail":
+		return "sgp-detail"
+	case path == "/sgp-timeline":
+		return "sgp-timeline"
 	case path == "/lol-league-session/v1/league-session-token":
 		return "rank-session"
 	case path == "/phase-events":

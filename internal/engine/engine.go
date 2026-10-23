@@ -59,6 +59,7 @@ type Engine struct {
 	prepareProfiles     map[string]bool
 	preferred           string
 	details             map[string]core.MatchDetail
+	timelines           map[string]core.MatchTimeline
 	initialMatch        initialMatchPreparation
 	scouting            scoutPreparation
 	reviewCandidate     *core.MatchReview
@@ -362,6 +363,7 @@ func (e *Engine) invalidateConnectionLocked() {
 	e.aliases = map[string]string{}
 	e.profileRetry = nil
 	e.details = nil
+	e.timelines = nil
 	if e.cancel != nil {
 		e.cancel()
 	}
