@@ -1,5 +1,6 @@
 import type { Participant } from "../bindings/leaguepingo/internal/core/models";
 import { date, tierName } from "./presentation";
+import { rankRecord } from "./rankRecord";
 
 export function rankPresentation(
   player: Participant,
@@ -33,5 +34,5 @@ export function rankPresentation(
     label = "段位待确认";
     title = profile.rankMessage || "客户端未提供可核验段位，可手动重试";
   }
-  return { rank, retained, label, title };
+  return { rank, retained, label, title, record: rankRecord(player, queue, rank) };
 }

@@ -277,7 +277,7 @@ onUnmounted(() => {
         </div>
       </section>
       <section v-show="view === 'match'" class="match-workspace review-host">
-        <ReviewRoom :review="snapshot?.review ?? null" :connected="snapshot?.connected ?? false" :active="view === 'match'" :in-game="['GameStart','InProgress','Reconnect'].includes(snapshot?.phase || '')" @snapshot="acceptSnapshot" @query="queryReviewPlayer" @modal="reviewModalOpen = $event" @companion="showCompanion" :companion-available="['Lobby','Matchmaking','ReadyCheck','ChampSelect','InProgress'].includes(snapshot?.phase || '')"/>
+        <ReviewRoom :review="snapshot?.review ?? null" :connected="snapshot?.connected ?? false" :active="view === 'match'" :in-game="['GameStart','InProgress','Reconnect'].includes(snapshot?.phase || '')" @snapshot="acceptSnapshot" @query="queryReviewPlayer" @modal="reviewModalOpen = $event" @companion="showCompanion" :companion-available="['Lobby','Matchmaking','ReadyCheck','ChampSelect','GameStart','InProgress'].includes(snapshot?.phase || '')"/>
       </section>
     </div>
     <SettingsPanel

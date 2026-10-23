@@ -12,11 +12,7 @@ import ScoutRing from "./ScoutRing.vue";
 const props = defineProps<{ player: Participant; frozen?: boolean; party?: boolean; queue?: number; captured?: boolean }>();
 const data = computed(() => scoutStats(props.player, props.queue ?? 420));
 const rank = computed(() => rankPresentation(props.player, props.queue === 440 ? "RANKED_FLEX_SR" : "RANKED_SOLO_5x5"));
-const season = computed(() => {
-  if (props.player.identityState !== "known") return null;
-  const r = rank.value.rank;
-  return r?.wins != null && r.losses != null ? { wins: r.wins, losses: r.losses, rate: r.wins + r.losses > 0 ? r.wins * 100 / (r.wins + r.losses) : null } : null;
-});
+const season = computed(() => rank.value.record);
 const hero = computed(() => props.player.championId ? championName(props.player.championId).split("·").at(-1) : props.party || props.player.championState === "unselected" ? "尚未选择英雄" : "英雄待确认");
 const heroScope = computed(() => props.player.championState === "intent" ? "预选英雄" : props.player.championId ? data.value.report?.season ? data.value.report.complete ? '本季排位' : '本季已读' : '英雄表现'  : props.party ? "房间成员" : "等待选择");
 const heroStatus = computed(() => {
@@ -50,10 +46,9 @@ function periodDetail(p: ReturnType<typeof scoutStats>["periods"][number]) {
         <small class="scout-hero-rate" :class="{ 'no-sample': !data.champion.outcomeGames }">{{ data.champion.outcomeGames ? percent(data.champion.winRate) : data.report?.season ? `本季${data.queueLabel}` : data.queueLabel }}<span v-if="data.champion.outcomeGames"> · {{ data.champion.wins }}胜 / {{ data.champion.losses }}负</span></small>
       </span>
       <span class="scout-rank" :title="`${data.queueLabel} · ${rank.title}`">
-        <small class="scout-queue-label">{{ data.queueLabel }}</small>
-        <RankEmblem :tier="player.identityState === 'known' ? rank.rank?.tier : undefined" />
+        <span class="scout-rank-heading"><RankEmblem :tier="player.identityState === 'known' ? rank.rank?.tier : undefined" /><small class="scout-queue-label">{{ data.queueLabel }}</small></span>
         <span class="rank-line"><b>{{ shortRank }}</b><small v-if="rank.retained">旧</small></span>
-        <small class="scout-season"><span v-if="season">{{ percent(season.rate) }}</span><span>{{ season ? `${season.wins}胜 / ${season.losses}负` : '赛季胜负 —' }}</span></small>
+        <small class="scout-season" :title="season?.title"><span v-if="season">{{ season.scope }} {{ percent(season.rate) }}</span><span>{{ season ? `${season.wins}胜 / ${season.losses}负` : '胜负待确认' }}</span></small>
       </span>
     </span>
     <template v-if="player.identityState === 'known'">

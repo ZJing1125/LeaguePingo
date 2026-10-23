@@ -96,7 +96,7 @@ func main() {
 		discover = func() (source.Source, error) { return nil, source.ErrNotConnected }
 	}
 	backend.engine = engine.New(discover, func(snapshot core.Snapshot) {
-		held.Allow(snapshot.Connected && snapshot.Phase == "InProgress")
+		held.Allow(companion.InGame(snapshot))
 		app.Event.Emit("leaguepingo:snapshot", snapshot)
 		select {
 		case companionWake <- struct{}{}:
@@ -250,7 +250,7 @@ func main() {
 					now := time.Now()
 					controller.preview.Observe(snapshot, now)
 					foreground := false
-					if snapshot.Phase == "InProgress" && (controller.state.Mode == "preview" || controller.preview.Eligible(snapshot, now)) {
+					if companion.InGame(snapshot) && (controller.state.Mode == "preview" || controller.preview.Eligible(snapshot, now)) {
 						foreground = hold.GameForeground()
 						delay = 2 * time.Second
 					}

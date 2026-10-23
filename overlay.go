@@ -117,9 +117,12 @@ func (o *overlayController) toggle() OverlayState {
 			}
 			return
 		}
-		if o.managed && (!o.latest.Connected || o.latest.Phase != "InProgress") {
+		if o.managed && !companion.InGame(o.latest) {
 			o.state.Warning = "赛前资料在客户端侧栏查看；局内可用快捷键调出快览"
 			return
+		}
+		if o.currentSnapshot != nil {
+			o.preview.Observe(o.latest, time.Now())
 		}
 		o.preview.Consume()
 		o.previewUntil = time.Time{}
@@ -249,7 +252,7 @@ func (o *overlayController) reconcileCompanion(s core.Snapshot, frame clientFram
 		o.latest = s
 		o.preview.Observe(s, now)
 		o.lastClientActive = frame.Active
-		if s.Phase == "InProgress" && (o.state.Mode == "preview" || o.preview.Eligible(s, now)) {
+		if companion.InGame(s) && (o.state.Mode == "preview" || o.preview.Eligible(s, now)) {
 			o.lastGameForeground, o.lastForegroundCheck = foreground, now
 		}
 		publish := func() {
@@ -301,12 +304,12 @@ func (o *overlayController) reconcileCompanion(s core.Snapshot, frame clientFram
 			o.hideOnUI()
 			o.lastPlacement = settings.Rect{}
 		}
-		// Load the one auxiliary WebView while the game is loading, still
-		// hidden. A cold renderer must not use the actual game's preview window.
+		// Warm the one auxiliary WebView in loading even before a roster or
+		// foreground is available. Only a ready renderer may become visible.
 		if s.Connected && s.Phase == "GameStart" && o.window == nil && o.create != nil && (o.state.HoldEnabled || o.state.PreviewEnabled) {
 			o.window = o.create()
 		}
-		if !s.Connected || s.Phase != "InProgress" {
+		if !companion.InGame(s) {
 			if o.state.Visible {
 				o.hideOnUI()
 			}
@@ -343,7 +346,7 @@ func (o *overlayController) reconcileCompanion(s core.Snapshot, frame clientFram
 		}
 		if o.currentSnapshot != nil {
 			current := o.currentSnapshot()
-			if !current.Connected || current.Phase != "InProgress" || current.GameID != s.GameID {
+			if !companion.InGame(current) || current.GameID != s.GameID || current.Region != s.Region {
 				return
 			}
 		}
@@ -363,7 +366,7 @@ func (o *overlayController) reconcileCompanion(s core.Snapshot, frame clientFram
 		}
 		if o.currentSnapshot != nil {
 			current := o.currentSnapshot()
-			if !current.Connected || current.Phase != "InProgress" || current.GameID != s.GameID {
+			if !companion.InGame(current) || current.GameID != s.GameID || current.Region != s.Region {
 				o.hideOnUI()
 				return
 			}

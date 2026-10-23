@@ -96,11 +96,13 @@
 .scout-hero-rate.no-sample { color: var(--scout-muted); }
 .scout-hero-rate > span { color: var(--scout-muted); font-size: 11px; }
 .scout-rank { display: flex; flex-direction: column; justify-content: center; align-items: center; min-width: 0; gap: 2px; padding: 3px 4px 5px; text-align: center; }
-.scout-rank .rank-emblem { width: 46px; height: 36px; flex: none; }
+.scout-rank-heading { display: flex; align-items: center; justify-content: center; gap: 4px; line-height: 12px; }
+.scout-queue-label { font-size: 11px; line-height: 12px; }
+.scout-rank .rank-emblem { width: 36px; height: 28px; flex: none; }
 .scout-card .scout-rank .rank-line { display: flex; align-items: center; justify-content: center; gap: 3px; min-height: 14px; width: 100%; font-size: 11px; white-space: normal; }
 .scout-card .scout-rank .rank-line > b { flex: initial; color: var(--scout-text); font-weight: 600; font-size: 12px; line-height: 13px; overflow: visible; white-space: normal; }
 .scout-card .scout-rank .rank-line small { font-size: 11px; color: var(--scout-warning); }
-.scout-season { font-size: 11px; color: var(--scout-muted); line-height: 12px; white-space: nowrap; }
+.scout-season { display: flex; flex-direction: column; align-items: center; font-size: 11px; color: var(--scout-muted); line-height: 12px; white-space: nowrap; }
 .scout-card .overview-metrics.scout-rings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; height: 98px; min-height: 98px; padding: 7px 3px 3px; gap: 0; }
 .scout-ring-metric { --ring-color: var(--scout-good); display: flex; flex-direction: column; align-items: center; gap: 2px; padding-inline: 1px; min-width: 0; color: var(--scout-text); }
 .scout-ring-metric + .scout-ring-metric { border-left: 1px solid var(--scout-border); }
@@ -158,7 +160,8 @@ main.overlay-shell { padding-block: 8px; }
 .overlay-shell .scout-champion .card-pick .game-icon { width: 25px !important; height: 25px !important; }
 .overlay-shell .scout-champion .card-pick { gap: 4px; }
 .overlay-shell .scout-champion .card-pick strong { font-size: 12px; }
-.overlay-shell .scout-rank .rank-emblem { height: 27px; width: 36px; }
+.overlay-shell .scout-rank { padding-block: 2px; }
+.overlay-shell .scout-rank .rank-emblem { height: 22px; width: 30px; }
 .overlay-shell .scout-card .scout-rank .rank-line > b { font-size: 12px; }
 .overlay-shell .scout-hero-rate > span { display: none; }
 .overlay-shell .scout-card .overview-metrics.scout-rings { height: 82px; min-height: 82px; padding-block: 4px 0; }
@@ -178,7 +181,8 @@ main.overlay-shell { padding-block: 8px; }
   .overlay-shell .overlay-groups { display: flex; flex-direction: column; }
   .overlay-shell .overlay-groups > section { flex-direction: row; flex-wrap: wrap; }
   .overlay-shell .overlay-groups h2 { flex-basis: 100%; }
-  .overlay-shell .overlay-player.scout-card { width: calc((100% - 6px) / 2); }
+  .overlay-shell .overlay-player.scout-card { width: calc((100% - 6px) / 2); height: auto; min-height: 250px; }
+  .overlay-shell .scout-headline { height: auto; min-height: 84px; flex-shrink: 0; }
   .overlay-shell .overlay-head { min-height: 34px; }
 }
 

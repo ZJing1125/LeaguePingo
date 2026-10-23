@@ -72,24 +72,24 @@ func TestCompanionSidebarPreviewHoldAndEndTransition(t *testing.T) {
 	}
 	s.Phase = "GameStart"
 	o.reconcileCompanion(s, clientFrame{}, true, now)
-	if o.state.Visible {
-		t.Fatal("loading must hide sidebar")
+	if o.state.Mode != "preview" || !w.held {
+		t.Fatal("loading must replace sidebar with preview")
 	}
 	s.Phase = "InProgress"
-	o.reconcileCompanion(s, clientFrame{}, true, now.Add(time.Minute))
+	o.reconcileCompanion(s, clientFrame{}, true, now.Add(time.Second))
 	if o.state.Mode != "preview" || !w.held {
-		t.Fatal("preview failed after long loading")
+		t.Fatal("gameplay interrupted loading preview")
 	}
-	o.reconcileCompanion(s, clientFrame{}, true, now.Add(time.Minute+5*time.Second))
+	o.reconcileCompanion(s, clientFrame{}, true, now.Add(5*time.Second))
 	down = true
 	o.reconcileHold()
-	o.reconcileCompanion(s, clientFrame{}, true, now.Add(time.Minute+7*time.Second))
+	o.reconcileCompanion(s, clientFrame{}, true, now.Add(7*time.Second))
 	if o.state.Mode != "hold" {
 		t.Fatal("preview deadline closed held window")
 	}
 	down = false
 	o.reconcileHold()
-	o.reconcileCompanion(s, clientFrame{}, true, now.Add(time.Minute+8*time.Second))
+	o.reconcileCompanion(s, clientFrame{}, true, now.Add(8*time.Second))
 	if o.state.Visible {
 		t.Fatal("release or late data reopened preview")
 	}
@@ -210,7 +210,7 @@ func TestHoldDoesNotHidePersistentOrShowAfterRelease(t *testing.T) {
 	}
 }
 
-func TestLoadingWarmsHiddenRendererWithoutShowingPreview(t *testing.T) {
+func TestLoadingWaitsForRendererThenShowsOnce(t *testing.T) {
 	w := &fakeCompanionOverlay{}
 	o := &overlayController{dispatch: func(f func()) { f() }, state: OverlayState{PreviewEnabled: true}, readyRequired: true}
 	created := 0
@@ -224,14 +224,47 @@ func TestLoadingWarmsHiddenRendererWithoutShowingPreview(t *testing.T) {
 	if created != 1 {
 		t.Fatal("warm-up created a second window")
 	}
-	s.Phase = "InProgress"
-	o.reconcileCompanion(s, clientFrame{}, true, time.Now())
-	if o.state.Visible {
-		t.Fatal("preview shown before renderer handshake")
-	}
 	o.frontendReady()
-	o.reconcileCompanion(s, clientFrame{}, true, time.Now())
+	now := time.Now()
+	o.reconcileCompanion(s, clientFrame{}, true, now)
 	if !o.state.Visible || o.state.Mode != "preview" {
-		t.Fatal("ready warm renderer did not display preview")
+		t.Fatal("ready renderer did not display loading preview")
+	}
+	deadline := o.previewUntil
+	s.Phase = "InProgress"
+	o.reconcileCompanion(s, clientFrame{}, true, now.Add(time.Second))
+	if o.previewUntil != deadline {
+		t.Fatal("gameplay renewed preview deadline")
+	}
+	o.reconcileCompanion(s, clientFrame{}, true, deadline)
+	o.reconcileCompanion(s, clientFrame{}, true, deadline.Add(time.Second))
+	if o.state.Visible || created != 1 {
+		t.Fatal("same game reopened or created another window")
+	}
+}
+
+func TestLoadingManualAndHoldRemainAvailableAfterAutomaticDeadline(t *testing.T) {
+	now := time.Now()
+	w := &fakeCompanionOverlay{}
+	down := false
+	s := core.Snapshot{Connected: true, Phase: "GameStart", GameID: 42, Participants: []core.Participant{{Key: "synthetic"}}}
+	o := &overlayController{window: w, dispatch: func(f func()) { f() }, state: OverlayState{PreviewEnabled: true}, currentSnapshot: func() core.Snapshot { return s }, holdDesired: func() bool { return down }}
+	o.reconcileCompanion(s, clientFrame{}, false, now)
+	o.reconcileCompanion(s, clientFrame{}, true, now.Add(time.Minute))
+	if o.state.Visible {
+		t.Fatal("late focus reopened automatic loading preview")
+	}
+	if state := o.toggle(); !state.Visible || state.Mode != "persistent" {
+		t.Fatal("loading manual action remained blocked")
+	}
+	o.hide()
+	down = true
+	if state := o.reconcileHold(); !state.Visible || state.Mode != "hold" {
+		t.Fatal("loading hold action remained blocked")
+	}
+	down = false
+	o.reconcileHold()
+	if o.state.Visible {
+		t.Fatal("loading release kept hold visible")
 	}
 }

@@ -141,6 +141,41 @@ func TestRankedQueueMapIsAccepted(t *testing.T) {
 	}
 }
 
+func TestRanksDoNotTurnUnverifiedZeroLossesIntoUndefeatedRecord(t *testing.T) {
+	for _, self := range []string{"", "other", "target"} {
+		for _, layout := range []string{"queues", "queueMap"} {
+			t.Run(self+"/"+layout, func(t *testing.T) {
+				s := &TencentLCU{client: lcu.NewClient(lcu.Credentials{}), selfPUUID: self}
+				calls := 0
+				s.client.HTTP.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+					calls++
+					if r.URL.Path != "/lol-ranked/v1/ranked-stats/target" {
+						t.Fatal("loss verification added a player request")
+					}
+					body := `{"queues":[{"queueType":"RANKED_SOLO_5x5","tier":"PLATINUM","division":"I","leaguePoints":39,"wins":178,"losses":0},{"queueType":"RANKED_FLEX_SR","tier":"SILVER","wins":26,"losses":27}]}`
+					if layout == "queueMap" {
+						body = `{"queueMap":{"RANKED_SOLO_5x5":{"tier":"PLATINUM","division":"I","leaguePoints":39,"wins":178,"losses":0},"RANKED_FLEX_SR":{"tier":"SILVER","wins":26,"losses":27}}}`
+					}
+					return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body))}, nil
+				})
+				p := s.Ranks(context.Background(), "target")
+				if calls != 1 || len(p.Ranks) != 2 || p.RankState != "ready" {
+					t.Fatal("rank response/request budget changed")
+				}
+				for _, rank := range p.Ranks {
+					if rank.Queue == "RANKED_SOLO_5x5" {
+						if rank.Wins == nil || *rank.Wins != 178 || rank.LP == nil || *rank.LP != 39 || (rank.Losses != nil) != (self == "target") {
+							t.Fatal("ambiguous losses or verified rank handled incorrectly")
+						}
+					} else if rank.Losses == nil || *rank.Losses != 27 {
+						t.Fatal("independent flex losses changed")
+					}
+				}
+			})
+		}
+	}
+}
+
 func TestRanksOnlyRequestAndVerifiedFormats(t *testing.T) {
 	for _, test := range []struct{ name, body, state, tier string }{
 		{"array", `{"queues":[{"queueType":"RANKED_SOLO_5x5","tier":"GOLD"}]}`, "ready", "GOLD"},

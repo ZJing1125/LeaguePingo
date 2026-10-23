@@ -97,7 +97,7 @@ defineEmits<{ hide: []; pin: [] }>();
       </div>
     </div>
     <footer class="overlay-footer">
-      <span v-if="state?.mode==='preview'">开局快览 · 6 秒后收起 · {{ state?.holdEnabled && state?.holdAvailable ? `按住 ${state?.holdKey==='Backquote'?'~':state?.holdKey || '~'} 随时查看` : state?.shortcutAvailable ? `${state.shortcut} 调出` : '可在主程序调出' }}</span>
+      <span v-if="state?.mode==='preview'">{{ snapshot?.phase==='GameStart' ? '载入快览' : '开局快览' }} · 6 秒后收起 · {{ state?.holdEnabled && state?.holdAvailable ? `按住 ${state?.holdKey==='Backquote'?'~':state?.holdKey || '~'} 随时查看` : state?.shortcutAvailable ? `${state.shortcut} 调出` : '可在主程序调出' }}</span>
       <span v-else-if="state?.mode === 'hold'"
         >松开 {{ state?.holdKey === "Backquote" ? "~" : state?.holdKey }} 隐藏 ·
         鼠标操作传给游戏</span

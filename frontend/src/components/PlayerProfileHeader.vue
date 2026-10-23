@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import type { Participant } from "../../bindings/leaguepingo/internal/core/models";
-import { date, number, playerName } from "../presentation";
+import { date, playerName } from "../presentation";
 import { rankPresentation } from "../rankPresentation";
 import { hasPlayerName } from "../playerState";
 import AppIcon from "./AppIcon.vue";
@@ -131,9 +131,8 @@ async function copyID() {
               >旧段位</small
             ></strong
           >
-          <small v-if="item.rank && !compact"
-            >{{ number(item.rank.wins) }} 胜 /
-            {{ number(item.rank.losses) }} 负</small
+          <small v-if="item.rank && !compact" :title="item.record?.title"
+            >{{ item.record ? `${item.record.scope} ${item.record.wins} 胜 / ${item.record.losses} 负` : '胜负待确认' }}</small
           >
         </div>
       </div>

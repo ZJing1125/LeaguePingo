@@ -132,6 +132,7 @@ func (s *TencentLCU) loadRanks(ctx context.Context, puuid string, out *core.Prof
 		}
 	}
 	seen := map[string]bool{}
+	self := s.CachedAccountIdentity()
 	// An empty response is not proof that the player is unranked.
 	for _, q := range queues {
 		if q.Queue != "RANKED_SOLO_5x5" && q.Queue != "RANKED_FLEX_SR" {
@@ -144,7 +145,15 @@ func (s *TencentLCU) loadRanks(ctx context.Context, puuid string, out *core.Prof
 			continue
 		}
 		seen[q.Queue] = true
-		out.Ranks = append(out.Ranks, core.Rank{Queue: q.Queue, Tier: *q.Tier, Division: q.Division, LP: validCount(q.LP), Wins: validCount(q.Wins), Losses: validCount(q.Losses)})
+		wins, losses := validCount(q.Wins), validCount(q.Losses)
+		// Tencent can redact another player's losses as zero. A zero from this
+		// endpoint is not enough to certify an undefeated record. Preserve the
+		// reported wins and rank, but leave losses unknown unless this is the
+		// already verified local account. Do not add a self-profile request here.
+		if puuid != self && wins != nil && *wins > 0 && losses != nil && *losses == 0 {
+			losses = nil
+		}
+		out.Ranks = append(out.Ranks, core.Rank{Queue: q.Queue, Tier: *q.Tier, Division: q.Division, LP: validCount(q.LP), Wins: wins, Losses: losses})
 	}
 	if len(out.Ranks) > 0 {
 		out.RankState, out.RankMessage = "ready", ""

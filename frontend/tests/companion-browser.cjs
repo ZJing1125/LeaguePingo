@@ -25,6 +25,13 @@ async function main(){
    p.scout.queues[0].month=season(100,58,3);p.scout.queues[1].month=season(72,50,4);
    return p;
   });
+  // Another player's zero-loss endpoint response is normalized to unknown by
+  // the source. Independent seasonal records provide the scoped win rate.
+  players[0].profile.ranks[0].wins=178;players[0].profile.ranks[0].losses=null;
+  players[0].scout.champions[0].queues[0].stats={games:50,wins:30,losses:20,outcomeGames:50,kdaGames:50,winRate:60,kda:5};
+  players[0].scout.champions[0].queues[1].stats={games:20,wins:8,losses:12,outcomeGames:20,kdaGames:20,winRate:40,kda:4.4};
+  players[0].scout.queues[0].season={games:100,wins:49,losses:51,outcomeGames:100,kdaGames:100,winRate:49,kda:3};
+  players[0].scout.queues[1].season={games:50,wins:20,losses:30,outcomeGames:50,kdaGames:50,winRate:40,kda:4};
   let snapshot={connectionId:1,generation:1,connected:true,selfKey:players[0].key,region:'SYNTHETIC',phase:'Lobby',stage:'party',gameId:0,queueId:420,scoutQueue:420,updatedAt:time,participants:[{...players[0],championId:0,championState:'unselected'}]};
   let state={revision:1,visible:true,mode:'sidebar',sidebarSide:'left',sidebarWidth:320,sidebarEnabled:true,previewEnabled:true,holdEnabled:true,holdAvailable:true,holdKey:'Backquote',pinned:true,shortcut:'Ctrl+Shift+P'};
   let info={version:'synthetic',commit:'fixture',buildTime:time,shortcut:'Ctrl+Shift+P',holdKey:'Backquote',holdEnabled:true,sidebarEnabled:true,previewEnabled:true,sidebarWidth:320,goHeapBytes:0,goroutines:0,requests:{}};
@@ -62,7 +69,17 @@ async function main(){
    return route.fulfill({body:await fs.readFile(path.join(__dirname,'../dist',name)),contentType:({'.js':'text/javascript','.css':'text/css','.png':'image/png','.jpg':'image/jpeg'})[path.extname(name)]??'text/html'});
   });
   async function pageAt(route,width,height){const p=await context.newPage();p.setDefaultTimeout(12000);p.on('pageerror',e=>errors.push(e.message));pages.push(p);runtimes.push(mockWindowRuntime(p));await p.setViewportSize({width,height});await p.goto(base+route);return p;}
-  async function shot(p,name){await saveUIArtifact(p,process.env.UI_SCREENSHOT_PREFIX,name,name==='review-result');}
+  async function shot(p,name){await saveUIArtifact(p,process.env.UI_SCREENSHOT_PREFIX,name,['review-result','loading-preview','sidebar-ranked'].includes(name));}
+  async function rankFits(p){
+   const problems=await p.locator('.scout-rank:visible').evaluateAll(els=>els.flatMap(el=>{
+    const parent=el.closest('.scout-headline').getBoundingClientRect(),cell=el.getBoundingClientRect();
+    return [...el.querySelectorAll('.scout-rank-heading,.rank-line,.scout-season')].filter(child=>{
+     const r=child.getBoundingClientRect();return r.left<cell.left-1||r.right>cell.right+1||r.bottom>parent.bottom+1||r.top<parent.top-1;
+    }).map(child=>({class:child.className,text:child.textContent,rect:child.getBoundingClientRect().toJSON(),parent:parent.toJSON(),styles:{size:getComputedStyle(child).fontSize,line:getComputedStyle(child).lineHeight,display:getComputedStyle(child).display},siblings:[...el.children].map(c=>({class:c.className,height:c.getBoundingClientRect().height,line:getComputedStyle(c).lineHeight,size:getComputedStyle(c).fontSize}))}));
+   }));
+   assert.deepEqual(problems,[],'rank scope/results escaped their headline');
+  }
+
   const side=await pageAt('/?view=companion',320,720);
   await side.locator('.sidebar-player').waitFor();
   await side.waitForFunction(()=>document.querySelector('.sidebar-identity img')?.complete);
@@ -88,22 +105,38 @@ async function main(){
   assert(summaryLayout.rows.every(r=>r.bottom<=summaryLayout.bottom+1),'five player summaries should fit a 720px client: '+JSON.stringify(summaryLayout));
   await side.locator('.sidebar-player summary').first().click();
   await side.locator('.sidebar-player[open] .scout-rings').waitFor();
+  const rankResults=side.locator('.sidebar-player[open] .scout-season');
+  assert((await rankResults.innerText()).includes('本季 49%'));
+  assert((await rankResults.innerText()).includes('49胜 / 51负'));
+  assert(!(await rankResults.innerText()).includes('178胜'),'redacted endpoint losses produced an undefeated record');
+  await shot(side,'sidebar-ranked');
+  snapshot.participants[0].scout.complete=false;await publish();
+  await rankResults.getByText('本季已读 49%',{exact:true}).waitFor();
+  snapshot.participants[0].scout.complete=true;await publish();
+
   await side.getByRole('button',{name:'灵活组排',exact:true}).click();
   await side.locator('.sidebar-rank').first().getByText(/黄金 III/).waitFor();
   assert((await side.locator('.sidebar-player[open] .scout-rings').innerText()).includes('辅助'));
+  assert((await rankResults.innerText()).includes('本季 40%'));assert((await rankResults.innerText()).includes('20胜 / 30负'));
   assert((await side.locator('.sidebar-player[open] .scout-rings').innerText()).includes('72 场'));
   assert((await side.locator('.sidebar-player[open] .scout-kda').innerText()).includes('4.0 / 5.0 / 18.0'));
   assert.deepEqual(calls.slice(reads).map(c=>c.method),['SetScoutQueue'],'render/hero changes fetched extra player data');
-  for(const width of [280,320,420]){await side.setViewportSize({width,height:720});assert(await side.locator('.client-sidebar').evaluate(el=>el.scrollWidth<=el.clientWidth+1));}
+  for(const width of [280,320,420]){await side.setViewportSize({width,height:720});assert(await side.locator('.client-sidebar').evaluate(el=>el.scrollWidth<=el.clientWidth+1));await rankFits(side);}
   await side.setViewportSize({width:320,height:720});
   await side.getByRole('button',{name:'收起客户端侧栏'}).click();await side.getByRole('button',{name:'展开客户端侧栏'}).waitFor();
   snapshot={...snapshot,phase:'Matchmaking',stage:'party',participants:[players[0]]};await publish();
   assert.equal(await side.locator('.sidebar-player').count(),0,'stage change reopened manually collapsed rail');
   await side.getByRole('button',{name:'展开客户端侧栏'}).click();
   await side.locator('.sidebar-player').waitFor();assert.equal(await side.locator('.sidebar-hero').count(),0);
-  snapshot={...snapshot,phase:'InProgress',stage:'in-game',participants:structuredClone(players),gameId:42};await publish();
+  snapshot={...snapshot,phase:'GameStart',stage:'in-game',participants:structuredClone(players),gameId:42};await publish();
   await side.setViewportSize({width:1100,height:640});await overlay('preview');
   await side.locator('.overlay-player').nth(9).waitFor();
+  await side.getByText(/载入快览 · 6 秒后收起/).waitFor();
+  await rankFits(side);
+  await shot(side,'loading-preview');
+  snapshot={...snapshot,phase:'InProgress'};await publish();
+  await side.getByText(/开局快览 · 6 秒后收起/).waitFor();
+
   const readOnlyCalls=calls.length;
   snapshot.participants[9]={...snapshot.participants[9],displayName:'玩家名称暂不可用',historyState:'loading',scout:{...snapshot.participants[9].scout,state:'loading',complete:false,complete12:false,complete30:false}};await publish();
   await side.getByText('正在补齐 1 人统计',{exact:true}).waitFor();
@@ -118,6 +151,8 @@ async function main(){
   assert((await side.locator('.overlay-footer').innerText()).includes('松开 ~ 隐藏'));
   await side.setViewportSize({width:400,height:360});
   assert(await side.locator('.overlay-player').evaluateAll(els=>els.every(el=>el.getBoundingClientRect().width>=160)));
+  await rankFits(side);
+  await shot(side,'hold-minimum');
   const beforeReview=calls.length;
   const main=await pageAt('/',1280,800);
   await main.getByRole('navigation',{name:'工作区'}).getByRole('button',{name:'对局室',exact:true}).click();
@@ -171,7 +206,7 @@ async function main(){
   assert.equal(calls.filter(c=>c.method==='AuxiliaryReady').length,1,'auxiliary frontend reloaded between modes');
   assert(!calls.some(c=>/Lookup|HistoryPage|EnsureProfile|RefreshData/.test(c.method)),'cache-only companion/review paths fetched player data');
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
-  console.log('PASS: left sidebar party/selection/rail/mode/hero changes, isolated auxiliary startup, 1100/400 preview and hold, review settlement vs captured reports, next-match/filter isolation, cached modal/7 items/focus/880, companion settings; synthetic bridge only.');
+  console.log('PASS: scoped solo/flex results, loading preview, bounded rank layout, left sidebar party/selection/rail/mode/hero changes, isolated auxiliary startup, 1100/400 preview and hold, review settlement vs captured reports, next-match/filter isolation, cached modal/7 items/focus/880, companion settings; synthetic bridge only.');
  }finally{await browser.close();}
 }
 main().catch(e=>{console.error(e);process.exitCode=1});

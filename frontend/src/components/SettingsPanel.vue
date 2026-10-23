@@ -89,8 +89,8 @@ onUnmounted(() => { alive = false; void nextTick(() => { if (opener instanceof H
           <p v-if="themeError" class="quality-warning" role="status">{{ themeError }}</p>
         </template>
         <form v-else-if="area === 'game'" class="settings-game" @submit.prevent="saveGame">
-          <section class="settings-group"><h2>客户端侧栏与开局快览</h2><p class="muted">侧栏优先靠左，空间不足时换右侧或折叠。进入游戏后自动展示一次，6 秒后收起。</p><div class="settings-companion"><label><input v-model="sidebarEnabled" type="checkbox" :disabled="busy"/>启用客户端侧栏</label><label><input v-model="previewEnabled" type="checkbox" :disabled="busy"/>开局自动展示快览</label><label>侧栏宽度<select v-model.number="sidebarWidth" :disabled="busy" aria-label="侧栏宽度"><option v-for="width in [280,300,320,340,360,380,400,420]" :key="width" :value="width">{{ width }} px</option></select></label></div></section>
-          <section class="settings-group"><h2>局内按住快览</h2><p class="muted">游戏前台按住显示，松开隐藏。鼠标和按键继续交给游戏。</p>
+          <section class="settings-group"><h2>客户端侧栏与开局快览</h2><p class="muted">侧栏优先靠左，空间不足时换右侧或折叠。加载游戏时自动展示一次，6 秒后收起。</p><div class="settings-companion"><label><input v-model="sidebarEnabled" type="checkbox" :disabled="busy"/>启用客户端侧栏</label><label><input v-model="previewEnabled" type="checkbox" :disabled="busy"/>开局自动展示快览</label><label>侧栏宽度<select v-model.number="sidebarWidth" :disabled="busy" aria-label="侧栏宽度"><option v-for="width in [280,300,320,340,360,380,400,420]" :key="width" :value="width">{{ width }} px</option></select></label></div></section>
+          <section class="settings-group"><h2>局内按住快览</h2><p class="muted">加载和对局中，游戏前台按住显示，松开隐藏。鼠标和按键继续交给游戏。</p>
             <div class="settings-hold"><label><input v-model="holdEnabled" type="checkbox" aria-label="启用局内按住快览" :disabled="busy" />启用按住快览</label><select v-model="holdKey" aria-label="局内按住键" :disabled="busy"><option value="Backquote">~ / 反引号（无需 Shift）</option><option v-for="key in ['F8', 'F9', 'F10']" :key="key" :value="key">{{ key }}</option></select></div>
             <p v-if="overlayState?.holdWarning" class="quality-warning" role="status">{{ overlayState.holdWarning }}</p>
           </section>

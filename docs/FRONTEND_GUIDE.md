@@ -24,6 +24,10 @@ App 的等待查询只保留一次用户明确提交，等 homeLoading/manualBus
 
 本指南对应现有 Windows 桌面助手的增量改进。视觉基准仍是 [UI_DESIGN.md](UI_DESIGN.md)，数据与请求边界仍以 [ARCHITECTURE.md](ARCHITECTURE.md) 为准。
 
+## BUG-0056 当前展示规则
+
+rankRecord.ts统一提供有范围的排位胜负，rankPresentation返回record，首页、资料头与PlayerCardData共用。完整独立本季报告才显示本季，部分胜负/覆盖显示本季已读；段位接口回退显示排位，未知负场不计算胜率。模式使用420/440既有缓存，不改列表样本，也不新增服务请求。加载阶段的首页/赛后主窗手动入口可调快览，辅助前端显示载入快览文案；系统资格、一次/6秒与收起仍由Go控制。段位图标与模式同排，胜负分行；1100快览保持236px卡高，680px以下两列窄布局改为至少250px并随内容增长，英雄/LP/范围换行不会覆盖圆环，不减小原读数字号。
+
 ## 模块边界
 
 - `BrandIcon.vue` 为标题栏/导航/快览共用的 C 款应用图标，使用本地 `public/brand` 的 1×/2×/3× PNG；外观不随主题改色，不能再套字母 P 的 clip-path。Histoire 与产品共享 public 资源。源稿、ICO、派生图和校验命令见 APP_ICON.md；新增图像不产生玩家请求。

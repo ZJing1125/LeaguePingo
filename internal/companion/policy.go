@@ -12,6 +12,12 @@ import (
 const PreviewDuration = 6 * time.Second
 const EntryWindow = 45 * time.Second
 
+// InGame includes the loading screen. Window/shortcut eligibility is separate
+// from the engine's InProgress-only player-data preparation budget.
+func InGame(s core.Snapshot) bool {
+	return s.Connected && (s.Phase == "GameStart" || s.Phase == "InProgress")
+}
+
 func Pregame(s core.Snapshot) bool {
 	if !s.Connected {
 		return false
@@ -26,12 +32,13 @@ func Pregame(s core.Snapshot) bool {
 // Preview remembers actual matches, rather than connection generations. A
 // reconnect or late roster/report must not renew a match's automatic display.
 type Preview struct {
-	key     string
-	entered time.Time
-	used    map[string]bool
-	order   []string
-	phase   string
-	lastID  int64
+	key        string
+	entered    time.Time
+	used       map[string]bool
+	order      []string
+	phase      string
+	lastID     int64
+	suppressed bool
 }
 
 func (p *Preview) Observe(s core.Snapshot, now time.Time) {
@@ -41,41 +48,46 @@ func (p *Preview) Observe(s core.Snapshot, now time.Time) {
 	p.lastID = s.GameID
 	// A champ-select session can already expose the final game ID. It must not
 	// consume the future game's preview before loading/play has begun.
-	if !s.Connected || (s.Phase != "GameStart" && s.Phase != "InProgress" && s.Phase != "Reconnect") {
+	if !s.Connected || (!InGame(s) && s.Phase != "Reconnect") {
 		p.Consume()
 		p.entered = time.Time{}
+		p.suppressed = false
 		return
 	}
-	if s.Phase == "GameStart" {
-		p.entered = time.Time{}
-	}
-	if s.Phase == "InProgress" && previous != "InProgress" {
+	if p.entered.IsZero() {
 		p.entered = now
 	}
+	if s.Phase == "Reconnect" {
+		p.suppressed = true
+	}
 	if s.GameID <= 0 {
-		if s.Phase == "Reconnect" {
-			p.Consume()
-		}
 		return
 	}
 	key := fmt.Sprintf("%s:%d", s.Region, s.GameID)
 	if key != p.key {
 		p.key = key
-		if p.entered.IsZero() || (s.Phase == "InProgress" && previous == "InProgress" && previousID > 0 && previousID != s.GameID) {
+		if InGame(s) && (previous == "GameStart" || previous == "InProgress" || previous == "Reconnect") && previousID > 0 && previousID != s.GameID {
 			p.entered = now
+			p.suppressed = false
 		}
 	}
-	if s.Phase == "Reconnect" || previous == "Reconnect" {
+	if p.suppressed {
 		p.Consume()
 	}
 }
 
 func (p *Preview) Eligible(s core.Snapshot, now time.Time) bool {
-	return s.Connected && s.Phase == "InProgress" && s.GameID > 0 && len(s.Participants) > 0 &&
-		p.key == fmt.Sprintf("%s:%d", s.Region, s.GameID) && !p.used[p.key] && now.Sub(p.entered) <= EntryWindow
+	return InGame(s) && s.GameID > 0 && len(s.Participants) > 0 && !p.entered.IsZero() &&
+		p.key == fmt.Sprintf("%s:%d", s.Region, s.GameID) && !p.used[p.key] && !now.Before(p.entered) && now.Sub(p.entered) <= EntryWindow
 }
 
 func (p *Preview) Consume() {
+	// An explicit hold/manual action may arrive while the loading game's ID
+	// is still missing. Remember it for this entry, so a late ID cannot pop up
+	// an automatic preview after the player has already dismissed the window.
+	if !p.entered.IsZero() {
+		p.suppressed = true
+	}
 	if p.key == "" || p.used[p.key] {
 		return
 	}

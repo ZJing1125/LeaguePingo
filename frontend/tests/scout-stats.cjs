@@ -66,3 +66,27 @@ assert.equal(hasPlayerName({displayName:'玩家名称暂不可用'}),false);
 assert.equal(newestPlayer({...update,connectionId:2},before).connectionId,2,'new connection must not inherit old profile or identity');
 assert.equal(newestPlayer({...update,key:'other',puuid:'other'},before).key,'other','other player data cannot merge into selected player');
 console.log('PASS: name-placeholder guard, separate history/profile freshness, current champion and connection/player isolation.');
+
+// Rank totals must carry their own scope, independently of rank position and
+// the manually filtered history. A redacted loss never becomes 100%.
+const {rankRecord}=load('rankRecord');
+const reported={wins:178,losses:null};
+assert.equal(rankRecord(player,'RANKED_SOLO_5x5',reported),null);
+const seasonPlayer=structuredClone(player);
+seasonPlayer.scout.queues[0].season=stats(100,49);
+seasonPlayer.scout.queues[1].season=stats(50,40);
+let record=rankRecord(seasonPlayer,'RANKED_SOLO_5x5',reported);
+assert.equal(record.rate,49);assert.equal(record.wins,49);assert.equal(record.losses,51);assert.equal(record.scope,'本季');
+record=rankRecord(seasonPlayer,'RANKED_FLEX_SR',reported);
+assert.equal(record.rate,40);assert.equal(record.wins,20);assert.equal(record.losses,30);
+seasonPlayer.scout.complete=false;
+assert.equal(rankRecord(seasonPlayer,'RANKED_SOLO_5x5',reported).scope,'本季已读');
+seasonPlayer.scout.complete=true;seasonPlayer.scout.queues[0].season={...stats(10,100),games:12};
+record=rankRecord(seasonPlayer,'RANKED_SOLO_5x5',reported);
+assert.equal(record.scope,'本季已读');assert.equal(record.rate,100,'verified undefeated match records remain 100%');
+seasonPlayer.scout.queues[0].season=stats(0);
+assert.equal(rankRecord(seasonPlayer,'RANKED_SOLO_5x5',reported).rate,null,'empty complete season has no win rate');
+assert.equal(rankRecord({...seasonPlayer,identityState:'unavailable'},'RANKED_SOLO_5x5',reported),null);
+record=rankRecord({...seasonPlayer,scout:undefined},'RANKED_SOLO_5x5',{wins:10,losses:12});
+assert.equal(record.scope,'排位');assert.equal(record.losses,12,'rank endpoint scope cannot be called current season');
+console.log('PASS: scoped independent solo/flex season totals, partial and unknown outcomes, redacted losses and genuine undefeated records.');

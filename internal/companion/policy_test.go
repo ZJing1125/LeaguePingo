@@ -16,18 +16,18 @@ func TestPreviewOnceAcrossReadinessReconnectAndLateData(t *testing.T) {
 	s.Phase = "GameStart"
 	p.Observe(s, now)
 	if p.Eligible(s, now) {
-		t.Fatal("loading triggered preview")
-	}
-	s.Phase = "InProgress"
-	p.Observe(s, now.Add(time.Minute))
-	if p.Eligible(s, now) {
-		t.Fatal("empty roster triggered preview")
+		t.Fatal("empty loading roster triggered preview")
 	}
 	s.Participants = []core.Participant{{Key: "synthetic"}}
-	if !p.Eligible(s, now.Add(time.Minute+time.Second)) {
-		t.Fatal("first visible roster not eligible")
+	if !p.Eligible(s, now.Add(time.Second)) {
+		t.Fatal("loading with first roster not eligible")
 	}
 	p.Consume()
+	s.Phase = "InProgress"
+	p.Observe(s, now.Add(time.Minute))
+	if p.Eligible(s, now.Add(time.Minute)) {
+		t.Fatal("gameplay replayed loading preview")
+	}
 	s.Phase = "Reconnect"
 	p.Observe(s, now)
 	s.Phase = "InProgress"
@@ -81,8 +81,11 @@ func TestReconnectWithoutIDCannotCreateLatePreview(t *testing.T) {
 	var p Preview
 	s := core.Snapshot{Connected: true, Phase: "Reconnect"}
 	p.Observe(s, now)
-	s.GameID = 42
 	s.Phase = "InProgress"
+	p.Observe(s, now)
+	// Identity can arrive more than one snapshot after Reconnect.
+	p.Observe(s, now)
+	s.GameID = 42
 	s.Participants = []core.Participant{{Key: "synthetic"}}
 	p.Observe(s, now)
 	if p.Eligible(s, now) {
@@ -100,26 +103,63 @@ func TestReconnectWithoutIDCannotCreateLatePreview(t *testing.T) {
 	}
 }
 
-func TestLateIDDoesNotExtendEntryAndLongLoadingDoesNotConsumeIt(t *testing.T) {
+func TestLoadingDeadlineSurvivesPhaseAndLateIDChanges(t *testing.T) {
 	now := time.Now()
 	var p Preview
 	s := core.Snapshot{Connected: true, Phase: "GameStart", GameID: 42}
 	p.Observe(s, now)
-	s.Phase = "InProgress"
-	s.GameID = 0
-	p.Observe(s, now.Add(time.Minute))
-	s.GameID = 42
 	s.Participants = []core.Participant{{Key: "synthetic"}}
-	p.Observe(s, now.Add(time.Minute+time.Second))
-	if !p.Eligible(s, now.Add(time.Minute+time.Second)) {
-		t.Fatal("long load consumed actual entry time")
+	p.Observe(s, now.Add(30*time.Second))
+	if !p.Eligible(s, now.Add(30*time.Second)) {
+		t.Fatal("repeated loading snapshot reset eligibility")
+	}
+	s.Phase = "InProgress"
+	p.Observe(s, now.Add(46*time.Second))
+	if p.Eligible(s, now.Add(46*time.Second)) {
+		t.Fatal("gameplay extended the loading entry deadline")
 	}
 	var late Preview
+	s.Phase = "GameStart"
 	s.GameID = 0
 	late.Observe(s, now)
 	s.GameID = 43
 	late.Observe(s, now.Add(time.Minute))
 	if late.Eligible(s, now.Add(time.Minute)) {
 		t.Fatal("late game ID extended entry window")
+	}
+}
+
+func TestInGameWindowPhaseIsIndependentOfDataPreparation(t *testing.T) {
+	for _, phase := range []string{"Lobby", "ChampSelect", "GameStart", "InProgress", "Reconnect", "EndOfGame", "None"} {
+		s := core.Snapshot{Connected: true, Phase: phase}
+		want := phase == "GameStart" || phase == "InProgress"
+		if InGame(s) != want {
+			t.Fatal("wrong window phase", phase)
+		}
+		s.Connected = false
+		if InGame(s) {
+			t.Fatal("disconnected window allowed", phase)
+		}
+	}
+}
+
+func TestExplicitLoadingViewBeforeIDPreventsLaterAutomaticPopup(t *testing.T) {
+	now := time.Now()
+	s := core.Snapshot{Connected: true, Phase: "GameStart", Participants: []core.Participant{{Key: "synthetic"}}}
+	var p Preview
+	p.Observe(s, now)
+	p.Consume()
+	s.GameID = 42
+	p.Observe(s, now.Add(time.Second))
+	if p.Eligible(s, now.Add(time.Second)) {
+		t.Fatal("late ID reopened preview after explicit loading action")
+	}
+	s.Phase = "Lobby"
+	p.Observe(s, now.Add(time.Minute))
+	s.Phase = "GameStart"
+	s.GameID = 43
+	p.Observe(s, now.Add(2*time.Minute))
+	if !p.Eligible(s, now.Add(2*time.Minute)) {
+		t.Fatal("explicit action suppressed the next real match")
 	}
 }

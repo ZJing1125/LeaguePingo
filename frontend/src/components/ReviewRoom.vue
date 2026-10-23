@@ -26,7 +26,7 @@ async function refresh(){if(busy.value || !props.review)return;busy.value=true;e
 </script>
 <template>
   <section class="review-room" aria-label="赛后分析">
-    <header class="review-heading"><div><h1>赛后分析</h1><p v-if="review">{{ queueName(review.queueId) }} · 对局 #{{ review.gameId }} · {{ date(review.capturedAt) }}</p><p v-else>结束一局后，在这里查看双方表现与赛前资料。</p></div><button v-if="companionAvailable" class="secondary" @click="$emit('companion')">{{ inGame?'显示局内快览':'展开客户端侧栏' }}</button><span v-else class="review-note">{{ inGame ? '游戏载入或重连中，恢复对局后可调出快览' : '进入房间或选人后，侧栏自动显示' }}</span></header>
+    <header class="review-heading"><div><h1>赛后分析</h1><p v-if="review">{{ queueName(review.queueId) }} · 对局 #{{ review.gameId }} · {{ date(review.capturedAt) }}</p><p v-else>结束一局后，在这里查看双方表现与赛前资料。</p></div><button v-if="companionAvailable" class="secondary" @click="$emit('companion')">{{ inGame?'显示局内快览':'展开客户端侧栏' }}</button><span v-else class="review-note">{{ inGame ? '游戏重连中，恢复对局后可调出快览' : '进入房间或选人后，侧栏自动显示' }}</span></header>
     <div v-if="!review" class="review-empty"><AppIcon name="history" :size="36"/><h2>尚无赛后记录</h2><p>赛前资料会显示在客户端左侧，局内按住 ~ 查看双方。</p><p class="review-note">本次运行保留最近一局，结束后自动整理。</p></div>
     <template v-else>
       <div class="review-section-title"><div class="review-scope-switch" role="group" aria-label="复盘内容"><button class="secondary" :aria-pressed="scope==='result'" @click="scope='result'">本局结果</button><button class="secondary" :aria-pressed="scope==='pregame'" @click="scope='pregame'">赛前资料</button></div><p class="review-note">仅本次运行保留 · 新房间不会覆盖</p></div>
