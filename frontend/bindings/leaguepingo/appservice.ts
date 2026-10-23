@@ -18,6 +18,14 @@ import * as core$0 from "./internal/core/models.js";
 // @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
+export function AuxiliaryReady(): $CancellablePromise<void> {
+    return $Call.ByID(1368087149);
+}
+
+export function ConfigureCompanion(sidebar: boolean, preview: boolean, width: number): $CancellablePromise<$models.AppInfo> {
+    return $Call.ByID(2131107364, sidebar, preview, width);
+}
+
 export function ConfigureHold(enabled: boolean, key: string): $CancellablePromise<$models.AppInfo> {
     return $Call.ByID(3168600939, enabled, key);
 }
@@ -94,6 +102,10 @@ export function RefreshPlayer(key: string): $CancellablePromise<core$0.Participa
     return $Call.ByID(4008602412, key);
 }
 
+export function RefreshReview(gameID: number): $CancellablePromise<core$0.Snapshot> {
+    return $Call.ByID(2703209053, gameID);
+}
+
 export function RefreshRoster(): $CancellablePromise<core$0.Snapshot> {
     return $Call.ByID(3264360598);
 }
@@ -104,6 +116,10 @@ export function SetOverlayPinned(pinned: boolean): $CancellablePromise<$models.O
 
 export function SetScoutQueue(queue: number): $CancellablePromise<core$0.Snapshot> {
     return $Call.ByID(31819491, queue);
+}
+
+export function SetSidebarCollapsed(collapsed: boolean): $CancellablePromise<$models.OverlayState> {
+    return $Call.ByID(3888966071, collapsed);
 }
 
 export function Snapshot(): $CancellablePromise<core$0.Snapshot> {

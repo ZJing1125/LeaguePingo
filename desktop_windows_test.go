@@ -17,6 +17,7 @@ import (
 	"github.com/go-ole/go-ole"
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
+	"leaguepingo/internal/settings"
 )
 
 // An isolated Wails process: no League engine, tray, game API or global
@@ -77,6 +78,20 @@ func TestDesktopProbeProcess(t *testing.T) {
 			adapter.endHold()
 			if temporary.IsIgnoreMouseEvents() || !restored {
 				probeErr = fmt.Errorf("persistent view input/geometry was not restored")
+			}
+			before, _, _ = overlayUser.NewProc("GetForegroundWindow").Call()
+			if err := adapter.showSidebar(settings.Rect{X: 120, Y: 140, Width: 320, Height: 720}); err != nil {
+				probeErr = err
+			} else {
+				after, _, _ := overlayUser.NewProc("GetForegroundWindow").Call()
+				if before != after || temporary.IsIgnoreMouseEvents() || !temporary.IsVisible() || temporary.Resizable() {
+					probeErr = fmt.Errorf("sidebar changed focus, blocked input or allowed detached resizing")
+				}
+			}
+			temporary.Hide()
+			adapter.prepareManual()
+			if !temporary.Resizable() {
+				probeErr = fmt.Errorf("manual glance did not regain resizing")
 			}
 		})
 		if probeErr != nil {

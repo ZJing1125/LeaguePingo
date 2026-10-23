@@ -23,6 +23,9 @@ type AppInfo struct {
 	Shortcut         string                        `json:"shortcut"`
 	HoldEnabled      bool                          `json:"holdEnabled"`
 	HoldKey          string                        `json:"holdKey"`
+	SidebarEnabled   bool                          `json:"sidebarEnabled"`
+	PreviewEnabled   bool                          `json:"previewEnabled"`
+	SidebarWidth     int                           `json:"sidebarWidth"`
 	SettingsWarning  string                        `json:"settingsWarning"`
 	GoHeapBytes      uint64                        `json:"goHeapBytes"`
 	Goroutines       int                           `json:"goroutines"`
@@ -34,8 +37,25 @@ func (s *AppService) Info() AppInfo {
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
 	cfg := s.settings.Snapshot()
-	return AppInfo{Version: Version, Commit: Commit, BuildTime: BuildTime, Shortcut: cfg.Shortcut, HoldEnabled: cfg.HoldEnabled, HoldKey: cfg.HoldKey, SettingsWarning: s.settingsWarning,
+	return AppInfo{Version: Version, Commit: Commit, BuildTime: BuildTime, Shortcut: cfg.Shortcut, HoldEnabled: cfg.HoldEnabled, HoldKey: cfg.HoldKey, SidebarEnabled: cfg.SidebarEnabled, PreviewEnabled: cfg.PreviewEnabled, SidebarWidth: cfg.SidebarWidth, SettingsWarning: s.settingsWarning,
 		GoHeapBytes: mem.HeapAlloc, Goroutines: runtime.NumGoroutine(), Requests: diagnostics.Default.Snapshot(), PerformanceScope: "仅 Go 堆；不包含 WebView2，不代表总内存、游戏 FPS 或网络延迟"}
+}
+func (s *AppService) ConfigureCompanion(sidebar, preview bool, width int) (AppInfo, error) {
+	if width < 280 || width > 420 {
+		return AppInfo{}, errors.New("侧栏宽度应为 280–420")
+	}
+	old := s.settings.Snapshot()
+	s.settings.SetCompanion(sidebar, preview, width)
+	if err := s.settings.Save(); err != nil {
+		s.settings.SetCompanion(old.SidebarEnabled, old.PreviewEnabled, old.SidebarWidth)
+		return AppInfo{}, err
+	}
+	s.overlay.update(func() {
+		s.overlay.state.SidebarEnabled = sidebar
+		s.overlay.state.PreviewEnabled = preview
+		s.overlay.state.SidebarWidth = width
+	})
+	return s.Info(), nil
 }
 func (s *AppService) ConfigureHold(enabled bool, key string) (AppInfo, error) {
 	if !settings.ValidHoldKey(key) {

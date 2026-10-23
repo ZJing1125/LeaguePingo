@@ -6,6 +6,33 @@ import (
 	"testing"
 )
 
+func TestLegacySettingsKeepKeysAndGainCompanionDefaults(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if err := os.WriteFile(path, []byte(`{"schema":1,"shortcut":"Ctrl+Shift+Q","holdEnabled":false,"holdKey":"F9"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := s.Snapshot()
+	if c.Shortcut != "Ctrl+Shift+Q" || c.HoldEnabled || c.HoldKey != "F9" || !c.SidebarEnabled || !c.PreviewEnabled || c.SidebarWidth != 320 {
+		t.Fatal("legacy preferences/default migration failed")
+	}
+	s.SetCompanion(false, false, 360)
+	if err := s.Save(); err != nil {
+		t.Fatal(err)
+	}
+	s, err = Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c = s.Snapshot()
+	if c.SidebarEnabled || c.PreviewEnabled || c.SidebarWidth != 360 || c.HoldKey != "F9" {
+		t.Fatal("companion save replaced old shortcut preferences")
+	}
+}
+
 func TestStoreRoundtripAndCorruption(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config", "settings.json")
 	s, err := Open(path)

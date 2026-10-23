@@ -13,6 +13,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 
+	"leaguepingo/internal/companion"
 	"leaguepingo/internal/core"
 	"leaguepingo/internal/engine"
 	"leaguepingo/internal/hold"
@@ -27,6 +28,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	holdWake := make(chan struct{}, 1)
+	companionWake := make(chan struct{}, 1)
 	held := hold.New(func() {
 		select {
 		case holdWake <- struct{}{}:
@@ -34,6 +36,7 @@ func main() {
 		}
 	})
 	var monitor *hold.Monitor
+	var clientMonitor *clientWindowMonitor
 	var mainWindow *application.WebviewWindow
 	windowReady := make(chan struct{})
 	configRoot, err := os.UserConfigDir()
@@ -79,6 +82,9 @@ func main() {
 			if monitor != nil {
 				monitor.Stop()
 			}
+			if clientMonitor != nil {
+				clientMonitor.Stop()
+			}
 			if err := store.Save(); err != nil {
 				log.Print("无法保存窗口设置")
 			}
@@ -92,6 +98,10 @@ func main() {
 	backend.engine = engine.New(discover, func(snapshot core.Snapshot) {
 		held.Allow(snapshot.Connected && snapshot.Phase == "InProgress")
 		app.Event.Emit("leaguepingo:snapshot", snapshot)
+		select {
+		case companionWake <- struct{}{}:
+		default:
+		}
 	})
 	mainWindow = app.Window.NewWithOptions(mainWindowOptions(offlineSmoke))
 	// Closing the main window keeps the lightweight helper available in the tray.
@@ -109,12 +119,30 @@ func main() {
 	tray.SetMenu(menu)
 	tray.OnClick(showMain)
 	controller := &overlayController{
-		dispatch:    application.InvokeSync,
-		state:       OverlayState{Pinned: store.Snapshot().Pinned, Shortcut: store.Snapshot().Shortcut, Mode: "hidden", HoldEnabled: store.Snapshot().HoldEnabled, HoldKey: store.Snapshot().HoldKey},
+		dispatch:        application.InvokeSync,
+		state:           OverlayState{Pinned: store.Snapshot().Pinned, Shortcut: store.Snapshot().Shortcut, Mode: "hidden", HoldEnabled: store.Snapshot().HoldEnabled, HoldKey: store.Snapshot().HoldKey, SidebarEnabled: store.Snapshot().SidebarEnabled, PreviewEnabled: store.Snapshot().PreviewEnabled, SidebarWidth: store.Snapshot().SidebarWidth},
+		readyRequired:   true,
+		managed:         true,
+		gameForeground:  hold.GameForeground,
+		currentSnapshot: backend.engine.Snapshot,
+		clock:           time.Now,
+		wake: func() {
+			select {
+			case companionWake <- struct{}{}:
+			default:
+			}
+		},
 		holdDesired: func() bool { return held.Desired() && hold.GameForeground() },
 		emit:        func(state OverlayState) { app.Event.Emit("leaguepingo:overlay", state) },
 	}
 	backend.overlay = controller
+	controller.focusClient = func() {
+		var own uintptr
+		if w, ok := controller.window.(*nativeOverlay); ok {
+			own = uintptr(w.NativeWindow())
+		}
+		focusClientWindow(own)
+	}
 	// Geometry changes only update memory. Disk writes occur on explicit setting
 	// changes or normal exit, never on each drag frame or engine poll.
 	geometryReady := false
@@ -124,7 +152,7 @@ func main() {
 				return
 			}
 			application.InvokeSync(func() {
-				if ctx.Err() != nil || !geometryReady || (!isMain && (controller.state.Mode == "hold" || !w.IsVisible())) || w.IsMinimised() || w.IsMaximised() {
+				if ctx.Err() != nil || !geometryReady || (!isMain && (controller.state.Mode != "persistent" || !w.IsVisible())) || w.IsMinimised() || w.IsMaximised() {
 					return
 				}
 				r := w.Bounds()
@@ -144,13 +172,12 @@ func main() {
 		w.SetBounds(application.Rect{X: r.X, Y: r.Y, Width: r.Width, Height: r.Height})
 	}
 	watchGeometry(mainWindow, true)
-	// No second WebView until the user first requests the overlay. Later hides
-	// retain it for quick reopen; no per-frame polling or animated background.
+	// One lazy auxiliary WebView serves both pregame sidebar and in-game glance.
 	controller.create = func() overlayWindow {
 		cfg := store.Snapshot()
 		w := app.Window.NewWithOptions(application.WebviewWindowOptions{
-			Name: "overlay", Title: "LeaguePingo · 对局快览", Width: 1100, Height: 640, MinWidth: 400, MinHeight: 360,
-			URL: "/?view=overlay", Hidden: true, Frameless: true, AlwaysOnTop: cfg.Pinned, BackgroundColour: application.NewRGB(20, 28, 32),
+			Name: "overlay", Title: "LeaguePingo · 游戏助手", Width: 1100, Height: 640, MinWidth: 28, MinHeight: 200,
+			URL: "/?view=companion", Hidden: true, Frameless: true, AlwaysOnTop: cfg.Pinned, BackgroundColour: application.NewRGB(28, 28, 31),
 			Windows: application.WindowsWindow{Theme: application.Dark, HiddenOnTaskbar: true},
 		})
 		restoreGeometry(w, cfg.Overlay, 400, 360)
@@ -158,7 +185,7 @@ func main() {
 		w.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) { event.Cancel(); controller.hide() })
 		return &nativeOverlay{WebviewWindow: w, restore: func() { restoreGeometry(w, store.Snapshot().Overlay, 400, 360) }}
 	}
-	menu.Add("隐藏对局快览").OnClick(func(*application.Context) { controller.hide() })
+	menu.Add("显示／收起游戏助手").OnClick(func(*application.Context) { controller.toggle() })
 	menu.Add("退出").OnClick(func(*application.Context) { app.Quit() })
 	// Before Run, Wails only queues registration and cannot report OS conflicts.
 	// Register after startup so the UI reflects actual OS results.
@@ -175,6 +202,66 @@ func main() {
 			go func() { time.Sleep(35 * time.Second); app.Quit() }()
 			return
 		}
+		clientMonitor = startClientWindowMonitor()
+		go func() {
+			timer := time.NewTimer(0)
+			defer timer.Stop()
+			var clientHandle uintptr
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-timer.C:
+				case <-companionWake:
+				case <-clientMonitor.Changes:
+					// Collapse a burst of native move/resize events into one read.
+					select {
+					case <-ctx.Done():
+						return
+					case <-time.After(35 * time.Millisecond):
+					}
+					select {
+					case <-clientMonitor.Changes:
+					default:
+					}
+				}
+				if ctx.Err() != nil {
+					return
+				}
+				snapshot := backend.engine.Snapshot()
+				delay := 8 * time.Second
+				application.InvokeSync(func() {
+					if ctx.Err() != nil {
+						return
+					}
+					frame := clientFrame{}
+					if companion.Pregame(snapshot) && controller.state.SidebarEnabled {
+						delay = 2 * time.Second
+						var own uintptr
+						if w, ok := controller.window.(*nativeOverlay); ok {
+							own = uintptr(w.NativeWindow())
+						}
+						frame = readClientFrame(clientHandle, own)
+						clientHandle = frame.Handle
+						clientMonitor.Watch(clientHandle)
+					} else {
+						clientMonitor.Watch(0)
+					}
+					now := time.Now()
+					controller.preview.Observe(snapshot, now)
+					foreground := false
+					if snapshot.Phase == "InProgress" && (controller.state.Mode == "preview" || controller.preview.Eligible(snapshot, now)) {
+						foreground = hold.GameForeground()
+						delay = 2 * time.Second
+					}
+					controller.reconcileCompanion(snapshot, frame, foreground, now)
+					if !controller.previewUntil.IsZero() {
+						delay = max(time.Millisecond, min(delay, time.Until(controller.previewUntil)))
+					}
+				})
+				timer.Reset(delay)
+			}
+		}()
 		var monitorErr error
 		monitor, monitorErr = hold.Start(held)
 		controller.update(func() {

@@ -12,6 +12,9 @@ export interface AppInfo {
     "shortcut": string;
     "holdEnabled": boolean;
     "holdKey": string;
+    "sidebarEnabled": boolean;
+    "previewEnabled": boolean;
+    "sidebarWidth": number;
     "settingsWarning": string;
     "goHeapBytes": number;
     "goroutines": number;
@@ -31,4 +34,9 @@ export interface OverlayState {
     "holdKey": string;
     "holdAvailable": boolean;
     "holdWarning": string;
+    "sidebarEnabled": boolean;
+    "previewEnabled": boolean;
+    "sidebarWidth": number;
+    "sidebarSide": string;
+    "collapsed": boolean;
 }

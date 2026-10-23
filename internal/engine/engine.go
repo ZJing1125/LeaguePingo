@@ -61,6 +61,11 @@ type Engine struct {
 	details             map[string]core.MatchDetail
 	initialMatch        initialMatchPreparation
 	scouting            scoutPreparation
+	reviewCandidate     *core.MatchReview
+	review              *core.MatchReview
+	reviewOwner         string
+	reviewCancel        context.CancelFunc
+	reviewToken         uint64
 }
 
 func New(discover Discoverer, onChange func(core.Snapshot)) *Engine {
@@ -102,6 +107,7 @@ func (e *Engine) Run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			e.mu.Lock()
+			e.stopReviewLocked()
 			e.stopScoutingLocked()
 			if e.homeCancel != nil {
 				e.homeCancel()
@@ -336,6 +342,7 @@ func (e *Engine) poll(ctx context.Context) {
 
 // Retained data can still be displayed, but can never become a new connection's cache.
 func (e *Engine) invalidateConnectionLocked() {
+	e.stopReviewLocked()
 	e.stopScoutingLocked()
 	e.scouting.scope = ""
 	e.scouting.cache = nil
@@ -373,6 +380,7 @@ func (e *Engine) invalidateConnectionLocked() {
 
 // Keep the frozen match available while exposing why reconnection failed.
 func (e *Engine) disconnectLocked(message string) {
+	e.stopReviewLocked()
 	e.stopScoutingLocked()
 	if e.homeCancel != nil {
 		e.homeCancel()
@@ -695,6 +703,8 @@ func (e *Engine) loadName(ctx context.Context, client Client, puuid string, vers
 func (e *Engine) PrioritizePlayer(key string) { e.mu.Lock(); e.preferred = key; e.mu.Unlock() }
 
 func (e *Engine) publishLocked() {
+	e.syncReviewLocked()
+	e.snapshot.Review = e.review
 	if e.onChange == nil {
 		return
 	}

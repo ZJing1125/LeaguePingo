@@ -6,17 +6,13 @@ import type { Snapshot as SnapshotModel } from "../bindings/leaguepingo/internal
 import type { OverlayState } from "../bindings/leaguepingo/models";
 import PlayerView from "./components/PlayerView.vue";
 import PlayerTabs from "./components/PlayerTabs.vue";
-import OverlayView from "./components/OverlayView.vue";
-import MatchRoster from "./components/MatchRoster.vue";
-import PlayerDrawer from "./components/PlayerDrawer.vue";
 import TransientNotice from "./components/TransientNotice.vue";
 import SettingsPanel from "./components/SettingsPanel.vue";
 import AppIcon from "./components/AppIcon.vue";
 import BrandIcon from "./components/BrandIcon.vue";
 import DesktopTitleBar from "./components/DesktopTitleBar.vue";
 import HomeView from "./components/HomeView.vue";
-import QueueSwitch from "./components/QueueSwitch.vue";
-import RosterProgress from "./components/RosterProgress.vue";
+import ReviewRoom from "./components/ReviewRoom.vue";
 import { useTransientMessages } from "./transientMessages";
 import { errorMessage, normalizeRiotIDInput } from "./presentation";
 import { operationKey, playerTabId } from "./playerState";
@@ -27,16 +23,13 @@ import { useOverlayControls } from "./composables/useOverlayControls";
 import { useTheme, type ThemePreference } from "./composables/useTheme";
 import { useHomePlayer } from "./composables/useHomePlayer";
 
-const isOverlay =
-  new URLSearchParams(location.search).get("view") === "overlay";
 const { preference: themePreference, resolved: resolvedTheme, saveError: themeError, setTheme } = useTheme();
 const settingsOpen = ref(false);
 const mainElement = ref<HTMLElement | null>(null);
 const { messages: playerErrors, setMessage } = useTransientMessages();
 const searchError = computed(() => playerErrors.search || "");
-const rosterError = computed(() => playerErrors.roster || "");
 const league = useLeagueSnapshot();
-const { snapshot, canRefresh, status } = league;
+const { snapshot, status } = league;
 const workspace = usePlayerWorkspace(snapshot, (player) => {
   delete playerErrors[operationKey(player)];
 });
@@ -44,24 +37,16 @@ const {
   view,
   tabs,
   activeKey,
-  selectedKey,
   active,
-  selected,
-  players,
   stateFor,
-  matchStateFor,
   closeTab,
 } = workspace;
-const matchModalOpen = computed(
-  () => view.value === "match" && !!selected.value,
-);
-const scoutQueueBusy = ref(false);
-async function changeScoutQueue(queue: number) {
-  if (scoutQueueBusy.value) return;
-  scoutQueueBusy.value = true;
-  try { acceptSnapshot(await Service.SetScoutQueue(queue)); }
-  catch (reason) { setMessage("roster", errorMessage(reason)); }
-  finally { scoutQueueBusy.value = false; }
+const reviewModalOpen = ref(false);
+const matchModalOpen = computed(() => view.value === "match" && reviewModalOpen.value);
+function queryReviewPlayer(player: import("../bindings/leaguepingo/internal/core/models").Participant) {
+  query.value = player.displayName;
+  view.value = "players";
+  submitSearch();
 }
 function acceptSnapshot(next: SnapshotModel) {
   if (league.acceptSnapshot(next)) workspace.acceptSnapshot(next);
@@ -75,10 +60,8 @@ const {
   openPlayerDetails,
   search,
   refreshPlayer,
-  selectPlayer,
-  refreshRoster,
 } = usePlayerActions(snapshot, workspace, acceptSnapshot, setMessage);
-const home = useHomePlayer(snapshot, view, computed(() => manualBusy.value || rosterBusy.value || isOverlay));
+const home = useHomePlayer(snapshot, view, computed(() => manualBusy.value || rosterBusy.value));
 const { player: homePlayer, loading: homeLoading, error: homeError } = home;
 const queuedSearch = ref(false);
 let queuedConnection = 0;
@@ -110,20 +93,16 @@ async function refreshHome() {
 }
 const {
   overlay,
-  overlayBusy,
   overlayError,
   acceptOverlay,
-  hideOverlay,
-  pinOverlay,
   toggleOverlay,
 } = useOverlayControls();
-function selectAdjacent(direction: number) {
-  const index = players.value.findIndex((p) => p.key === selectedKey.value);
-  const next =
-    players.value[
-      (index + direction + players.value.length) % players.value.length
-    ];
-  if (next) selectPlayer(next);
+async function showCompanion() {
+  if (['Lobby','Matchmaking','ReadyCheck','ChampSelect'].includes(snapshot.value?.phase || '')) {
+    if (overlay.value?.sidebarEnabled === false) {setMessage('search','客户端侧栏已关闭，可在游戏辅助设置中启用。');return;}
+    try {acceptOverlay(await Service.SetSidebarCollapsed(false));}
+    catch (reason) {setMessage('search',errorMessage(reason));}
+  } else await toggleOverlay();
 }
 function onKey(event: KeyboardEvent) {
   if (event.key === "Escape") {
@@ -131,8 +110,6 @@ function onKey(event: KeyboardEvent) {
       settingsOpen.value = false;
       return;
     }
-    if (isOverlay) void hideOverlay();
-    else selectedKey.value = "";
   }
 }
 let componentAlive = true;
@@ -165,17 +142,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <OverlayView
-    v-if="isOverlay"
-    :snapshot="snapshot"
-    :state="overlay"
-    :status="status"
-    :busy="overlayBusy"
-    :error="overlayError"
-    @hide="hideOverlay"
-    @pin="pinOverlay"
-  />
-  <main v-else class="desktop-app">
+  <main class="desktop-app">
     <DesktopTitleBar :modal-open="settingsOpen || matchModalOpen">
         <span class="nav-wordmark window-brand"
           ><BrandIcon />League<span>Pingo</span></span
@@ -190,7 +157,7 @@ onUnmounted(() => {
           <button
             :class="{ active: view === 'match' }"
             :aria-current="view === 'match' ? 'page' : undefined"
-            aria-label="当前对局"
+            aria-label="对局室"
             @click="view = 'match'"
           >
             对局室</button
@@ -234,13 +201,11 @@ onUnmounted(() => {
         </button>
         <button
           class="icon-button"
-          aria-label="显示／隐藏快览"
-          title="显示／隐藏快览"
+          aria-label="显示／收起游戏助手"
+          title="显示／收起游戏助手"
           @click="toggleOverlay"
         >
-          <AppIcon name="panel" /><span>对局快览</span></button
-        ><button class="icon-button small-control" @click="hideOverlay">
-          隐藏快览
+          <AppIcon name="panel" />
         </button>
     </DesktopTitleBar>
     <div
@@ -275,7 +240,7 @@ onUnmounted(() => {
         :busy="manualBusy"
         :error="homeError || (homePlayer ? playerErrors[operationKey(homePlayer)] || '' : '')"
         @open="openPlayerDetails"
-        @match="view = 'match'"
+        @match="snapshot?.review ? view = 'match' : showCompanion()"
         @refresh="refreshHome"
       />
       <section v-show="view === 'players'" class="players-workspace">
@@ -306,134 +271,12 @@ onUnmounted(() => {
           <h1>查看玩家近期表现</h1>
           <p>输入完整 ID 查询战绩，或从当前对局中选择玩家。</p>
           <button class="secondary" @click="view = 'match'">
-            查看当前对局
+            查看赛后分析
           </button>
         </div>
       </section>
-      <section
-        v-show="view === 'match'"
-        class="match-workspace"
-        :class="{ 'has-inspector': !!selected }"
-      >
-        <header class="roster-toolbar">
-          <div>
-            <span class="section-eyebrow">MATCH ROOM / 对局室</span>
-            <h1>
-              {{ snapshot?.stage === "party" ? "当前房间成员" : "本局名单" }}
-            </h1>
-            <p class="roster-subtitle muted">{{ status }}</p>
-          </div>
-          <QueueSwitch :value="snapshot?.scoutQueue ?? 420" :busy="scoutQueueBusy" @change="changeScoutQueue" />
-          <span class="hold-hint" :title="overlay?.holdWarning"
-            ><kbd>{{
-              overlay?.holdKey === "Backquote" ? "~" : overlay?.holdKey || "~"
-            }}</kbd>
-            {{
-              overlay?.holdEnabled && overlay?.holdAvailable
-                ? "局内按住显示快览"
-                : "按住快览未启用"
-            }}<small>仅游戏前台 · 松开隐藏</small></span
-          >
-          <button
-            class="secondary"
-            :disabled="rosterBusy || manualBusy || !canRefresh"
-            @click="refreshRoster"
-          >
-            {{ rosterBusy ? "刷新中…" : "刷新对局数据" }}
-          </button>
-        </header>
-        <RosterProgress v-if="players.length" :players="players" :queue="snapshot?.scoutQueue ?? 420" />
-        <p
-          v-if="snapshot?.connected && snapshot?.message"
-          class="roster-message muted"
-          role="status"
-        >
-          {{ snapshot.message }}
-        </p>
-        <TransientNotice :message="rosterError" />
-        <p
-          v-if="!rosterError && snapshot?.rosterError"
-          class="error-banner"
-          role="alert"
-        >
-          {{ snapshot?.rosterError }}
-        </p>
-        <div class="match-layout">
-          <div v-if="!players.length" class="empty-state">
-            <h2>尚无对局名单</h2>
-            <p>选人或进入对局后，显示客户端提供的身份。</p>
-            <p class="muted">排队和接受确认阶段通常无法取得双方十人的身份。</p>
-          </div>
-          <MatchRoster
-            :queue="snapshot?.scoutQueue ?? 420"
-            v-else
-            :players="players"
-            :selected-key="selectedKey"
-            :party="snapshot?.stage === 'party'"
-            :frozen="snapshot?.frozen"
-            @select="selectPlayer"
-          />
-          <PlayerDrawer
-            v-if="selected"
-            :player-key="selected.key"
-            modal
-            :active="view === 'match'"
-            @close="selectedKey = ''"
-          >
-            <div class="drawer-toolbar">
-              <button class="text-button" @click="openPlayerDetails(selected)">
-                在战绩页打开 ↗
-              </button>
-              <div class="drawer-player-switch">
-                <button
-                  class="text-button"
-                  aria-label="上一位玩家"
-                  @click="selectAdjacent(-1)"
-                >
-                  ← 上一位
-                </button>
-                <button
-                  class="text-button"
-                  aria-label="下一位玩家"
-                  @click="selectAdjacent(1)"
-                >
-                  下一位 →
-                </button>
-              </div>
-              <button
-                class="icon-button"
-                aria-label="关闭玩家详情"
-                @click="selectedKey = ''"
-              >
-                ×
-              </button>
-            </div>
-            <p
-              v-if="selected.identityState === 'unavailable'"
-              class="quality-warning"
-            >
-              客户端未提供身份，可刷新名单或输入完整 ID。
-            </p>
-            <p
-              v-if="!players.some((p) => p.key === selectedKey)"
-              class="quality-warning"
-            >
-              该玩家不在当前名单，保留上次查看资料。
-            </p>
-            <PlayerView
-              :player="selected"
-              :state="matchStateFor(selected.key)"
-              :scout-queue="snapshot?.scoutQueue ?? 420"
-              :active="view === 'match'"
-              :busy="manualBusy"
-              :refreshing="refreshing(selected)"
-              :connected="snapshot?.connected"
-              :error="playerErrors[operationKey(selected)] || selected.error"
-              compact
-              @refresh="refreshPlayer"
-            />
-          </PlayerDrawer>
-        </div>
+      <section v-show="view === 'match'" class="match-workspace review-host">
+        <ReviewRoom :review="snapshot?.review ?? null" :connected="snapshot?.connected ?? false" :active="view === 'match'" :in-game="['GameStart','InProgress','Reconnect'].includes(snapshot?.phase || '')" @snapshot="acceptSnapshot" @query="queryReviewPlayer" @modal="reviewModalOpen = $event" @companion="showCompanion" :companion-available="['Lobby','Matchmaking','ReadyCheck','ChampSelect','InProgress'].includes(snapshot?.phase || '')"/>
       </section>
     </div>
     <SettingsPanel

@@ -53,3 +53,16 @@ assert.equal(scoutStatus([{ ...player, identityState: 'unavailable' }]).known, 0
 assert.equal(scoutStatus([{ ...player, scout: { ...player.scout, fetchedAt: 'invalid' } }]).untimed, 1);
 assert.equal(scoutStatus([]).complete, 0);
 console.log('PASS: coverage, retained reports, independent freshness range, unknown timestamps and roster-derived counts.');
+
+// Keep name/profile freshness regression independently of the retired live-main
+// roster UI. A loading placeholder must not overwrite an already known name.
+const {newestPlayer,hasPlayerName}=load('playerState');
+const before={...player,key:'synthetic',puuid:'synthetic',connectionId:1,displayName:'已核验玩家#DEMO',historyMeta:{fetchedAt:'2026-10-22T12:00:00Z'},profile:{updatedAt:'2026-10-22T13:00:00Z',privacyState:'private'},privacyState:'private'};
+const update={...before,displayName:'玩家资料加载中',championId:25,championState:'intent',history:[],historyMeta:{fetchedAt:'2026-10-22T14:00:00Z'},profile:{updatedAt:'2026-01-01T00:00:00Z',privacyState:'public'},privacyState:'public'};
+let merged=newestPlayer(update,before);
+assert.equal(merged.displayName,before.displayName);assert.equal(merged.profile.privacyState,'private');assert.equal(merged.privacyState,'private');
+assert.equal(merged.history.length,0,'newer history cannot inherit stale matches');assert.equal(merged.championId,25);assert.equal(merged.championState,'intent');
+assert.equal(hasPlayerName({displayName:'玩家名称暂不可用'}),false);
+assert.equal(newestPlayer({...update,connectionId:2},before).connectionId,2,'new connection must not inherit old profile or identity');
+assert.equal(newestPlayer({...update,key:'other',puuid:'other'},before).key,'other','other player data cannot merge into selected player');
+console.log('PASS: name-placeholder guard, separate history/profile freshness, current champion and connection/player isolation.');

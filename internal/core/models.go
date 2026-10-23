@@ -161,6 +161,22 @@ type Snapshot struct {
 	UpdatedAt    time.Time     `json:"updatedAt"`
 	Participants []Participant `json:"participants"`
 	Message      string        `json:"message,omitempty"`
+	Review       *MatchReview  `json:"review,omitempty"`
+}
+
+// MatchReview is the latest finished match in memory. Participants contain the
+// captured pre-match reports; Result contains only actual post-game statistics.
+type MatchReview struct {
+	ConnectionID uint64        `json:"connectionId"`
+	GameID       int64         `json:"gameId"`
+	Region       string        `json:"region"`
+	SelfKey      string        `json:"selfKey"`
+	QueueID      int           `json:"queueId"`
+	ScoutQueue   int           `json:"scoutQueue"`
+	CapturedAt   time.Time     `json:"capturedAt"`
+	State        string        `json:"state"` // waiting, ready, partial, unavailable
+	Participants []Participant `json:"participants"`
+	Result       *MatchDetail  `json:"result,omitempty"`
 }
 
 func CalculateStats(matches []Match) Stats {

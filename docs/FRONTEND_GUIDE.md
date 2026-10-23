@@ -1,5 +1,12 @@
 # 前端迭代与组件预览
 
+## BUG-0054 游戏助手前端说明
+
+新增AuxiliaryApp独立懒加载入口（view=companion；view=overlay保留兼容）：只订阅快照/窗口状态，不初始化首页、查询标签与历史浏览。ClientSidebar只取我方，SidebarPlayer默认紧凑摘要、details展开完整独立报告；OverlayView复用快览卡，preview与hold只读。应用首屏nextTick后通知AuxiliaryReady，原生等待就绪；自动展示生命周期由Go控制，不依赖前端倒计时动画。
+
+ReviewRoom只消费Snapshot.review：本局结果与赛前资料分别显示，模式与浏览状态局部保存，缓存详情connected=false，不自动补历史/资料。显式查询最新战绩才进入原查询流程。MatchDetails的provided模式展示已核验结算，不再发读取请求。旧主程序实时名单交互测试已由companion-browser的阶段侧栏、缓存报告和复盘隔离场景取代；overlay-smoke保留查询/设置/临时提示与快览控件，history-browser保留连续稀少模式扫描/边界/分页/离线/查询隔离，home-theme保留首页/主题/排队查询。scout-stats与5组23变体组件预览继续验证核心卡片状态。新桥接由固定Wails beta.29 CLI按Windows目标生成，不手改绑定；见COMPANION.md。
+
+
 ## BUG-0053 当前界面行为
 
 scoutStatus.ts 为纯展示聚合，RosterProgress 在主窗口和快览复用。它从实际 participants 计算身份/近期战绩/当前模式独立统计覆盖；时效只使用报告 fetchedAt，覆盖标记必须包含对应队列。ScoutRing 保留图形和数值，移除重复短标签；卡片和固定/按住快览不会因可读性调整发请求。PlayerView 的“本局统计说明”读取独立报告，与该浮层的战绩筛选分离。
@@ -120,4 +127,4 @@ PlayerProfileHeader 只呈现头像/等级/两种段位/简短隐私状态，不
 
 controls.css 统一控件/滚动条并保留键盘行为；首页用 ChampionSplash，档案的纵向 ChampionPortrait 仍保留。RankEmblem 使用原始官方PNG及本地回退，不再自绘段位。资源维护与体积检查见 THIRD_PARTY_NOTICES、ui-assets.test.mjs；不改变运行时依赖和固定Wails版本。
 
-scout-stats.cjs 验证实际纯展示模块只用独立报告，scouting-browser.cjs 验证超过20场的英雄经验、排位联动且无额外查询、快览缓存、高清/官方素材、首页筛选/分页与工作区隔离；均接入 test:smoke。原五组产品回归与组件工作台继续验证。Windows交付仍用 build.sh，不能把合成数据当作真实国服结果。
+scout-stats.cjs 验证实际纯展示模块只用独立报告，companion-browser.cjs 验证超过20场的英雄经验、排位联动且无额外查询、快览缓存、高清/官方素材、首页筛选/分页与工作区隔离；均接入 test:smoke。原五组产品回归与组件工作台继续验证。Windows交付仍用 build.sh，不能把合成数据当作真实国服结果。

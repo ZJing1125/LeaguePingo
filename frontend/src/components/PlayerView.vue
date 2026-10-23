@@ -35,6 +35,7 @@ const props = defineProps<{
   active?: boolean;
   error?: string;
   scoutQueue?: number;
+  captured?: boolean;
 }>();
 const emit = defineEmits<{
   refresh: [player: Participant];
@@ -264,7 +265,7 @@ function toggle(id: number) {
             >{{ state.pageError }} · 已有记录保留</span
           >
           <span v-else>{{
-            state.browseNotice || "当前样本尚未补齐，可按需继续获取。"
+            captured ? "当前为赛前保留战绩，查询最新战绩可获取更多记录。" : state.browseNotice || "当前样本尚未补齐，可按需继续获取。"
           }}</span>
           <button
             v-if="state.pageBusy"
@@ -294,7 +295,7 @@ function toggle(id: number) {
             <div v-if="!matches.length" class="empty-state">
               <AppIcon name="history" :size="32" /><strong>{{
                 ["pending", "failed", "loading"].includes(player.historyState)
-                  ? "资料尚未准备完成"
+                  ? captured ? "赛前战绩未完整保留" : "资料尚未准备完成"
                   : state.pageError || state.sourceLimit
                     ? "尚未取得该模式的战绩"
                     : "当前没有可展示的战绩"
@@ -304,7 +305,7 @@ function toggle(id: number) {
                   player.identityState === "known"
                     ? state.pageError || state.sourceLimit
                       ? "数据获取受限，不能据此判断该玩家没有此模式战绩。"
-                      : "可以刷新战绩，或切换模式筛选。"
+                      : captured ? "保留记录中暂无对应模式战绩，可查询最新战绩。" : "可以刷新战绩，或切换模式筛选。"
                     : "客户端尚未提供有效身份。"
                 }}
               </p>

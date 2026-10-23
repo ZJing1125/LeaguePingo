@@ -21,6 +21,10 @@ type AppService struct {
 
 func (s *AppService) Snapshot() core.Snapshot { return s.engine.Snapshot() }
 
+func (s *AppService) RefreshReview(ctx context.Context, gameID int64) (core.Snapshot, error) {
+	return s.engine.RefreshReview(ctx, gameID)
+}
+
 func (s *AppService) SetScoutQueue(queue int) (core.Snapshot, error) {
 	return s.engine.SetScoutQueue(queue)
 }
@@ -38,7 +42,11 @@ func (s *AppService) ToggleOverlay() bool {
 }
 
 func (s *AppService) OverlayStatus() OverlayState { return s.overlay.snapshot() }
-func (s *AppService) HideOverlay() OverlayState   { return s.overlay.hide() }
+func (s *AppService) AuxiliaryReady()             { s.overlay.frontendReady() }
+func (s *AppService) SetSidebarCollapsed(collapsed bool) OverlayState {
+	return s.overlay.collapse(collapsed)
+}
+func (s *AppService) HideOverlay() OverlayState { return s.overlay.hide() }
 func (s *AppService) SetOverlayPinned(pinned bool) (OverlayState, error) {
 	state := s.overlay.setPinned(pinned)
 	if s.settings != nil {

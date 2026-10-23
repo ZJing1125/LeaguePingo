@@ -140,5 +140,10 @@ export function makeOverlayState(): OverlayState {
     holdKey: "Backquote",
     holdAvailable: true,
     holdWarning: "",
+    sidebarEnabled:true,
+    previewEnabled:true,
+    sidebarWidth:320,
+    sidebarSide:'left',
+    collapsed:false,
   };
 }

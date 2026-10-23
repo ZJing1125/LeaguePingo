@@ -11,8 +11,9 @@ defineEmits<{ close: []; theme: [value: ThemePreference] }>();
 const areas = [{ id: 'appearance', label: '外观' }, { id: 'game', label: '游戏辅助' }, { id: 'diagnostics', label: '诊断与关于' }];
 const area = ref('appearance');
 const holdEnabled = ref(true), holdKey = ref('Backquote'), shortcut = ref('Ctrl+Shift+P');
+const sidebarEnabled=ref(true), previewEnabled=ref(true), sidebarWidth=ref(320);
 const info = ref<AppInfo | null>(null), busy = ref(false), message = ref(''), error = ref('');
-const dirty = computed(() => !!info.value && (shortcut.value !== info.value.shortcut || holdEnabled.value !== (info.value.holdEnabled ?? true) || holdKey.value !== (info.value.holdKey || 'Backquote')));
+const dirty = computed(() => !!info.value && (shortcut.value !== info.value.shortcut || holdEnabled.value !== (info.value.holdEnabled ?? true) || holdKey.value !== (info.value.holdKey || 'Backquote') || sidebarEnabled.value !== (info.value.sidebarEnabled ?? true) || previewEnabled.value !== (info.value.previewEnabled ?? true) || sidebarWidth.value !== (info.value.sidebarWidth || 320)));
 const metrics = computed(() => Object.entries(info.value?.requests ?? {}).flatMap(([category, metric]) => metric ? [{ category, ...metric }] : []));
 const panel = ref<HTMLElement | null>(null);
 const opener = document.activeElement;
@@ -37,6 +38,7 @@ async function load() {
     if (!alive) return;
     info.value = result; shortcut.value = result.shortcut;
     holdEnabled.value = result.holdEnabled ?? true; holdKey.value = result.holdKey || 'Backquote';
+    sidebarEnabled.value=result.sidebarEnabled ?? true;previewEnabled.value=result.previewEnabled ?? true;sidebarWidth.value=result.sidebarWidth || 320;
   } catch (reason) { if (alive) error.value = errorMessage(reason); }
   finally { busy.value = false; }
 }
@@ -49,11 +51,14 @@ async function saveGame() {
     if (holdEnabled.value !== (info.value.holdEnabled ?? true) || holdKey.value !== (info.value.holdKey || 'Backquote')) {
       info.value = await Service.ConfigureHold(holdEnabled.value, holdKey.value); applied = true;
     }
+    if(sidebarEnabled.value !== (info.value.sidebarEnabled ?? true) || previewEnabled.value !== (info.value.previewEnabled ?? true) || sidebarWidth.value !== (info.value.sidebarWidth || 320)){
+      info.value=await Service.ConfigureCompanion(sidebarEnabled.value,previewEnabled.value,sidebarWidth.value);applied=true;
+    }
     message.value = '游戏辅助设置已保存。';
   } catch (reason) { error.value = `${applied ? '部分设置已生效；' : ''}${errorMessage(reason)}`; }
   finally { busy.value = false; }
 }
-function defaults() { shortcut.value = 'Ctrl+Shift+P'; holdEnabled.value = true; holdKey.value = 'Backquote'; message.value = '已恢复默认选项，保存后生效。'; }
+function defaults() { shortcut.value = 'Ctrl+Shift+P'; holdEnabled.value = true; holdKey.value = 'Backquote'; sidebarEnabled.value=true;previewEnabled.value=true;sidebarWidth.value=320; message.value = '已恢复默认选项，保存后生效。'; }
 async function exportReport() {
   busy.value = true; error.value = ''; message.value = '';
   try { message.value = `已保存本地诊断：${await Service.ExportDiagnostics()}`; }
@@ -84,6 +89,7 @@ onUnmounted(() => { alive = false; void nextTick(() => { if (opener instanceof H
           <p v-if="themeError" class="quality-warning" role="status">{{ themeError }}</p>
         </template>
         <form v-else-if="area === 'game'" class="settings-game" @submit.prevent="saveGame">
+          <section class="settings-group"><h2>客户端侧栏与开局快览</h2><p class="muted">侧栏优先靠左，空间不足时换右侧或折叠。进入游戏后自动展示一次，6 秒后收起。</p><div class="settings-companion"><label><input v-model="sidebarEnabled" type="checkbox" :disabled="busy"/>启用客户端侧栏</label><label><input v-model="previewEnabled" type="checkbox" :disabled="busy"/>开局自动展示快览</label><label>侧栏宽度<select v-model.number="sidebarWidth" :disabled="busy" aria-label="侧栏宽度"><option v-for="width in [280,300,320,340,360,380,400,420]" :key="width" :value="width">{{ width }} px</option></select></label></div></section>
           <section class="settings-group"><h2>局内按住快览</h2><p class="muted">游戏前台按住显示，松开隐藏。鼠标和按键继续交给游戏。</p>
             <div class="settings-hold"><label><input v-model="holdEnabled" type="checkbox" aria-label="启用局内按住快览" :disabled="busy" />启用按住快览</label><select v-model="holdKey" aria-label="局内按住键" :disabled="busy"><option value="Backquote">~ / 反引号（无需 Shift）</option><option v-for="key in ['F8', 'F9', 'F10']" :key="key" :value="key">{{ key }}</option></select></div>
             <p v-if="overlayState?.holdWarning" class="quality-warning" role="status">{{ overlayState.holdWarning }}</p>
@@ -108,6 +114,9 @@ onUnmounted(() => { alive = false; void nextTick(() => { if (opener instanceof H
   </div>
 </template>
 <style scoped>
+.settings-companion {display:flex;flex-direction:column;gap:10px;font-size:13px;}
+.settings-companion label {display:flex;align-items:center;gap:8px;}
+.settings-companion input {accent-color:var(--accent);}
 .settings-tabs { display: flex; gap: 8px; border-bottom: 1px solid var(--border); margin-top: 20px; flex: none; }
 .settings-tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 14px; color: var(--muted); background: transparent; font-size: 13px; }
 .settings-tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }

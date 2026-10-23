@@ -4,7 +4,7 @@ import { playerName, preparationLabel } from "../presentation";
 import ParticipantAvatar from "./ParticipantAvatar.vue";
 import PlayerCardData from "./PlayerCardData.vue";
 import AppIcon from "./AppIcon.vue";
-defineProps<{ player: Participant; frozen?: boolean; party?: boolean; queue?: number }>();
+defineProps<{ player: Participant; frozen?: boolean; party?: boolean; queue?: number; captured?: boolean }>();
 </script>
 <template>
   <span class="scout-identity card-portrait">
@@ -15,5 +15,5 @@ defineProps<{ player: Participant; frozen?: boolean; party?: boolean; queue?: nu
     </span>
     <AppIcon v-if="player.stale" class="scout-retained" name="history" :size="13" />
   </span>
-  <PlayerCardData :player="player" :frozen="frozen" :party="party" :queue="queue" />
+  <PlayerCardData :player="player" :frozen="frozen" :party="party" :queue="queue" :captured="captured" />
 </template>

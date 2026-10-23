@@ -100,6 +100,27 @@ export interface MatchPlayer {
     "participation": number | null;
 }
 
+/**
+ * MatchReview is the latest finished match in memory. Participants contain the
+ * captured pre-match reports; Result contains only actual post-game statistics.
+ */
+export interface MatchReview {
+    "connectionId": number;
+    "gameId": number;
+    "region": string;
+    "selfKey": string;
+    "queueId": number;
+    "scoutQueue": number;
+    "capturedAt": string;
+
+    /**
+     * waiting, ready, partial, unavailable
+     */
+    "state": string;
+    "participants": Participant[] | null;
+    "result"?: MatchDetail | null;
+}
+
 export interface Participant {
     "connectionId": number;
     "key": string;
@@ -217,6 +238,7 @@ export interface Snapshot {
     "updatedAt": string;
     "participants": Participant[] | null;
     "message"?: string;
+    "review"?: MatchReview | null;
 }
 
 export interface Stats {

@@ -1,4 +1,5 @@
 import productStyles from "../src/style.css?inline";
+import companionStyles from "../src/companion.css?inline";
 import { defineSetupVue3 } from "@histoire/plugin-vue";
 
 export const setupVue3 = defineSetupVue3(() => {
@@ -12,7 +13,7 @@ export const setupVue3 = defineSetupVue3(() => {
   if (!document.getElementById("leaguepingo-preview-style")) {
     const style = document.createElement("style");
     style.id = "leaguepingo-preview-style";
-    style.textContent = productStyles;
+    style.textContent = productStyles + companionStyles;
     document.head.append(style);
   }
 });

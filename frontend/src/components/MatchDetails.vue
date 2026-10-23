@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import * as Service from "../../bindings/leaguepingo/appservice";
 import type {
   MatchDetail,
@@ -12,16 +12,18 @@ const props = defineProps<{
   player: Participant;
   gameId: number;
   connected?: boolean;
+  provided?: MatchDetail | null;
 }>();
-const detail = ref<MatchDetail | null>(null),
+const loaded = ref<MatchDetail | null>(null),
   busy = ref(false),
   error = ref("");
 let revision = 0;
+const detail = computed(() => props.provided ?? loaded.value);
 watch(
   () => [props.player.key, props.player.connectionId, props.gameId],
   () => {
     revision++;
-    detail.value = null;
+    loaded.value = null;
     busy.value = false;
     error.value = "";
   },
@@ -37,7 +39,7 @@ async function load() {
       props.player.connectionId,
       props.gameId,
     );
-    if (request === revision) detail.value = result;
+    if (request === revision) loaded.value = result;
   } catch (reason) {
     if (request === revision) error.value = errorMessage(reason);
   } finally {
@@ -58,7 +60,7 @@ async function load() {
     <p v-if="error" class="error-banner" role="alert">{{ error }}</p>
     <template v-if="detail">
       <p class="muted">
-        已读取 {{ detail.players?.length ?? 0 }} 名参与者 · 本次按需获取<span
+        已读取 {{ detail.players?.length ?? 0 }} 名参与者 · {{ provided ? '本局结算' : '本次按需获取' }}<span
           v-if="detail.partial"
         >
           · 阵容不完整，不计算团队占比</span

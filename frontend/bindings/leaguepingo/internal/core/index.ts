@@ -14,6 +14,7 @@ export type {
     Match,
     MatchDetail,
     MatchPlayer,
+    MatchReview,
     Participant,
     Profile,
     Rank,

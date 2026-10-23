@@ -162,7 +162,7 @@ async function main() {
     snapshot.phase = "Lobby"; snapshot.stage = "party"; snapshot.generation++;
     snapshot.participants = [player("synthetic-other"), self];
     await emit();
-    await nav.getByRole("button", { name: "当前对局", exact: true }).click();
+    await nav.getByRole("button", { name: "对局室", exact: true }).click();
     await screenshot("roster-dark");
     await nav.getByRole("button", { name: "首页", exact: true }).click();
     await emit();
@@ -192,7 +192,7 @@ async function main() {
     await page.locator(".home-error").waitFor();
     assert(!(await page.locator(".home-account").innerText()).includes("我的合成账号"));
     before = calls.filter(c => c === "CurrentPlayer").length;
-    await emit(); await nav.getByRole("button", { name: "当前对局", exact: true }).click(); await nav.getByRole("button", { name: "首页", exact: true }).click();
+    await emit(); await nav.getByRole("button", { name: "对局室", exact: true }).click(); await nav.getByRole("button", { name: "首页", exact: true }).click();
     assert.equal(calls.filter(c => c === "CurrentPlayer").length, before);
     failHome = false; self = player("synthetic-new", 2);
     await page.locator(".home-heading button").click();

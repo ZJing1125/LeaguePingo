@@ -772,145 +772,19 @@ async function main() {
       0,
     );
 
-    snapshot = {
-      ...snapshot,
-      generation: 3,
-      connected: true,
-      participants: [
-        { ...player("Drawer#TEST"), team: "ally", championId: 23 },
-      ],
-    };
-    await page.evaluate(
-      (s) =>
-        window._wails.dispatchWailsEvent({
-          name: "leaguepingo:snapshot",
-          data: s,
-        }),
-      snapshot,
-    );
-    await page
-      .getByRole("navigation", { name: "工作区" })
-      .getByRole("button", { name: /当前对局/ })
-      .click();
-    await page.locator(".player-row").first().click();
-    await page.setViewportSize({ width: 880, height: 620 });
-    const drawer = page.locator(".player-drawer");
-    await drawer
-      .getByRole("heading", { name: "Drawer#TEST", exact: true })
-      .waitFor();
-    await select("分析样本场数", 50);
-    assert.equal(await drawer.locator(".match-card").count(), 20);
-    await drawer.getByRole("button", { name: "下一页", exact: true }).click();
-    assert(
-      (await drawer.locator(".page-indicator").textContent()).includes(
-        "第 2 页",
-      ),
-    );
-    const compactBounds = await drawer
-      .getByRole("navigation", { name: "战绩分页" })
-      .boundingBox();
-    assert(
-      compactBounds.y + compactBounds.height <= 620,
-      "compact pagination exceeds minimum height",
-    );
-    await drawer.getByLabel("跳转页码", { exact: true }).fill("1");
-    await drawer.getByRole("button", { name: "跳转", exact: true }).click();
-    assert(
-      (await drawer.locator(".page-indicator").textContent()).includes(
-        "第 1 页",
-      ),
-    );
-    assert(
-      await drawer
-        .getByRole("button", { name: "跳转", exact: true })
-        .isVisible(),
-    );
-    assert.equal(
-      await drawer.evaluate((el) => el.scrollWidth > el.clientWidth),
-      false,
-      "compact history overflows horizontally",
-    );
-    // The same player has independent analysis/filter/page state in each workspace.
-    const navigation = page.getByRole("navigation", { name: "工作区" });
-    const rosterBefore = await page.locator(".team-columns").textContent();
-    await page.getByRole("button", { name: "在战绩页打开 ↗" }).click();
-    const fullView = page.locator(".players-workspace .player-view");
-    assert.equal(await fullView.getByLabel("分析样本场数").inputValue(), "20");
-    await select("分析样本场数", 50);
-    await select("战绩模式筛选", 450);
-    assert.equal(await fullView.locator(".match-card").count(), 0);
-    await navigation.getByRole("button", { name: /当前对局/ }).click();
-    assert.equal(await drawer.getByLabel("战绩模式筛选").inputValue(), "all");
-    assert.equal(await drawer.getByLabel("分析样本场数").inputValue(), "50");
-    assert.equal(await drawer.locator(".match-card").count(), 20);
-    assert.equal(
-      await page.locator(".team-columns").textContent(),
-      rosterBefore,
-    );
-    await select("分析样本场数", 10);
-    await select("战绩模式筛选", 440);
-    if (await page.locator(".drawer-floating").isVisible())
-      await page.getByRole("button", { name: "在战绩页打开 ↗" }).click();
-    else
-      await navigation
-        .getByRole("button", { name: "玩家战绩", exact: true })
-        .click();
-    assert.equal(await fullView.getByLabel("战绩模式筛选").inputValue(), "450");
-    assert.equal(await fullView.getByLabel("分析样本场数").inputValue(), "50");
-    assert.equal(await fullView.locator(".match-card").count(), 0);
-
-    // Hidden workspaces cannot keep scanning; one sent request may finish locally.
-    await fullView
-      .getByRole("button", { name: "刷新数据", exact: true })
-      .click();
-    await idle();
-    holdPage = true;
-    releasePage = undefined;
-    await fullView
-      .getByRole("button", { name: "补齐样本", exact: true })
-      .click();
-    await held();
-    const beforeHide = pageCalls().length;
-    await navigation.getByRole("button", { name: /当前对局/ }).click();
-    releasePage();
-    await idle();
-    assert.equal(
-      pageCalls().length,
-      beforeHide,
-      "hidden workspace kept scanning",
-    );
-    assert.equal(await drawer.getByLabel("战绩模式筛选").inputValue(), "440");
-    assert.equal(await drawer.getByLabel("分析样本场数").inputValue(), "10");
-
-    // A new match resets only its drawer; the explicit player query stays intact.
-    snapshot = { ...snapshot, generation: 4, gameId: 43 };
-    await page.evaluate(
-      (s) =>
-        window._wails.dispatchWailsEvent({
-          name: "leaguepingo:snapshot",
-          data: s,
-        }),
-      snapshot,
-    );
-    assert.equal(await drawer.getByLabel("战绩模式筛选").inputValue(), "all");
-    assert.equal(await drawer.getByLabel("分析样本场数").inputValue(), "20");
-    if (await page.locator(".drawer-floating").isVisible())
-      await page.getByRole("button", { name: "在战绩页打开 ↗" }).click();
-    else
-      await navigation
-        .getByRole("button", { name: "玩家战绩", exact: true })
-        .click();
-    assert.equal(await fullView.getByLabel("战绩模式筛选").inputValue(), "450");
-    assert.equal(await fullView.getByLabel("分析样本场数").inputValue(), "50");
-    await navigation.getByRole("button", { name: /当前对局/ }).click();
-    if (process.env.UI_SCREENSHOT_PREFIX)
-      await page.screenshot({
-        path: process.env.UI_SCREENSHOT_PREFIX + "-compact.png",
-      });
+    // A live phase/new match must preserve explicit query browsing state.
+    snapshot = { ...snapshot, generation: 3, connected: true, gameId: 43 };
+    await page.evaluate(s => window._wails.dispatchWailsEvent({ name: 'leaguepingo:snapshot', data: s }), snapshot);
+    const navigation = page.getByRole('navigation', { name: '工作区' });
+    const currentFilter = await page.getByLabel('战绩模式筛选', { exact: true }).inputValue();
+    await navigation.getByRole('button', { name: '对局室', exact: true }).click();
+    await page.getByText('尚无赛后记录', { exact: true }).waitFor();
+    await navigation.getByRole('button', { name: '玩家战绩', exact: true }).click();
+    assert.equal(await page.getByLabel('战绩模式筛选', { exact: true }).inputValue(), currentFilter);
     assert.deepEqual(errors, []);
     assert.deepEqual(external, []);
     console.log(
-      "PASS: continuous rare-mode 10–50 samples, 1000-record/90s/stop bounds, embedded pagination/jump/cache, bounded far jumps, refresh/error/duplicate guards, player/workspace isolation, hidden-scan cancellation, next-match reset, offline cache and compact/minimum layout.",
+      "PASS: continuous rare-mode 10–50 samples, 1000-record/90s/stop bounds, embedded pagination/jump/cache, bounded far jumps, refresh/error/duplicate guards, player isolation, navigation/new-match query retention and offline cache. Captured review modal isolation/layout is covered by companion-browser.",
     );
   } finally {
     await browser.close();

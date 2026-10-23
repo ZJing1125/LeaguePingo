@@ -17,13 +17,16 @@ type Rect struct {
 	Height int `json:"height"`
 }
 type Config struct {
-	Schema      int    `json:"schema"`
-	Shortcut    string `json:"shortcut"`
-	Pinned      bool   `json:"pinned"`
-	HoldEnabled bool   `json:"holdEnabled"`
-	HoldKey     string `json:"holdKey"`
-	Main        Rect   `json:"main"`
-	Overlay     Rect   `json:"overlay"`
+	Schema         int    `json:"schema"`
+	Shortcut       string `json:"shortcut"`
+	Pinned         bool   `json:"pinned"`
+	HoldEnabled    bool   `json:"holdEnabled"`
+	HoldKey        string `json:"holdKey"`
+	Main           Rect   `json:"main"`
+	Overlay        Rect   `json:"overlay"`
+	SidebarEnabled bool   `json:"sidebarEnabled"`
+	PreviewEnabled bool   `json:"previewEnabled"`
+	SidebarWidth   int    `json:"sidebarWidth"`
 }
 type Store struct {
 	mu     sync.Mutex
@@ -32,7 +35,7 @@ type Store struct {
 }
 
 func Default() Config {
-	return Config{Schema: 1, Shortcut: "Ctrl+Shift+P", Pinned: true, HoldEnabled: true, HoldKey: "Backquote", Main: Rect{Width: 1280, Height: 800}, Overlay: Rect{Width: 1100, Height: 640}}
+	return Config{Schema: 1, Shortcut: "Ctrl+Shift+P", Pinned: true, HoldEnabled: true, HoldKey: "Backquote", SidebarEnabled: true, PreviewEnabled: true, SidebarWidth: 320, Main: Rect{Width: 1280, Height: 800}, Overlay: Rect{Width: 1100, Height: 640}}
 }
 func Open(path string) (*Store, error) {
 	s := &Store{path: path, config: Default()}
@@ -52,6 +55,7 @@ func Open(path string) (*Store, error) {
 		return s, errors.New("本地快捷键无效，已使用默认值")
 	}
 	c.Shortcut = key
+	c.SidebarWidth = max(280, min(c.SidebarWidth, 420))
 	if !ValidHoldKey(c.HoldKey) {
 		c.HoldKey = "Backquote"
 		c.HoldEnabled = false
@@ -81,6 +85,11 @@ func (s *Store) SetHold(enabled bool, key string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.config.HoldEnabled, s.config.HoldKey = enabled, key
+}
+func (s *Store) SetCompanion(sidebar, preview bool, width int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.config.SidebarEnabled, s.config.PreviewEnabled, s.config.SidebarWidth = sidebar, preview, max(280, min(width, 420))
 }
 func (s *Store) Save() error {
 	s.mu.Lock()

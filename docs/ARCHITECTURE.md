@@ -1,5 +1,10 @@
 # 架构与技术选型
 
+## BUG-0054 辅助窗口与复盘补充
+
+当前窗口/复盘分工以 [COMPANION.md](COMPANION.md) 为准，替代下文旧实时主对局室入口与只手动读取整场详情的描述。新增internal/companion只计算阶段/展示资格/左优先定位；主程序复用一个辅助WebView，原生WinEvent合并35ms通知，赛前2秒兜底，其余8秒或预览截止时间；窗口路径不调用数据源。internal/engine/match_review.go在实际InProgress保留候选，确认结束/回房间后深拷贝，Snapshot.review保留最近一局；断线、载入取消与未知阶段不当作结束。赛后例外复用MatchDetailSource，最多3次/15秒、单次3秒，手动优先，连接/账号/对局及任务token隔离，活动游戏停止。其他历史/资料/独立统计预算保持原值。
+
+
 BUG-0050：新增独立 ScoutSource/ScoutReport，英雄当前赛季与12小时/30天统计不与列表样本共用；范围、调度、缓存和完整性定义以 SCOUTING.md 为准，替代下文旧“仅近20场对局统计”和“不自动分页”对本通道的限制。Snapshot.queueId 为已读会话队列，scoutQueue 为统一展示选择；SetScoutQueue 仅更新快照。其余历史、资料、首页与原生快览规则继续适用。
 
 ## 平台范围

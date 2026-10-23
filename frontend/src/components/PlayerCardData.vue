@@ -9,7 +9,7 @@ import GameIcon from "./GameIcon.vue";
 import AppIcon from "./AppIcon.vue";
 import RankEmblem from "./RankEmblem.vue";
 import ScoutRing from "./ScoutRing.vue";
-const props = defineProps<{ player: Participant; frozen?: boolean; party?: boolean; queue?: number }>();
+const props = defineProps<{ player: Participant; frozen?: boolean; party?: boolean; queue?: number; captured?: boolean }>();
 const data = computed(() => scoutStats(props.player, props.queue ?? 420));
 const rank = computed(() => rankPresentation(props.player, props.queue === 440 ? "RANKED_FLEX_SR" : "RANKED_SOLO_5x5"));
 const season = computed(() => {
@@ -22,17 +22,17 @@ const heroScope = computed(() => props.player.championState === "intent" ? "预�
 const heroStatus = computed(() => {
   if (!props.player.championId) return props.party || props.player.championState === "unselected" ? "等待英雄选择" : "等待英雄信息";
   const report = data.value.report;
-  if (!report || report.state === "loading") return "英雄统计准备中";
+  if (!report || report.state === "loading") return props.captured ? "本局未完整保留统计" : "英雄统计准备中";
   if (!report.season) return "赛季范围待确认";
   if (data.value.champion.games) return "KDA 暂缺";
   return report.complete ? "本季暂无记录" : "本季记录未完整";
 });
-const range = computed(() => data.value.report?.retained ? "上次统计" : data.value.report?.state === "loading" || !data.value.report ? "统计准备中" : data.value.report?.complete30 ? "近30天" : "30天已读");
+const range = computed(() => data.value.report?.retained ? "上次统计" : data.value.report?.state === "loading" || !data.value.report ? props.captured ? '统计未保留完整' : "统计准备中" : data.value.report?.complete30 ? "近30天" : "30天已读");
 const roleCaption = computed(() => ({ '位置未记录': '暂无记录', '位置记录较少': '记录较少', '位置较分散': '位置分散' }[data.value.role.label] || data.value.role.label));
 const shortRank = computed(() => rank.value.rank ? rank.value.label : rank.value.label.includes('失败') ? '查询失败' : rank.value.label.includes('超时') ? '查询超时' : '段位待确认');
 const roleTitle = computed(() => `近30天 · ${data.value.queueLabel}；有效位置 ${data.value.role.known}/${data.value.overall.games} 场。${data.value.role.positions.map(p => `${roleNames[p.position]} ${p.games} 场`).join('，')}；不代表本局分路。`);
 function periodCaption(p: ReturnType<typeof scoutStats>["periods"][number]) {
-  if (!data.value.report || !p.games && data.value.report.state === "loading") return "准备中";
+  if (!data.value.report || !p.games && data.value.report.state === "loading") return props.captured ? "未保留" : "准备中";
   return p.outcomeGames ? `有效 ${p.outcomeGames} 场` : p.games ? `已读 ${p.games} 场` : p.complete ? '0 场' : '—';
 }
 function periodDetail(p: ReturnType<typeof scoutStats>["periods"][number]) {
@@ -53,7 +53,7 @@ function periodDetail(p: ReturnType<typeof scoutStats>["periods"][number]) {
         <small class="scout-queue-label">{{ data.queueLabel }}</small>
         <RankEmblem :tier="player.identityState === 'known' ? rank.rank?.tier : undefined" />
         <span class="rank-line"><b>{{ shortRank }}</b><small v-if="rank.retained">旧</small></span>
-        <small class="scout-season">{{ season ? `${percent(season.rate)} · ${season.wins}胜 / ${season.losses}负` : '赛季胜负 —' }}</small>
+        <small class="scout-season"><span v-if="season">{{ percent(season.rate) }}</span><span>{{ season ? `${season.wins}胜 / ${season.losses}负` : '赛季胜负 —' }}</span></small>
       </span>
     </span>
     <template v-if="player.identityState === 'known'">
@@ -66,7 +66,7 @@ function periodDetail(p: ReturnType<typeof scoutStats>["periods"][number]) {
         <ScoutRing :value="data.periods[1]!.winRate" short="30d" label="30天内" :caption="periodCaption(data.periods[1]!)" :detail="periodDetail(data.periods[1]!)" :title="`${data.queueLabel} · 最近30天，胜负有效 ${data.periods[1]!.outcomeGames}/${data.periods[1]!.games} 场${data.periods[1]!.complete ? '' : '；仅已读范围'}`" />
       </span>
       <span class="scout-scope" :title="`${data.queueLabel} · ${range}，${data.overall.games} 场；KDA 有效 ${data.overall.kdaGames ?? 0} 场；统计截至 ${date(data.report?.fetchedAt)}；${data.report?.season?.name || '赛季范围尚未取得'}`"><small class="sample-size">{{ range }}</small><span>KDA <b>{{ decimal(data.overall.kda) }}</b></span><span v-if="data.report && !data.report.complete30" class="scout-coverage-mark">范围未完整</span></span>
-      <span class="scout-tags recent-block"><span v-for="tag in data.tags" :key="tag.label" class="scout-tag" :class="tag.tone" :title="tag.title">{{ tag.label }}</span><small v-if="!data.tags.length" class="scout-empty-tags">{{ data.report?.state === 'loading' || !data.report ? '正在准备排位统计' : '本季英雄记录' }}</small></span>
+      <span class="scout-tags recent-block"><span v-for="tag in data.tags" :key="tag.label" class="scout-tag" :class="tag.tone" :title="tag.title">{{ tag.label }}</span><small v-if="!data.tags.length" class="scout-empty-tags">{{ data.report?.state === 'loading' || !data.report ? captured ? '本局未保留排位统计' : '正在准备排位统计' : '本季英雄记录' }}</small></span>
     </template>
     <span v-else class="rich-state scout-state"><AppIcon name="history" :size="24" /><b>身份未提供</b><small>等待玩家身份</small></span>
   </span>
