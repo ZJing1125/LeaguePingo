@@ -8,15 +8,13 @@ import {
   kda,
   outcome,
   queueName,
-  mapName,
-  positionName,
-  runeName,
   sampleStats,
 } from "../presentation";
 import { championName } from "../gameAssets";
 import GameIcon from "./GameIcon.vue";
 import AppIcon from "./AppIcon.vue";
-defineProps<{ match: Match; expanded: boolean; compact?: boolean }>();
+import MatchSummary from './MatchSummary.vue';
+defineProps<{ match: Match; expanded: boolean; compact?: boolean; fixed?: boolean }>();
 const emit = defineEmits<{ toggle: [] }>();
 </script>
 <template>
@@ -24,10 +22,11 @@ const emit = defineEmits<{ toggle: [] }>();
     class="match-card"
     :class="match.win == null ? 'unknown' : match.win ? 'won' : 'lost'"
   >
-    <button
+    <component :is="fixed ? 'div' : 'button'"
       class="match-main"
-      :aria-expanded="expanded"
-      @click="emit('toggle')"
+      :class="{'match-static':fixed}"
+      :aria-expanded="fixed ? undefined : expanded"
+      @click="!fixed && emit('toggle')"
     >
       <span class="match-context"
         ><strong>{{ queueName(match.queueId) }}</strong
@@ -62,54 +61,21 @@ const emit = defineEmits<{ toggle: [] }>();
           :id="match.items?.[slot - 1]"
           :size="compact ? 17 : 24"
       /></span>
-      <span class="expand-indicator"
+      <span v-if="!fixed" class="expand-indicator"
         ><AppIcon name="chevron" :size="16"
       /></span>
-    </button>
+    </component>
     <div v-if="expanded" class="match-expanded">
-      <div class="detail-metrics">
-        <span>时长 {{ duration(match.duration) }}</span
-        ><span>补刀 {{ number(match.cs) }}</span
-        ><span>金币 {{ number(match.gold) }}</span
-        ><span>英雄伤害 {{ number(match.damage) }}</span>
-      </div>
-      <div class="match-context-detail" aria-label="对局上下文">
-        <span v-if="match.mapId">{{ mapName(match.mapId) }}</span>
-        <span v-if="match.position">{{ positionName(match.position) }}</span>
-        <span v-if="match.lane && !match.position"
-          >线路：{{ match.lane }}</span
-        >
-        <span
-          v-if="match.earlyEnd === true"
-          class="early-end"
-          title="提前结束，不代表已确认重开"
-          >提前结束</span
-        >
-      </div>
-      <div class="match-runes" aria-label="本玩家符文">
-        <template v-if="match.runeIds?.length">
-          <span
-            v-for="(rune, index) in match.runeIds"
-            :key="`${rune}:${index}`"
-            :title="`符文 #${rune}`"
-            >{{ runeName(rune) }}</span
-          >
-          <small v-if="match.runePrimary || match.runeSecondary"
-            >{{ match.runePrimary ? runeName(match.runePrimary) : "主系未知" }}
-            /
-            {{
-              match.runeSecondary ? runeName(match.runeSecondary) : "副系未知"
-            }}</small
-          >
-        </template>
-        <small v-else>符文未获取</small>
-      </div>
+      <MatchSummary :match="match"/>
       <slot name="details" />
       <details class="detail-note"><summary>统计说明</summary><p>对局 #{{ match.gameId }}。未取得的数值显示 —；提前结束不代表已确认重开，仍计入当前样本。</p></details>
     </div>
   </article>
 </template>
 <style scoped>
+.match-expanded {padding:20px;container-type:inline-size;background:var(--panel);}
+.match-main.match-static {cursor:default;}
+.match-main.match-static:hover {background:none;}
 .detail-note { font-size: 11px; color: var(--muted); line-height: 1.6; }
 .detail-note summary { cursor: pointer; }
 .detail-note p { margin: 8px 0; }

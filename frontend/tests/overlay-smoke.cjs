@@ -763,7 +763,7 @@ async function main() {
       .waitFor();
     await page
       .locator(".match-expanded")
-      .getByText("金币 12345", { exact: true })
+      .getByText("12345", { exact: true })
       .waitFor();
     assert(
       !calls.includes("MatchDetail"),
@@ -779,9 +779,11 @@ async function main() {
     assert.equal(await page.locator(".full-match-detail tr.target").count(), 1);
     assert.equal(
       await page.locator(".full-match-detail tbody .detail-loadout").count(),
-      20,
-      "both teams must expose received equipment and spells",
+      10,
+      "both teams must expose received equipment",
     );
+    assert.equal(await page.locator('.full-match-detail tbody .scoreboard-spells .game-icon').count(),20,'both teams must expose both received summoner spells');
+    assert.equal(await page.locator('.full-match-detail tbody .detail-loadout .game-icon').count(),70,'both teams must retain all seven equipment slots');
     assert.equal(
       await page
         .locator(".match-main")

@@ -91,5 +91,6 @@ func (s *State) Release() {
 		s.notify()
 	}
 }
-func (s *State) Desired() bool      { s.mu.Lock(); defer s.mu.Unlock(); return s.visible }
-func (s *State) CurrentKey() uint32 { s.mu.Lock(); defer s.mu.Unlock(); return s.key }
+func (s *State) Desired() bool           { s.mu.Lock(); defer s.mu.Unlock(); return s.visible }
+func (s *State) CurrentKey() uint32      { s.mu.Lock(); defer s.mu.Unlock(); return s.key }
+func (s *State) Pressed(key uint32) bool { s.mu.Lock(); defer s.mu.Unlock(); return s.pressed[key] }

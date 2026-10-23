@@ -106,7 +106,7 @@
 :root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .app-toolbar { border-color: var(--border); }
 :root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .error-banner,
 :root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .quality-warning { background: var(--warning-bg); color: var(--warning-text); border-color: var(--warning-border); }
-:root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .match-expanded { background: #17171c66; }
+:root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .match-expanded { background: var(--panel); }
 :root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .detail-metrics { color: var(--text); }
 :root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .match-card { border-bottom-color: var(--border); }
 :root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .match-runes > span { color: var(--text); }

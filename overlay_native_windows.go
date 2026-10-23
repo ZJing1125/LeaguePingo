@@ -111,6 +111,10 @@ func (w *nativeOverlay) showHold() error {
 	}
 	w.Show()
 	overlayUser.NewProc("ShowWindow").Call(h, 4)
+	if visible, _, _ := overlayUser.NewProc("IsWindowVisible").Call(h); visible == 0 {
+		w.endHold()
+		return errors.New("游戏快览窗口未能显示，可在设置中导出诊断")
+	}
 	return nil
 }
 

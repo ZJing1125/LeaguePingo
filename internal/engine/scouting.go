@@ -250,17 +250,6 @@ func (e *Engine) prepareScouting(ctx context.Context, version uint64, scope stri
 	cursors := make([]scoutCursor, len(targets))
 	for i, p := range targets {
 		cursors[i] = scoutCursor{player: p, seen: map[int64]bool{}}
-		if release, err := e.scheduler.acquire(ctx, false); err == nil {
-			request, cancel := context.WithTimeout(ctx, 2*time.Second)
-			cursors[i].masteries, _ = src.ChampionMasteries(request, p.PUUID)
-			cancel()
-			release()
-		}
-		initial := core.BuildScoutReport(nil, cursors[i].masteries, season, cutoff, false, false, false)
-		initial.State = "loading"
-		if !e.saveScout(version, scope, token, p.PUUID, initial) {
-			cursors[i].done = true
-		}
 	}
 	boundary := cutoff.Add(-30 * 24 * time.Hour)
 	if season != nil && season.Start.Before(boundary) {
@@ -292,6 +281,23 @@ func (e *Engine) prepareScouting(ctx context.Context, version uint64, scope stri
 			if !present {
 				c.done = true
 				continue
+			}
+			// Deliver each player's first page before spending up to twenty
+			// seconds on everybody else's mastery. No champion-lock dependency
+			// and no extra requests: the same bounded round fills all heroes.
+			if c.offset == 0 {
+				if release, err := e.scheduler.acquire(ctx, false); err == nil {
+					request, cancel := context.WithTimeout(ctx, 2*time.Second)
+					c.masteries, _ = src.ChampionMasteries(request, c.player.PUUID)
+					cancel()
+					release()
+				}
+				initial := core.BuildScoutReport(nil, c.masteries, season, cutoff, false, false, false)
+				initial.State = "loading"
+				if !e.saveScout(version, scope, token, c.player.PUUID, initial) {
+					c.done = true
+					continue
+				}
 			}
 			release, err := e.scheduler.acquire(ctx, false)
 			if err != nil {

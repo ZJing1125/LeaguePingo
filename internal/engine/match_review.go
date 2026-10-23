@@ -18,6 +18,9 @@ func (e *Engine) stopReviewLocked() {
 	if e.review != nil && e.review.State == "waiting" {
 		copy := *e.review
 		copy.State = "unavailable"
+		if copy.Result != nil {
+			copy.State = "partial"
+		}
 		e.review = &copy
 	}
 	e.reviewToken++
@@ -45,6 +48,10 @@ func (e *Engine) syncReviewLocked() {
 	}
 	switch s.Phase {
 	case "WaitingForStats", "PreEndOfGame", "EndOfGame", "Lobby", "Matchmaking", "ReadyCheck", "ChampSelect":
+	case "None":
+		if s.SelfKey == "" || s.SelfKey != e.reviewCandidate.SelfKey {
+			return
+		}
 	default:
 		return
 	}
@@ -101,17 +108,25 @@ func (e *Engine) syncReviewLocked() {
 	token, version, client := e.reviewToken, e.clientVersion, e.client
 	go func() {
 		defer cancel()
+		started := time.Now()
 	attempts:
 		for attempt := 0; attempt < 3; attempt++ {
 			if attempt > 0 {
+				// Spend the existing 15-second budget across readiness windows,
+				// rather than exhausting three fast 404s in the first three seconds.
 				select {
 				case <-ctx.Done():
 					break attempts
-				case <-time.After(1500 * time.Millisecond):
+				case <-time.After(max(0, time.Until(started.Add(time.Duration(attempt)*5*time.Second)))):
 				}
 			}
 			if err := e.fetchReview(ctx, frozen.GameID, version, token, client, false); err == nil {
-				return
+				e.mu.RLock()
+				ready := e.review != nil && e.review.GameID == frozen.GameID && e.review.State == "ready"
+				e.mu.RUnlock()
+				if ready {
+					return
+				}
 			}
 			if ctx.Err() != nil {
 				break
@@ -121,7 +136,11 @@ func (e *Engine) syncReviewLocked() {
 		defer e.mu.Unlock()
 		if e.reviewToken == token && e.review != nil && e.review.GameID == frozen.GameID {
 			copy := *e.review
-			copy.State = "unavailable"
+			if copy.Result != nil {
+				copy.State = "partial"
+			} else {
+				copy.State = "unavailable"
+			}
 			e.review = &copy
 			e.snapshot.UpdatedAt = time.Now()
 			e.publishLocked()
@@ -201,6 +220,14 @@ func (e *Engine) fetchReview(ctx context.Context, gameID int64, version, token u
 	copy.State = "ready"
 	if detail.Partial {
 		copy.State = "partial"
+		if !manual {
+			copy.State = "waiting"
+		}
+	}
+	// Practice is a legitimate one-player game. Team shares still stay absent
+	// because ParseMatchDetail requires complete 5v5 for those comparisons.
+	if copy.QueueID == 3140 && len(copy.Participants) == 1 && len(detail.Players) == 1 && detail.Players[0].Target {
+		copy.State = "ready"
 	}
 	e.review = &copy
 	e.snapshot.UpdatedAt = time.Now()

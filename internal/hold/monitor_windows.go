@@ -93,6 +93,11 @@ func Start(state *State) (*Monitor, error) {
 				down := w == 0x100 || w == 0x104
 				key := PhysicalKey(e.VK, e.Scan, e.Flags&1 != 0)
 				if e.Flags&0x10 == 0 {
+					// A missed foreground event must not disable every subsequent
+					// press. Verify only this configured key, once per physical down.
+					if down && key == m.State.CurrentKey() && !m.State.Pressed(key) {
+						gameForeground = GameForeground()
+					}
 					m.State.Input(key, down, down && gameForeground)
 					if key == m.State.CurrentKey() {
 						heldVK, heldKey = e.VK, key

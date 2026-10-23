@@ -209,3 +209,29 @@ func TestHoldDoesNotHidePersistentOrShowAfterRelease(t *testing.T) {
 		t.Fatal("native failure must keep hidden")
 	}
 }
+
+func TestLoadingWarmsHiddenRendererWithoutShowingPreview(t *testing.T) {
+	w := &fakeCompanionOverlay{}
+	o := &overlayController{dispatch: func(f func()) { f() }, state: OverlayState{PreviewEnabled: true}, readyRequired: true}
+	created := 0
+	o.create = func() overlayWindow { created++; return w }
+	s := core.Snapshot{Connected: true, Phase: "GameStart", GameID: 42, Participants: []core.Participant{{Key: "synthetic"}}}
+	o.reconcileCompanion(s, clientFrame{}, true, time.Now())
+	if created != 1 || o.state.Visible || w.visible || w.held {
+		t.Fatal("loading warm-up showed a window")
+	}
+	o.reconcileCompanion(s, clientFrame{}, true, time.Now())
+	if created != 1 {
+		t.Fatal("warm-up created a second window")
+	}
+	s.Phase = "InProgress"
+	o.reconcileCompanion(s, clientFrame{}, true, time.Now())
+	if o.state.Visible {
+		t.Fatal("preview shown before renderer handshake")
+	}
+	o.frontendReady()
+	o.reconcileCompanion(s, clientFrame{}, true, time.Now())
+	if !o.state.Visible || o.state.Mode != "preview" {
+		t.Fatal("ready warm renderer did not display preview")
+	}
+}

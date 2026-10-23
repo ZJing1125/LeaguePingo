@@ -5,6 +5,7 @@ const path=require('node:path');
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const {mockWindowRuntime}=require('./window-runtime.cjs');
 const {scoutFixture,stats}=require('./scout-fixtures.cjs');
+const {saveUIArtifact}=require('./ui-artifacts.cjs');
 
 async function main(){
  const browser=await chromium.launch({headless:true,executablePath:process.env.BROWSER_EXECUTABLE});
@@ -16,7 +17,7 @@ async function main(){
   const methods=Object.fromEntries([...binding.matchAll(/export function (\w+)\([^]*?\$Call.ByID\((\d+)/g)].map(m=>[m[2],m[1]]));
   const avatar='data:image/svg+xml;base64,'+Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" rx="10" fill="#66558f"/><circle cx="32" cy="27" r="16" fill="#efc69a"/></svg>').toString('base64');
   const players=Array.from({length:10},(_,i)=>{
-   const history=Array.from({length:20},(_,j)=>({gameId:9000+j,playedAt:time,queueId:j%2?440:420,championId:23,win:j%3!==0,kills:5,deaths:3,assists:10,duration:1800,position:j%2?'UTILITY':'TOP',items:[3006,3078,0,0,0,0,3364],spell1:4,spell2:14}));
+   const history=Array.from({length:20},(_,j)=>({gameId:9000+j,playedAt:time,queueId:j%2?440:420,championId:23,win:j%3!==0,kills:5,deaths:3,assists:10,duration:1800,cs:180+i*5,damage:24000+i*1200,gold:12000+i*250,position:j%2?'UTILITY':'TOP',items:[3006,3078,0,0,0,0,3364],spell1:4,spell2:14}));
    const p={connectionId:1,key:`synthetic-${i}`,puuid:`synthetic-${i}`,displayName:`合成玩家${i+1}#DEMO`,team:i<5?'ally':'enemy',championId:23,championState:'selected',identityState:'known',privacyState:'private',historyState:'ready',history,historyMeta:{fetchedAt:time,parsed:20,returned:20},stats:stats(history),profile:{updatedAt:time,profileIconData:avatar,level:200+i,rankState:'ready',privacyState:'private',fields:{rank:{state:'ready',fetchedAt:time}},ranks:[{queue:'RANKED_SOLO_5x5',tier:'EMERALD',division:'II',lp:86,wins:154,losses:166},{queue:'RANKED_FLEX_SR',tier:'GOLD',division:'III',lp:27,wins:117,losses:135}]}};
    p.scout=scoutFixture(p);p.scout.champions[0].games=1360;p.scout.champions[0].mastery={level:35,points:910000,championId:23};
    const season=(games,rate,kda)=>({games,wins:games*rate/100,losses:games*(100-rate)/100,outcomeGames:games,kdaGames:games,winRate:rate,kda});
@@ -49,6 +50,10 @@ async function main(){
     else if(method==='RefreshReview'){
      assert.equal(args[0],42);
      const resultPlayers=players.map((p,i)=>({participantId:i+1,displayName:p.displayName,teamId:i<5?100:200,target:i===0,summary:{...p.history[0],gameId:42,kills:17+i,win:i<5}}));
+     for(const p of resultPlayers){
+      const team=resultPlayers.filter(other=>other.teamId===p.teamId),sum=key=>team.reduce((n,other)=>n+other.summary[key],0);
+      p.damageShare=p.summary.damage*100/sum('damage');p.goldShare=p.summary.gold*100/sum('gold');p.participation=(p.summary.kills+p.summary.assists)*100/sum('kills');
+     }
      snapshot={...snapshot,review:{...snapshot.review,state:'ready',result:{gameId:42,players:resultPlayers,partial:false,fetchedAt:time}},generation:snapshot.generation+1,updatedAt:new Date().toISOString()};result=snapshot;
     }else throw new Error('Unexpected service call '+method);
     return route.fulfill({json:result});
@@ -57,7 +62,7 @@ async function main(){
    return route.fulfill({body:await fs.readFile(path.join(__dirname,'../dist',name)),contentType:({'.js':'text/javascript','.css':'text/css','.png':'image/png','.jpg':'image/jpeg'})[path.extname(name)]??'text/html'});
   });
   async function pageAt(route,width,height){const p=await context.newPage();p.setDefaultTimeout(12000);p.on('pageerror',e=>errors.push(e.message));pages.push(p);runtimes.push(mockWindowRuntime(p));await p.setViewportSize({width,height});await p.goto(base+route);return p;}
-  async function shot(p,name){if(process.env.UI_SCREENSHOT_PREFIX)await p.screenshot({path:`${process.env.UI_SCREENSHOT_PREFIX}-${name}.png`});}
+  async function shot(p,name){await saveUIArtifact(p,process.env.UI_SCREENSHOT_PREFIX,name,name==='review-result');}
   const side=await pageAt('/?view=companion',320,720);
   await side.locator('.sidebar-player').waitFor();
   await side.waitForFunction(()=>document.querySelector('.sidebar-identity img')?.complete);
@@ -71,6 +76,10 @@ async function main(){
   snapshot={...snapshot,phase:'ChampSelect',stage:'preparing',gameId:42,participants:structuredClone(players)};await publish();
   assert.equal(await side.locator('.sidebar-player').count(),5,'pregame sidebar exposed enemy slots');
   assert((await side.locator('.sidebar-experience').first().innerText()).includes('1360 场'));
+  snapshot.participants[0].championState='intent';await publish();
+  await side.locator('.sidebar-hero').first().getByText(/预选/).waitFor();
+  assert((await side.locator('.sidebar-hero-title').first().innerText()).includes('60%'),'unlocked champion lost ranked statistics');
+  assert((await side.locator('.sidebar-experience').first().innerText()).includes('1360 场'),'unlocked champion lost experience');
   snapshot.participants[0].championId=25;snapshot.participants[0].championState='intent';await publish();
   await side.locator('.sidebar-hero').first().getByText(/预选/).waitFor();
   snapshot.participants[0]=structuredClone(players[0]);await publish();

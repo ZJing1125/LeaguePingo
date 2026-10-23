@@ -196,3 +196,53 @@ func TestScoutRefreshRetainsCoverageAndOriginalCutoffUntilReplacement(t *testing
 		t.Fatal("previous season was presented as current season")
 	}
 }
+
+type firstPageScoutClient struct {
+	*scoutClient
+	secondStarted chan struct{}
+	releaseSecond chan struct{}
+}
+
+func (s *firstPageScoutClient) ChampionMasteries(ctx context.Context, id string) ([]core.ChampionMastery, error) {
+	if id == "second" {
+		close(s.secondStarted)
+		select {
+		case <-s.releaseSecond:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	return s.scoutClient.ChampionMasteries(ctx, id)
+}
+func TestUnlockedChampionFirstPageArrivesBeforeOtherPlayersMastery(t *testing.T) {
+	f := &firstPageScoutClient{scoutClient: &scoutClient{fakeClient: &fakeClient{}, now: time.Now().UTC(), endEarly: true}, secondStarted: make(chan struct{}), releaseSecond: make(chan struct{})}
+	e := New(nil, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	e.client, e.clientVersion, e.initialMatch.parent = f, 1, ctx
+	e.snapshot = core.Snapshot{ConnectionID: 1, Connected: true, Stage: "preparing", Phase: "ChampSelect", Participants: []core.Participant{{ConnectionID: 1, Key: "first", PUUID: "first", IdentityState: core.IdentityKnown, ChampionID: 23, ChampionState: "intent"}, {ConnectionID: 1, Key: "second", PUUID: "second", IdentityState: core.IdentityKnown}}}
+	e.mu.Lock()
+	e.syncScoutingLocked()
+	e.mu.Unlock()
+	defer func() { e.mu.Lock(); e.stopScoutingLocked(); e.mu.Unlock() }()
+	select {
+	case <-f.secondStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("first player blocked on another mastery")
+	}
+	s := e.Snapshot()
+	if s.Participants[0].Scout == nil || s.Participants[0].Scout.Read != 20 || s.Participants[0].ChampionState != "intent" {
+		t.Fatal("first-page statistics not available before lock")
+	}
+	before := f.pages.Load()
+	// A pure lock/hero update reuses the same report and preparation budget.
+	e.mu.Lock()
+	roster := clone(e.snapshot).Participants
+	roster[0].ChampionState = "selected"
+	e.replaceLocked("preparing", "ChampSelect", 0, roster, "")
+	e.mu.Unlock()
+	if f.pages.Load() != before || e.Snapshot().Participants[0].Scout.Read != 20 {
+		t.Fatal("locking lost report or restarted fetching")
+	}
+	close(f.releaseSecond)
+}

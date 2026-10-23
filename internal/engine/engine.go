@@ -222,17 +222,16 @@ func (e *Engine) poll(ctx context.Context) {
 		return
 	}
 	e.phaseHint = "" // This phase response postdates the last observed notification.
-	if phase == "None" && e.snapshot.Phase != "None" {
-		e.invalidateConnectionLocked()
-		version = e.clientVersion
-		if resetter, ok := client.(interface{ ResetIdentity() }); ok {
-			resetter.ResetIdentity()
-		}
-	}
+	// None is also the normal postgame home screen. It is not a new
+	// connection: invalidating here cancels settlement before it is available.
+	// The current-account response above still isolates actual account changes.
 	if account != "" {
 		if e.accountIdentity != "" && account != e.accountIdentity {
 			e.invalidateConnectionLocked()
 			version = e.clientVersion
+			if resetter, ok := client.(interface{ ResetIdentity() }); ok {
+				resetter.ResetIdentity()
+			}
 		}
 		e.accountIdentity = account
 	}

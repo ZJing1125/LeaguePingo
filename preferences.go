@@ -80,11 +80,17 @@ func (s *AppService) ConfigureShortcut(key string) (AppInfo, error) {
 	return s.Info(), nil
 }
 func (s *AppService) ExportDiagnostics() (string, error) {
-	// Explicit local export; no player snapshot, error text, paths or credentials.
+	// Explicit local export: aggregate runtime state and static window warnings;
+	// no player snapshot, raw source errors, process paths or credentials.
 	report := struct {
-		Created time.Time `json:"created"`
-		Info    AppInfo   `json:"info"`
-	}{time.Now().UTC(), s.Info()}
+		Created   time.Time             `json:"created"`
+		Info      AppInfo               `json:"info"`
+		Companion *companionDiagnostics `json:"companion,omitempty"`
+	}{Created: time.Now().UTC(), Info: s.Info()}
+	if s.overlay != nil {
+		runtime := s.overlay.diagnostics()
+		report.Companion = &runtime
+	}
 	b, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
 		return "", errors.New("无法编码诊断摘要")

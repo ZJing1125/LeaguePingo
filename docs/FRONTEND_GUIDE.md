@@ -1,5 +1,11 @@
 # 前端迭代与组件预览
 
+## BUG-0055：单场详情与证据
+
+MatchSummary负责本玩家的个人指标/装备/技能/符文，MatchHistoryRow统一复用；MatchDetails只处理显式加载或已提供的双方结果。HomeView保留selectedGame本地选择，用PlayerDrawer的label/fit呈现单场内容，modal事件交由App禁用背景业务区；不创建玩家查询标签或改首页分页。PlayerDrawer原有焦点圈定、Esc与原按钮恢复继续复用。
+
+浏览器回归增加未锁定英雄的实际缓存统计、首页单场原位/焦点/1280与1100与880几何、双方七槽/双技能/记分板。ui-artifacts.cjs只在显式UI_SCREENSHOT_PREFIX下保存合成PNG；指定详情还能冻结无脚本HTML供本地Taste检查，不用于产品运行或真实资料导出，不提交证据文件。
+
 ## BUG-0054 游戏助手前端说明
 
 新增AuxiliaryApp独立懒加载入口（view=companion；view=overlay保留兼容）：只订阅快照/窗口状态，不初始化首页、查询标签与历史浏览。ClientSidebar只取我方，SidebarPlayer默认紧凑摘要、details展开完整独立报告；OverlayView复用快览卡，preview与hold只读。应用首屏nextTick后通知AuxiliaryReady，原生等待就绪；自动展示生命周期由Go控制，不依赖前端倒计时动画。

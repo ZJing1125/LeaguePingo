@@ -26,6 +26,13 @@ type champSelectSession struct {
 	GameID    int64          `json:"gameId"`
 	MyTeam    []rosterMember `json:"myTeam"`
 	TheirTeam []rosterMember `json:"theirTeam"`
+	Actions   [][]struct {
+		ActorCellID *int   `json:"actorCellId"`
+		ChampionID  int    `json:"championId"`
+		Type        string `json:"type"`
+		Completed   bool   `json:"completed"`
+		InProgress  bool   `json:"isInProgress"`
+	} `json:"actions"`
 }
 
 func IsKnownPUUID(value string) bool {
@@ -83,6 +90,22 @@ func ParseChampSelectSession(data []byte) (int64, []Participant, error) {
 	}
 	if session.MyTeam == nil || session.TheirTeam == nil {
 		return 0, nil, fmt.Errorf("选人名单格式不可用")
+	}
+	// Active pick actions can contain the current hover before myTeam updates
+	// championId/pickIntent. Bans and other players' actions never become a pick.
+	for _, round := range session.Actions {
+		for _, a := range round {
+			if a.Type != "pick" || a.ActorCellID == nil || !a.InProgress || a.Completed || a.ChampionID <= 0 {
+				continue
+			}
+			for i := range session.MyTeam {
+				member := &session.MyTeam[i]
+				if member.CellID != nil && *member.CellID == *a.ActorCellID && (member.ChampionID == nil || *member.ChampionID == 0) {
+					id := a.ChampionID
+					member.ChampionPickIntent = &id
+				}
+			}
+		}
 	}
 	return session.GameID, mergeRoster(session.MyTeam, session.TheirTeam), nil
 }

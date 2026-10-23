@@ -4,6 +4,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
 const { mockWindowRuntime } = require("./window-runtime.cjs");
+const { saveUIArtifact } = require('./ui-artifacts.cjs');
 
 async function main() {
   const browser = await chromium.launch({ headless: true, executablePath: process.env.BROWSER_EXECUTABLE });
@@ -20,7 +21,7 @@ async function main() {
     function player(key = "synthetic-self", connectionId = 1) {
       return {
         key, puuid: key, connectionId, displayName: key === "synthetic-self" ? "我的合成账号#DEMO" : "查询的其他玩家#DEMO", identityState: "known", historyState: "ready", privacyState: "public", team: "ally", championId: 107,
-        history: Array.from({ length: 20 }, (_, i) => ({ gameId: 50000 + i, playedAt: "2026-10-20T03:00:00Z", queueId: i % 3 ? 420 : 440, championId: [107, 23, 25, 99, 17][i % 5], win: i % 4 !== 0, kills: 6 + i % 3, deaths: 3, assists: 8, duration: 1810, items: [3006, 3078], spell1: 4, spell2: 14 })),
+        history: Array.from({ length: 20 }, (_, i) => ({ gameId: 50000 + i, playedAt: "2026-10-20T03:00:00Z", queueId: i % 3 ? 420 : 440, championId: [107, 23, 25, 99, 17][i % 5], win: i % 4 !== 0, kills: 6 + i % 3, deaths: 3, assists: 8, duration: 1810, cs: 180+i, damage: 24000+i*1000, gold: 12345+i*100, runePrimary:8000,runeSecondary:8100,runeIds:[8005,9111,9104,8014,8139,8135],items: [3006,3078,3031,3153,0,0,3364], spell1: 4, spell2: 14 })),
         historyMeta: { fetchedAt: "2026-10-20T03:00:00Z", returned: 20, parsed: 20 }, stats: { games: 20 },
         profile: { updatedAt: "2026-10-20T03:00:00Z", level: 128, profileIconData: avatar, privacyState: "public", rankState: "ready", ranks: [{ queue: "RANKED_SOLO_5x5", tier: "EMERALD", division: "II", lp: 48, wins: 65, losses: 47 }, { queue: "RANKED_FLEX_SR", tier: "GOLD", division: "I", lp: 23, wins: 25, losses: 21 }], fields: { rank: { state: "ready", fetchedAt: "2026-10-20T03:00:00Z" } } },
       };
@@ -58,7 +59,7 @@ async function main() {
     async function emit() { snapshot.updatedAt = new Date().toISOString(); await page.evaluate(data => window._wails.dispatchWailsEvent({ name: "leaguepingo:snapshot", data }), snapshot); }
     async function resolved(value) { await page.waitForFunction(v => document.documentElement.dataset.theme === v, value); }
     async function screenshot(name) {
-      if (process.env.UI_SCREENSHOT_PREFIX) await page.screenshot({ path: `${process.env.UI_SCREENSHOT_PREFIX}-${name}.png` });
+      await saveUIArtifact(page,process.env.UI_SCREENSHOT_PREFIX,name,name.startsWith('single-game'));
     }
     await page.goto("http://127.0.0.1:43202/");
     await page.locator(".home-account h2").filter({ hasText: self.displayName }).waitFor();
@@ -72,6 +73,29 @@ async function main() {
     await page.getByRole("img", { name: "玩家账号头像", exact: true }).waitFor();
     await resolved("dark");
     assert.equal(await theme.inputValue(), "dark", "a new player should start in dark mode");
+    const callsBeforeSingleGame=calls.length;
+    await page.locator('.home-match').first().click();
+    const singleGame=page.getByRole('dialog',{name:'对局详情',exact:true});
+    await singleGame.waitFor();
+    assert.equal(await nav.getByRole('button',{name:'首页',exact:true}).getAttribute('aria-current'),'page','single match left the home workspace');
+    assert((await singleGame.innerText()).includes('个人表现'));
+    assert((await singleGame.locator('.detail-note p').textContent()).includes('50000'),'home detail opened a different game');
+    assert.equal(await singleGame.locator('.personal-items .game-icon').count(),7);
+    assert.equal(calls.length,callsBeforeSingleGame,'local match preview queried player data');
+    for(const [width,height] of [[1280,800],[1100,760],[880,620]]){
+      await page.setViewportSize({width,height});
+      assert(await singleGame.evaluate(el=>el.scrollWidth<=el.clientWidth+1),'single-game dialog overflow');
+      assert(await singleGame.locator('.match-items').evaluate(el=>new Set([...el.children].map(child=>Math.round(child.getBoundingClientRect().top))).size===1),'seven equipment slots wrapped in single-game header');
+      const fit=await singleGame.boundingBox();assert(fit.x>=0 && fit.y>=0 && fit.x+fit.width<=width+1 && fit.y+fit.height<=height+1,'single-game dialog escaped viewport');
+      await screenshot(`single-game-${width}`);
+    }
+    await page.evaluate(()=>{localStorage.setItem('leaguepingo.theme','light');dispatchEvent(new StorageEvent('storage',{key:'leaguepingo.theme',newValue:'light'}));});
+    await screenshot('single-game-light');
+    await page.evaluate(()=>{localStorage.setItem('leaguepingo.theme','dark');dispatchEvent(new StorageEvent('storage',{key:'leaguepingo.theme',newValue:'dark'}));});
+    await page.setViewportSize({width:1280,height:800});
+    await singleGame.press('Escape');
+    await singleGame.waitFor({state:'detached'});
+    assert.equal(await page.locator('.home-match').first().evaluate(el=>el===document.activeElement),true,'closing detail lost row focus');
     async function checkBrand() {
       const marks = await page.locator("img.brand-mark").evaluateAll(images => images.map(img => ({
         loaded: img.complete && img.naturalWidth > 0,

@@ -102,6 +102,7 @@ const queues: Record<number, string> = {
   1700: "斗魂竞技场",
   1900: "无限火力",
   2400: "海克斯大乱斗",
+  3140: "训练模式",
 };
 export function queueName(id: number) {
   return queues[id] ?? `模式 ${id}`;

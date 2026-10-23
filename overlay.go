@@ -36,25 +36,28 @@ type OverlayState struct {
 }
 
 type overlayController struct {
-	window          overlayWindow
-	create          func() overlayWindow
-	dispatch        func(func())
-	emit            func(OverlayState)
-	state           OverlayState
-	holdDesired     func() bool
-	readyRequired   bool
-	ready           bool
-	managed         bool
-	latest          core.Snapshot
-	preview         companion.Preview
-	previewUntil    time.Time
-	expanded        bool
-	lastPlacement   settings.Rect
-	wake            func()
-	gameForeground  func() bool
-	currentSnapshot func() core.Snapshot
-	focusClient     func()
-	clock           func() time.Time
+	window              overlayWindow
+	create              func() overlayWindow
+	dispatch            func(func())
+	emit                func(OverlayState)
+	state               OverlayState
+	holdDesired         func() bool
+	readyRequired       bool
+	ready               bool
+	managed             bool
+	latest              core.Snapshot
+	preview             companion.Preview
+	previewUntil        time.Time
+	expanded            bool
+	lastPlacement       settings.Rect
+	wake                func()
+	gameForeground      func() bool
+	currentSnapshot     func() core.Snapshot
+	focusClient         func()
+	clock               func() time.Time
+	lastGameForeground  bool
+	lastClientActive    bool
+	lastForegroundCheck time.Time
 }
 
 func (o *overlayController) snapshot() (state OverlayState) {
@@ -102,6 +105,9 @@ func (o *overlayController) hideOnUI() {
 
 func (o *overlayController) toggle() OverlayState {
 	return o.update(func() {
+		if o.currentSnapshot != nil {
+			o.latest = o.currentSnapshot()
+		}
 		if o.managed && companion.Pregame(o.latest) {
 			o.state.Collapsed = o.state.Visible && o.state.Mode == "sidebar"
 			o.expanded = !o.state.Collapsed
@@ -155,6 +161,10 @@ func (o *overlayController) setPinned(pinned bool) OverlayState {
 func (o *overlayController) reconcileHold() OverlayState {
 	return o.update(func() {
 		desired := o.holdDesired != nil && o.holdDesired()
+		if desired {
+			o.lastGameForeground = true
+			o.lastForegroundCheck = time.Now()
+		}
 		if !desired {
 			if o.state.Mode == "hold" {
 				o.hideOnUI()
@@ -238,6 +248,10 @@ func (o *overlayController) reconcileCompanion(s core.Snapshot, frame clientFram
 		o.managed = true
 		o.latest = s
 		o.preview.Observe(s, now)
+		o.lastClientActive = frame.Active
+		if s.Phase == "InProgress" && (o.state.Mode == "preview" || o.preview.Eligible(s, now)) {
+			o.lastGameForeground, o.lastForegroundCheck = foreground, now
+		}
 		publish := func() {
 			if o.state != before {
 				o.state.Revision++
@@ -286,6 +300,11 @@ func (o *overlayController) reconcileCompanion(s core.Snapshot, frame clientFram
 		if o.state.Mode == "sidebar" || o.state.Mode == "rail" {
 			o.hideOnUI()
 			o.lastPlacement = settings.Rect{}
+		}
+		// Load the one auxiliary WebView while the game is loading, still
+		// hidden. A cold renderer must not use the actual game's preview window.
+		if s.Connected && s.Phase == "GameStart" && o.window == nil && o.create != nil && (o.state.HoldEnabled || o.state.PreviewEnabled) {
+			o.window = o.create()
 		}
 		if !s.Connected || s.Phase != "InProgress" {
 			if o.state.Visible {
@@ -355,5 +374,26 @@ func (o *overlayController) reconcileCompanion(s core.Snapshot, frame clientFram
 		}
 		o.previewUntil = shownAt.Add(companion.PreviewDuration)
 		o.state.Mode, o.state.Visible = "preview", true
+		o.state.HoldWarning = ""
 	})
+}
+
+// No identities, game IDs, geometry, paths or request payloads in diagnostics.
+type companionDiagnostics struct {
+	Phase               string       `json:"phase"`
+	Stage               string       `json:"stage"`
+	Participants        int          `json:"participants"`
+	FrontendReady       bool         `json:"frontendReady"`
+	WindowCreated       bool         `json:"windowCreated"`
+	ClientActive        bool         `json:"clientActive"`
+	GameForeground      bool         `json:"lastGameForeground"`
+	ForegroundCheckedAt time.Time    `json:"foregroundCheckedAt"`
+	Overlay             OverlayState `json:"overlay"`
+}
+
+func (o *overlayController) diagnostics() (result companionDiagnostics) {
+	o.dispatch(func() {
+		result = companionDiagnostics{o.latest.Phase, o.latest.Stage, len(o.latest.Participants), o.ready, o.window != nil, o.lastClientActive, o.lastGameForeground, o.lastForegroundCheck, o.state}
+	})
+	return
 }

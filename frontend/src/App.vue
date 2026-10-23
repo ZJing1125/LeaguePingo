@@ -42,7 +42,8 @@ const {
   closeTab,
 } = workspace;
 const reviewModalOpen = ref(false);
-const matchModalOpen = computed(() => view.value === "match" && reviewModalOpen.value);
+const homeModalOpen = ref(false);
+const matchModalOpen = computed(() => view.value === "match" && reviewModalOpen.value || view.value === "home" && homeModalOpen.value);
 function queryReviewPlayer(player: import("../bindings/leaguepingo/internal/core/models").Participant) {
   query.value = player.displayName;
   view.value = "players";
@@ -214,11 +215,11 @@ onUnmounted(() => {
       :inert="settingsOpen || matchModalOpen"
     >
       <p
-        v-if="overlayError || overlay?.warning"
+        v-if="overlayError || overlay?.warning || overlay?.holdWarning"
         class="error-banner workspace-message"
         role="status"
       >
-        {{ overlayError || overlay?.warning }}
+        {{ overlayError || overlay?.warning || overlay?.holdWarning }}
       </p>
       <p
         v-if="!snapshot?.connected && snapshot?.message"
@@ -239,7 +240,7 @@ onUnmounted(() => {
         :loading="homeLoading"
         :busy="manualBusy"
         :error="homeError || (homePlayer ? playerErrors[operationKey(homePlayer)] || '' : '')"
-        @open="openPlayerDetails"
+        @modal="homeModalOpen = $event" @open="openPlayerDetails"
         @match="snapshot?.review ? view = 'match' : showCompanion()"
         @refresh="refreshHome"
       />

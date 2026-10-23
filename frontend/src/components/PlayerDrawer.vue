@@ -4,6 +4,8 @@ const props = defineProps<{
   modal: boolean;
   active: boolean;
   playerKey: string;
+  label?: string;
+  fit?: boolean;
 }>();
 const emit = defineEmits<{ close: [] }>();
 const panel = ref<HTMLElement | null>(null);
@@ -106,9 +108,10 @@ onBeforeUnmount(() => {
       <aside
         ref="panel"
         class="player-drawer"
+        :class="{'drawer-fit':fit}"
         :role="modal ? 'dialog' : 'complementary'"
         :aria-modal="modal ? true : undefined"
-        aria-label="玩家详情"
+        :aria-label="label || '玩家详情'"
         tabindex="-1"
         @keydown="trapFocus"
         @keydown.esc.stop="emit('close')"
@@ -118,3 +121,6 @@ onBeforeUnmount(() => {
     </div>
   </Teleport>
 </template>
+<style scoped>
+.drawer-floating .player-drawer.drawer-fit {height:auto;min-height:0;max-height:calc(100dvh - 48px);}
+</style>
