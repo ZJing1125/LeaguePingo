@@ -76,6 +76,39 @@ func TestPlaceLeftRightOverflowAndNegativeMonitor(t *testing.T) {
 	}
 }
 
+func TestSidebarUsesAvailableOutsideWidthBeforeTheDecorativeGap(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		work, client  settings.Rect
+		width, gap, x int
+		side          string
+	}{
+		{"centered-1920", settings.Rect{Width: 1920, Height: 1080}, settings.Rect{X: 320, Y: 100, Width: 1280, Height: 720}, 320, 6, 0, "left"},
+		{"left-partial-gap-before-roomier-right", settings.Rect{Width: 1920, Height: 1080}, settings.Rect{X: 323, Y: 100, Width: 1100, Height: 720}, 320, 6, 0, "left"},
+		{"right-exact", settings.Rect{Width: 1920, Height: 1080}, settings.Rect{X: 0, Y: 100, Width: 1600, Height: 720}, 320, 6, 1600, "right"},
+		{"right-partial-gap", settings.Rect{Width: 1920, Height: 1080}, settings.Rect{X: 20, Y: 100, Width: 1577, Height: 720}, 320, 6, 1600, "right"},
+		{"configured-280", settings.Rect{Width: 2000, Height: 1080}, settings.Rect{X: 280, Y: 100, Width: 1440, Height: 720}, 280, 6, 0, "left"},
+		{"configured-420", settings.Rect{Width: 2120, Height: 1080}, settings.Rect{X: 420, Y: 100, Width: 1280, Height: 720}, 420, 6, 0, "left"},
+		{"125-percent-negative-screen", settings.Rect{X: -2400, Width: 2400, Height: 1350}, settings.Rect{X: -2000, Y: 100, Width: 1600, Height: 900}, 400, 7, -2400, "left"},
+		{"150-percent", settings.Rect{Width: 2880, Height: 1620}, settings.Rect{X: 480, Y: 100, Width: 1920, Height: 1080}, 480, 9, 0, "left"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			for _, action := range []struct {
+				name     string
+				expanded bool
+			}{{"automatic", false}, {"reopened", true}} {
+				t.Run(action.name, func(t *testing.T) {
+					p := Place(test.client, test.work, test.width, 28, test.gap, false, action.expanded)
+					outside := p.Bounds.X+p.Bounds.Width <= test.client.X || p.Bounds.X >= test.client.X+test.client.Width
+					if p.Rail || !outside || p.Side != test.side || p.Bounds.X != test.x || p.Bounds.Width != test.width {
+						t.Fatalf("available outside space was ignored: %+v", p)
+					}
+				})
+			}
+		})
+	}
+}
+
 func TestReconnectWithoutIDCannotCreateLatePreview(t *testing.T) {
 	now := time.Now()
 	var p Preview

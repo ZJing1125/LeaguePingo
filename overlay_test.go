@@ -106,6 +106,30 @@ func TestCompanionSidebarPreviewHoldAndEndTransition(t *testing.T) {
 	}
 }
 
+func TestCenteredClientSidebarReopensOutsideThroughBothControls(t *testing.T) {
+	now := time.Now()
+	w := &fakeCompanionOverlay{}
+	o := &overlayController{window: w, dispatch: func(f func()) { f() }, state: OverlayState{SidebarEnabled: true, SidebarWidth: 320}}
+	s := core.Snapshot{Connected: true, Phase: "ChampSelect"}
+	f := clientFrame{Active: true, Scale: 1, Client: settings.Rect{X: 320, Y: 100, Width: 1280, Height: 720}, Work: settings.Rect{Width: 1920, Height: 1080}}
+	check := func(mode string) {
+		t.Helper()
+		o.reconcileCompanion(s, f, false, now)
+		if o.state.Mode != mode || o.state.SidebarSide != "left" || w.bounds.X+w.bounds.Width > f.Client.X {
+			t.Fatal("centered client was covered after sidebar control", o.state.Mode, w.bounds)
+		}
+	}
+	check("sidebar")
+	o.collapse(true)
+	check("rail")
+	o.collapse(false)
+	check("sidebar")
+	o.toggle()
+	check("rail")
+	o.toggle()
+	check("sidebar")
+}
+
 func TestPreviewWaitsForFrontendAndRechecksFocusAndPhase(t *testing.T) {
 	now := time.Now()
 	w := &fakeHoldOverlay{}

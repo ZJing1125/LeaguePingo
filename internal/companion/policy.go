@@ -108,29 +108,24 @@ type Placement struct {
 	Rail   bool
 }
 
-// Place uses physical pixels, including negative monitor coordinates. It never
-// resizes/moves the client. Overflow opens inward from a left-hand rail.
+// Place uses physical pixels, including negative monitor coordinates. The gap
+// is decorative: reduce it before treating an otherwise fitting sidebar as
+// overflow. It never resizes/moves the client.
 func Place(client, work settings.Rect, width, railWidth, gap int, collapsed, expanded bool) Placement {
 	width = min(width, work.Width)
-	left := client.X-gap-width >= work.X
-	right := client.X+client.Width+gap+width <= work.X+work.Width
-	x, side := client.X-gap-width, "left"
-	if !left && right {
-		x, side = client.X+client.Width+gap, "right"
-	}
+	leftSpace := client.X - work.X
+	rightSpace := work.X + work.Width - client.X - client.Width
+	left, right := leftSpace >= width, rightSpace >= width
 	rail := collapsed || (!left && !right && !expanded)
 	w := width
 	if rail {
 		w = railWidth
-		if left {
-			x = client.X - gap - w
-		} else if right {
-			x = client.X + client.Width + gap
-		} else {
-			x = client.X
-		}
-	} else if !left && !right {
-		x = client.X
+	}
+	x, side := client.X, "left"
+	if left {
+		x = client.X - w - min(gap, max(0, leftSpace-w))
+	} else if right {
+		x, side = client.X+client.Width+min(gap, max(0, rightSpace-w)), "right"
 	}
 	height := min(client.Height, work.Height)
 	y := max(work.Y, min(client.Y, work.Y+work.Height-height))
