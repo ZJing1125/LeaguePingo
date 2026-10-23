@@ -168,6 +168,8 @@ export interface Rank {
     "lp": number | null;
     "wins": number | null;
     "losses": number | null;
+    "source"?: string;
+    "seasonId"?: number | null;
 }
 
 export interface ScoutChampion {

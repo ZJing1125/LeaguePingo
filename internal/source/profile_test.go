@@ -11,10 +11,22 @@ import (
 	"time"
 )
 
+// Existing profile cases exercise the local fallback. The independent ranked
+// endpoint fails explicitly and immediately, without real network traffic.
+func profileTestSource() *TencentLCU {
+	return &TencentLCU{client: lcu.NewClient(lcu.Credentials{}), sgp: &sgpHistory{
+		origin: "https://nj100-sgp.lol.qq.com:21019", platform: "NJ100",
+		leagueToken: "synthetic-league", leagueExpires: time.Now().Add(time.Minute),
+		http: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: 503, Body: io.NopCloser(strings.NewReader(""))}, nil
+		})},
+	}}
+}
+
 func TestBasicProfileSkipsRankAndFullProfileGetsAvatarBeforeSlowRank(t *testing.T) {
 	icon, _ := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aP1sAAAAASUVORK5CYII=")
 	for _, full := range []bool{false, true} {
-		s := &TencentLCU{client: lcu.NewClient(lcu.Credentials{})}
+		s := profileTestSource()
 		var calls []string
 		s.client.HTTP.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
 			calls = append(calls, r.URL.Path)
@@ -46,7 +58,7 @@ func TestBasicProfileSkipsRankAndFullProfileGetsAvatarBeforeSlowRank(t *testing.
 
 func TestProfileOptionalAndUnknownRanks(t *testing.T) {
 	for _, body := range []string{`{}`, `{"queues":[]}`, `{"queues":[{"queueType":"RANKED_SOLO_5x5"}]}`, `{"queues":[{"queueType":"RANKED_SOLO_5x5","tier":"UNKNOWN"}]}`} {
-		s := &TencentLCU{client: lcu.NewClient(lcu.Credentials{})}
+		s := profileTestSource()
 		s.client.HTTP.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
 			data := body
 			if strings.Contains(r.URL.Path, "summoners") {
@@ -64,7 +76,7 @@ func TestProfileOptionalAndUnknownRanks(t *testing.T) {
 func TestProfileIconUsesVerifiedIDAndRejectsNonImage(t *testing.T) {
 	icon, _ := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aP1sAAAAASUVORK5CYII=")
 	for _, good := range []bool{true, false} {
-		s := &TencentLCU{client: lcu.NewClient(lcu.Credentials{})}
+		s := profileTestSource()
 		iconCalls := 0
 		s.client.HTTP.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
 			body := `{"queues":[]}`
@@ -91,7 +103,7 @@ func TestProfileIconUsesVerifiedIDAndRejectsNonImage(t *testing.T) {
 	}
 }
 func TestProfileParsesVerifiedLevelAndRanks(t *testing.T) {
-	s := &TencentLCU{client: lcu.NewClient(lcu.Credentials{})}
+	s := profileTestSource()
 	s.client.HTTP.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		data := `{"queues":[{"queueType":"RANKED_SOLO_5x5","tier":"EMERALD","division":"II","leaguePoints":0,"wins":4,"losses":-1}]}`
 		if strings.Contains(r.URL.Path, "summoners") {
@@ -112,7 +124,7 @@ func TestProfilePrivacyRequiresMatchingIdentityAndExplicitValue(t *testing.T) {
 		{`{"puuid":"target","privacy":"OTHER"}`, "unknown"},
 		{`{"puuid":"other","privacy":"PRIVATE"}`, "unknown"},
 	} {
-		s := &TencentLCU{client: lcu.NewClient(lcu.Credentials{})}
+		s := profileTestSource()
 		s.client.HTTP.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
 			body := "{}"
 			if strings.Contains(r.URL.Path, "summoners") {
@@ -127,7 +139,7 @@ func TestProfilePrivacyRequiresMatchingIdentityAndExplicitValue(t *testing.T) {
 }
 
 func TestRankedQueueMapIsAccepted(t *testing.T) {
-	s := &TencentLCU{client: lcu.NewClient(lcu.Credentials{})}
+	s := profileTestSource()
 	s.client.HTTP.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		body := `{"puuid":"target","summonerLevel":50}`
 		if strings.Contains(r.URL.Path, "ranked-stats") {
@@ -141,16 +153,17 @@ func TestRankedQueueMapIsAccepted(t *testing.T) {
 	}
 }
 
-func TestRanksDoNotTurnUnverifiedZeroLossesIntoUndefeatedRecord(t *testing.T) {
+func TestLCURanksPreserveReportedZeroRegardlessOfCachedSelf(t *testing.T) {
 	for _, self := range []string{"", "other", "target"} {
 		for _, layout := range []string{"queues", "queueMap"} {
 			t.Run(self+"/"+layout, func(t *testing.T) {
-				s := &TencentLCU{client: lcu.NewClient(lcu.Credentials{}), selfPUUID: self}
+				s := profileTestSource()
+				s.selfPUUID = self
 				calls := 0
 				s.client.HTTP.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
 					calls++
 					if r.URL.Path != "/lol-ranked/v1/ranked-stats/target" {
-						t.Fatal("loss verification added a player request")
+						t.Fatal("local fallback added an identity request")
 					}
 					body := `{"queues":[{"queueType":"RANKED_SOLO_5x5","tier":"PLATINUM","division":"I","leaguePoints":39,"wins":178,"losses":0},{"queueType":"RANKED_FLEX_SR","tier":"SILVER","wins":26,"losses":27}]}`
 					if layout == "queueMap" {
@@ -164,8 +177,8 @@ func TestRanksDoNotTurnUnverifiedZeroLossesIntoUndefeatedRecord(t *testing.T) {
 				}
 				for _, rank := range p.Ranks {
 					if rank.Queue == "RANKED_SOLO_5x5" {
-						if rank.Wins == nil || *rank.Wins != 178 || rank.LP == nil || *rank.LP != 39 || (rank.Losses != nil) != (self == "target") {
-							t.Fatal("ambiguous losses or verified rank handled incorrectly")
+						if rank.Wins == nil || *rank.Wins != 178 || rank.LP == nil || *rank.LP != 39 || rank.Losses == nil || *rank.Losses != 0 {
+							t.Fatal("reported rank counters were guessed or altered")
 						}
 					} else if rank.Losses == nil || *rank.Losses != 27 {
 						t.Fatal("independent flex losses changed")
@@ -189,7 +202,7 @@ func TestRanksOnlyRequestAndVerifiedFormats(t *testing.T) {
 		{"invalid", `{"queues":false}`, "failed", ""},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			s := &TencentLCU{client: lcu.NewClient(lcu.Credentials{})}
+			s := profileTestSource()
 			calls := 0
 			s.client.HTTP.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
 				calls++
@@ -216,7 +229,7 @@ func TestRanksOnlyRequestAndVerifiedFormats(t *testing.T) {
 }
 
 func TestRankTimeoutIsRecoverableAndDoesNotExposeSourceDetails(t *testing.T) {
-	s := &TencentLCU{client: lcu.NewClient(lcu.Credentials{})}
+	s := profileTestSource()
 	s.client.HTTP.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		<-r.Context().Done()
 		return nil, r.Context().Err()
@@ -230,7 +243,7 @@ func TestRankTimeoutIsRecoverableAndDoesNotExposeSourceDetails(t *testing.T) {
 }
 
 func TestSlowAvatarDoesNotPreventUnifiedRankResponse(t *testing.T) {
-	s := &TencentLCU{client: lcu.NewClient(lcu.Credentials{})}
+	s := profileTestSource()
 	ranked := false
 	s.client.HTTP.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		body := `{"puuid":"target","summonerLevel":100,"profileIconId":123}`

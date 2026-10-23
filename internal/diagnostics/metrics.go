@@ -25,6 +25,10 @@ func Category(path string) string {
 	switch {
 	case path == "/sgp-history":
 		return "sgp-history"
+	case path == "/sgp-rank":
+		return "sgp-rank"
+	case path == "/lol-league-session/v1/league-session-token":
+		return "rank-session"
 	case path == "/phase-events":
 		return "phase-events"
 	case path == "/champ-select-events":

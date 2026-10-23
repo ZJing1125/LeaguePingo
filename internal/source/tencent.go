@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"leaguepingo/internal/core"
 	"leaguepingo/internal/lcu"
@@ -32,6 +33,8 @@ func (s *TencentLCU) ResetIdentity() {
 	s.sgpMu.Lock()
 	if s.sgp != nil {
 		s.sgp.token, s.sgp.origin, s.sgp.platform = "", "", ""
+		s.sgp.leagueToken = ""
+		s.sgp.expires, s.sgp.leagueExpires = time.Time{}, time.Time{}
 		s.sgp.pages = nil
 		s.sgp.heads = nil
 	}

@@ -1,0 +1,191 @@
+package source
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
+	"leaguepingo/internal/core"
+)
+
+const rankedAttemptBudget = 1200 * time.Millisecond
+
+type rankedQueue struct {
+	Queue    string  `json:"queueType"`
+	Tier     *string `json:"tier"`
+	Division string  `json:"division"`
+	Rank     string  `json:"rank"`
+	LP       *int    `json:"leaguePoints"`
+	Wins     *int    `json:"wins"`
+	Losses   *int    `json:"losses"`
+}
+
+func (s *TencentLCU) loadRanks(ctx context.Context, puuid string, out *core.Profile) {
+	// This is part of the existing scheduled profile operation, not a second
+	// preparation round. Reserve time for the local fallback within its budget.
+	attempt := rankedAttemptBudget
+	if deadline, ok := ctx.Deadline(); ok {
+		attempt = min(attempt, max(0, time.Until(deadline)/2))
+	}
+	remoteCtx, cancel := context.WithTimeout(ctx, attempt)
+	ranks, remoteErr := s.sgpRanks(remoteCtx, puuid)
+	cancel()
+	if ranks == nil {
+		ranks = []core.Rank{}
+	}
+	if len(ranks) == 2 {
+		out.Ranks, out.RankState, out.RankMessage = ranks, "ready", ""
+		return
+	}
+	local, err := s.lcuRanks(ctx, puuid)
+	// Choose a whole queue from one source. Never combine SGP wins with LCU
+	// losses, rank positions or seasons, even if one field is missing.
+	for _, rank := range local {
+		found := false
+		for _, remote := range ranks {
+			found = found || rank.Queue == remote.Queue
+		}
+		if !found {
+			ranks = append(ranks, rank)
+		}
+	}
+	out.Ranks = ranks
+	if len(ranks) > 0 {
+		out.RankState, out.RankMessage = "ready", ""
+		return
+	}
+	out.RankState, out.RankMessage = "unavailable", "客户端未返回可核验段位，不能据此判断未定级"
+	if err != nil {
+		out.RankState, out.RankMessage = "failed", "段位查询失败，可重试"
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			out.RankMessage = "段位查询超时，可重试"
+		}
+		if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
+			out.RankMessage = "段位查询已取消，可重试"
+		}
+	} else if remoteErr != nil && ctx.Err() != nil {
+		out.RankState, out.RankMessage = "failed", "段位查询超时，可重试"
+	}
+}
+
+func (s *TencentLCU) lcuRanks(ctx context.Context, puuid string) ([]core.Rank, error) {
+	raw, err := s.client.Get(ctx, "/lol-ranked/v1/ranked-stats/"+url.PathEscape(puuid))
+	if err != nil {
+		return nil, err
+	}
+	return decodeRankedStats(raw, puuid, "lcu")
+}
+
+func (s *TencentLCU) sgpRanks(ctx context.Context, puuid string) ([]core.Rank, error) {
+	s.sgpMu.Lock()
+	defer s.sgpMu.Unlock()
+	r := s.sgpClientLocked()
+	if r.leagueToken == "" || !time.Now().Before(r.leagueExpires) {
+		if err := s.ensureSGPOrigin(ctx, r); err != nil {
+			return nil, err
+		}
+		// The ranked service needs league-session, not the entitlements token
+		// used by SUMMARY history. LCU returns this token as a JSON string.
+		var token string
+		raw, err := s.client.Get(ctx, "/lol-league-session/v1/league-session-token")
+		if err != nil || json.Unmarshal(raw, &token) != nil || strings.TrimSpace(token) == "" || len(token) > 32768 || strings.ContainsAny(token, "\r\n") {
+			return nil, errors.New("当前会话暂未提供排位授权")
+		}
+		r.leagueToken, r.leagueExpires = token, time.Now().Add(2*time.Minute)
+	}
+	raw, status, err := r.getAuthorized(ctx, "/leagues-ledge/v2/rankedStats/puuid/"+url.PathEscape(puuid), r.leagueToken, "/sgp-rank")
+	if status == http.StatusUnauthorized || status == http.StatusForbidden {
+		r.leagueToken = ""
+	}
+	if err != nil {
+		return nil, err
+	}
+	return decodeRankedStats(raw, puuid, "sgp")
+}
+
+func decodeRankedStats(raw []byte, puuid, source string) ([]core.Rank, error) {
+	var response struct {
+		PUUID    string                 `json:"puuid"`
+		Queues   json.RawMessage        `json:"queues"`
+		QueueMap map[string]rankedQueue `json:"queueMap"`
+		Seasons  map[string]struct {
+			ID *int `json:"currentSeasonId"`
+		} `json:"seasons"`
+	}
+	if json.Unmarshal(raw, &response) != nil {
+		return nil, errors.New("段位响应格式暂不兼容")
+	}
+	if response.PUUID != "" && response.PUUID != puuid {
+		return nil, errors.New("段位返回身份不匹配")
+	}
+	var queues []rankedQueue
+	addMap := func(mapped map[string]rankedQueue) {
+		for key, q := range mapped {
+			if q.Queue == "" {
+				q.Queue = key
+			}
+			if q.Queue == key {
+				queues = append(queues, q)
+			}
+		}
+	}
+	if len(response.Queues) > 0 && string(response.Queues) != "null" {
+		if json.Unmarshal(response.Queues, &queues) != nil {
+			var mapped map[string]rankedQueue
+			if json.Unmarshal(response.Queues, &mapped) != nil {
+				return nil, errors.New("段位响应格式暂不兼容")
+			}
+			addMap(mapped)
+		}
+	}
+	addMap(response.QueueMap)
+	byQueue, conflicts := map[string]core.Rank{}, map[string]bool{}
+	for _, q := range queues {
+		if (q.Queue != "RANKED_SOLO_5x5" && q.Queue != "RANKED_FLEX_SR") || q.Tier == nil || !validTier(*q.Tier) {
+			continue
+		}
+		division := q.Division
+		if source == "sgp" {
+			division = q.Rank
+		}
+		rank := core.Rank{Queue: q.Queue, Tier: *q.Tier, Division: division, LP: validCount(q.LP), Wins: validCount(q.Wins), Losses: validCount(q.Losses), Source: source}
+		if source == "sgp" {
+			if id := response.Seasons[q.Queue].ID; id != nil && *id > 0 {
+				rank.SeasonID = id
+			}
+		}
+		if old, ok := byQueue[q.Queue]; ok {
+			// Some client versions include both queues and queueMap. Fill truly
+			// missing fields, but do not let container order choose conflicting
+			// counters (in particular 0 losses versus a nonzero second value).
+			merge := func(next **int, previous *int) {
+				if *next == nil {
+					*next = previous
+				} else if previous != nil && **next != *previous {
+					conflicts[q.Queue] = true
+				}
+			}
+			merge(&rank.LP, old.LP)
+			merge(&rank.Wins, old.Wins)
+			merge(&rank.Losses, old.Losses)
+			if rank.Division == "" {
+				rank.Division = old.Division
+			}
+			if rank.Tier != old.Tier || (old.Division != "" && rank.Division != old.Division) {
+				conflicts[q.Queue] = true
+			}
+		}
+		byQueue[q.Queue] = rank
+	}
+	out := []core.Rank{}
+	for _, queue := range []string{"RANKED_SOLO_5x5", "RANKED_FLEX_SR"} {
+		if rank, ok := byQueue[queue]; ok && !conflicts[queue] {
+			out = append(out, rank)
+		}
+	}
+	return out, nil
+}

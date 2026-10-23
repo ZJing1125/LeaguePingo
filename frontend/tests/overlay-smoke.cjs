@@ -232,6 +232,20 @@ async function main() {
                   tier: "GOLD",
                   division: "II",
                   lp: 52,
+                  source: "sgp",
+                  seasonId: 37,
+                  wins: 36,
+                  losses: 38,
+                },
+                {
+                  queue: "RANKED_FLEX_SR",
+                  tier: "SILVER",
+                  division: "III",
+                  lp: 27,
+                  source: "sgp",
+                  seasonId: 38,
+                  wins: 20,
+                  losses: 30,
                 },
               ],
               level: 100,
@@ -708,6 +722,9 @@ async function main() {
       const img = document.querySelector(".profile-avatar img");
       return img?.complete && img.naturalWidth > 0;
     });
+    const rankedCards = page.locator(".player-profile .rank-card");
+    assert((await rankedCards.nth(0).innerText()).includes("36 胜 / 38 负"), "solo rank card dropped the ranked-service losses");
+    assert((await rankedCards.nth(1).innerText()).includes("20 胜 / 30 负"), "flex rank card dropped the ranked-service losses");
     const visibleRows = await page.locator(".match-card").evaluateAll(
       (rows) =>
         rows.filter((row) => {
@@ -728,6 +745,8 @@ async function main() {
       () => !document.querySelector('[aria-label="战绩模式筛选"]').disabled,
     );
     assert.equal(await page.locator(".match-card").count(), 10);
+    assert((await rankedCards.nth(0).innerText()).includes("36 胜 / 38 负"), "filtered history replaced ranked counters");
+    assert((await rankedCards.nth(1).innerText()).includes("20 胜 / 30 负"), "solo history filter changed the flex rank record");
     await page.locator(".history-notice summary").click();
     assert(
       (await page.locator(".history-notice").textContent()).includes(

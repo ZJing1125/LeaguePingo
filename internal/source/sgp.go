@@ -22,6 +22,8 @@ type sgpHistory struct {
 	http                    *http.Client
 	origin, platform, token string
 	expires                 time.Time
+	leagueToken             string
+	leagueExpires           time.Time
 	pages                   map[string]cachedSGPPage
 	heads                   map[string]int64
 }
@@ -29,6 +31,56 @@ type sgpHistory struct {
 type cachedSGPPage struct {
 	page    core.HistoryPage
 	expires time.Time
+}
+
+// Caller holds sgpMu. History and ranked stats share the verified origin and
+// transport, but their authorization tokens are different and never swapped.
+func (s *TencentLCU) sgpClientLocked() *sgpHistory {
+	if s.sgp == nil {
+		s.sgp = &sgpHistory{}
+	}
+	r := s.sgp
+	if r.http == nil {
+		r.http = &http.Client{
+			Timeout:       5 * time.Second,
+			Transport:     &http.Transport{Proxy: nil},
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		}
+	}
+	return r
+}
+
+func (s *TencentLCU) ensureSGPOrigin(ctx context.Context, r *sgpHistory) error {
+	if r.origin != "" && ((r.token != "" && time.Now().Before(r.expires)) || (r.leagueToken != "" && time.Now().Before(r.leagueExpires))) {
+		_, err := trustedSGPOrigin(r.platform, r.origin)
+		return err
+	}
+	var auth struct {
+		Platform string `json:"currentPlatformId"`
+	}
+	var configured string
+	for _, item := range []struct {
+		path   string
+		target any
+	}{
+		{"/lol-rso-auth/v1/authorization", &auth},
+		{"/lol-platform-config/v1/namespaces/PlayerPreferences/ServiceEndpoint", &configured},
+	} {
+		raw, err := s.client.Get(ctx, item.path)
+		if err != nil || json.Unmarshal(raw, item.target) != nil {
+			return errors.New("无法核验当前大区服务")
+		}
+	}
+	origin, err := trustedSGPOrigin(auth.Platform, configured)
+	if err != nil {
+		return err
+	}
+	if r.origin != origin || r.platform != auth.Platform {
+		r.token, r.leagueToken = "", ""
+		r.pages, r.heads = nil, nil
+	}
+	r.origin, r.platform = origin, auth.Platform
+	return nil
 }
 
 var tencentPlatform = regexp.MustCompile(`^[A-Z][A-Z0-9]{1,11}$`)
@@ -53,36 +105,9 @@ func (s *TencentLCU) sgpHistoryPage(ctx context.Context, puuid string, offset in
 func (s *TencentLCU) sgpSummaryPage(ctx context.Context, puuid string, offset int) (core.HistoryPage, error) {
 	s.sgpMu.Lock()
 	defer s.sgpMu.Unlock()
-	if s.sgp == nil {
-		s.sgp = &sgpHistory{}
-	}
-	r := s.sgp
-	if r.http == nil {
-		r.http = &http.Client{
-			Timeout:       5 * time.Second,
-			Transport:     &http.Transport{Proxy: nil}, // Normal certificate verification; no inherited proxy.
-			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-		}
-	}
+	r := s.sgpClientLocked()
 	if r.token == "" || time.Now().After(r.expires) {
-		var auth struct {
-			Platform string `json:"currentPlatformId"`
-		}
-		var configured string
-		for _, item := range []struct {
-			path   string
-			target any
-		}{
-			{"/lol-rso-auth/v1/authorization", &auth},
-			{"/lol-platform-config/v1/namespaces/PlayerPreferences/ServiceEndpoint", &configured},
-		} {
-			raw, err := s.client.Get(ctx, item.path)
-			if err != nil || json.Unmarshal(raw, item.target) != nil {
-				return core.HistoryPage{}, errors.New("无法核验当前大区战绩服务")
-			}
-		}
-		origin, err := trustedSGPOrigin(auth.Platform, configured)
-		if err != nil {
+		if err := s.ensureSGPOrigin(ctx, r); err != nil {
 			return core.HistoryPage{}, err
 		}
 		var token struct {
@@ -92,7 +117,7 @@ func (s *TencentLCU) sgpSummaryPage(ctx context.Context, puuid string, offset in
 		if err != nil || json.Unmarshal(raw, &token) != nil || token.Access == "" || len(token.Access) > 32768 || strings.ContainsAny(token.Access, "\r\n") {
 			return core.HistoryPage{}, errors.New("当前会话暂未提供战绩授权")
 		}
-		r.origin, r.platform, r.token, r.expires = origin, auth.Platform, token.Access, time.Now().Add(2*time.Minute)
+		r.token, r.expires = token.Access, time.Now().Add(2*time.Minute)
 	}
 	path := "/match-history-query/v1/products/lol/player/" + url.PathEscape(puuid) + "/SUMMARY?" + url.Values{"startIndex": {fmt.Sprint(offset)}, "count": {"20"}}.Encode()
 	if cached, ok := r.pages[path]; offset > 0 && ok && time.Now().Before(cached.expires) {
@@ -144,24 +169,28 @@ func (r *sgpHistory) rememberHead(puuid string, head int64) {
 }
 
 func (r *sgpHistory) get(ctx context.Context, path string) (raw []byte, status int, resultErr error) {
+	return r.getAuthorized(ctx, path, r.token, "/sgp-history")
+}
+
+func (r *sgpHistory) getAuthorized(ctx context.Context, path, token, category string) (raw []byte, status int, resultErr error) {
 	started := time.Now()
-	defer func() { diagnostics.Default.Record("/sgp-history", time.Since(started), status, resultErr != nil) }()
+	defer func() { diagnostics.Default.Record(category, time.Since(started), status, resultErr != nil) }()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, r.origin+path, nil)
 	if err != nil {
-		return nil, 0, errors.New("战绩请求构造失败")
+		return nil, 0, errors.New("数据请求构造失败")
 	}
-	req.Header.Set("Authorization", "Bearer "+r.token)
+	req.Header.Set("Authorization", "Bearer "+token)
 	response, err := r.http.Do(req)
 	if err != nil {
-		return nil, 0, errors.New("完整战绩服务连接失败或超时")
+		return nil, 0, errors.New("数据服务连接失败或超时")
 	}
 	defer response.Body.Close()
 	if response.StatusCode != 200 {
-		return nil, response.StatusCode, fmt.Errorf("完整战绩服务 HTTP %d", response.StatusCode)
+		return nil, response.StatusCode, fmt.Errorf("数据服务 HTTP %d", response.StatusCode)
 	}
 	raw, err = io.ReadAll(io.LimitReader(response.Body, (8<<20)+1))
 	if err != nil || len(raw) > 8<<20 {
-		return nil, response.StatusCode, errors.New("战绩响应读取失败或超出限制")
+		return nil, response.StatusCode, errors.New("数据响应读取失败或超出限制")
 	}
 	return raw, response.StatusCode, nil
 }

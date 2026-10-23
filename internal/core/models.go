@@ -65,6 +65,8 @@ type Rank struct {
 	LP       *int   `json:"lp"`
 	Wins     *int   `json:"wins"`
 	Losses   *int   `json:"losses"`
+	Source   string `json:"source,omitempty"`
+	SeasonID *int   `json:"seasonId,omitempty"`
 }
 
 type Match struct {

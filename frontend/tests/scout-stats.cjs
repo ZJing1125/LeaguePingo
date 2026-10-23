@@ -90,3 +90,16 @@ assert.equal(rankRecord({...seasonPlayer,identityState:'unavailable'},'RANKED_SO
 record=rankRecord({...seasonPlayer,scout:undefined},'RANKED_SOLO_5x5',{wins:10,losses:12});
 assert.equal(record.scope,'排位');assert.equal(record.losses,12,'rank endpoint scope cannot be called current season');
 console.log('PASS: scoped independent solo/flex season totals, partial and unknown outcomes, redacted losses and genuine undefeated records.');
+
+// The query module usually has no ScoutReport. Its aggregate ranked response
+// must also survive a later partial scout report and arbitrary history filters.
+const aggregateRank = {queue:'RANKED_SOLO_5x5',source:'sgp',seasonId:37,wins:36,losses:38};
+record=rankRecord({...seasonPlayer,scout:undefined},'RANKED_SOLO_5x5',aggregateRank);
+assert.equal(record.losses,38);assert.equal(record.wins,36);assert.equal(record.scope,'排位');
+seasonPlayer.scout.complete=false;seasonPlayer.scout.queues[0].season=stats(10,100);
+record=rankRecord(seasonPlayer,'RANKED_SOLO_5x5',aggregateRank);
+assert.equal(record.losses,38,'partial undefeated history must not overwrite the ranked aggregate');
+assert.equal(rankRecord({...seasonPlayer,history:[]},'RANKED_SOLO_5x5',aggregateRank).losses,38,'list filters cannot change rank counters');
+assert.equal(rankRecord({...seasonPlayer,scout:undefined},'RANKED_SOLO_5x5',{...aggregateRank,wins:3,losses:0}).rate,100,'explicit ranked zero losses are not heuristically erased');
+assert.equal(rankRecord({...seasonPlayer,scout:undefined},'RANKED_SOLO_5x5',{...aggregateRank,losses:null}),null,'missing ranked losses cannot become zero');
+console.log('PASS: ranked-service counters in query without scout, aggregate precedence, list independence and reported zero versus missing.');

@@ -54,10 +54,16 @@ SGP延续可信当前大区、内存授权、正常TLS、不跟随重定向与�
 
 新增素材保留原字节：173张横版图与10个1000×1000段位PNG共34,380,468字节（约32.79MiB），SHA-256/来源清单分别在splashes和ranks目录。显式维护命令 `python3 scripts/sync-ui-assets.py`；只用于开发维护，不进入普通构建或应用运行。完整性/分辨率/50MiB预算检查接入verify，不新增产品依赖。来源与权利说明见 THIRD_PARTY_NOTICES.md。
 
-## BUG-0056：段位与胜负范围分离
+## BUG-0057：段位与排位聚合胜负
 
-段位/小段/胜点来自核验后的段位资料。国服查询他人时可能返回零负场，不能据此计算100%胜率；正胜场且零负场只有已缓存核验的本人保留该零值，他人或本人身份未核验时负场为未知。此防护不增加当前账号或第三方请求，不猜负场、不按阈值判定作弊/小号，也不把WeGame截图的不同范围总场次回填。
+用户确认e9a9a1f战绩查询页单双排、灵活排位卡均0负场。该版本段位只读LCU `/lol-ranked/v1/ranked-stats/{puuid}`，缺失/null保持为空、前端显示—，不能归因为UI补零。也不能仅凭截图判断服务对他人数据脱敏。BUG-0056的本人/他人零负场猜测已移除。
 
-相关外部实现线索：[YssLeague的国服零负场防护](https://github.com/zhouyi207/YssLeague/blob/943d9a2c17c90f325ac7db47c8cf65d03f926c10/src-tauri/src/shared/web_api/info.rs)。它说明该来源存在此限制；本机无用户客户端，不代表已核实截图原始返回。实现保持本项目既有来源、缓存、请求预算。
+统一资料流程现在优先接入同大区SGP `/leagues-ledge/v2/rankedStats/puuid/{puuid}`，使用专属league-session JSON字符串授权，独立于SUMMARY的entitlements。数据契约参考[LeagueAkari端点](https://github.com/LeagueAkari/LeagueAkari/blob/56cdfde00e56148f4641d1a8cf86acb66e903124/src/shared/http-api-axios-helper/sgp/leagues-ledge.ts)、[字段](https://github.com/LeagueAkari/LeagueAkari/blob/56cdfde00e56148f4641d1a8cf86acb66e903124/src/shared/types/sgp/ranked.ts)与[会话授权](https://github.com/LeagueAkari/LeagueAkari/blob/56cdfde00e56148f4641d1a8cf86acb66e903124/src/shared/http-api-axios-helper/league-client/league-session.ts)。SGP小段用rank，LCU用division；队列、可空胜负与真实currentSeasonId分别保留，不根据年份猜赛季。
 
-有独立当前赛季记录时，段位旁的胜负优先使用所选单双排/灵活的ScoutQueue.season：完整且每场胜负齐全才标“本季”，否则标“本季已读”；只统计明确胜负，不把未知当败场。30天圆环继续使用month，与本季指标分开。完整空赛季为0胜/0负、胜率—，逐场证实的全胜可显示100%。只有段位资料完整胜负时可回退为“排位”范围，负场未知则显示“胜负待确认”。首页/资料头/侧栏展开/快览采用同一规则；近20场/筛选列表从不参与。
+SGP尝试最多1.2秒且不超过资料剩余预算的一半，保留LCU回退时间；仍属于原串行资料任务，不新增准备轮次/定时刷新/逐场扫描。两队列齐全直接返回，缺队列或失败回退LCU整条队列，不跨来源拼字段。两种授权各自两分钟内存缓存，401/403只清对应token、不自动重试，换号清全部。仅可信当前大区、正常TLS、拒绝重定向，凭据不出Go、不落盘。
+
+排位卡优先使用完整SGP胜负，明确标排位范围；已有的逐场报告不能用已读全胜前缀覆盖聚合负场。聚合缺失时，独立ScoutQueue.season有有效胜负可提供本季/本季已读：完整且胜负齐全才为本季，未知不当败场。再无逐场结果时才使用LCU完整胜负。真实零负场不擅自删除，空总场次胜率—。首页/资料头/侧栏展开/快览统一；近20场/筛选列表不参与。12小时、30天、英雄排位和全部模式经验仍按独立报告及原口径展示。
+
+WeGame官方公开战绩页使用GetBattleReport/GetPlayerRecentStat等独立聚合服务；存在各赛季单双排/灵活的分离计数，不等同本地LCU字段。当前没有WeGame授权，未读其Cookie或查询该玩家，不直接填入截图数字。SGP与WeGame必须对齐身份、大区、队列、赛季/赛段后才能比较，两个服务的总数不保证相同。
+
+状态：代码与合成回归不证明该玩家数据恢复。当前Linux没有客户端；须在游戏电脑执行单玩家LCU queues/queueMap与SGP同次对照，区分原始零、容器冲突、来源失败与范围不同。若两路都错误，继续调查经授权可用的聚合来源，不把零置空当作完成。步骤见ACCEPTANCE BUG-0057。
