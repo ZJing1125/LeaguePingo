@@ -56,6 +56,8 @@ SGP延续可信当前大区、内存授权、正常TLS、不跟随重定向与�
 
 ## BUG-0057：段位与排位聚合胜负
 
+BUG-0060补充统一显式核验入口：`bash scripts/audit-player-data.sh rank` 同时报告LCU两容器、合并结果、SGP及差异；history/match核对真实页与字段/时间线，见 [PLAYER_DATA_AUDIT.md](PLAYER_DATA_AUDIT.md)。最高/上季字段不会再被同响应仅补计数的第二容器清空。当前没有新的国服实机证据，不改变下文0负场待核验状态。
+
 用户确认e9a9a1f战绩查询页单双排、灵活排位卡均0负场。该版本段位只读LCU `/lol-ranked/v1/ranked-stats/{puuid}`，缺失/null保持为空、前端显示—，不能归因为UI补零。也不能仅凭截图判断服务对他人数据脱敏。BUG-0056的本人/他人零负场猜测已移除。
 
 统一资料流程现在优先接入同大区SGP `/leagues-ledge/v2/rankedStats/puuid/{puuid}`，使用专属league-session JSON字符串授权，独立于SUMMARY的entitlements。数据契约参考[LeagueAkari端点](https://github.com/LeagueAkari/LeagueAkari/blob/56cdfde00e56148f4641d1a8cf86acb66e903124/src/shared/http-api-axios-helper/sgp/leagues-ledge.ts)、[字段](https://github.com/LeagueAkari/LeagueAkari/blob/56cdfde00e56148f4641d1a8cf86acb66e903124/src/shared/types/sgp/ranked.ts)与[会话授权](https://github.com/LeagueAkari/LeagueAkari/blob/56cdfde00e56148f4641d1a8cf86acb66e903124/src/shared/http-api-axios-helper/league-client/league-session.ts)。SGP小段用rank，LCU用division；队列、可空胜负与真实currentSeasonId分别保留，不根据年份猜赛季。

@@ -6,7 +6,7 @@ import { manager, runningExecutables } from './artifacts.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const policyFiles = ['AGENTS.md', 'Taskfile.yml', 'build/windows/Taskfile.yml',
   'build/Taskfile.yml', 'build/config.yml', 'scripts/build.sh', 'scripts/run.sh',
-  'scripts/dev.sh', 'scripts/verify.sh', 'docs/ci/verify.yml.example',
+  'scripts/dev.sh', 'scripts/verify.sh', 'scripts/audit-player-data.sh', 'docs/ci/verify.yml.example',
   'frontend/package.json', 'frontend/preview/package.json', 'frontend/preview/histoire.config.ts'];
 
 // A deliberately restricted policy check, not a general YAML parser. Keep
@@ -79,6 +79,9 @@ export function checkWorkflow(read) {
   requireText('scripts/verify.sh', 'node scripts/workflow.mjs check');
   requireText('scripts/verify.sh', 'scripts/workflow.test.mjs');
   requireText('scripts/verify.sh', 'scripts/app-icons.test.mjs');
+  for (const text of ['source "$task_root/scripts/env.sh"', 'go env GOHOSTOS', 'go env GOHOSTARCH',
+    'LEAGUEPINGO_LIVE_DATA_AUDIT=1', "-run '^TestLivePlayerDataAudit$' -count=1 -v"]) requireText('scripts/audit-player-data.sh', text);
+  if (/\bgo\s+build\b|scripts\/build\.sh|artifacts\.mjs (register|accept|clean)/.test(contents['scripts/audit-player-data.sh'])) throw new Error('Live audit cannot build/promote delivery artifacts');
   requireText('build/Taskfile.yml', 'node ../scripts/app-icons.mjs generate');
   requireText('scripts/dev.sh', 'node scripts/app-icons.mjs check');
   for (const file of ['scripts/verify.sh', 'scripts/dev.sh']) {

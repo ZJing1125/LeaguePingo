@@ -208,3 +208,15 @@ func TestRankHistoryKeepsQueueContractWithoutInventingSeasonYearsOrLP(t *testing
 		}
 	}
 }
+
+func TestRankHistorySurvivesSupplementalQueueContainer(t *testing.T) {
+	for _, body := range []string{
+		`{"queues":[{"queueType":"RANKED_SOLO_5x5","tier":"GOLD","highestTier":"DIAMOND","highestDivision":"II","previousSeasonEndTier":"PLATINUM","previousSeasonEndDivision":"I"}],"queueMap":{"RANKED_SOLO_5x5":{"tier":"GOLD","wins":36,"losses":38}}}`,
+		`{"queueMap":{"RANKED_SOLO_5x5":{"tier":"GOLD","highestTier":"DIAMOND","highestDivision":"II","previousSeasonEndTier":"PLATINUM","previousSeasonEndDivision":"I"}},"queues":[{"queueType":"RANKED_SOLO_5x5","tier":"GOLD","wins":36,"losses":38}]}`,
+	} {
+		ranks, err := decodeRankedStats([]byte(body), "target", "lcu")
+		if err != nil || len(ranks) != 1 || ranks[0].HighestTier != "DIAMOND" || ranks[0].HighestDivision != "II" || ranks[0].PreviousTier != "PLATINUM" || ranks[0].PreviousDivision != "I" || ranks[0].Losses == nil || *ranks[0].Losses != 38 {
+			t.Fatal("supplemental counters erased source-provided rank history")
+		}
+	}
+}

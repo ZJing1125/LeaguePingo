@@ -195,6 +195,18 @@ func decodeRankedStats(raw []byte, puuid, source string) ([]core.Rank, error) {
 			if rank.Division == "" {
 				rank.Division = old.Division
 			}
+			// queueMap may only supplement current counters. Keep history from
+			// the same response instead of erasing it with an absent field.
+			if rank.HighestTier == "" {
+				rank.HighestTier, rank.HighestDivision = old.HighestTier, old.HighestDivision
+			} else if rank.HighestTier == old.HighestTier && rank.HighestDivision == "" {
+				rank.HighestDivision = old.HighestDivision
+			}
+			if rank.PreviousTier == "" {
+				rank.PreviousTier, rank.PreviousDivision = old.PreviousTier, old.PreviousDivision
+			} else if rank.PreviousTier == old.PreviousTier && rank.PreviousDivision == "" {
+				rank.PreviousDivision = old.PreviousDivision
+			}
 			if rank.Tier != old.Tier || (old.Division != "" && rank.Division != old.Division) {
 				conflicts[q.Queue] = true
 			}
