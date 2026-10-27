@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -43,17 +44,20 @@ type historyGame struct {
 	} `json:"teams"`
 }
 type historyParticipant struct {
-	TeamID        int    `json:"teamId"`
-	PUUID         string `json:"puuid"`
-	ParticipantID int    `json:"participantId"`
-	ChampionID    int    `json:"championId"`
-	Spell1        *int   `json:"spell1Id"`
-	Spell2        *int   `json:"spell2Id"`
-	TeamPosition  string `json:"teamPosition"`
-	GameName      string `json:"riotIdGameName"`
-	TagLine       string `json:"riotIdTagline"`
-	SummonerName  string `json:"summonerName"`
-	Timeline      struct {
+	TeamID             int    `json:"teamId"`
+	PUUID              string `json:"puuid"`
+	ParticipantID      int    `json:"participantId"`
+	ChampionID         int    `json:"championId"`
+	Spell1             *int   `json:"spell1Id"`
+	Spell2             *int   `json:"spell2Id"`
+	TeamPosition       string `json:"teamPosition"`
+	IndividualPosition string `json:"individualPosition"`
+	Lane               string `json:"lane"`
+	Role               string `json:"role"`
+	GameName           string `json:"riotIdGameName"`
+	TagLine            string `json:"riotIdTagline"`
+	SummonerName       string `json:"summonerName"`
+	Timeline           struct {
 		Lane string `json:"lane"`
 		Role string `json:"role"`
 	} `json:"timeline"`
@@ -201,12 +205,81 @@ func matchSummary(game historyGame, p historyParticipant, now time.Time) Match {
 		Duration: nonNegative(game.Duration), Gold: nonNegative(p.Stats.Gold), Damage: nonNegative(p.Stats.Damage), CS: cs,
 		Spell1: nonNegative(p.Spell1), Spell2: nonNegative(p.Spell2),
 		Items: []*int{nonNegative(p.Stats.Item0), nonNegative(p.Stats.Item1), nonNegative(p.Stats.Item2), nonNegative(p.Stats.Item3), nonNegative(p.Stats.Item4), nonNegative(p.Stats.Item5), nonNegative(p.Stats.Item6)},
-		MapID: nonNegative(game.MapID), Position: p.TeamPosition, Lane: p.Timeline.Lane, EarlyEnd: p.Stats.EarlyEnd,
+		MapID: nonNegative(game.MapID), Position: historyPosition(game, p), Lane: historyLane(p), EarlyEnd: p.Stats.EarlyEnd,
 		RuneIDs: runes, RunePrimary: nonNegative(p.Stats.Primary), RuneSecondary: nonNegative(p.Stats.Secondary),
 		ChampionLevel: nonNegative(p.Stats.ChampionLevel), DamageTaken: nonNegative(p.Stats.DamageTaken), VisionScore: nonNegative(p.Stats.VisionScore),
 		WardsPlaced: nonNegative(p.Stats.WardsPlaced), WardsKilled: nonNegative(p.Stats.WardsKilled), ControlWards: nonNegative(p.Stats.ControlWards),
 		TripleKills: nonNegative(p.Stats.TripleKills), QuadraKills: nonNegative(p.Stats.QuadraKills), PentaKills: nonNegative(p.Stats.PentaKills),
 		RuneShards: positiveIDs(p.Stats.Shard0, p.Stats.Shard1, p.Stats.Shard2),
+	}
+}
+
+func historyLane(p historyParticipant) string {
+	lane := p.Lane
+	if lane == "" {
+		lane = p.Timeline.Lane
+	}
+	return strings.ToUpper(strings.TrimSpace(lane))
+}
+
+func historyRole(p historyParticipant) string {
+	role := p.Role
+	if role == "" {
+		role = p.Timeline.Role
+	}
+	return strings.ToUpper(strings.TrimSpace(role))
+}
+
+func standardPosition(value string) string {
+	switch strings.ToUpper(strings.TrimSpace(value)) {
+	case "TOP":
+		return "TOP"
+	case "JUNGLE":
+		return "JUNGLE"
+	case "MID", "MIDDLE":
+		return "MIDDLE"
+	case "BOT", "BOTTOM":
+		return "BOTTOM"
+	case "SUPPORT", "UTILITY":
+		return "UTILITY"
+	default:
+		return ""
+	}
+}
+
+func historyPosition(game historyGame, p historyParticipant) string {
+	if position := standardPosition(p.TeamPosition); position != "" {
+		return position
+	}
+	if position := standardPosition(p.IndividualPosition); position != "" {
+		return position
+	}
+	// Tencent's LCU history contract predates teamPosition. On standard Rift
+	// queues it instead returns Riot's explicit post-game lane/role pair. Only
+	// unambiguous combinations are normalized; a lane alone, champion choice,
+	// or a JUNGLE label without Smite is not enough evidence.
+	if game.MapID != nil && *game.MapID != 11 {
+		return ""
+	}
+	switch game.QueueID {
+	case 400, 420, 430, 440, 490:
+	default:
+		return ""
+	}
+	lane, role := historyLane(p), historyRole(p)
+	switch {
+	case lane == "TOP" && role == "SOLO":
+		return "TOP"
+	case (lane == "MID" || lane == "MIDDLE") && role == "SOLO":
+		return "MIDDLE"
+	case lane == "JUNGLE" && (p.Spell1 != nil && *p.Spell1 == 11 || p.Spell2 != nil && *p.Spell2 == 11):
+		return "JUNGLE"
+	case (lane == "BOT" || lane == "BOTTOM") && (role == "CARRY" || role == "DUO_CARRY"):
+		return "BOTTOM"
+	case (lane == "BOT" || lane == "BOTTOM") && (role == "SUPPORT" || role == "DUO_SUPPORT"):
+		return "UTILITY"
+	default:
+		return ""
 	}
 }
 

@@ -45,6 +45,8 @@ async function main(){
   };
   await page.goto('http://127.0.0.1:43208/');
   await page.locator('.home-account h2').filter({hasText:player.displayName}).waitFor();
+  assert((await page.locator('.home-workspace .playstyle-panel .style-roles').innerText()).includes('100%'),'home position/activity panel lost normalized match positions');
+  assert((await page.locator('.home-workspace .overview-performance .performance-roles h3').innerText()).includes('20 场已记录'),'home recent analysis lost its position sample');
   const rankHistory=page.locator('.home-ranks .rank-history').first();
   await rankHistory.locator('summary').click();
   const rankHistoryText=await rankHistory.innerText();
@@ -55,6 +57,7 @@ async function main(){
   await page.getByLabel('玩家完整 ID',{exact:true}).fill(player.displayName);
   await page.getByRole('button',{name:'查询战绩',exact:true}).click();
   await page.locator('.players-workspace .match-card').first().waitFor();
+  assert((await page.locator('.players-workspace .overview-performance .performance-roles h3').textContent()).includes('20 场已记录'),'queried-player analysis lost normalized match positions');
   await shot('history-dark');
   await page.locator('.players-workspace .match-main').first().click();
   await page.locator('.full-match-detail tr.target').waitFor();

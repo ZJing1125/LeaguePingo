@@ -2,7 +2,7 @@ package core
 
 import "testing"
 
-func TestHistoryContextUsesExplicitFieldsWithoutInferringRemakeOrPosition(t *testing.T) {
+func TestHistoryContextUsesExplicitFieldsWithoutInferringRemake(t *testing.T) {
 	for _, test := range []struct {
 		name, body string
 		known      bool
@@ -31,5 +31,31 @@ func TestExplicitFalseEarlyEndIsNotUnknown(t *testing.T) {
 	r, err := ParseHistory([]byte(`{"games":{"games":[{"gameId":42,"participants":[{"puuid":"target","stats":{"gameEndedInEarlySurrender":false}}]}]}}`), "target")
 	if err != nil || r.Matches[0].EarlyEnd == nil || *r.Matches[0].EarlyEnd {
 		t.Fatal("explicit false flag lost", err)
+	}
+}
+
+func TestHistoryPositionUsesVerifiedFieldsAndStrictLegacyLaneRoles(t *testing.T) {
+	body := `{"games":{"games":[
+		{"gameId":1,"queueId":420,"mapId":11,"participants":[{"puuid":"target","timeline":{"lane":"TOP","role":"SOLO"}}]},
+		{"gameId":2,"queueId":420,"mapId":11,"participants":[{"puuid":"target","spell1Id":11,"timeline":{"lane":"JUNGLE","role":"NONE"}}]},
+		{"gameId":3,"queueId":440,"mapId":11,"participants":[{"puuid":"target","timeline":{"lane":"MIDDLE","role":"SOLO"}}]},
+		{"gameId":4,"queueId":440,"mapId":11,"participants":[{"puuid":"target","timeline":{"lane":"BOTTOM","role":"CARRY"}}]},
+		{"gameId":5,"queueId":420,"mapId":11,"participants":[{"puuid":"target","timeline":{"lane":"BOTTOM","role":"SUPPORT"}}]},
+		{"gameId":6,"queueId":420,"mapId":11,"participants":[{"puuid":"target","individualPosition":"UTILITY","timeline":{"lane":"TOP","role":"SOLO"}}]},
+		{"gameId":7,"queueId":420,"mapId":11,"participants":[{"puuid":"target","timeline":{"lane":"JUNGLE","role":"NONE"}}]},
+		{"gameId":8,"queueId":450,"mapId":12,"participants":[{"puuid":"target","spell1Id":11,"timeline":{"lane":"JUNGLE","role":"NONE"}}]}
+	]}}`
+	result, err := ParseHistory([]byte(body), "target")
+	if err != nil || len(result.Matches) != 8 {
+		t.Fatal("legacy position fixture failed", err, len(result.Matches))
+	}
+	byID := map[int64]string{}
+	for _, match := range result.Matches {
+		byID[match.GameID] = match.Position
+	}
+	for id, want := range map[int64]string{1: "TOP", 2: "JUNGLE", 3: "MIDDLE", 4: "BOTTOM", 5: "UTILITY", 6: "UTILITY", 7: "", 8: ""} {
+		if byID[id] != want {
+			t.Fatalf("game %d position=%q want=%q", id, byID[id], want)
+		}
 	}
 }

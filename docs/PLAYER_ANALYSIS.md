@@ -7,7 +7,7 @@
 | 图 | 专业感来自哪里 | LeaguePingo 的处理 |
 | --- | --- | --- |
 | 1 | 单双排/灵活各自的真实段位、胜负、最高及历史；近期样本同时呈现胜率、平均K/D/A、常用英雄与位置 | 两个独立排位面板；分别保留当前、本赛季最高、上赛季最高和上赛季结算。“已记录历史最高”只比较客户端明确返回的这些当前/两季记录，不猜完整生涯、年份或历史LP。近期表现采用同一筛选样本，展示胜负、平均K/D/A与位置分布，和排位累计分开 |
-| 2 | 位置占比、活跃时间、常用英雄的场次/胜率/KDA/补刀，数据足够密而顺序稳定 | 位置使用明确的峡谷position；活跃时段按已读记录的本地开始时间计数。英雄表提供近期样本/近7天已读切换，明确有效样本，不推断AP/AD职业比例 |
+| 2 | 位置占比、活跃时间、常用英雄的场次/胜率/KDA/补刀，数据足够密而顺序稳定 | 位置优先使用明确的峡谷position；LCU缺该字段时按BUG-0064只归一严格的官方赛后lane/role组合，异常保持未知。活跃时段按已读记录的本地开始时间计数。英雄表提供近期样本/近7天已读切换，明确有效样本，不推断AP/AD职业比例 |
 | 3 | 7天英雄胜负用同一条形表达，比孤立百分比更易比较 | 从当前已读记录按获取时间截取7天，胜/负与胜率同源，空胜负不补零；不把20/50场前缀标成完整7天 |
 | 4 | 熟练度有头像、等级、积分，与近期胜率形成不同维度 | 熟练度使用真实客户端字段、全部模式口径，统一资料刷新补取并短时复用；独立于列表筛选，不用场次推算积分 |
 | 5 | 战绩行按模式/结果、英雄配置、KDA、每分钟与参团、双方名单顺序排列，未展开即可比较 | 重做紧凑战绩行，保留七装备/双技能，补英雄等级、主副符文、补刀及每分钟值、可核验参团和同一已返回记录里的十人英雄阵容。“补刀（CS）”明确为小兵与野怪击杀数；未获得LP变化/对线评分时不造数 |
@@ -38,6 +38,7 @@ Taste Skill 本地版本6010f91，应用屏方向 `data-terminal`，seed `859827
 - [LCU战绩与时间线包装](https://github.com/LeagueAkari/LeagueAkari/blob/56cdfde00e56148f4641d1a8cf86acb66e903124/src/shared/http-api-axios-helper/league-client/match-history.ts)：核对显式GET时间线路径。
 - [SGP战绩查询包装](https://github.com/LeagueAkari/LeagueAkari/blob/56cdfde00e56148f4641d1a8cf86acb66e903124/src/shared/http-api-axios-helper/sgp/match-history-query.ts)：核对大区/比赛SUMMARY与DETAILS及entitlements授权。
 - [LCU字段](https://github.com/LeagueAkari/LeagueAkari/blob/56cdfde00e56148f4641d1a8cf86acb66e903124/src/shared/types/league-client/match-history.ts)与[SGP字段](https://github.com/LeagueAkari/LeagueAkari/blob/56cdfde00e56148f4641d1a8cf86acb66e903124/src/shared/types/sgp/match-history.ts)：核对参与者、统计、符文属性、队伍目标、帧、物品与技能事件。
+- BUG-0064另对照公开的同场国服LCU/SGP 420与440夹具：LCU没有`teamPosition`，但标准`timeline.lane/role`可与SGP明确位置逐人核验。归一仅接受核验一致的组合；无惩戒假打野等异常保持未知，不引入远端查询。
 
 这是公开契约研究，未复制其实现，也不证明每个国服账号和历史比赛均能返回完整数据。新图片只来自原官方Data Dragon，元数据与哈希见THIRD_PARTY_NOTICES和本地清单。
 

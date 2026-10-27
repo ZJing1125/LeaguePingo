@@ -4,6 +4,14 @@
 
 历史条目描述当时行为；如后续需求调整，以较新条目为准。当前局内请求边界见 BUG-0043；BUG-0045 仅为临时按住快览恢复鼠标穿透，手动模式保持可交互。
 
+## BUG-0064 / 近期位置有比赛却显示零场
+
+- 日期：2026-10-27；分支：dev。用户截图中单双排近期样本已有9场胜负/英雄/时间，但首页“位置与活跃时段”和近期比赛“位置分布”均为0场。根因是首批20场按既定策略优先读取本地LCU；国服LCU旧战绩结构不提供`teamPosition`，只提供`timeline.lane`与`timeline.role`，旧解析虽保留lane，位置统计只认position，因此整批位置被丢弃。
+- 来源核验：对LeagueAkari固定提交公开的同场国服[LCU 420记录](https://github.com/LeagueAkari/LeagueAkari/blob/56cdfde00e56148f4641d1a8cf86acb66e903124/src/shared/test-fixtures/api/snapshots/2026-05-16-tencent-hn10/lcu/match-history/games/q_420.json)与[SGP 420记录](https://github.com/LeagueAkari/LeagueAkari/blob/56cdfde00e56148f4641d1a8cf86acb66e903124/src/shared/test-fixtures/api/snapshots/2026-05-16-tencent-hn10/sgp/match-history-query/q_420.json)、对应440记录逐人对照。标准组合在单双排9/10、灵活10/10与SGP的`teamPosition`一致，错误0；一名无惩戒却被LCU标成`JUNGLE/NONE`的上单保持未知。
+- 修正：解析优先使用标准`teamPosition`，其次使用标准`individualPosition`。两者缺失时，只在峡谷标准队列接受明确组合：`TOP+SOLO`、`MIDDLE+SOLO`、`BOTTOM+CARRY/DUO_CARRY`、`BOTTOM+SUPPORT/DUO_SUPPORT`；`JUNGLE`额外要求召唤师技能包含惩戒。异常组合、非峡谷、单独lane继续未知，不按英雄或装备猜位置。两张概览图表消费同一个归一后的Match.position，无额外请求、分页或详情读取。
+- 回归与待验收：新增失败先行解析用例，覆盖五位置、`individualPosition`优先、无惩戒假打野及ARAM不映射；产品浏览器同时断言首页位置/活跃卡、首页近期位置和查询页近期位置保留20场样本。当前Linux没有用户截图中的客户端响应，仍需Windows候选核对该账号9场中实际可确认数量；来源自身异常的记录允许少于有效比赛数，不得补成100%覆盖。
+- 验证：受控Go工具链下`bash scripts/verify.sh portable`、核心/来源/引擎竞态测试、Windows amd64根程序与核心测试编译、Windows目标`go vet`均通过；前端数据测试及`overlay-smoke`、`history-browser`、`home-theme`、`companion-browser`、`player-analysis`分别单进程通过。Linux未运行真实国服客户端验收。
+
 ## BUG-0063 / 赛前资料非本人排位被误报为零负
 
 - 日期：2026-10-27；分支：dev。用户实机截图显示本人胜负正常，而其余玩家单双排出现`384胜 / 0负`、`468胜 / 0负`等成组100%。这不是卡片计算或格式问题：资料流程优先采用`leagues-ledge`的两队列聚合，只要两队列存在便直接返回；腾讯端点对非本人会保留段位、LP和胜场，同时把受限负场编码为字面0，旧流程据此计算了100%。
