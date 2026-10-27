@@ -15,19 +15,22 @@ import (
 const rankedAttemptBudget = 1200 * time.Millisecond
 
 type rankedQueue struct {
-	Queue            string  `json:"queueType"`
-	Tier             *string `json:"tier"`
-	Division         string  `json:"division"`
-	Rank             string  `json:"rank"`
-	LP               *int    `json:"leaguePoints"`
-	Wins             *int    `json:"wins"`
-	Losses           *int    `json:"losses"`
-	HighestTier      string  `json:"highestTier"`
-	HighestRank      string  `json:"highestRank"`
-	HighestDivision  string  `json:"highestDivision"`
-	PreviousTier     string  `json:"previousSeasonEndTier"`
-	PreviousRank     string  `json:"previousSeasonEndRank"`
-	PreviousDivision string  `json:"previousSeasonEndDivision"`
+	Queue                   string  `json:"queueType"`
+	Tier                    *string `json:"tier"`
+	Division                string  `json:"division"`
+	Rank                    string  `json:"rank"`
+	LP                      *int    `json:"leaguePoints"`
+	Wins                    *int    `json:"wins"`
+	Losses                  *int    `json:"losses"`
+	HighestTier             string  `json:"highestTier"`
+	HighestRank             string  `json:"highestRank"`
+	HighestDivision         string  `json:"highestDivision"`
+	PreviousHighestTier     string  `json:"previousSeasonHighestTier"`
+	PreviousHighestRank     string  `json:"previousSeasonHighestRank"`
+	PreviousHighestDivision string  `json:"previousSeasonHighestDivision"`
+	PreviousTier            string  `json:"previousSeasonEndTier"`
+	PreviousRank            string  `json:"previousSeasonEndRank"`
+	PreviousDivision        string  `json:"previousSeasonEndDivision"`
 }
 
 func (s *TencentLCU) loadRanks(ctx context.Context, puuid string, out *core.Profile) {
@@ -166,6 +169,13 @@ func decodeRankedStats(raw []byte, puuid, source string) ([]core.Rank, error) {
 				rank.HighestDivision = q.HighestRank
 			}
 		}
+		if validTier(q.PreviousHighestTier) {
+			rank.PreviousHighestTier = q.PreviousHighestTier
+			rank.PreviousHighestDivision = q.PreviousHighestDivision
+			if source == "sgp" {
+				rank.PreviousHighestDivision = q.PreviousHighestRank
+			}
+		}
 		if validTier(q.PreviousTier) {
 			rank.PreviousTier = q.PreviousTier
 			rank.PreviousDivision = q.PreviousDivision
@@ -201,6 +211,11 @@ func decodeRankedStats(raw []byte, puuid, source string) ([]core.Rank, error) {
 				rank.HighestTier, rank.HighestDivision = old.HighestTier, old.HighestDivision
 			} else if rank.HighestTier == old.HighestTier && rank.HighestDivision == "" {
 				rank.HighestDivision = old.HighestDivision
+			}
+			if rank.PreviousHighestTier == "" {
+				rank.PreviousHighestTier, rank.PreviousHighestDivision = old.PreviousHighestTier, old.PreviousHighestDivision
+			} else if rank.PreviousHighestTier == old.PreviousHighestTier && rank.PreviousHighestDivision == "" {
+				rank.PreviousHighestDivision = old.PreviousHighestDivision
 			}
 			if rank.PreviousTier == "" {
 				rank.PreviousTier, rank.PreviousDivision = old.PreviousTier, old.PreviousDivision

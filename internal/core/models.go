@@ -61,18 +61,20 @@ type FieldFreshness struct {
 	FetchedAt *time.Time `json:"fetchedAt"`
 }
 type Rank struct {
-	Queue            string `json:"queue"`
-	Tier             string `json:"tier"`
-	Division         string `json:"division"`
-	LP               *int   `json:"lp"`
-	Wins             *int   `json:"wins"`
-	Losses           *int   `json:"losses"`
-	Source           string `json:"source,omitempty"`
-	SeasonID         *int   `json:"seasonId,omitempty"`
-	HighestTier      string `json:"highestTier,omitempty"`
-	HighestDivision  string `json:"highestDivision,omitempty"`
-	PreviousTier     string `json:"previousTier,omitempty"`
-	PreviousDivision string `json:"previousDivision,omitempty"`
+	Queue                   string `json:"queue"`
+	Tier                    string `json:"tier"`
+	Division                string `json:"division"`
+	LP                      *int   `json:"lp"`
+	Wins                    *int   `json:"wins"`
+	Losses                  *int   `json:"losses"`
+	Source                  string `json:"source,omitempty"`
+	SeasonID                *int   `json:"seasonId,omitempty"`
+	HighestTier             string `json:"highestTier,omitempty"`
+	HighestDivision         string `json:"highestDivision,omitempty"`
+	PreviousHighestTier     string `json:"previousHighestTier,omitempty"`
+	PreviousHighestDivision string `json:"previousHighestDivision,omitempty"`
+	PreviousTier            string `json:"previousTier,omitempty"`
+	PreviousDivision        string `json:"previousDivision,omitempty"`
 }
 
 type Match struct {

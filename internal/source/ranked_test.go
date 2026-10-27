@@ -201,9 +201,9 @@ func TestRankHistoryKeepsQueueContractWithoutInventingSeasonYearsOrLP(t *testing
 		if source == "sgp" {
 			division = "Rank"
 		}
-		raw := fmt.Sprintf(`{"queues":[{"queueType":"RANKED_SOLO_5x5","tier":"GOLD","highestTier":"DIAMOND","highest%s":"II","previousSeasonEndTier":"PLATINUM","previousSeasonEnd%s":"I"},{"queueType":"RANKED_FLEX_SR","tier":"SILVER"}]}`, division, division)
+		raw := fmt.Sprintf(`{"queues":[{"queueType":"RANKED_SOLO_5x5","tier":"GOLD","highestTier":"DIAMOND","highest%s":"II","previousSeasonHighestTier":"MASTER","previousSeasonHighest%s":"I","previousSeasonEndTier":"PLATINUM","previousSeasonEnd%s":"I"},{"queueType":"RANKED_FLEX_SR","tier":"SILVER"}]}`, division, division, division)
 		ranks, err := decodeRankedStats([]byte(raw), "target", source)
-		if err != nil || len(ranks) != 2 || ranks[0].HighestTier != "DIAMOND" || ranks[0].HighestDivision != "II" || ranks[0].PreviousDivision != "I" || ranks[1].HighestTier != "" {
+		if err != nil || len(ranks) != 2 || ranks[0].HighestTier != "DIAMOND" || ranks[0].HighestDivision != "II" || ranks[0].PreviousHighestTier != "MASTER" || ranks[0].PreviousHighestDivision != "I" || ranks[0].PreviousDivision != "I" || ranks[1].HighestTier != "" {
 			t.Fatal("rank history crossed queue or schema", source, err, ranks)
 		}
 	}
@@ -211,11 +211,11 @@ func TestRankHistoryKeepsQueueContractWithoutInventingSeasonYearsOrLP(t *testing
 
 func TestRankHistorySurvivesSupplementalQueueContainer(t *testing.T) {
 	for _, body := range []string{
-		`{"queues":[{"queueType":"RANKED_SOLO_5x5","tier":"GOLD","highestTier":"DIAMOND","highestDivision":"II","previousSeasonEndTier":"PLATINUM","previousSeasonEndDivision":"I"}],"queueMap":{"RANKED_SOLO_5x5":{"tier":"GOLD","wins":36,"losses":38}}}`,
-		`{"queueMap":{"RANKED_SOLO_5x5":{"tier":"GOLD","highestTier":"DIAMOND","highestDivision":"II","previousSeasonEndTier":"PLATINUM","previousSeasonEndDivision":"I"}},"queues":[{"queueType":"RANKED_SOLO_5x5","tier":"GOLD","wins":36,"losses":38}]}`,
+		`{"queues":[{"queueType":"RANKED_SOLO_5x5","tier":"GOLD","highestTier":"DIAMOND","highestDivision":"II","previousSeasonHighestTier":"MASTER","previousSeasonHighestDivision":"I","previousSeasonEndTier":"PLATINUM","previousSeasonEndDivision":"I"}],"queueMap":{"RANKED_SOLO_5x5":{"tier":"GOLD","wins":36,"losses":38}}}`,
+		`{"queueMap":{"RANKED_SOLO_5x5":{"tier":"GOLD","highestTier":"DIAMOND","highestDivision":"II","previousSeasonHighestTier":"MASTER","previousSeasonHighestDivision":"I","previousSeasonEndTier":"PLATINUM","previousSeasonEndDivision":"I"}},"queues":[{"queueType":"RANKED_SOLO_5x5","tier":"GOLD","wins":36,"losses":38}]}`,
 	} {
 		ranks, err := decodeRankedStats([]byte(body), "target", "lcu")
-		if err != nil || len(ranks) != 1 || ranks[0].HighestTier != "DIAMOND" || ranks[0].HighestDivision != "II" || ranks[0].PreviousTier != "PLATINUM" || ranks[0].PreviousDivision != "I" || ranks[0].Losses == nil || *ranks[0].Losses != 38 {
+		if err != nil || len(ranks) != 1 || ranks[0].HighestTier != "DIAMOND" || ranks[0].HighestDivision != "II" || ranks[0].PreviousHighestTier != "MASTER" || ranks[0].PreviousHighestDivision != "I" || ranks[0].PreviousTier != "PLATINUM" || ranks[0].PreviousDivision != "I" || ranks[0].Losses == nil || *ranks[0].Losses != 38 {
 			t.Fatal("supplemental counters erased source-provided rank history")
 		}
 	}

@@ -45,20 +45,24 @@ async function main(){
   };
   await page.goto('http://127.0.0.1:43208/');
   await page.locator('.home-account h2').filter({hasText:player.displayName}).waitFor();
+  const rankHistory=page.locator('.home-ranks .rank-history').first();
+  await rankHistory.locator('summary').click();
+  const rankHistoryText=await rankHistory.innerText();
+  assert(rankHistoryText.includes('已记录历史最高')&&rankHistoryText.includes('上赛季最高'),'rank history did not distinguish recorded and previous-season highs');
+  assert(rankHistoryText.includes('大师'),'recorded historical high did not use previous-season highest');
+  await rankHistory.locator('summary').click();
   await shot('overview-dark');
   await page.getByLabel('玩家完整 ID',{exact:true}).fill(player.displayName);
   await page.getByRole('button',{name:'查询战绩',exact:true}).click();
   await page.locator('.players-workspace .match-card').first().waitFor();
   await shot('history-dark');
   await page.locator('.players-workspace .match-main').first().click();
-  await shot('personal-dark');
-  if(process.env.ANALYSIS_BASELINE==='1'){assert.deepEqual(errors,[]);return;}
-  assert.equal(calls.filter(n=>n==='MatchDetail').length,0,'expansion must not query the full game');
-  await page.getByRole('button',{name:'读取双方详情',exact:true}).click();
   await page.locator('.full-match-detail tr.target').waitFor();
+  await shot('scoreboard-dark');
+  if(process.env.ANALYSIS_BASELINE==='1'){assert.deepEqual(errors,[]);return;}
+  assert.equal(calls.filter(n=>n==='MatchDetail').length,1,'opening one game must load exactly that game detail');
   assert.equal(await page.locator('.full-match-detail tbody tr').count(),10);
   assert.equal(await page.locator('.detail-loadout').first().locator('.game-icon').count(),7);
-  await shot('scoreboard-dark');
   const before=calls.length;
   await page.getByRole('tab',{name:'团队分析',exact:true}).click();
   await page.locator('.team-analysis').waitFor();
@@ -85,7 +89,7 @@ async function main(){
   await page.locator('.rune-tree').scrollIntoViewIfNeeded();
   await shot('runes-dark');
   await page.getByRole('tab',{name:'出装符文',exact:true}).press('Home');
-  assert.equal(await page.getByRole('tab',{name:'概览',exact:true}).getAttribute('aria-selected'),'true','Home key did not select first analysis tab');
+  assert.equal(await page.getByRole('tab',{name:'对局概览',exact:true}).getAttribute('aria-selected'),'true','Home key did not select first analysis tab');
   // Closing and reopening the same row retains the completed manual result.
   await page.locator('.players-workspace .match-main').first().click();
   await page.locator('.players-workspace .match-main').first().click();
@@ -109,7 +113,7 @@ async function main(){
 
   for(const width of [1280,1100,880]){
    await page.setViewportSize({width,height:width===880?620:800});
-   await page.getByRole('tab',{name:'概览',exact:true}).click();
+   await page.getByRole('tab',{name:'对局概览',exact:true}).click();
    assert(await page.locator('.players-workspace').evaluate(el=>el.scrollWidth<=el.clientWidth+1),'analysis workspace has horizontal overflow');
    await shot(`scoreboard-${width}`);
   }
@@ -134,12 +138,13 @@ async function main(){
   await home.locator('.home-match .match-main').first().click();
   const homeGame=page.getByRole('dialog',{name:'对局详情',exact:true});
   await homeGame.waitFor();
+  await homeGame.locator('tr.target').waitFor();
   assert((await homeGame.locator('.analysis-tabs [role=tab]').first().getAttribute('id')).includes('70021'),'second-page row did not open its loaded game');
-  assert.equal(calls.filter(n=>n==='MatchDetail').length,detailsBeforeHome,'paged home preview requested full details automatically');
+  assert.equal(calls.filter(n=>n==='MatchDetail').length,detailsBeforeHome+1,'opening a paged home game did not load exactly one detail');
   await homeGame.press('Escape');
   assert.equal(calls.filter(n=>n==='CurrentPlayer').length,1,'analysis navigation restarted automatic home loading');
   assert.deepEqual(external,[]);assert.deepEqual(errors,[]);
-  console.log('PASS: professional overview, rich match rows, opt-in scoreboard/timeline, six team metrics, build/runes, cached tab changes, 1280/1100/880 and both themes; synthetic bridge.');
+  console.log('PASS: professional overview, rich match rows, click-authorized scoreboard, opt-in timeline, six team metrics, build/runes, cached tab changes, 1280/1100/880 and both themes; synthetic bridge.');
  }finally{await browser.close()}
 }
 main().catch(e=>{console.error(e);process.exitCode=1});

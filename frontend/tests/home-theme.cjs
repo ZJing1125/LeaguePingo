@@ -36,6 +36,7 @@ async function main() {
         const request = route.request().postDataJSON();
         if (await desktop.handle(route, request)) return;
         const method = methods[request.args?.methodID];
+        const args = request.args?.args ?? [];
         calls.push(method);
         let result;
         if (method === "Snapshot") result = snapshot;
@@ -46,6 +47,10 @@ async function main() {
           result = self;
         } else if (method === "Lookup") result = player("synthetic-other", snapshot.connectionId);
         else if (method === "RefreshData") { self = { ...self, profile: { ...self.profile, updatedAt: "2026-10-20T03:02:00Z", level: 129 } }; result = self; }
+        else if (method === "MatchDetail") {
+          const target = self.history.find(match => match.gameId === args[2]) ?? self.history[0];
+          result = { gameId: args[2], connectionId: snapshot.connectionId, partial: false, fetchedAt: "2026-10-20T03:04:00Z", players: Array.from({ length: 10 }, (_, i) => ({ participantId: i + 1, teamId: i < 5 ? 100 : 200, displayName: `详情玩家${i + 1}#DEMO`, target: i === 0, summary: { ...target, championId: [107,23,25,99,17,64,103,222,412,111][i], kills: 5 + i % 4, deaths: 2 + i % 3, assists: 7 + i % 5, participation: undefined, position: ["TOP","JUNGLE","MIDDLE","BOTTOM","UTILITY"][i % 5], visionScore: 10 + i, wardsPlaced: 4 + i, wardsKilled: i % 4, controlWards: i % 3, damageTaken: 15000 + i * 600, championLevel: 15 + i % 3 }, participation: 40 + i })) };
+        }
         else if (method === "Info") result = { version: "synthetic", commit: "test", requests: {}, shortcut: "Ctrl+Shift+P", holdEnabled: true, holdKey: "Backquote", goHeapBytes: 0, goroutines: 0 };
         else throw new Error(`Unexpected service: ${method}`);
         return route.fulfill({ json: result });
@@ -73,15 +78,16 @@ async function main() {
     await page.getByRole("img", { name: "玩家账号头像", exact: true }).waitFor();
     await resolved("dark");
     assert.equal(await theme.inputValue(), "dark", "a new player should start in dark mode");
-    const callsBeforeSingleGame=calls.length;
+    const detailsBeforeSingleGame=calls.filter(call=>call==='MatchDetail').length;
     await page.locator('.home-match .match-main').first().click();
     const singleGame=page.getByRole('dialog',{name:'对局详情',exact:true});
     await singleGame.waitFor();
+    await singleGame.locator('tr.target').waitFor();
     assert.equal(await nav.getByRole('button',{name:'首页',exact:true}).getAttribute('aria-current'),'page','single match left the home workspace');
-    assert((await singleGame.innerText()).includes('个人表现'));
+    assert((await singleGame.innerText()).includes('双方详情'));
     assert((await singleGame.locator('.analysis-tabs [role=tab]').first().getAttribute('id')).includes('50000'),'home detail opened a different game');
-    assert.equal(await singleGame.locator('.personal-items .game-icon').count(),7);
-    assert.equal(calls.length,callsBeforeSingleGame,'local match preview queried player data');
+    assert.equal(await singleGame.locator('.detail-loadout').count(),10);
+    assert.equal(calls.filter(call=>call==='MatchDetail').length,detailsBeforeSingleGame+1,'opening one home game must load one detail');
     for(const [width,height] of [[1280,800],[1100,760],[880,620]]){
       await page.setViewportSize({width,height});
       assert(await singleGame.evaluate(el=>el.scrollWidth<=el.clientWidth+1),'single-game dialog overflow');

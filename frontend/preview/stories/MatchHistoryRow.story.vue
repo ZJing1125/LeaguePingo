@@ -34,11 +34,11 @@ const expanded = ref(false);
           :expanded="false"
         /></div
     ></Variant>
-    <Variant title="展开 · 不请求双方详情"
+    <Variant title="展开 · 自定义详情插槽"
       ><div style="padding: 16px">
         <MatchHistoryRow :match="makeMatch(1)" expanded
           ><template #details
-            ><p class="muted">合成详情插槽 · 展开不触发数据请求</p></template
+            ><p class="muted">合成详情插槽</p></template
           ></MatchHistoryRow
         >
       </div></Variant

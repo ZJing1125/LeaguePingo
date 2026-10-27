@@ -219,6 +219,8 @@ export interface Rank {
     "seasonId"?: number | null;
     "highestTier"?: string;
     "highestDivision"?: string;
+    "previousHighestTier"?: string;
+    "previousHighestDivision"?: string;
     "previousTier"?: string;
     "previousDivision"?: string;
 }

@@ -756,52 +756,18 @@ async function main() {
     );
     await page.locator(".players-workspace .match-main").first().click();
     assert.equal(await page.locator(".match-expanded").count(), 1);
-    await page
-      .getByLabel("对局上下文")
-      .getByText("召唤师峡谷", { exact: true })
-      .waitFor();
-    await page
-      .getByLabel("对局上下文")
-      .getByText("辅助", { exact: true })
-      .waitFor();
-    await page
-      .getByLabel("对局上下文")
-      .getByText("提前结束", { exact: true })
-      .waitFor();
-    await page
-      .getByLabel("本玩家符文")
-      .getByText("强攻", { exact: true })
-      .waitFor();
-    await page
-      .getByLabel("本玩家符文")
-      .getByText("符文 #999999", { exact: true })
-      .waitFor();
-    await page
-      .getByLabel("本玩家符文")
-      .getByText("精密 / 主宰", { exact: true })
-      .waitFor();
-    await page
-      .locator(".match-expanded")
-      .getByText("12345", { exact: true })
-      .waitFor();
-    assert(
-      !calls.includes("MatchDetail"),
-      "expanding a match must not fetch full detail automatically",
-    );
-    await page
-      .getByRole("button", { name: "读取双方详情", exact: true })
-      .click();
     await page.waitForFunction(
       () =>
         document.querySelectorAll(".full-match-detail tbody tr").length === 10,
     );
+    assert.equal(calls.filter(name => name === "MatchDetail").length, 1, "one expanded match must load one detail");
     assert.equal(await page.locator(".full-match-detail tr.target").count(), 1);
     assert.equal(
       await page.locator(".full-match-detail tbody .detail-loadout").count(),
       10,
       "both teams must expose received equipment",
     );
-    assert.equal(await page.locator('.full-match-detail tbody .scoreboard-spells .game-icon').count(),20,'both teams must expose both received summoner spells');
+    assert.equal(await page.locator('.full-match-detail tbody .scoreboard-systems .game-icon').count(),20,'both teams must expose both received summoner spells');
     assert.equal(await page.locator('.full-match-detail tbody .detail-loadout .game-icon').count(),70,'both teams must retain all seven equipment slots');
     assert.equal(
       await page

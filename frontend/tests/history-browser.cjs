@@ -179,6 +179,10 @@ async function main() {
             }, advance);
           }
         } else if (method === "EnsureProfile") result = player(args[0]);
+        else if (method === "MatchDetail") {
+          const summary = history.find(match => match.gameId === args[2]) ?? history[0];
+          result = { gameId: args[2], connectionId: 7, partial: true, fetchedAt: new Date().toISOString(), players: [{ participantId: 1, teamId: 100, displayName: '合成详情#TEST', target: true, summary }] };
+        }
         else throw new Error(`Unexpected bridge method ${method}`);
         return route.fulfill({ json: result });
       }
