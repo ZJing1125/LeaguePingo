@@ -56,7 +56,9 @@ SGP延续可信当前大区、内存授权、正常TLS、不跟随重定向与�
 
 ## BUG-0057：段位与排位聚合胜负
 
-BUG-0060补充统一显式核验入口：`bash scripts/audit-player-data.sh rank` 同时报告LCU两容器、合并结果、SGP及差异；history/match核对真实页与字段/时间线，见 [PLAYER_DATA_AUDIT.md](PLAYER_DATA_AUDIT.md)。最高/上季字段不会再被同响应仅补计数的第二容器清空。当前没有新的国服实机证据，不改变下文0负场待核验状态。
+BUG-0063根据新的十人赛前截图补充并替代本节“不处理非本人字面0”的旧结论：本人胜负正常，而多名其他玩家同时出现数百胜/0负，证明该值在产品上下文中是访问范围信号，不能作为全胜事实。最新LeagueAkari的[排位数据模块](https://github.com/LeagueAkari/LeagueAkari/blob/56cdfde00e56148f4641d1a8cf86acb66e903124/src/renderer/src-main-window/views/player-tabs/components/player-tab/data/ranked-stats.ts)也仅用LCU读取排位，并在[界面](https://github.com/LeagueAkari/LeagueAkari/blob/56cdfde00e56148f4641d1a8cf86acb66e903124/src/renderer/src-main-window/views/player-tabs/components/player-tab/widgets/RankedPane.vue#L289-L292)以`losses !== 0`为胜率展示条件。产品现在保留非本人的段位、LP与胜场，但将`wins>0 && losses==0`的负场视为未知，再使用同队列独立ScoutReport的当前赛季胜负；完整、部分和缺失分别显示“本季”“本季已读”“胜负待确认”。已核验本人显式0及逐场实际全胜仍可显示100%。原始解析/审计保留字面值，不跨来源拼字段，也不新增请求。
+
+BUG-0060补充统一显式核验入口：`bash scripts/audit-player-data.sh rank` 同时报告LCU两容器、合并结果、SGP及差异；history/match核对真实页与字段/时间线，见 [PLAYER_DATA_AUDIT.md](PLAYER_DATA_AUDIT.md)。最高/上季字段不会再被同响应仅补计数的第二容器清空。下文保留BUG-0057当时的调查记录，当前产品结论以BUG-0063为准。
 
 用户确认e9a9a1f战绩查询页单双排、灵活排位卡均0负场。该版本段位只读LCU `/lol-ranked/v1/ranked-stats/{puuid}`，缺失/null保持为空、前端显示—，不能归因为UI补零。也不能仅凭截图判断服务对他人数据脱敏。BUG-0056的本人/他人零负场猜测已移除。
 
@@ -64,8 +66,8 @@ BUG-0060补充统一显式核验入口：`bash scripts/audit-player-data.sh rank
 
 SGP尝试最多1.2秒且不超过资料剩余预算的一半，保留LCU回退时间；仍属于原串行资料任务，不新增准备轮次/定时刷新/逐场扫描。两队列齐全直接返回，缺队列或失败回退LCU整条队列，不跨来源拼字段。两种授权各自两分钟内存缓存，401/403只清对应token、不自动重试，换号清全部。仅可信当前大区、正常TLS、拒绝重定向，凭据不出Go、不落盘。
 
-排位卡优先使用完整SGP胜负，明确标排位范围；已有的逐场报告不能用已读全胜前缀覆盖聚合负场。聚合缺失时，独立ScoutQueue.season有有效胜负可提供本季/本季已读：完整且胜负齐全才为本季，未知不当败场。再无逐场结果时才使用LCU完整胜负。真实零负场不擅自删除，空总场次胜率—。首页/资料头/侧栏展开/快览统一；近20场/筛选列表不参与。12小时、30天、英雄排位和全部模式经验仍按独立报告及原口径展示。
+排位卡优先使用可信且完整的SGP胜负，明确标排位范围；已有的逐场报告不能用已读全胜前缀覆盖非零聚合负场。聚合缺失或被BUG-0063判定为非本人受限零负时，独立ScoutQueue.season有有效胜负可提供本季/本季已读：完整且胜负齐全才为本季，未知不当败场。再无逐场结果时才使用可信的LCU完整胜负。本人真实零负保留，空总场次胜率—。首页/资料头/侧栏展开/快览统一；近20场/筛选列表不参与。12小时、30天、英雄排位和全部模式经验仍按独立报告及原口径展示。
 
 WeGame官方公开战绩页使用GetBattleReport/GetPlayerRecentStat等独立聚合服务；存在各赛季单双排/灵活的分离计数，不等同本地LCU字段。当前没有WeGame授权，未读其Cookie或查询该玩家，不直接填入截图数字。SGP与WeGame必须对齐身份、大区、队列、赛季/赛段后才能比较，两个服务的总数不保证相同。
 
-状态：代码与合成回归不证明该玩家数据恢复。当前Linux没有客户端；须在游戏电脑执行单玩家LCU queues/queueMap与SGP同次对照，区分原始零、容器冲突、来源失败与范围不同。若两路都错误，继续调查经授权可用的聚合来源，不把零置空当作完成。步骤见ACCEPTANCE BUG-0057。
+状态：新截图确认产品曾把非本人字面零负误当完整聚合，BUG-0063已改为用同队列真实逐场赛季记录提供可核验胜负，而非只隐藏数字。代码与合成回归仍不证明Windows候选已恢复；须在游戏电脑复验最终卡片，并用审计区分原始零、容器冲突、来源失败与范围不同。步骤见ACCEPTANCE BUG-0063/0057。

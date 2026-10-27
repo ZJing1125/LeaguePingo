@@ -92,6 +92,23 @@ func TestUnifiedProfileAndRankQueryUseRankedServiceCounters(t *testing.T) {
 	}
 }
 
+func TestNonSelfZeroLossRankedCountersDoNotOverrideSeasonHistory(t *testing.T) {
+	zeroLosses := `{"queues":[{"queueType":"RANKED_SOLO_5x5","tier":"PLATINUM","rank":"I","leaguePoints":39,"wins":384,"losses":0},{"queueType":"RANKED_FLEX_SR","tier":"SILVER","rank":"II","leaguePoints":27,"wins":26,"losses":0}],"seasons":{"RANKED_SOLO_5x5":{"currentSeasonId":37},"RANKED_FLEX_SR":{"currentSeasonId":38}}}`
+	s, _, _ := rankedTestSource(t, zeroLosses)
+	s.selfPUUID = "verified-self"
+
+	other := s.Ranks(context.Background(), "target")
+	if len(other.Ranks) != 2 || other.Ranks[0].Tier != "PLATINUM" || other.Ranks[0].Wins == nil || *other.Ranks[0].Wins != 384 || other.Ranks[0].Losses != nil || other.Ranks[1].Losses != nil {
+		t.Fatal("restricted non-self losses became a real undefeated aggregate", other.Ranks)
+	}
+
+	s.selfPUUID = "target"
+	self := s.Ranks(context.Background(), "target")
+	if len(self.Ranks) != 2 || self.Ranks[0].Losses == nil || *self.Ranks[0].Losses != 0 || self.Ranks[1].Losses == nil || *self.Ranks[1].Losses != 0 {
+		t.Fatal("verified self zero-loss record was discarded", self.Ranks)
+	}
+}
+
 func TestRankedFallbackIsPerQueueAndNeverStitchesCounters(t *testing.T) {
 	s, _, _ := rankedTestSource(t, `{"queues":[{"queueType":"RANKED_SOLO_5x5","tier":"GOLD","rank":"IV","leaguePoints":5,"wins":36}]}`)
 	p := s.Ranks(context.Background(), "target")

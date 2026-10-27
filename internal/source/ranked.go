@@ -43,6 +43,7 @@ func (s *TencentLCU) loadRanks(ctx context.Context, puuid string, out *core.Prof
 	remoteCtx, cancel := context.WithTimeout(ctx, attempt)
 	ranks, remoteErr := s.sgpRanks(remoteCtx, puuid)
 	cancel()
+	ranks = s.normalizeRankedCounters(puuid, ranks)
 	if ranks == nil {
 		ranks = []core.Rank{}
 	}
@@ -51,6 +52,7 @@ func (s *TencentLCU) loadRanks(ctx context.Context, puuid string, out *core.Prof
 		return
 	}
 	local, err := s.lcuRanks(ctx, puuid)
+	local = s.normalizeRankedCounters(puuid, local)
 	// Choose a whole queue from one source. Never combine SGP wins with LCU
 	// losses, rank positions or seasons, even if one field is missing.
 	for _, rank := range local {
@@ -79,6 +81,24 @@ func (s *TencentLCU) loadRanks(ctx context.Context, puuid string, out *core.Prof
 	} else if remoteErr != nil && ctx.Err() != nil {
 		out.RankState, out.RankMessage = "failed", "段位查询超时，可重试"
 	}
+}
+
+// Tencent's ranked endpoints can expose a non-self player's tier, LP and wins
+// while returning losses as a literal zero. That value is not a verified
+// undefeated record: using it produces the repeated 100% rates seen across a
+// whole lobby. Preserve the rank fields and wins, but leave the restricted
+// loss count unknown so the UI can use the independently scanned season
+// history. A cached, verified current account keeps its explicit zero.
+func (s *TencentLCU) normalizeRankedCounters(puuid string, ranks []core.Rank) []core.Rank {
+	if puuid != "" && s.CachedAccountIdentity() == puuid {
+		return ranks
+	}
+	for i := range ranks {
+		if ranks[i].Wins != nil && *ranks[i].Wins > 0 && ranks[i].Losses != nil && *ranks[i].Losses == 0 {
+			ranks[i].Losses = nil
+		}
+	}
+	return ranks
 }
 
 func (s *TencentLCU) lcuRanks(ctx context.Context, puuid string) ([]core.Rank, error) {

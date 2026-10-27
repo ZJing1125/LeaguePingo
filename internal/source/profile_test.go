@@ -153,7 +153,7 @@ func TestRankedQueueMapIsAccepted(t *testing.T) {
 	}
 }
 
-func TestLCURanksPreserveReportedZeroRegardlessOfCachedSelf(t *testing.T) {
+func TestLCURanksTreatNonSelfZeroLossAsRestrictedWithoutIdentityRequest(t *testing.T) {
 	for _, self := range []string{"", "other", "target"} {
 		for _, layout := range []string{"queues", "queueMap"} {
 			t.Run(self+"/"+layout, func(t *testing.T) {
@@ -177,8 +177,14 @@ func TestLCURanksPreserveReportedZeroRegardlessOfCachedSelf(t *testing.T) {
 				}
 				for _, rank := range p.Ranks {
 					if rank.Queue == "RANKED_SOLO_5x5" {
-						if rank.Wins == nil || *rank.Wins != 178 || rank.LP == nil || *rank.LP != 39 || rank.Losses == nil || *rank.Losses != 0 {
-							t.Fatal("reported rank counters were guessed or altered")
+						if rank.Wins == nil || *rank.Wins != 178 || rank.LP == nil || *rank.LP != 39 {
+							t.Fatal("available rank fields were discarded")
+						}
+						if self == "target" && (rank.Losses == nil || *rank.Losses != 0) {
+							t.Fatal("verified self zero-loss record was discarded")
+						}
+						if self != "target" && rank.Losses != nil {
+							t.Fatal("restricted non-self zero loss was treated as an undefeated record")
 						}
 					} else if rank.Losses == nil || *rank.Losses != 27 {
 						t.Fatal("independent flex losses changed")

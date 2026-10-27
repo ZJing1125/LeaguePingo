@@ -18,20 +18,21 @@ async function main(){
   const avatar='data:image/svg+xml;base64,'+Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" rx="10" fill="#66558f"/><circle cx="32" cy="27" r="16" fill="#efc69a"/></svg>').toString('base64');
   const players=Array.from({length:10},(_,i)=>{
    const history=Array.from({length:20},(_,j)=>({gameId:9000+j,playedAt:time,queueId:j%2?440:420,championId:23,win:j%3!==0,kills:5,deaths:3,assists:10,duration:1800,cs:180+i*5,damage:24000+i*1200,gold:12000+i*250,position:j%2?'UTILITY':'TOP',items:[3006,3078,0,0,0,0,3364],spell1:4,spell2:14}));
-   const p={connectionId:1,key:`synthetic-${i}`,puuid:`synthetic-${i}`,displayName:`合成玩家${i+1}#DEMO`,team:i<5?'ally':'enemy',championId:23,championState:'selected',identityState:'known',privacyState:'private',historyState:'ready',history,historyMeta:{fetchedAt:time,parsed:20,returned:20},stats:stats(history),profile:{updatedAt:time,profileIconData:avatar,level:200+i,rankState:'ready',privacyState:'private',fields:{rank:{state:'ready',fetchedAt:time}},ranks:[{queue:'RANKED_SOLO_5x5',tier:'EMERALD',division:'II',lp:86,wins:154,losses:166},{queue:'RANKED_FLEX_SR',tier:'GOLD',division:'III',lp:27,wins:117,losses:135}]}};
+   const p={connectionId:1,key:`synthetic-${i}`,puuid:`synthetic-${i}`,displayName:`合成玩家${i+1}#DEMO`,team:i<5?'ally':'enemy',championId:23,championState:'selected',identityState:'known',privacyState:'private',historyState:'ready',history,historyMeta:{fetchedAt:time,parsed:20,returned:20},stats:stats(history),profile:{updatedAt:time,profileIconData:avatar,level:200+i,rankState:'ready',privacyState:'private',fields:{rank:{state:'ready',fetchedAt:time}},ranks:[{queue:'RANKED_SOLO_5x5',tier:'EMERALD',division:'II',lp:86,wins:154,losses:166,source:'sgp',seasonId:37},{queue:'RANKED_FLEX_SR',tier:'GOLD',division:'III',lp:27,wins:117,losses:135,source:'sgp',seasonId:38}]}};
    p.scout=scoutFixture(p);p.scout.champions[0].games=1360;p.scout.champions[0].mastery={level:35,points:910000,championId:23};
    const season=(games,rate,kda)=>({games,wins:games*rate/100,losses:games*(100-rate)/100,outcomeGames:games,kdaGames:games,winRate:rate,kda});
    p.scout.champions[0].queues=[{queueId:420,stats:season(800,60,5),average:[8,3,7]},{queueId:440,stats:season(360,40,4.4),average:[4,5,18]}];
    p.scout.queues[0].month=season(100,58,3);p.scout.queues[1].month=season(72,50,4);
    return p;
   });
-  // Another player's zero-loss endpoint response is normalized to unknown by
-  // the source. Independent seasonal records provide the scoped win rate.
-  players[0].profile.ranks[0].wins=178;players[0].profile.ranks[0].losses=null;
-  players[0].scout.champions[0].queues[0].stats={games:50,wins:30,losses:20,outcomeGames:50,kdaGames:50,winRate:60,kda:5};
-  players[0].scout.champions[0].queues[1].stats={games:20,wins:8,losses:12,outcomeGames:20,kdaGames:20,winRate:40,kda:4.4};
-  players[0].scout.queues[0].season={games:100,wins:49,losses:51,outcomeGames:100,kdaGames:100,winRate:49,kda:3};
-  players[0].scout.queues[1].season={games:50,wins:20,losses:30,outcomeGames:50,kdaGames:50,winRate:40,kda:4};
+  // A non-self zero-loss endpoint response is normalized to unknown by the
+  // source. Independent seasonal records then provide each queue's record.
+  players[1].profile.ranks[0].wins=384;players[1].profile.ranks[0].losses=null;
+  players[1].profile.ranks[1].wins=26;players[1].profile.ranks[1].losses=null;
+  players[1].scout.champions[0].queues[0].stats={games:50,wins:30,losses:20,outcomeGames:50,kdaGames:50,winRate:60,kda:5};
+  players[1].scout.champions[0].queues[1].stats={games:20,wins:8,losses:12,outcomeGames:20,kdaGames:20,winRate:40,kda:4.4};
+  players[1].scout.queues[0].season={games:100,wins:49,losses:51,outcomeGames:100,kdaGames:100,winRate:49,kda:3};
+  players[1].scout.queues[1].season={games:50,wins:20,losses:30,outcomeGames:50,kdaGames:50,winRate:40,kda:4};
   let snapshot={connectionId:1,generation:1,connected:true,selfKey:players[0].key,region:'SYNTHETIC',phase:'Lobby',stage:'party',gameId:0,queueId:420,scoutQueue:420,updatedAt:time,participants:[{...players[0],championId:0,championState:'unselected'}]};
   let state={revision:1,visible:true,mode:'sidebar',sidebarSide:'left',sidebarWidth:320,sidebarEnabled:true,previewEnabled:true,holdEnabled:true,holdAvailable:true,holdKey:'Backquote',pinned:true,shortcut:'Ctrl+Shift+P'};
   let info={version:'synthetic',commit:'fixture',buildTime:time,shortcut:'Ctrl+Shift+P',holdKey:'Backquote',holdEnabled:true,sidebarEnabled:true,previewEnabled:true,sidebarWidth:320,goHeapBytes:0,goroutines:0,requests:{}};
@@ -103,16 +104,16 @@ async function main(){
   await shot(side,'sidebar-selection');
   const summaryLayout=await side.locator('.sidebar-player').evaluateAll(els=>({bottom:document.querySelector('.sidebar-players').getBoundingClientRect().bottom,children:[...els[0].querySelector('summary').children].map(el=>({class:el.className,height:el.getBoundingClientRect().height})),rows:els.map(el=>({height:el.getBoundingClientRect().height,bottom:el.getBoundingClientRect().bottom}))}));
   assert(summaryLayout.rows.every(r=>r.bottom<=summaryLayout.bottom+1),'five player summaries should fit a 720px client: '+JSON.stringify(summaryLayout));
-  await side.locator('.sidebar-player summary').first().click();
+  await side.locator('.sidebar-player summary').nth(1).click();
   await side.locator('.sidebar-player[open] .scout-rings').waitFor();
   const rankResults=side.locator('.sidebar-player[open] .scout-season');
   assert((await rankResults.innerText()).includes('本季 49%'));
   assert((await rankResults.innerText()).includes('49胜 / 51负'));
-  assert(!(await rankResults.innerText()).includes('178胜'),'redacted endpoint losses produced an undefeated record');
+  assert(!(await rankResults.innerText()).includes('384胜'),'redacted endpoint losses produced an undefeated record');
   await shot(side,'sidebar-ranked');
-  snapshot.participants[0].scout.complete=false;await publish();
+  snapshot.participants[1].scout.complete=false;await publish();
   await rankResults.getByText('本季已读 49%',{exact:true}).waitFor();
-  snapshot.participants[0].scout.complete=true;await publish();
+  snapshot.participants[1].scout.complete=true;await publish();
 
   await side.getByRole('button',{name:'灵活组排',exact:true}).click();
   await side.locator('.sidebar-rank').first().getByText(/黄金 III/).waitFor();
@@ -206,7 +207,7 @@ async function main(){
   assert.equal(calls.filter(c=>c.method==='AuxiliaryReady').length,1,'auxiliary frontend reloaded between modes');
   assert(!calls.some(c=>/Lookup|HistoryPage|EnsureProfile|RefreshData/.test(c.method)),'cache-only companion/review paths fetched player data');
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
-  console.log('PASS: scoped solo/flex results, loading preview, bounded rank layout, left sidebar party/selection/rail/mode/hero changes, isolated auxiliary startup, 1100/400 preview and hold, review settlement vs captured reports, next-match/filter isolation, cached modal/7 items/focus/880, companion settings; synthetic bridge only.');
+  console.log('PASS: scoped solo/flex results and restricted non-self zero-loss fallback, loading preview, bounded rank layout, left sidebar party/selection/rail/mode/hero changes, isolated auxiliary startup, 1100/400 preview and hold, review settlement vs captured reports, next-match/filter isolation, cached modal/7 items/focus/880, companion settings; synthetic bridge only.');
  }finally{await browser.close();}
 }
 main().catch(e=>{console.error(e);process.exitCode=1});
