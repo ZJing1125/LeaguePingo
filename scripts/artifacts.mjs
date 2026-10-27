@@ -48,7 +48,7 @@ export function manager(root, processes = runningExecutables) {
     return safe(file);
   }
   function evidence(file) {
-    if (!/^(?:bin\/[A-Za-z0-9_-]+\.png|bin\/performance-[A-Za-z0-9_-]+\/process-tree-[0-9-]+\.csv|artifacts\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+\.(?:png|csv))$/.test(file)) throw new Error(`Not managed evidence: ${file}`);
+    if (!/^(?:bin\/[A-Za-z0-9_-]+\.png|bin\/performance-[A-Za-z0-9_-]+\/process-tree-[0-9-]+\.csv|artifacts\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+\.(?:png|csv|html))$/.test(file)) throw new Error(`Not managed evidence: ${file}`);
     return safe(file);
   }
   function fingerprint(file) {
@@ -238,7 +238,7 @@ export function manager(root, processes = runningExecutables) {
     build.evidence.forEach(e => verified(e));
     const folder = `artifacts/${path.basename(file, '.exe')}`;
     const existing = new Set(build.evidence.map(e => e.file.toLowerCase()));
-    const files = fs.readdirSync(safe(folder)).filter(f => /\.(png|csv)$/.test(f)).map(f => `${folder}/${f}`);
+    const files = fs.readdirSync(safe(folder)).filter(f => /\.(png|csv|html)$/.test(f)).map(f => `${folder}/${f}`);
     for (const f of files) {
       evidence(f);
       if (!existing.has(f.toLowerCase())) build.evidence.push(fingerprint(f));

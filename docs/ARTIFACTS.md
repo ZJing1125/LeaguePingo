@@ -9,7 +9,7 @@
 - `bin/leaguepingo-dev-20261018-v9.exe`：当前版，用户已完成 BUG-0036 本批验收；提交 `c3b7849`。
 - `bin/leaguepingo-dev-20261018-v8.exe`：上一可用回退版；提交 `c9fa6f4`。
 - `bin/artifacts.json`：本机生成的文件清单，保存构建顺序、提交、验收状态及 SHA-256，不提交 Git。不可直接按日期重建或猜测验收状态。
-- `artifacts/<程序文件名去掉.exe>/`：对应版本的截图/性能 CSV，已忽略 Git。
+- `artifacts/<程序文件名去掉.exe>/`：对应版本的截图、无脚本合成页面快照和性能 CSV，已忽略 Git。
 - 8 份历史 `bin/performance-*/isolated-settings/settings.json` 因“配置不动”而保留；不是仍保留旧程序或性能 CSV。
 
 当前两个程序不迁移路径、不改名、不重新构建；16 张对应截图校验后迁入各自证据目录。截图是合成数据测试证据，不等同于真实游戏或性能验证。初始化清单 `scripts/artifacts-bootstrap.json` 只用于这一次已核对的历史迁移，不是新克隆仓库的通用初始化入口。
@@ -28,7 +28,7 @@ bash scripts/build.sh bin/leaguepingo-dev-20261019-v10.exe
 
 完整验证会核验正式图标资源，并生成当前 amd64 的 Windows syso（图标、既有 DPI manifest 与版本信息），供随后编译链接。热重载同样生成资源；对象文件已忽略，不能单独交付。维护与实机图标验收见 APP_ICON.md，普通构建无须额外手工生成图标。
 
-构建之后补充的截图或性能 CSV 应放在对应 `artifacts/<程序名>/` 的直接子级，并用 `node scripts/artifacts.mjs attach-evidence --file bin/<程序名>.exe --apply` 纳入同一版本的清理清单；只接受当前/回退版的 PNG/CSV，已登记文件被改写时拒绝悄悄更新哈希。目录内的其他文件和隔离配置不自动登记。没有登记的外部诊断输出不在自动清理范围内。
+构建之后补充的截图、无脚本合成页面快照或性能 CSV 应放在对应 `artifacts/<程序名>/` 的直接子级，并用 `node scripts/artifacts.mjs attach-evidence --file bin/<程序名>.exe --apply` 纳入同一版本的清理清单；只接受当前/回退版的 PNG/HTML/CSV，已登记文件被改写时拒绝悄悄更新哈希。HTML 只用于浏览器合成桥接生成的离线界面复核，不得包含真实账号、鉴权、接口原文或可执行脚本。目录内的其他文件和隔离配置不自动登记。没有登记的外部诊断输出不在自动清理范围内。
 
 首次克隆且 `bin` 无二进制时，可初始化空清单并构建；已有程序但清单丢失时拒绝自动接管，需要先人工核对并恢复清单。不要重复运行历史 bootstrap。禁止直接使用 `go build` 交付程序；上游安装器/签名/Docker 入口目前明确拒绝执行。标准 `wails3 build`/任务入口统一转到 `build.sh`，热重载单独使用 `artifacts/hot-reload/` 的固定临时文件，不进入交付清单。
 
@@ -75,6 +75,6 @@ Windows 进程路径通过只读 CIM 查询核验，不读取命令行/凭据，
 
 ## 验证
 
-`node --test scripts/artifacts.test.mjs` 已接入 `scripts/verify.sh`。覆盖默认只读、双版本轮换、待验收替换、运行中保护、进程查询失败、校验值变化、路径/链接/重复记录拒绝、未知文件/配置保留、图片迁移校验、写入显式参数与锁，以及临时目录中的构建流程集成。集成测试用模拟编译器验证成功/失败路径，不重新编译或启动用户产品。
+`node --test scripts/artifacts.test.mjs` 已接入 `scripts/verify.sh`。覆盖默认只读、双版本轮换、待验收替换、运行中保护、进程查询失败、校验值变化、路径/链接/重复记录拒绝、未知文件/配置保留、PNG/HTML/CSV 证据登记与清理、图片迁移校验、写入显式参数与锁，以及临时目录中的构建流程集成。集成测试用模拟编译器验证成功/失败路径，不重新编译或启动用户产品。
 
 `scripts/workflow.test.mjs` 同时验证入口路由、策略变异拒绝、实际 Wails 别名（隔离模拟工作区）、未支持入口失败和交付审计。入口测试不在真实项目中执行产品构建。新的热重载与实际桌面启动链路仍需后续显式开发运行验证。

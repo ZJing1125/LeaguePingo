@@ -107,13 +107,18 @@ test('prepare refuses overwrite; registration validates PE; failed build leaves 
   const file = 'bin/leaguepingo-v3.exe';
   const folder = m.prepare(file);
   fs.writeFileSync(path.join(folder, 'ui.png'), 'screenshot');
+  fs.writeFileSync(path.join(folder, 'review.html'), '<!doctype html><title>synthetic review</title>');
   fs.writeFileSync(path.join(root, file), 'partial');
   assert.throws(() => m.register(file, 'abcdef1'), /PE/);
   m.discard(file);
   assert.ok(!exists(file));
+  assert.ok(!exists('artifacts/leaguepingo-v3'));
   assert.ok(exists('bin/leaguepingo-v1.exe') && exists('bin/leaguepingo-v2.exe'));
-  m.prepare(file); pe(root, file);
+  const registeredFolder = m.prepare(file); pe(root, file);
+  fs.writeFileSync(path.join(registeredFolder, 'review.html'), '<!doctype html><title>synthetic review</title>');
   m.register(file, 'abcdef1');
+  assert.deepEqual(m.read().builds.at(-1).evidence.map(item => item.file),
+    ['artifacts/leaguepingo-v3/review.html']);
   assert.throws(() => m.discard(file), /registered/);
   m.clean(true);
   assert.deepEqual(m.read().builds.map(b => b.file), ['bin/leaguepingo-v2.exe', file]);
@@ -148,13 +153,15 @@ test('later evidence is explicitly registered and follows its build; unknown set
   m.migrateEvidence();
   const folder = 'artifacts/leaguepingo-v1';
   fs.writeFileSync(path.join(root, folder, 'later.csv'), 'synthetic');
+  fs.writeFileSync(path.join(root, folder, 'later.html'), '<!doctype html><title>synthetic</title>');
   fs.writeFileSync(path.join(root, folder, 'settings.json'), '{}');
   m.attachEvidence('bin/leaguepingo-v1.exe');
-  assert.equal(m.read().builds[0].evidence.length, 2);
+  assert.equal(m.read().builds[0].evidence.length, 3);
   m.prepare('bin/leaguepingo-v3.exe'); pe(root, 'bin/leaguepingo-v3.exe');
   m.register('bin/leaguepingo-v3.exe', 'abcdef1');
   m.clean(true);
   assert.ok(!exists(`${folder}/later.csv`));
+  assert.ok(!exists(`${folder}/later.html`));
   assert.ok(exists(`${folder}/settings.json`));
 });
 
