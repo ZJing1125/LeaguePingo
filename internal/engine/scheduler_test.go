@@ -2,10 +2,11 @@ package engine
 
 import (
 	"context"
-	"leaguepingo/internal/core"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"leaguepingo/internal/core"
 )
 
 func TestSchedulerManualPriorityAndCancellation(t *testing.T) {
@@ -49,6 +50,35 @@ func TestSchedulerManualPriorityAndCancellation(t *testing.T) {
 	cancelled()
 	if _, err := s.acquire(stop, false); err == nil {
 		t.Fatal("cancelled request admitted")
+	}
+}
+
+func TestSchedulerManualPreemptsAutomaticRequest(t *testing.T) {
+	s := newScheduler()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	automaticCtx, releaseAutomatic, err := s.acquireAutomatic(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manualReady := make(chan struct{})
+	go func() {
+		release, acquireErr := s.acquire(ctx, true)
+		if acquireErr == nil {
+			close(manualReady)
+			release()
+		}
+	}()
+	select {
+	case <-automaticCtx.Done():
+	case <-ctx.Done():
+		t.Fatal("manual action did not interrupt the automatic request")
+	}
+	releaseAutomatic()
+	select {
+	case <-manualReady:
+	case <-ctx.Done():
+		t.Fatal("manual action did not acquire the released request lane")
 	}
 }
 

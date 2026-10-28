@@ -95,14 +95,17 @@ func main() {
 	if offlineSmoke {
 		discover = func() (source.Source, error) { return nil, source.ErrNotConnected }
 	}
-	backend.engine = engine.New(discover, func(snapshot core.Snapshot) {
+	backend.engine, err = engine.NewWithHistoryCache(discover, func(snapshot core.Snapshot) {
 		held.Allow(companion.InGame(snapshot))
 		app.Event.Emit("leaguepingo:snapshot", snapshot)
 		select {
 		case companionWake <- struct{}{}:
 		default:
 		}
-	})
+	}, filepath.Join(configDir, "history-cache.json"))
+	if err != nil {
+		log.Print("无法读取本地战绩缓存，将使用本次运行内存缓存")
+	}
 	mainWindow = app.Window.NewWithOptions(mainWindowOptions(offlineSmoke))
 	// Closing the main window keeps the lightweight helper available in the tray.
 	mainWindow.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {

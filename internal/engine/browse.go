@@ -10,7 +10,8 @@ import (
 	"leaguepingo/internal/source"
 )
 
-// Browsing is always an explicit UI action and shares the manual request lane.
+// Browsing reads cached pages first. Missing pages use the cancellable,
+// low-priority lane so foreground work does not wait for the whole warm-up.
 func (e *Engine) browsePlayer(key string, connectionID uint64) (Client, core.Participant, error) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -367,25 +368,34 @@ func (e *Engine) HistoryPage(ctx context.Context, key string, connectionID uint6
 	if offset < 0 || offset > 980 {
 		return core.HistoryPage{}, errors.New("分页超出范围")
 	}
-	ctx, done, err := e.beginLookup(ctx)
-	if err != nil {
-		return core.HistoryPage{}, err
-	}
-	defer done()
 	client, player, err := e.browsePlayer(key, connectionID)
 	if err != nil {
 		return core.HistoryPage{}, err
 	}
+	if page, ok := e.historyStore.get(player.PUUID, offset, 5*time.Minute); ok {
+		return page, nil
+	}
+	if page, ok := e.historyStore.get(player.PUUID, offset, 0); ok {
+		e.refreshHistoryPage(client, player, connectionID, offset)
+		return page, nil
+	}
+	return e.fetchHistoryPage(ctx, client, player, connectionID, offset)
+}
+
+func (e *Engine) fetchHistoryPage(ctx context.Context, client Client, player core.Participant, connectionID uint64, offset int) (core.HistoryPage, error) {
 	pager, ok := client.(source.HistoryPager)
 	if !ok {
 		return core.HistoryPage{}, errors.New("当前数据源不支持历史分页")
 	}
-	release, err := e.scheduler.acquire(ctx, true)
+	requestCtx, release, err := e.scheduler.acquireAutomatic(ctx)
 	if err != nil {
 		return core.HistoryPage{}, err
 	}
 	defer release()
-	page, err := pager.HistoryPage(ctx, player.PUUID, offset)
+	if page, ok := e.historyStore.get(player.PUUID, offset, 5*time.Minute); ok {
+		return page, nil
+	}
+	page, err := pager.HistoryPage(requestCtx, player.PUUID, offset)
 	if err != nil {
 		return core.HistoryPage{}, err
 	}
@@ -395,5 +405,20 @@ func (e *Engine) HistoryPage(ctx context.Context, key string, connectionID uint6
 	if !current {
 		return core.HistoryPage{}, errors.New("连接已变化，分页结果未应用，请重新查询")
 	}
+	e.historyStore.put(player.PUUID, page)
 	return page, nil
+}
+
+func (e *Engine) refreshHistoryPage(client Client, player core.Participant, connectionID uint64, offset int) {
+	parent := context.Background()
+	e.mu.RLock()
+	if e.initialMatch.parent != nil {
+		parent = e.initialMatch.parent
+	}
+	e.mu.RUnlock()
+	go func() {
+		ctx, cancel := context.WithTimeout(parent, 8*time.Second)
+		defer cancel()
+		_, _ = e.fetchHistoryPage(ctx, client, player, connectionID, offset)
+	}()
 }

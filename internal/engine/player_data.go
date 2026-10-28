@@ -30,7 +30,7 @@ func (e *Engine) prepareOptionalProfile(ctx context.Context, client Client, targ
 	}
 	requestCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	release, err := e.scheduler.acquire(requestCtx, false)
+	automaticCtx, release, err := e.scheduler.acquireAutomatic(requestCtx)
 	if err != nil {
 		return
 	}
@@ -49,12 +49,12 @@ func (e *Engine) prepareOptionalProfile(ctx context.Context, client Client, targ
 	if !valid || current.PUUID == "" || automaticProfileFresh(current.Profile) {
 		return
 	}
-	phase, err := client.Phase(requestCtx)
+	phase, err := client.Phase(automaticCtx)
 	if err != nil || stageForPhase(phase) != stage || (stage == "in-game" && !activeMatch(phase)) {
 		return
 	}
-	profile := profiles.Profile(requestCtx, target.PUUID)
-	if ctx.Err() != nil {
+	profile := profiles.Profile(automaticCtx, target.PUUID)
+	if automaticCtx.Err() != nil {
 		return
 	}
 	e.mu.Lock()

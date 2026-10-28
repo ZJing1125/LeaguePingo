@@ -30,10 +30,14 @@ func (e *Engine) CurrentPlayer(ctx context.Context, connectionID uint64) (core.P
 			break
 		}
 	}
-	if e.snapshot.Stage != "idle" || (e.phaseHint != "" && stageForPhase(e.phaseHint) != "idle") || (cached && cacheFresh(player)) {
+	idle := e.snapshot.Stage == "idle" && (e.phaseHint == "" || stageForPhase(e.phaseHint) == "idle")
+	if !idle || cached {
 		e.mu.Unlock()
 		if !cached {
 			return core.Participant{}, errors.New("本局资料正在准备，可前往对局室查看")
+		}
+		if idle && !cacheFresh(player) {
+			e.refreshHydratedHistory(client, generation, version, player)
 		}
 		return cachedPlayer(player, false), nil
 	}
@@ -43,6 +47,13 @@ func (e *Engine) CurrentPlayer(ctx context.Context, connectionID uint64) (core.P
 	defer cancel()
 	if !cached {
 		player = core.Participant{Key: key, PUUID: key, ConnectionID: version, IdentityState: core.IdentityKnown, PrivacyState: "unknown", HistoryState: core.HistoryPending}
+		if e.hydrateHistory(&player) {
+			e.mu.Lock()
+			e.cachePlayerLocked(player)
+			e.mu.Unlock()
+			e.refreshHydratedHistory(client, generation, version, player)
+			return player, nil
+		}
 	}
 	result, err := e.loadManualHistoryGuarded(ctx, client, generation, version, player, false, true, func() bool {
 		return ctx.Err() != context.Canceled && e.client != nil && e.clientVersion == version && e.accountIdentity == key && e.snapshot.Stage == "idle" && (e.phaseHint == "" || stageForPhase(e.phaseHint) == "idle")

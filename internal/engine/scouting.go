@@ -236,11 +236,19 @@ func (e *Engine) prepareScouting(ctx context.Context, version uint64, scope stri
 	}()
 	cutoff := time.Now().UTC()
 	var season *core.ScoutSeason
-	if release, err := e.scheduler.acquire(ctx, false); err == nil {
-		request, cancel := context.WithTimeout(ctx, 3*time.Second)
+	for ctx.Err() == nil {
+		automaticCtx, release, err := e.scheduler.acquireAutomatic(ctx)
+		if err != nil {
+			break
+		}
+		request, cancel := context.WithTimeout(automaticCtx, 3*time.Second)
 		season, _ = src.ScoutSeason(request)
 		cancel()
+		interrupted := automaticCtx.Err() != nil && ctx.Err() == nil
 		release()
+		if !interrupted {
+			break
+		}
 	}
 	e.mu.Lock()
 	if e.scoutValidLocked(version, scope, token) {
@@ -286,11 +294,15 @@ func (e *Engine) prepareScouting(ctx context.Context, version uint64, scope stri
 			// seconds on everybody else's mastery. No champion-lock dependency
 			// and no extra requests: the same bounded round fills all heroes.
 			if c.offset == 0 {
-				if release, err := e.scheduler.acquire(ctx, false); err == nil {
-					request, cancel := context.WithTimeout(ctx, 2*time.Second)
+				if automaticCtx, release, err := e.scheduler.acquireAutomatic(ctx); err == nil {
+					request, cancel := context.WithTimeout(automaticCtx, 2*time.Second)
 					c.masteries, _ = src.ChampionMasteries(request, c.player.PUUID)
 					cancel()
+					interrupted := automaticCtx.Err() != nil && ctx.Err() == nil
 					release()
+					if interrupted {
+						continue
+					}
 				}
 				initial := core.BuildScoutReport(nil, c.masteries, season, cutoff, false, false, false)
 				initial.State = "loading"
@@ -299,14 +311,18 @@ func (e *Engine) prepareScouting(ctx context.Context, version uint64, scope stri
 					continue
 				}
 			}
-			release, err := e.scheduler.acquire(ctx, false)
+			automaticCtx, release, err := e.scheduler.acquireAutomatic(ctx)
 			if err != nil {
 				break
 			}
-			request, cancel := context.WithTimeout(ctx, 4*time.Second)
+			request, cancel := context.WithTimeout(automaticCtx, 4*time.Second)
 			page, err := src.ScoutPage(request, c.player.PUUID, c.offset)
 			cancel()
+			interrupted := automaticCtx.Err() != nil && ctx.Err() == nil
 			release()
+			if interrupted {
+				continue
+			}
 			count++
 			e.mu.Lock()
 			if e.scoutValidLocked(version, scope, token) {

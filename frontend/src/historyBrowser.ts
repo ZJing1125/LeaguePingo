@@ -7,8 +7,6 @@ export const HISTORY_PAGE_SIZE = 20;
 export const MAX_HISTORY_PAGES = 50;
 export const SAMPLE_SIZES = [10, 20, 30, 40, 50];
 export const SAMPLE_SCAN_BUDGET = 90_000;
-// All explicit browsing uses the same manual lane as search/profile/refresh.
-export const historyBrowseBusy = ref(false);
 
 export function useHistoryBrowser(
   props: {
@@ -17,9 +15,12 @@ export function useHistoryBrowser(
     busy?: boolean;
     connected?: boolean;
     active?: boolean;
+    compact?: boolean;
   },
   scroll: Ref<HTMLElement | null>,
 ) {
+  let criteriaRevision = 0;
+  let warmRevision = 0;
   watch(
     () => [
       props.state,
@@ -47,6 +48,7 @@ export function useHistoryBrowser(
             props.player.history?.length ??
             0) >= 20,
         pageBusy: false,
+        warmBusy: false,
         pageError: "",
         browseNotice: "",
         sourceLimit: "",
@@ -54,6 +56,8 @@ export function useHistoryBrowser(
         browseKind: "samples",
         stopRequested: false,
       });
+      const revision = ++warmRevision;
+      setTimeout(() => void warmRanked(revision), 1200);
     },
     { immediate: true },
   );
@@ -66,12 +70,20 @@ export function useHistoryBrowser(
     },
   );
   onBeforeUnmount(() => {
+    criteriaRevision++;
+    warmRevision++;
     props.state.stopRequested = true;
   });
   watch(
     () => props.active,
     (active) => {
-      if (active === false) props.state.stopRequested = true;
+      if (active === false) {
+        warmRevision++;
+        props.state.stopRequested = true;
+      } else {
+        const revision = ++warmRevision;
+        setTimeout(() => void warmRanked(revision), 1200);
+      }
     },
   );
 
@@ -107,7 +119,6 @@ export function useHistoryBrowser(
   const canFetch = computed(
     () =>
       props.connected &&
-      !props.player.stale &&
       props.player.identityState === "known",
   );
   const maxJumpPage = computed(() =>
@@ -170,31 +181,35 @@ export function useHistoryBrowser(
   async function fill(
     page = props.state.page ?? 1,
     kind = props.state.browseKind ?? "samples",
+    queueOverride = props.state.queue,
+    background = false,
   ) {
     if (
       !workspaceActive() ||
       props.busy ||
-      historyBrowseBusy.value ||
-      props.state.pageBusy
+      props.state.pageBusy ||
+      props.state.warmBusy
     )
       return;
     const target = props.player,
       state = props.state,
       stamp = state.sourceStamp;
-    const queue = state.queue;
+    const queue = queueOverride;
     const required = Math.max(state.sampleSize ?? 20, page * HISTORY_PAGE_SIZE);
     const filtered = () =>
       allMatchesFor(target, state).filter(
         (m) => queue === "all" || String(m.queueId) === queue,
       );
     const current = () => state.sourceStamp === stamp;
-    state.browseTarget = page;
-    state.browseKind = kind;
-    state.pageError = "";
-    state.browseNotice = "";
+    if (!background) {
+      state.browseTarget = page;
+      state.browseKind = kind;
+      state.pageError = "";
+      state.browseNotice = "";
+    }
     state.stopRequested = false;
-    state.pageBusy = true;
-    historyBrowseBusy.value = true;
+    if (background) state.warmBusy = true;
+    else state.pageBusy = true;
     const started = Date.now();
     let requests = 0;
     try {
@@ -210,7 +225,6 @@ export function useHistoryBrowser(
         }
         if (
           !props.connected ||
-          target.stale ||
           target.identityState !== "known"
         ) {
           state.browseNotice =
@@ -274,36 +288,60 @@ export function useHistoryBrowser(
       // Keep the existing page on failure/no new matches. A short last page is
       // valid; the known total is only final once the source is exhausted.
       const count = filtered().length;
-      if (page === 1 || count > (page - 1) * HISTORY_PAGE_SIZE) {
+      if (!background && (page === 1 || count > (page - 1) * HISTORY_PAGE_SIZE)) {
         state.page = page;
         if (props.state === state) await scrollTop();
       }
-      if (state.stopRequested)
+      if (!background && state.stopRequested)
         state.browseNotice = "已停止查找，已获取记录保留。";
-      if (state.sourceLimit) {
+      if (!background && state.sourceLimit) {
         state.browseNotice = state.sourceLimit;
-      } else if (!state.hasMore && count < (state.sampleSize ?? 20)) {
+      } else if (!background && !state.hasMore && count < (state.sampleSize ?? 20)) {
         state.browseNotice = `当前可查询范围内仅找到 ${count} 场该模式记录，按实际样本分析。`;
-      } else if (!state.hasMore && count <= (page - 1) * HISTORY_PAGE_SIZE) {
+      } else if (!background && !state.hasMore && count <= (page - 1) * HISTORY_PAGE_SIZE) {
         state.browseNotice = `当前可查询范围内没有第 ${page} 页，已保留当前页。`;
       }
     } catch (reason) {
-      if (current()) state.pageError = errorMessage(reason);
+      if (current() && !background) state.pageError = errorMessage(reason);
     } finally {
-      if (current()) state.pageBusy = false;
-      historyBrowseBusy.value = false;
+      if (current()) {
+        if (background) state.warmBusy = false;
+        else state.pageBusy = false;
+      }
     }
   }
-  async function changeCriteria() {
+  async function warmRanked(revision: number) {
+    if (props.compact || !workspaceActive() || props.busy || revision !== warmRevision)
+      return;
+    for (const queue of ["420", "440"]) {
+      if (revision !== warmRevision || !workspaceActive()) return;
+      while (props.state.pageBusy || props.state.warmBusy) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        if (revision !== warmRevision || !workspaceActive()) return;
+      }
+      await fill(1, "samples", queue, true);
+    }
+  }
+  function changeCriteria() {
+    const revision = ++criteriaRevision;
+    warmRevision++;
+    props.state.stopRequested = true;
     props.state.page = 1;
     props.state.browseTarget = 1;
-    await scrollTop();
-    await fill(1, "samples");
+    void scrollTop();
+    void (async () => {
+      while (props.state.pageBusy || props.state.warmBusy) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        if (revision !== criteriaRevision || !workspaceActive()) return;
+      }
+      if (revision !== criteriaRevision || !workspaceActive()) return;
+      props.state.stopRequested = false;
+      await fill(1, "samples");
+    })();
   }
   async function goPage(page: number) {
     if (
       props.busy ||
-      historyBrowseBusy.value ||
       !Number.isSafeInteger(page) ||
       page < 1 ||
       page > maxJumpPage.value
@@ -324,7 +362,7 @@ export function useHistoryBrowser(
     }
   }
   async function jumpPage() {
-    if (props.busy || historyBrowseBusy.value) return;
+    if (props.busy) return;
     const input = jumpDraft.value.trim();
     const page = Number(input);
     if (

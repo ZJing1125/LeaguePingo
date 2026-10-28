@@ -67,9 +67,23 @@ type Engine struct {
 	reviewOwner         string
 	reviewCancel        context.CancelFunc
 	reviewToken         uint64
+	historyStore        *historyStore
 }
 
 func New(discover Discoverer, onChange func(core.Snapshot)) *Engine {
+	return newEngine(discover, onChange)
+}
+
+func NewWithHistoryCache(discover Discoverer, onChange func(core.Snapshot), path string) (*Engine, error) {
+	e := newEngine(discover, onChange)
+	store, err := openHistoryStore(path)
+	if err == nil {
+		e.historyStore = store
+	}
+	return e, err
+}
+
+func newEngine(discover Discoverer, onChange func(core.Snapshot)) *Engine {
 	e := &Engine{discover: discover, onChange: onChange, lookupGate: make(chan struct{}, 1), phaseWake: make(chan struct{}, 1), champWake: make(chan struct{}, 1), scheduler: newScheduler(), cache: map[string]core.Participant{}, aliases: map[string]string{}, snapshot: core.Snapshot{Stage: "disconnected", UpdatedAt: time.Now(), Participants: []core.Participant{}}}
 	if onChange != nil {
 		e.updates = make(chan core.Snapshot, 32)
@@ -89,6 +103,7 @@ func (e *Engine) Snapshot() core.Snapshot {
 }
 
 func (e *Engine) Run(ctx context.Context) {
+	defer e.historyStore.close()
 	e.mu.Lock()
 	e.initialMatch.parent = ctx
 	e.mu.Unlock()
@@ -454,6 +469,12 @@ func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.
 	if roster == nil {
 		roster = []core.Participant{}
 	}
+	for i := range roster {
+		if e.hydrateHistory(&roster[i]) {
+			roster[i].ConnectionID = e.clientVersion
+			e.cache[roster[i].PUUID] = roster[i]
+		}
+	}
 	if stage == "in-game" && message == "" {
 		if len(roster) == 0 {
 			message = "客户端已连接，当前尚未取得对局名单；可刷新名单或输入完整 ID 手动查询。局内暂停自动战绩预取。"
@@ -659,6 +680,18 @@ func (e *Engine) prepare(ctx context.Context, token uint64, client Client, versi
 		history, err := e.scheduler.history(requestCtx, fmt.Sprintf("%d:%s", version, player.PUUID), false, func(c context.Context) (core.HistoryResult, error) { return client.History(c, player.PUUID) })
 		cancel()
 		if err != nil {
+			if errors.Is(err, context.Canceled) && ctx.Err() == nil {
+				e.mu.Lock()
+				if e.prepareToken == token && e.prepareAttempts[player.PUUID] > 0 {
+					e.prepareAttempts[player.PUUID]--
+				}
+				e.mu.Unlock()
+				e.updatePrepared(token, player.PUUID, func(p *core.Participant) {
+					p.HistoryState = core.HistoryPending
+					p.Error = ""
+				})
+				continue
+			}
 			e.updatePrepared(token, player.PUUID, func(p *core.Participant) {
 				p.HistoryState = core.HistoryFailed
 				p.Error = "战绩准备失败，可手动重试"
@@ -688,7 +721,14 @@ func (e *Engine) updatePrepared(token uint64, puuid string, edit func(*core.Part
 	}
 }
 func (e *Engine) loadName(ctx context.Context, client Client, puuid string, version uint64, manual bool) (string, error) {
-	release, err := e.scheduler.acquire(ctx, manual)
+	requestCtx := ctx
+	var release func()
+	var err error
+	if manual {
+		release, err = e.scheduler.acquire(ctx, true)
+	} else {
+		requestCtx, release, err = e.scheduler.acquireAutomatic(ctx)
+	}
 	if err != nil {
 		return "", err
 	}
@@ -699,7 +739,7 @@ func (e *Engine) loadName(ctx context.Context, client Client, puuid string, vers
 	if !current {
 		return "", errors.New("连接已变化，请重新查询玩家名称")
 	}
-	return client.Name(ctx, puuid)
+	return client.Name(requestCtx, puuid)
 }
 func (e *Engine) PrioritizePlayer(key string) { e.mu.Lock(); e.preferred = key; e.mu.Unlock() }
 
@@ -765,6 +805,14 @@ func (e *Engine) lookup(ctx context.Context, riotID string, force bool) (core.Pa
 	releaseSlot()
 	if err != nil {
 		return core.Participant{}, err
+	}
+	player.ConnectionID = version
+	if !force && e.hydrateHistory(&player) {
+		e.mu.Lock()
+		e.cachePlayerLocked(player)
+		e.mu.Unlock()
+		e.refreshHydratedHistory(client, generation, version, player)
+		return player, nil
 	}
 	return e.loadManualHistory(ctx, client, generation, version, player, force, true)
 }
@@ -958,9 +1006,71 @@ func (e *Engine) cachePlayerLocked(p core.Participant) {
 		e.aliases = map[string]string{}
 	}
 	e.cache[p.PUUID] = p
+	if len(p.History) > 0 && !p.Cached {
+		returned := p.HistoryMeta.Returned
+		if returned <= 0 || returned > len(p.History) {
+			returned = len(p.History)
+		}
+		e.historyStore.put(p.PUUID, core.HistoryPage{Matches: p.History, Meta: p.HistoryMeta, Offset: 0, NextOffset: returned, HasMore: returned >= 20})
+	}
 	if alias := normalizeID(p.DisplayName); alias != "" {
 		e.aliases[alias] = p.PUUID
 	}
+}
+
+func (e *Engine) hydrateHistory(player *core.Participant) bool {
+	if player == nil || player.IdentityState != core.IdentityKnown || !core.IsKnownPUUID(player.PUUID) || historyCached(*player) {
+		return false
+	}
+	page, ok := e.historyStore.get(player.PUUID, 0, 0)
+	if !ok || len(page.Matches) == 0 {
+		return false
+	}
+	core.ApplyHistory(player, core.HistoryResult{Matches: page.Matches, Meta: page.Meta})
+	player.Cached = true
+	player.Stale = !cacheFresh(*player)
+	return true
+}
+
+func (e *Engine) refreshHydratedHistory(client Client, generation, version uint64, player core.Participant) {
+	parent := context.Background()
+	e.mu.RLock()
+	if e.initialMatch.parent != nil {
+		parent = e.initialMatch.parent
+	}
+	e.mu.RUnlock()
+	go func() {
+		ctx, cancel := context.WithTimeout(parent, 12*time.Second)
+		defer cancel()
+		history, err := e.scheduler.history(ctx, fmt.Sprintf("%d:%s", version, player.PUUID), false, func(request context.Context) (core.HistoryResult, error) {
+			return client.History(request, player.PUUID)
+		})
+		if err != nil {
+			return
+		}
+		core.ApplyHistory(&player, history)
+		player.ConnectionID = version
+		e.mu.Lock()
+		defer e.mu.Unlock()
+		if e.client == nil || e.clientVersion != version {
+			return
+		}
+		if current, ok := e.cache[player.PUUID]; ok && current.ConnectionID == version {
+			player.DisplayName = current.DisplayName
+			player.Profile = current.Profile
+			player.PrivacyState = current.PrivacyState
+		}
+		e.cachePlayerLocked(player)
+		if e.snapshot.Generation == generation {
+			for i := range e.snapshot.Participants {
+				if e.snapshot.Participants[i].PUUID == player.PUUID {
+					core.ApplyHistory(&e.snapshot.Participants[i], history)
+				}
+			}
+			e.snapshot.UpdatedAt = time.Now()
+			e.publishLocked()
+		}
+	}()
 }
 
 func (e *Engine) RefreshRoster(ctx context.Context) (core.Snapshot, error) {

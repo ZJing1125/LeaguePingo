@@ -4,7 +4,6 @@ import type {
   Participant,
   Snapshot as SnapshotModel,
 } from "../../bindings/leaguepingo/internal/core/models";
-import { historyBrowseBusy } from "../historyBrowser";
 import { errorMessage, normalizeRiotIDInput } from "../presentation";
 import { newestPlayer, operationKey } from "../playerState";
 import type { usePlayerWorkspace } from "./usePlayerWorkspace";
@@ -25,10 +24,7 @@ export function usePlayerActions(
     kind: "history" | "profile";
   } | null>(null);
   const manualBusy = computed(
-    () =>
-      searching.value ||
-      playerOperation.value !== null ||
-      historyBrowseBusy.value,
+    () => searching.value || playerOperation.value !== null,
   );
   const pendingProfile = ref<Participant | null>(null);
   const profileOpening = ref(false);

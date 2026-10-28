@@ -104,7 +104,7 @@ function toggle(id: number) {
               ><select
                 v-model="state.queue"
                 aria-label="战绩模式筛选"
-                :disabled="busy || state.pageBusy"
+                :disabled="busy"
                 @change="changeCriteria"
               >
                 <option value="all">全部模式</option>
@@ -125,7 +125,7 @@ function toggle(id: number) {
             <select
               v-model.number="state.sampleSize"
               aria-label="分析样本场数"
-              :disabled="busy || state.pageBusy"
+              :disabled="busy"
               @change="changeCriteria"
             >
               <option v-for="size in SAMPLE_SIZES" :key="size" :value="size">
@@ -182,6 +182,7 @@ function toggle(id: number) {
         <div
           v-if="
             state.pageBusy ||
+            state.warmBusy ||
             state.pageError ||
             state.browseNotice ||
             needsSamples
@@ -198,6 +199,7 @@ function toggle(id: number) {
                 : ""
             }}，已找到 {{ matches.length }} 场…</span
           >
+          <span v-else-if="state.warmBusy">正在后台准备单双排与灵活数据；当前资料可正常浏览和操作。</span>
           <span v-else-if="state.pageError" class="warning-text"
             >{{ state.pageError }} · 已有记录保留</span
           >
@@ -213,7 +215,7 @@ function toggle(id: number) {
             {{ state.stopRequested ? "正在停止…" : "停止查找" }}
           </button>
           <button
-            v-else-if="state.hasMore && canFetch"
+            v-else-if="!state.warmBusy && state.hasMore && canFetch"
             class="text-button"
             :disabled="busy"
             @click="fill(state.browseTarget ?? state.page ?? 1)"

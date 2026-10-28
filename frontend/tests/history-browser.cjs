@@ -204,6 +204,12 @@ async function main() {
     async function idle() {
       try {
         await page.locator('[aria-label="战绩模式筛选"]:visible:enabled').waitFor();
+        await page.waitForFunction(
+          () =>
+            !document
+              .querySelector(".players-workspace .browse-status")
+              ?.textContent.includes("正在查找"),
+        );
       } catch (reason) {
         console.error('Browse state:', await page.evaluate(() => ({
           filter: Array.from(document.querySelectorAll('[aria-label="战绩模式筛选"]')).map(e => ({ visible: !!e.getClientRects().length, disabled: e.disabled })),
@@ -234,6 +240,14 @@ async function main() {
         releasePage,
         "held pagination request did not arrive before the deadline",
       );
+    }
+    async function waitForPageCalls(key, count) {
+      const deadline = Date.now() + 5000;
+      while (
+        pageCalls().filter((call) => call.args[0] === key).length < count &&
+        Date.now() < deadline
+      )
+        await new Promise((resolve) => setTimeout(resolve, 10));
     }
     async function checkSample(queue, size) {
       const selected = history
@@ -303,10 +317,11 @@ async function main() {
         .evaluateAll((rows) => rows.map((r) => Number(r.value))),
       [10, 20, 30, 40, 50],
     );
-    assert.equal(
-      pageCalls().length,
-      0,
-      "initial rendering must not start extra history scans",
+    await waitForPageCalls("Paged#TEST", 2);
+    assert.deepEqual(
+      pageCalls().map((c) => c.args[2]),
+      [20, 40],
+      "idle warm-up did not prepare both ranked queues once",
     );
     await checkSample("all", 20);
     await select("分析样本场数", 50);
@@ -432,10 +447,12 @@ async function main() {
     await page.evaluate(() => {
       Date.now = window.originalDateNow;
     });
-    assert.equal(
-      pageCalls().length - beforeLate,
-      7,
-      "sample scan did not continue beyond five source pages",
+    const lateOffsets = pageCalls()
+      .filter((c) => c.args[0] === "Late#TEST")
+      .map((c) => c.args[2]);
+    assert(
+      lateOffsets.includes(140) && lateOffsets.includes(180),
+      "sample preparation did not reach the late rare-mode records",
     );
     assert(
       (await page.locator(".players-workspace .analysis-scope").textContent()).includes("50 / 50"),
@@ -450,11 +467,6 @@ async function main() {
     const beforeSparse = pageCalls().length;
     await select("战绩模式筛选", 440);
     assert.equal(
-      pageCalls().length - beforeSparse,
-      49,
-      "rare mode did not stop at the 1000-record source bound",
-    );
-    assert.equal(
       await page.getByRole("button", { name: "继续查找", exact: true }).count(),
       0,
     );
@@ -462,7 +474,7 @@ async function main() {
       .getByText("已达到最近 1000 条混合记录的查询上限", { exact: false })
       .waitFor();
     const sparseOffsets = pageCalls()
-      .slice(beforeSparse)
+      .filter((c) => c.args[0] === "Sparse#TEST")
       .map((c) => c.args[2]);
     assert.deepEqual(
       sparseOffsets,
@@ -496,6 +508,21 @@ async function main() {
         ?.textContent.includes("正在查找"),
     );
     await held();
+    assert.equal(
+      await page.getByLabel("战绩模式筛选").isEnabled(),
+      true,
+      "background history disabled local mode switching",
+    );
+    assert.equal(
+      await page.getByLabel("分析样本场数").isEnabled(),
+      true,
+      "background history disabled local sample switching",
+    );
+    assert.equal(
+      await page.getByRole("button", { name: "查询战绩", exact: true }).isEnabled(),
+      true,
+      "background history disabled global search",
+    );
     const beforeSwitch = pageCalls().length;
     await page.getByRole("tab", { name: "Sparse#TEST", exact: true }).click();
     releasePage();

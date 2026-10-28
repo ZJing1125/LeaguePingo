@@ -3,17 +3,19 @@ package engine
 import (
 	"context"
 	"errors"
-	"leaguepingo/internal/core"
 	"sync"
+
+	"leaguepingo/internal/core"
 )
 
 // One expensive client request at a time. Waiting manual actions take priority.
 type requestScheduler struct {
-	mu      sync.Mutex
-	busy    bool
-	manual  int
-	changed chan struct{}
-	flights map[string]*historyFlight
+	mu              sync.Mutex
+	busy            bool
+	manual          int
+	automaticCancel context.CancelFunc
+	changed         chan struct{}
+	flights         map[string]*historyFlight
 }
 type historyFlight struct {
 	done   chan struct{}
@@ -26,9 +28,26 @@ func newScheduler() *requestScheduler {
 }
 func (s *requestScheduler) signal() { close(s.changed); s.changed = make(chan struct{}) }
 func (s *requestScheduler) acquire(ctx context.Context, manual bool) (func(), error) {
+	return s.acquireRequest(ctx, manual, nil)
+}
+func (s *requestScheduler) acquireAutomatic(ctx context.Context) (context.Context, func(), error) {
+	requestCtx, cancel := context.WithCancel(ctx)
+	release, err := s.acquireRequest(requestCtx, false, cancel)
+	if err != nil {
+		cancel()
+		return nil, nil, err
+	}
+	return requestCtx, func() { release(); cancel() }, nil
+}
+func (s *requestScheduler) acquireRequest(ctx context.Context, manual bool, interrupt context.CancelFunc) (func(), error) {
 	s.mu.Lock()
 	if manual {
 		s.manual++
+		// A foreground action should not sit behind a speculative page scan.
+		// The interrupted worker keeps its cursor and can resume after the action.
+		if s.automaticCancel != nil {
+			s.automaticCancel()
+		}
 	}
 	for {
 		if err := ctx.Err(); err != nil {
@@ -43,9 +62,19 @@ func (s *requestScheduler) acquire(ctx context.Context, manual bool) (func(), er
 			s.busy = true
 			if manual {
 				s.manual--
+			} else {
+				s.automaticCancel = interrupt
 			}
 			s.mu.Unlock()
-			return func() { s.mu.Lock(); s.busy = false; s.signal(); s.mu.Unlock() }, nil
+			return func() {
+				s.mu.Lock()
+				s.busy = false
+				if !manual {
+					s.automaticCancel = nil
+				}
+				s.signal()
+				s.mu.Unlock()
+			}, nil
 		}
 		changed := s.changed
 		s.mu.Unlock()
@@ -75,9 +104,16 @@ func (s *requestScheduler) history(ctx context.Context, key string, manual bool,
 	f := &historyFlight{done: make(chan struct{})}
 	s.flights[key] = f
 	s.mu.Unlock()
-	release, err := s.acquire(ctx, manual)
+	requestCtx := ctx
+	var release func()
+	var err error
+	if manual {
+		release, err = s.acquire(ctx, true)
+	} else {
+		requestCtx, release, err = s.acquireAutomatic(ctx)
+	}
 	if err == nil {
-		f.result, f.err = load(ctx)
+		f.result, f.err = load(requestCtx)
 		release()
 	} else {
 		f.err = err

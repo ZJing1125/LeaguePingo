@@ -187,7 +187,14 @@ func (e *Engine) fetchReview(ctx context.Context, gameID int64, version, token u
 	}
 	req, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	release, err := e.scheduler.acquire(req, manual)
+	requestCtx := req
+	var release func()
+	var err error
+	if manual {
+		release, err = e.scheduler.acquire(req, true)
+	} else {
+		requestCtx, release, err = e.scheduler.acquireAutomatic(req)
+	}
 	if err != nil {
 		return err
 	}
@@ -199,9 +206,9 @@ func (e *Engine) fetchReview(ctx context.Context, gameID int64, version, token u
 	if !valid {
 		return errors.New("对局已切换")
 	}
-	detail, err := details.MatchDetail(req, gameID, target)
-	if req.Err() != nil {
-		return req.Err()
+	detail, err := details.MatchDetail(requestCtx, gameID, target)
+	if requestCtx.Err() != nil {
+		return requestCtx.Err()
 	}
 	if err != nil {
 		return errors.New("本局结算暂未返回，可稍后同步")

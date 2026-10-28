@@ -163,6 +163,7 @@ export interface PlayerViewState {
   nextOffset?: number;
   hasMore?: boolean;
   pageBusy?: boolean;
+  warmBusy?: boolean;
   pageError?: string;
   page?: number;
   sampleSize?: number;
