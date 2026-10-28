@@ -26,10 +26,11 @@ const selectedGame=ref<number|null>(null);
 watch(()=>`${props.active}:${props.player?.connectionId}:${props.player?.key}`,()=>{selectedGame.value=null;});
 const state = ref<PlayerViewState>({ queue: "all", expanded: [], sampleSize: 20 });
 const historyScroll = ref<HTMLElement | null>(null);
+const historyTop = ref<HTMLElement | null>(null);
 const placeholder = { key: "home-empty", puuid: "", connectionId: 0, identityState: "unavailable", historyState: "pending", history: [], historyMeta: {} } as unknown as Participant;
 watch(() => `${props.player?.connectionId}:${props.player?.key}`, () => { state.value.stopRequested = true; state.value = { queue: "all", expanded: [], sampleSize: 20 }; });
 const browseProps = reactive({ get player() { return props.player ?? placeholder; }, get state() { return state.value; }, get connected() { return props.snapshot?.connected; }, get busy() { return props.busy || props.loading; }, get active() { return props.active; } });
-const { allMatches, analysisMatches: matches, pageMatches, knownPages, canFetch, sampleLabel, needsSamples, noticePlayer, changeCriteria, goPage, fill, jumpDraft, jumpError, jumpPage, maxJumpPage } = useHistoryBrowser(browseProps, historyScroll);
+const { allMatches, analysisMatches: matches, pageMatches, knownPages, canFetch, sampleLabel, needsSamples, noticePlayer, changeCriteria, goPage, fill, jumpDraft, jumpError, jumpPage, maxJumpPage } = useHistoryBrowser(browseProps, historyScroll, () => historyTop.value?.scrollIntoView({ block: 'start' }));
 const selectedMatch=computed(()=>allMatches.value.find(m=>m.gameId===selectedGame.value));
 watch(selectedMatch,match=>{if(!match)selectedGame.value=null;emit('modal',!!match);});
 const stats = computed(() => sampleStats(matches.value));
@@ -56,7 +57,7 @@ const historyMessage = computed(() => !props.snapshot?.connected ? "连接游戏
         <MasteryPanel v-if="player" :player="player"/>
       </aside>
       <div class="home-analysis-main"><OverviewPerformance :matches="matches" :scope="sampleLabel"/>
-      <section class="home-panel home-recent">
+      <section ref="historyTop" class="home-panel home-recent">
         <header><h2>最近战绩</h2><button class="text-button" :disabled="!player || busy || loading" @click="player && $emit('open', player)">完整战绩 <AppIcon name="chevron" :size="13" /></button></header>
         <div class="home-history-filters"><select v-model="state.queue" aria-label="首页战绩模式" :disabled="!player || busy" @change="changeCriteria"><option value="all">全部模式</option><option v-for="mode in modes" :key="mode" :value="String(mode)">{{ queueName(mode) }}</option></select><select v-model.number="state.sampleSize" aria-label="首页分析场数" :disabled="!player || busy" @change="changeCriteria"><option v-for="size in SAMPLE_SIZES" :key="size" :value="size">最近 {{ size }} 场</option></select><span>{{ stats.games }} / {{ state.sampleSize ?? 20 }} 场</span></div>
         <div v-if="state.pageBusy || state.warmBusy || state.sourceLimit || state.pageError || state.browseNotice" class="home-browse-status" role="status"><span>{{ state.pageBusy ? '正在读取更多战绩…' : state.warmBusy ? '正在后台准备单双排与灵活数据，当前结果可继续使用。' : state.pageError || state.sourceLimit || state.browseNotice }}</span><button v-if="state.pageBusy" class="text-button" @click="state.stopRequested = true">停止</button><button v-else-if="!state.warmBusy && needsSamples && canFetch" class="text-button" :disabled="busy" @click="fill()">继续查找</button></div>

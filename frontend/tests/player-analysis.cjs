@@ -137,6 +137,7 @@ async function main(){
   await home.getByLabel('查找常用英雄').fill('');
   await home.getByRole('button',{name:'下一页',exact:true}).click();
   await home.locator('.home-pagination').filter({hasText:'第 2 页'}).waitFor();
+  assert(await home.locator('.home-recent').evaluate(el=>{const workspace=el.closest('.home-workspace');return !!workspace&&Math.abs(el.getBoundingClientRect().top-workspace.getBoundingClientRect().top)<2;}),'home pagination did not return to the page-flow match section');
   const detailsBeforeHome=calls.filter(n=>n==='MatchDetail').length;
   await home.locator('.home-match .match-main').first().click();
   const homeGame=page.getByRole('dialog',{name:'对局详情',exact:true});

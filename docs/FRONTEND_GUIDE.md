@@ -2,7 +2,7 @@
 
 ## BUG-0068：首页常用英雄位置
 
-HomeView只实例化一份ChampionAnalysis，放入home-ranks并位于MasteryPanel之前；home-analysis-main只保留近期分析、战绩和样本说明。home-theme回归同时核对组件归属、DOM顺序和战绩区最小阅读高度。常用英雄的本地范围/搜索不得改变全部模式熟练度，也不得新增玩家请求。
+HomeView只实例化一份ChampionAnalysis，放入home-ranks并位于MasteryPanel之前；home-analysis-main只保留近期分析、战绩和样本说明。home-match-list随20条记录自然增高，不创建固定高度嵌套滚动；useHistoryBrowser通过可选reveal回调让首页筛选/翻页定位战绩区，查询页仍复位自身滚动容器。home-theme回归核对组件归属、DOM顺序和无内部滚动。常用英雄的本地范围/搜索不得改变全部模式熟练度，也不得新增玩家请求。
 
 ## BUG-0067：对局室状态选择
 

@@ -18,6 +18,7 @@ export function useHistoryBrowser(
     compact?: boolean;
   },
   scroll: Ref<HTMLElement | null>,
+  reveal?: () => void,
 ) {
   let criteriaRevision = 0;
   let warmRevision = 0;
@@ -174,6 +175,10 @@ export function useHistoryBrowser(
   });
   async function scrollTop() {
     await nextTick();
+    if (reveal) {
+      reveal();
+      return;
+    }
     scroll.value?.scrollTo({ top: 0 });
   }
   const workspaceActive = () => props.active !== false;
