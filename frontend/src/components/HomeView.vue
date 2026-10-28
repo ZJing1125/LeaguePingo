@@ -18,6 +18,7 @@ import HistoryNotice from "./HistoryNotice.vue";
 import PlayerDrawer from './PlayerDrawer.vue';
 import MatchHistoryRow from './MatchHistoryRow.vue';
 import MatchDetails from './MatchDetails.vue';
+import { hasCurrentMatch } from '../matchRoom';
 
 const props = defineProps<{ player: Participant | null; snapshot: Snapshot | null; status: string; loading: boolean; busy: boolean; error: string; active?: boolean }>();
 const emit=defineEmits<{ open: [player: Participant]; match: []; refresh: []; modal:[open:boolean] }>();
@@ -49,7 +50,7 @@ const historyMessage = computed(() => !props.snapshot?.connected ? "连接游戏
       <aside class="home-ranks">
         <template v-if="player"><RankPanel :player="player"/><RankPanel :player="player" queue="RANKED_FLEX_SR"/></template>
         <section v-if="!player" class="home-panel home-rank"><span>我的段位</span><RankEmblem /><strong>等待账号资料</strong><small>连接客户端后显示</small></section>
-        <section class="home-panel home-session"><span class="home-panel-caption">当前状态</span><strong><i class="connection-light" :class="{ online: snapshot?.connected }" />{{ status.split(" · ")[0] }}</strong><p>{{ snapshot?.stage === 'in-game' ? "游戏中按住 ~ 查看本局资料，松开隐藏。" : "进入房间或选人后，客户端左侧展示我方资料。" }}</p><button v-if="snapshot?.review || snapshot?.connected && ['Lobby','Matchmaking','ReadyCheck','ChampSelect','GameStart','InProgress'].includes(snapshot.phase)" :class="snapshot?.connected && ['party', 'preparing', 'in-game'].includes(snapshot.stage) ? 'primary' : 'secondary'" :disabled="!snapshot?.review && (!snapshot?.connected || !['Lobby','Matchmaking','ReadyCheck','ChampSelect','GameStart','InProgress'].includes(snapshot?.phase || ''))" @click="$emit('match')">{{ snapshot?.review ? '查看赛后分析' : snapshot?.stage === 'in-game' ? '显示局内快览' : '展开客户端侧栏' }} <AppIcon name="chevron" :size="14" /></button></section>
+        <section class="home-panel home-session"><span class="home-panel-caption">当前状态</span><strong><i class="connection-light" :class="{ online: snapshot?.connected }" />{{ status.split(" · ")[0] }}</strong><p>{{ snapshot?.stage === 'in-game' ? "游戏中按住 ~ 查看本局资料，松开隐藏。" : "进入房间或选人后，客户端左侧展示我方资料。" }}</p><button v-if="hasCurrentMatch(snapshot) || snapshot?.review" :class="hasCurrentMatch(snapshot) ? 'primary' : 'secondary'" @click="$emit('match')">{{ hasCurrentMatch(snapshot) ? '查看当前对局' : '查看赛后分析' }} <AppIcon name="chevron" :size="14" /></button></section>
         <PlaystylePanel :matches="matches" :scope="sampleLabel"/>
         <MasteryPanel v-if="player" :player="player"/>
       </aside>

@@ -12,7 +12,7 @@ import AppIcon from "./components/AppIcon.vue";
 import BrandIcon from "./components/BrandIcon.vue";
 import DesktopTitleBar from "./components/DesktopTitleBar.vue";
 import HomeView from "./components/HomeView.vue";
-import ReviewRoom from "./components/ReviewRoom.vue";
+import MatchRoom from "./components/MatchRoom.vue";
 import { useTransientMessages } from "./transientMessages";
 import { errorMessage, normalizeRiotIDInput } from "./presentation";
 import { operationKey, playerTabId } from "./playerState";
@@ -241,7 +241,7 @@ onUnmounted(() => {
         :busy="manualBusy"
         :error="homeError || (homePlayer ? playerErrors[operationKey(homePlayer)] || '' : '')"
         @modal="homeModalOpen = $event" @open="openPlayerDetails"
-        @match="snapshot?.review ? view = 'match' : showCompanion()"
+        @match="view = 'match'"
         @refresh="refreshHome"
       />
       <section v-show="view === 'players'" class="players-workspace">
@@ -272,12 +272,12 @@ onUnmounted(() => {
           <h1>查看玩家近期表现</h1>
           <p>输入完整 ID 查询战绩，或从当前对局中选择玩家。</p>
           <button class="secondary" @click="view = 'match'">
-            查看赛后分析
+            查看对局室
           </button>
         </div>
       </section>
       <section v-show="view === 'match'" class="match-workspace review-host">
-        <ReviewRoom :review="snapshot?.review ?? null" :connected="snapshot?.connected ?? false" :active="view === 'match'" :in-game="['GameStart','InProgress','Reconnect'].includes(snapshot?.phase || '')" @snapshot="acceptSnapshot" @query="queryReviewPlayer" @modal="reviewModalOpen = $event" @companion="showCompanion" :companion-available="['Lobby','Matchmaking','ReadyCheck','ChampSelect','GameStart','InProgress'].includes(snapshot?.phase || '')"/>
+        <MatchRoom :snapshot="snapshot" :active="view === 'match'" @snapshot="acceptSnapshot" @query="queryReviewPlayer" @modal="reviewModalOpen = $event" @companion="showCompanion"/>
       </section>
     </div>
     <SettingsPanel

@@ -10,14 +10,14 @@ import QueueSwitch from './QueueSwitch.vue';
 import PlayerDrawer from './PlayerDrawer.vue';
 import PlayerView from './PlayerView.vue';
 import AppIcon from './AppIcon.vue';
-const props=defineProps<{review:MatchReview|null;connected:boolean;active:boolean;inGame:boolean;companionAvailable:boolean}>();
-const emit=defineEmits<{query:[player:Participant];snapshot:[value:Snapshot];modal:[open:boolean];companion:[]}>();
+const props=defineProps<{review:MatchReview|null;connected:boolean;active:boolean;inGame:boolean}>();
+const emit=defineEmits<{query:[player:Participant];snapshot:[value:Snapshot];modal:[open:boolean]}>();
 const queue=ref(420), selectedKey=ref(''), busy=ref(false), error=ref('');
 const scope=ref('result');
 const states=reactive<Record<string,PlayerViewState>>({});
 const selected=computed(()=>props.review?.participants?.find(p=>p.key===selectedKey.value) ?? null);
 const target=computed(()=>props.review?.participants?.find(p=>p.key===props.review?.selfKey || p.puuid===props.review?.selfKey) ?? props.review?.participants?.[0]);
-watch(()=>props.review?.gameId,()=>{queue.value=props.review?.scoutQueue || 420;selectedKey.value='';error.value='';for(const k of Object.keys(states))delete states[k];},{immediate:true});
+watch(()=>`${props.review?.connectionId}:${props.review?.selfKey}:${props.review?.gameId}`,()=>{queue.value=props.review?.scoutQueue || 420;scope.value='result';selectedKey.value='';error.value='';for(const k of Object.keys(states))delete states[k];},{immediate:true});
 watch(()=>props.active,active=>{if(!active)selectedKey.value='';});
 watch(()=>!!selected.value,open=>emit('modal',open));
 function stateFor(key:string){return states[key] ?? (states[key]={queue:'all',expanded:[]});}
@@ -26,15 +26,15 @@ async function refresh(){if(busy.value || !props.review)return;busy.value=true;e
 </script>
 <template>
   <section class="review-room" aria-label="赛后分析">
-    <header class="review-heading"><div><h1>赛后分析</h1><p v-if="review">{{ queueName(review.queueId) }} · 对局 #{{ review.gameId }} · {{ date(review.capturedAt) }}</p><p v-else>结束一局后，在这里查看双方表现与赛前资料。</p></div><button v-if="companionAvailable" class="secondary" @click="$emit('companion')">{{ inGame?'显示局内快览':'展开客户端侧栏' }}</button><span v-else class="review-note">{{ inGame ? '游戏重连中，恢复对局后可调出快览' : '进入房间或选人后，侧栏自动显示' }}</span></header>
-    <div v-if="!review" class="review-empty"><AppIcon name="history" :size="36"/><h2>尚无赛后记录</h2><p>赛前资料会显示在客户端左侧，局内按住 ~ 查看双方。</p><p class="review-note">本次运行保留最近一局，结束后自动整理。</p></div>
+    <header class="review-heading"><div><h1>赛后分析</h1><p v-if="review">{{ queueName(review.queueId) }} · 对局 #{{ review.gameId }} · {{ date(review.capturedAt) }}</p><p v-else>结束一局后，在这里查看双方表现与赛前资料快照。</p></div></header>
+    <div v-if="!review" class="review-empty"><AppIcon name="history" :size="36"/><h2>尚无赛后记录</h2><p>房间、选人和游戏中的资料可在“当前对局”查看。</p><p class="review-note">本次运行保留最近一局，结束后自动整理。</p></div>
     <template v-else>
-      <div class="review-section-title"><div class="review-scope-switch" role="group" aria-label="复盘内容"><button class="secondary" :aria-pressed="scope==='result'" @click="scope='result'">本局结果</button><button class="secondary" :aria-pressed="scope==='pregame'" @click="scope='pregame'">赛前资料</button></div><p class="review-note">仅本次运行保留 · 新房间不会覆盖</p></div>
+      <div class="review-section-title"><div class="review-scope-switch" role="group" aria-label="复盘内容"><button class="secondary" :aria-pressed="scope==='result'" @click="scope='result'">本局结果</button><button class="secondary" :aria-pressed="scope==='pregame'" @click="scope='pregame'">赛前资料快照</button></div><p class="review-note">仅本次运行保留 · 新房间不会覆盖</p></div>
       <section v-show="scope==='result'" class="review-result" aria-label="本局结算">
         <div class="review-status"><span>{{ review.state==='waiting'?'正在同步本局结算…':review.state==='ready'?'本局结果已同步':review.state==='partial'?'结算资料部分返回':'结算尚未同步，可保留赛前资料稍后重试' }}</span><button class="secondary" :disabled="busy || !connected || inGame || review.state==='waiting'" @click="refresh">{{ busy?'同步中…':'同步结算' }}</button></div>
         <p v-if="error" class="quality-warning" role="status">{{ error }}</p>
         <MatchDetails v-if="review.result && target" :player="target" :game-id="review.gameId" :provided="review.result" :connected="false"/>
-        <p v-else class="review-note">本局胜负、KDA 和装备以结算结果为准，赛前统计可在“赛前资料”中查看。</p>
+        <p v-else class="review-note">本局胜负、KDA 和装备以结算结果为准，赛前统计可在“赛前资料快照”中查看。</p>
       </section>
       <template v-if="scope==='pregame'">
         <div class="review-section-title"><h2>赛前资料快照</h2><QueueSwitch :value="queue" @change="queue=$event"/></div>

@@ -843,7 +843,7 @@ async function main() {
     const navigation = page.getByRole('navigation', { name: '工作区' });
     const currentFilter = await page.getByLabel('战绩模式筛选', { exact: true }).inputValue();
     await navigation.getByRole('button', { name: '对局室', exact: true }).click();
-    await page.getByText('尚无赛后记录', { exact: true }).waitFor();
+    await page.getByRole('heading', { name: '当前对局', exact: true }).waitFor();
     await navigation.getByRole('button', { name: '玩家战绩', exact: true }).click();
     assert.equal(await page.getByLabel('战绩模式筛选', { exact: true }).inputValue(), currentFilter);
     assert.deepEqual(errors, []);

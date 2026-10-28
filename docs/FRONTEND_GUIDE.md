@@ -1,5 +1,11 @@
 # 前端迭代与组件预览
 
+## BUG-0067：对局室状态选择
+
+App传入完整Snapshot给MatchRoom。当前页面直接消费participants并复用MatchRoster/RosterProgress，房间/选人alliesOnly，加载/局内按返回名单展示；ReviewRoom仅消费review，归档与当前数据不混用。当前和归档各自保留玩家筛选/弹层状态，连接或当前局变化时重置当前选择，归档新gameId时重置归档。两种浮层都connected=false，只允许缓存浏览；prepared/captured分别解释当前准备和历史归档，无自动历史/资料/详情读取。当前模式经SetScoutQueue同步辅助窗，归档模式仍局部切换。
+
+companion-browser覆盖无review时局内十人、房间/选人只我方、载入/局内双方、空名单迟到、实时更新、断线保留、首页入口、新房间旧复盘隔离、进入加载默认当前、重复快照不抢选择、两套筛选与缓存浮层无额外请求及1280/1100/880布局。原生窗口与真实国服取数仍单独验收。
+
 ## BUG-0059：分析模块与验证
 
 当前概览、查询与详情层级见 PLAYER_ANALYSIS/UI_DESIGN，替代下文纵向档案海报与平铺详情。新增共享 RankPanel、OverviewPerformance、ChampionAnalysis、PlaystylePanel、MasteryPanel；analysisData.ts集中定义有效分母、明确位置、已读7天、团队指标与经济差。查询摘要默认折叠，完整分析可随时展开；左右滚动互不挤压，面板不设等高。

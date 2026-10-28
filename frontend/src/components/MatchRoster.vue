@@ -10,10 +10,11 @@ const props = defineProps<{
   frozen?: boolean;
   queue?: number;
   captured?: boolean;
+  alliesOnly?: boolean;
 }>();
 defineEmits<{ select: [player: Participant] }>();
 const teams = computed(() =>
-  (["ally", "enemy"] as const).map((key) => ({
+  (["ally", "enemy"] as const).filter(key => !props.alliesOnly || key === 'ally').map((key) => ({
     key,
     label: props.party
       ? key === "ally"

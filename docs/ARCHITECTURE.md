@@ -1,5 +1,11 @@
 # 架构与技术选型
 
+## BUG-0067：当前资料与历史复盘的独立入口
+
+App将完整Snapshot传入MatchRoom，后者以当前阶段和连接/账号/对局身份选择“当前对局”或“最近复盘”。实时卡片直接读取participants，不等待review；Lobby/Matchmaking/ReadyCheck/ChampSelect仅展示实际我方，GameStart/InProgress/Reconnect保留已返回名单。新房间、新比赛和由选人进入加载时默认当前；同局普通更新保留用户主动选择。结束阶段默认最近复盘，新房间仍保留上一局review但不会因此遮住当前名单。首页入口按当前阶段优先进入对局室。
+
+当前模式调用现有SetScoutQueue，与侧栏/快览共享；ReviewRoom仍只使用review，复盘模式及战绩筛选局部保存，子页隐藏后保留。两种玩家浮层都只读取已准备历史，connected=false阻止自动预热/分页/详情请求；当前浮层使用prepared文案，历史使用captured文案。显式查询最新战绩才走原查询流程。复盘候选、冻结、结算同步、窗口与请求预算不变，无模型/桥接/数据源新增。
+
 ## BUG-0066：统一战绩首页与重开语义
 
 `History`与`HistoryPage(offset=0)`现在共用当前大区、比赛编号和目标身份均已核验的SGP SUMMARY解析；第一页与后续页因此具有相同的参团、位置和十人英雄阵容字段。SGP会话不可用或请求失败时，第一页仍可单次回退LCU前缀，不把回退结果冒充完整字段，也不为列表逐局读取MatchDetail。

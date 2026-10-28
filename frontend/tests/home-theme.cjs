@@ -12,7 +12,7 @@ async function main() {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: Number(process.env.UI_DEVICE_SCALE_FACTOR || 1) });
     const page = await context.newPage();
     page.setDefaultTimeout(10000);
-    const errors = [], external = [], calls = [];
+    const errors = [], external = [], calls = [], backgroundCalls = [];
     page.on("pageerror", e => errors.push(e.message));
     const desktop = mockWindowRuntime(page);
     const binding = await fs.readFile(path.join(__dirname, "../bindings/leaguepingo/appservice.ts"), "utf8");
@@ -37,6 +37,13 @@ async function main() {
         if (await desktop.handle(route, request)) return;
         const method = methods[request.args?.methodID];
         const args = request.args?.args ?? [];
+        // Ranked warm-up is independent of foreground/theme actions. Provide
+        // a bounded exhausted page rather than depending on finishing <1.2s.
+        if (method === 'HistoryPage') {
+          backgroundCalls.push(args);
+          assert.equal(args[2], 20, 'empty warm-up page started another scan');
+          return route.fulfill({ json: { matches: [], meta: { returned: 0, parsed: 0, excluded: 0, fetchedAt: '2026-10-20T03:00:00Z' }, offset: 20, nextOffset: 20, hasMore: false } });
+        }
         calls.push(method);
         let result;
         if (method === "Snapshot") result = snapshot;
