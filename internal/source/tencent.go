@@ -68,6 +68,16 @@ func (s *TencentLCU) WatchPhase(ctx context.Context, notify func(string)) error 
 	return s.client.WatchPhase(ctx, notify)
 }
 
+func (s *TencentLCU) ReadyCheck(ctx context.Context) (core.ReadyCheck, error) {
+	return s.client.ReadyCheck(ctx)
+}
+func (s *TencentLCU) AcceptReadyCheck(ctx context.Context) error {
+	return s.client.AcceptReadyCheck(ctx)
+}
+func (s *TencentLCU) WatchReadyCheck(ctx context.Context, notify func()) error {
+	return s.client.WatchReadyCheck(ctx, notify)
+}
+
 func (s *TencentLCU) WatchChampSelect(ctx context.Context, notify func()) error {
 	return s.client.WatchChampSelect(ctx, notify)
 }

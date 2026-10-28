@@ -13,13 +13,24 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as core$0 from "./internal/core/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as readycheck$0 from "./internal/readycheck/models.js";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
+export function AutoAcceptStatus(): $CancellablePromise<readycheck$0.State> {
+    return $Call.ByID(1282781515);
+}
+
 export function AuxiliaryReady(): $CancellablePromise<void> {
     return $Call.ByID(1368087149);
+}
+
+export function ConfigureAutoAccept(enabled: boolean, delay: number): $CancellablePromise<$models.AppInfo> {
+    return $Call.ByID(2458339489, enabled, delay);
 }
 
 export function ConfigureCompanion(sidebar: boolean, preview: boolean, width: number): $CancellablePromise<$models.AppInfo> {
@@ -124,6 +135,10 @@ export function SetScoutQueue(queue: number): $CancellablePromise<core$0.Snapsho
 
 export function SetSidebarCollapsed(collapsed: boolean): $CancellablePromise<$models.OverlayState> {
     return $Call.ByID(3888966071, collapsed);
+}
+
+export function SkipAutoAccept(): $CancellablePromise<readycheck$0.State> {
+    return $Call.ByID(4118909898);
 }
 
 export function Snapshot(): $CancellablePromise<core$0.Snapshot> {

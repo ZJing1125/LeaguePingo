@@ -145,7 +145,8 @@ async function main() {
           args = request.args?.args ?? [];
         calls.push(method);
         let result = null;
-        if (method === "Snapshot") result = snapshot;
+        if (method === "AutoAcceptStatus") result = {revision:0,enabled:false,delaySeconds:1,status:"off",dueAt:"0001-01-01T00:00:00Z"};
+        else if (method === "Snapshot") result = snapshot;
         else if (method === "Info") result = info;
         else if (method === "ConfigureHold") {
           if (rejectHold)

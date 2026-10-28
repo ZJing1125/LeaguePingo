@@ -106,6 +106,17 @@ func main() {
 	if err != nil {
 		log.Print("无法读取本地战绩缓存，将使用本次运行内存缓存")
 	}
+	_ = backend.engine.ConfigureAutoAccept(store.Snapshot().AutoAcceptEnabled, store.Snapshot().AutoAcceptDelay)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case state := <-backend.engine.AutoAcceptChanges():
+				app.Event.Emit("leaguepingo:auto-accept", state)
+			}
+		}
+	}()
 	mainWindow = app.Window.NewWithOptions(mainWindowOptions(offlineSmoke))
 	// Closing the main window keeps the lightweight helper available in the tray.
 	mainWindow.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {

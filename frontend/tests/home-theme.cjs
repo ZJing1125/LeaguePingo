@@ -46,7 +46,8 @@ async function main() {
         }
         calls.push(method);
         let result;
-        if (method === "Snapshot") result = snapshot;
+        if (method === "AutoAcceptStatus") result = {revision:0,enabled:false,delaySeconds:1,status:"off",dueAt:"0001-01-01T00:00:00Z"};
+        else if (method === "Snapshot") result = snapshot;
         else if (method === "OverlayStatus") result = { visible: false, pinned: true, revision: 0 };
         else if (method === "CurrentPlayer") {
           if (deferHome) await new Promise(resolve => { releaseHome = resolve; homeEntered?.(); });

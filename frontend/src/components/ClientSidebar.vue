@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AutoAcceptNotice from "./AutoAcceptNotice.vue";
 import { computed } from 'vue';
 import type { Snapshot } from '../../bindings/leaguepingo/internal/core/models';
 import type { OverlayState } from '../../bindings/leaguepingo/models';
@@ -19,6 +20,7 @@ const picking=computed(()=>props.snapshot?.phase==='ChampSelect');
     <header class="sidebar-header"><BrandIcon/><strong>LeaguePingo</strong><button class="icon-button" aria-label="收起客户端侧栏" title="收起侧栏" @click="$emit('collapse',true)"><AppIcon name="minimise" :size="17"/></button></header>
     <div class="sidebar-heading"><div><h1>{{ picking?'我方阵容':'房间成员' }}</h1><small>{{ status.split(' · ')[0] }} · {{ players.length }} 人</small></div><QueueSwitch :value="snapshot?.scoutQueue ?? 420" compact @change="$emit('queue',$event)"/></div>
     <p v-if="error || state?.warning || snapshot?.rosterError" class="quality-warning" role="status">{{ error || state?.warning || snapshot?.rosterError }}</p>
+    <AutoAcceptNotice compact />
     <section class="sidebar-players" aria-label="我方玩家资料">
       <SidebarPlayer v-for="p in players" :key="p.key" :player="p" :queue="snapshot?.scoutQueue ?? 420" :picking="picking"/>
       <p v-if="!players.length" class="sidebar-empty">{{ picking?'正在读取我方名单…':'等待房间成员…' }}</p>

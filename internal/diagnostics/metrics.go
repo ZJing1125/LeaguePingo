@@ -23,6 +23,12 @@ var Default = &Collector{values: map[string]Metric{}}
 // Fixed allow-list: never retain paths, player IDs, credentials or error text.
 func Category(path string) string {
 	switch {
+	case path == "/ready-check-events":
+		return "ready-check-events"
+	case path == "/lol-matchmaking/v1/ready-check":
+		return "ready-check"
+	case path == "/lol-matchmaking/v1/ready-check/accept":
+		return "ready-check-accept"
 	case path == "/sgp-history":
 		return "sgp-history"
 	case path == "/sgp-rank":

@@ -47,7 +47,8 @@ async function main(){
    if(url.pathname==='/wails/runtime'){
     const req=route.request().postDataJSON();for(const runtime of runtimes)if(await runtime.handle(route,req))return;
     const method=methods[req.args?.methodID],args=req.args?.args??[];calls.push({method,args});let result=null;
-    if(method==='Snapshot')result=snapshot;
+    if(method==='AutoAcceptStatus')result={revision:0,enabled:false,delaySeconds:1,status:'off',dueAt:'0001-01-01T00:00:00Z'};
+    else if(method==='Snapshot')result=snapshot;
     else if(method==='OverlayStatus')result=state;
     else if(method==='CurrentPlayer')result=players[0];
     else if(method==='AuxiliaryReady'){}

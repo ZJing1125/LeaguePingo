@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"leaguepingo/internal/diagnostics"
+	"leaguepingo/internal/readycheck"
 	"leaguepingo/internal/settings"
 )
 
@@ -17,27 +18,29 @@ var Commit = "source-build"
 var BuildTime = "unrecorded"
 
 type AppInfo struct {
-	Version          string                        `json:"version"`
-	Commit           string                        `json:"commit"`
-	BuildTime        string                        `json:"buildTime"`
-	Shortcut         string                        `json:"shortcut"`
-	HoldEnabled      bool                          `json:"holdEnabled"`
-	HoldKey          string                        `json:"holdKey"`
-	SidebarEnabled   bool                          `json:"sidebarEnabled"`
-	PreviewEnabled   bool                          `json:"previewEnabled"`
-	SidebarWidth     int                           `json:"sidebarWidth"`
-	SettingsWarning  string                        `json:"settingsWarning"`
-	GoHeapBytes      uint64                        `json:"goHeapBytes"`
-	Goroutines       int                           `json:"goroutines"`
-	Requests         map[string]diagnostics.Metric `json:"requests"`
-	PerformanceScope string                        `json:"performanceScope"`
+	AutoAcceptEnabled bool                          `json:"autoAcceptEnabled"`
+	AutoAcceptDelay   int                           `json:"autoAcceptDelay"`
+	Version           string                        `json:"version"`
+	Commit            string                        `json:"commit"`
+	BuildTime         string                        `json:"buildTime"`
+	Shortcut          string                        `json:"shortcut"`
+	HoldEnabled       bool                          `json:"holdEnabled"`
+	HoldKey           string                        `json:"holdKey"`
+	SidebarEnabled    bool                          `json:"sidebarEnabled"`
+	PreviewEnabled    bool                          `json:"previewEnabled"`
+	SidebarWidth      int                           `json:"sidebarWidth"`
+	SettingsWarning   string                        `json:"settingsWarning"`
+	GoHeapBytes       uint64                        `json:"goHeapBytes"`
+	Goroutines        int                           `json:"goroutines"`
+	Requests          map[string]diagnostics.Metric `json:"requests"`
+	PerformanceScope  string                        `json:"performanceScope"`
 }
 
 func (s *AppService) Info() AppInfo {
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
 	cfg := s.settings.Snapshot()
-	return AppInfo{Version: Version, Commit: Commit, BuildTime: BuildTime, Shortcut: cfg.Shortcut, HoldEnabled: cfg.HoldEnabled, HoldKey: cfg.HoldKey, SidebarEnabled: cfg.SidebarEnabled, PreviewEnabled: cfg.PreviewEnabled, SidebarWidth: cfg.SidebarWidth, SettingsWarning: s.settingsWarning,
+	return AppInfo{AutoAcceptEnabled: cfg.AutoAcceptEnabled, AutoAcceptDelay: cfg.AutoAcceptDelay, Version: Version, Commit: Commit, BuildTime: BuildTime, Shortcut: cfg.Shortcut, HoldEnabled: cfg.HoldEnabled, HoldKey: cfg.HoldKey, SidebarEnabled: cfg.SidebarEnabled, PreviewEnabled: cfg.PreviewEnabled, SidebarWidth: cfg.SidebarWidth, SettingsWarning: s.settingsWarning,
 		GoHeapBytes: mem.HeapAlloc, Goroutines: runtime.NumGoroutine(), Requests: diagnostics.Default.Snapshot(), PerformanceScope: "仅 Go 堆；不包含 WebView2，不代表总内存、游戏 FPS 或网络延迟"}
 }
 func (s *AppService) ConfigureCompanion(sidebar, preview bool, width int) (AppInfo, error) {
@@ -112,3 +115,19 @@ func (s *AppService) ExportDiagnostics() (string, error) {
 	}
 	return name, nil
 }
+
+func (s *AppService) ConfigureAutoAccept(enabled bool, delay int) (AppInfo, error) {
+	if !readycheck.ValidDelay(delay) {
+		return AppInfo{}, errors.New("接受延迟仅支持 0、1、3、5 秒")
+	}
+	old := s.settings.Snapshot()
+	s.settings.SetAutoAccept(enabled, delay)
+	if err := s.settings.Save(); err != nil {
+		s.settings.SetAutoAccept(old.AutoAcceptEnabled, old.AutoAcceptDelay)
+		return AppInfo{}, err
+	}
+	_ = s.engine.ConfigureAutoAccept(enabled, delay)
+	return s.Info(), nil
+}
+func (s *AppService) AutoAcceptStatus() readycheck.State        { return s.engine.AutoAcceptStatus() }
+func (s *AppService) SkipAutoAccept() (readycheck.State, error) { return s.engine.SkipAutoAccept() }

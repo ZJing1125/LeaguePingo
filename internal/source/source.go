@@ -83,6 +83,17 @@ type PhaseEventSource interface {
 	WatchPhase(context.Context, func(string)) error
 }
 
+// ReadyCheckSource is a narrowly scoped local action, separate from player data.
+type ReadyCheckSource interface {
+	Phase(context.Context) (string, error)
+	ReadyCheck(context.Context) (core.ReadyCheck, error)
+	AcceptReadyCheck(context.Context) error
+}
+
+type ReadyCheckEventSource interface {
+	WatchReadyCheck(context.Context, func()) error
+}
+
 // Selection snapshots must come from champ-select, not the gameflow roster.
 type ChampSelectSource interface {
 	ChampSelectRoster(context.Context) (int64, []core.Participant, error)

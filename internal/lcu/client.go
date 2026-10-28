@@ -173,7 +173,7 @@ func (c *Client) request(ctx context.Context, method, path string, body []byte) 
 	}
 	defer response.Body.Close()
 	status = response.StatusCode
-	if response.StatusCode != http.StatusOK {
+	if response.StatusCode != http.StatusOK && !(method == http.MethodPost && path == readyCheckPath+"/accept" && response.StatusCode == http.StatusNoContent) {
 		return nil, fmt.Errorf("LCU HTTP %d", response.StatusCode)
 	}
 	data, err = io.ReadAll(io.LimitReader(response.Body, 8<<20))

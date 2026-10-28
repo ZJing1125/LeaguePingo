@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AutoAcceptNotice from "./components/AutoAcceptNotice.vue";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { Events } from "@wailsio/runtime";
 import * as Service from "../bindings/leaguepingo/appservice";
@@ -231,6 +232,7 @@ onUnmounted(() => {
         :message="searchError"
         banner-class="workspace-message"
       />
+      <AutoAcceptNotice class="workspace-message" />
       <HomeView
         v-show="view === 'home'"
         :active="view === 'home'"

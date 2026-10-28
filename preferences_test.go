@@ -2,6 +2,7 @@ package main
 
 import (
 	"leaguepingo/internal/diagnostics"
+	"leaguepingo/internal/engine"
 	"leaguepingo/internal/settings"
 	"os"
 	"path/filepath"
@@ -46,5 +47,34 @@ func TestCompanionDiagnosticsExcludeIdentityAndGameID(t *testing.T) {
 	}
 	if strings.Contains(string(b), "private-player-id") || strings.Contains(string(b), "987654321234") || !strings.Contains(string(b), `"frontendReady": true`) || !strings.Contains(string(b), `"phase": "InProgress"`) {
 		t.Fatal("unsafe or incomplete companion diagnostics")
+	}
+}
+
+func TestAutoAcceptSaveThenApplyAndRollback(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := settings.Open(filepath.Join(dir, "settings.json"))
+	e := engine.New(nil, nil)
+	s := &AppService{settings: store, engine: e}
+	if _, err := s.ConfigureAutoAccept(true, 3); err != nil {
+		t.Fatal(err)
+	}
+	if !e.AutoAcceptStatus().Enabled || e.AutoAcceptStatus().DelaySeconds != 3 {
+		t.Fatal("saved preference was not applied")
+	}
+	if _, err := s.ConfigureAutoAccept(true, 2); err == nil {
+		t.Fatal("invalid delay accepted")
+	}
+	blocker := filepath.Join(dir, "file")
+	if err := os.WriteFile(blocker, []byte("file"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	broken, _ := settings.Open(filepath.Join(blocker, "settings.json"))
+	s.settings = broken
+	_ = e.ConfigureAutoAccept(false, 1)
+	if _, err := s.ConfigureAutoAccept(true, 5); err == nil {
+		t.Fatal("save failure was hidden")
+	}
+	if broken.Snapshot().AutoAcceptEnabled || e.AutoAcceptStatus().Enabled {
+		t.Fatal("save failure enabled the feature")
 	}
 }

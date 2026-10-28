@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"leaguepingo/internal/core"
+	"leaguepingo/internal/readycheck"
 	"leaguepingo/internal/source"
 )
 
@@ -20,6 +21,7 @@ type Discoverer func() (Client, error)
 const inGameRosterAttemptLimit = 3
 
 type Engine struct {
+	autoAccept          *readycheck.Controller
 	mu                  sync.RWMutex
 	discover            Discoverer
 	client              Client
@@ -85,6 +87,7 @@ func NewWithHistoryCache(discover Discoverer, onChange func(core.Snapshot), path
 
 func newEngine(discover Discoverer, onChange func(core.Snapshot)) *Engine {
 	e := &Engine{discover: discover, onChange: onChange, lookupGate: make(chan struct{}, 1), phaseWake: make(chan struct{}, 1), champWake: make(chan struct{}, 1), scheduler: newScheduler(), cache: map[string]core.Participant{}, aliases: map[string]string{}, snapshot: core.Snapshot{Stage: "disconnected", UpdatedAt: time.Now(), Participants: []core.Participant{}}}
+	e.autoAccept = readycheck.New()
 	if onChange != nil {
 		e.updates = make(chan core.Snapshot, 32)
 		go func() {
@@ -103,6 +106,9 @@ func (e *Engine) Snapshot() core.Snapshot {
 }
 
 func (e *Engine) Run(ctx context.Context) {
+	acceptDone := make(chan struct{})
+	go func() { defer close(acceptDone); e.autoAccept.Run(ctx) }()
+	defer func() { <-acceptDone }()
 	defer e.historyStore.close()
 	e.mu.Lock()
 	e.initialMatch.parent = ctx
@@ -212,6 +218,7 @@ func (e *Engine) poll(ctx context.Context) {
 	}
 	requestCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+	phaseStarted := time.Now()
 	phase, err := client.Phase(requestCtx)
 	if err != nil {
 		e.mu.Lock()
@@ -251,6 +258,7 @@ func (e *Engine) poll(ctx context.Context) {
 		}
 		e.accountIdentity = account
 	}
+	e.observeAutoAcceptLocked(phase, phaseStarted)
 	refresh := false
 	if activeMatch(phase) {
 		entering := !activeMatch(e.snapshot.Phase) || (phase == "GameStart" && e.snapshot.Phase != "GameStart")
@@ -357,6 +365,7 @@ func (e *Engine) poll(ctx context.Context) {
 
 // Retained data can still be displayed, but can never become a new connection's cache.
 func (e *Engine) invalidateConnectionLocked() {
+	e.autoAccept.Observe(nil, 0, "")
 	e.stopReviewLocked()
 	e.stopScoutingLocked()
 	e.scouting.scope = ""
@@ -396,6 +405,7 @@ func (e *Engine) invalidateConnectionLocked() {
 
 // Keep the frozen match available while exposing why reconnection failed.
 func (e *Engine) disconnectLocked(message string) {
+	e.autoAccept.Observe(nil, 0, "")
 	e.stopReviewLocked()
 	e.stopScoutingLocked()
 	if e.homeCancel != nil {

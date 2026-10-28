@@ -1,5 +1,9 @@
 # 架构与技术选型
 
+## BUG-0069 自动接受动作通道
+
+Engine持有独立readycheck.Controller，阶段事件与已核验HTTP阶段只负责观察；动作任务不进入玩家资料scheduler。仅排队/确认期间订阅ready-check并有界读取本机状态，验证后调用固定接受端点，结果不确定不盲目重发。状态通过独立有序事件同步，不改玩家Snapshot。详见[AUTO_ACCEPT.md](AUTO_ACCEPT.md)。
+
 ## BUG-0067：当前资料与历史复盘的独立入口
 
 App将完整Snapshot传入MatchRoom，后者以当前阶段和连接/账号/对局身份选择“当前对局”或“最近复盘”。实时卡片直接读取participants，不等待review；Lobby/Matchmaking/ReadyCheck/ChampSelect仅展示实际我方，GameStart/InProgress/Reconnect保留已返回名单。新房间、新比赛和由选人进入加载时默认当前；同局普通更新保留用户主动选择。结束阶段默认最近复盘，新房间仍保留上一局review但不会因此遮住当前名单。首页入口按当前阶段优先进入对局室。

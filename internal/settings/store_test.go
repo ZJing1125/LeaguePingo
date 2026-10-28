@@ -99,3 +99,29 @@ func TestExistingSettingsReceiveHoldDefaultsAndRoundtrip(t *testing.T) {
 		t.Fatal("invalid hold key")
 	}
 }
+
+func TestAutoAcceptDefaultsAndRoundtrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Snapshot().AutoAcceptEnabled || s.Snapshot().AutoAcceptDelay != 1 {
+		t.Fatal("auto accept must default off with one-second delay")
+	}
+	s.SetAutoAccept(true, 3)
+	if err := s.Save(); err != nil {
+		t.Fatal(err)
+	}
+	s, err = Open(path)
+	if err != nil || !s.Snapshot().AutoAcceptEnabled || s.Snapshot().AutoAcceptDelay != 3 {
+		t.Fatal("preference not persisted")
+	}
+	if err := os.WriteFile(path, []byte(`{"schema":1,"autoAcceptEnabled":true,"autoAcceptDelay":-1}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	s, _ = Open(path)
+	if s.Snapshot().AutoAcceptEnabled || s.Snapshot().AutoAcceptDelay != 1 {
+		t.Fatal("invalid preference should disarm the action")
+	}
+}
