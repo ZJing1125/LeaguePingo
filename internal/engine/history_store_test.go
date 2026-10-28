@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,7 +19,7 @@ func TestHistoryStorePersistsDeidentifiedPages(t *testing.T) {
 	}
 	now := time.Now().UTC()
 	store.put("real-player-puuid", core.HistoryPage{
-		Matches: []core.Match{{GameID: 42, QueueID: 420, Roster: []core.MatchPeer{{DisplayName: "PrivateName#TAG"}}}},
+		Matches: []core.Match{{GameID: 42, QueueID: 420, Roster: []core.MatchPeer{{ParticipantID: 1, TeamID: 100, ChampionID: 23, DisplayName: "PrivateName#TAG", Target: true}}}},
 		Meta:    core.HistoryMeta{FetchedAt: &now, Returned: 1, Parsed: 1},
 		Offset:  0, NextOffset: 1,
 	})
@@ -40,8 +41,8 @@ func TestHistoryStorePersistsDeidentifiedPages(t *testing.T) {
 	if !ok || len(page.Matches) != 1 || page.Matches[0].GameID != 42 {
 		t.Fatalf("stored page was not restored: %+v", page)
 	}
-	if len(page.Matches[0].Roster) != 0 {
-		t.Fatal("restored page contained a roster")
+	if len(page.Matches[0].Roster) != 1 || page.Matches[0].Roster[0].ChampionID != 23 || page.Matches[0].Roster[0].DisplayName != "" {
+		t.Fatal("restored page lost its anonymous composition or retained a name")
 	}
 }
 
@@ -52,6 +53,31 @@ func TestHistoryStoreRejectsIncompatibleFile(t *testing.T) {
 	}
 	if _, err := openHistoryStore(path); err == nil {
 		t.Fatal("incompatible persistent cache was accepted")
+	}
+}
+
+func TestHistoryStoreMigratesSchemaOneWithoutServingIncompleteRosters(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "history-cache.json")
+	key := historyStoreKey("player")
+	old := `{"schema":1,"entries":{"` + key + `":{"updatedAt":"2026-10-28T00:00:00Z","pages":{"0":{"matches":[{"gameId":42,"queueId":420}],"meta":{"returned":1,"parsed":1},"offset":0,"nextOffset":1}}}}}`
+	if err := os.WriteFile(path, []byte(old), 0600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := openHistoryStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := store.get("player", 0, 0); ok {
+		t.Fatal("schema-one page without compositions was served after upgrade")
+	}
+	store.close()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var file historyStoreFile
+	if json.Unmarshal(raw, &file) != nil || file.Schema != historyStoreSchema || len(file.Entries) != 0 {
+		t.Fatalf("schema-one cache was not replaced safely: %s", raw)
 	}
 }
 

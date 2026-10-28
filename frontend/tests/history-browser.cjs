@@ -31,25 +31,38 @@ async function main() {
         ...binding.matchAll(/export function (\w+)\([^]*?\$Call.ByID\((\d+)/g),
       ].map((m) => [m[2], m[1]]),
     );
-    const history = Array.from({ length: 260 }, (_, i) => ({
-      gameId: 1000 + i,
-      queueId: i < 10 ? 2400 : i < 20 ? 420 : i % 2 === 0 ? 440 : 420,
-      championId: 23 + (i % 3),
-      playedAt: new Date(
-        Date.UTC(2026, 9, 17, 0, 0) - i * 3600000,
-      ).toISOString(),
-      win: i % 3 === 0,
-      kills: i % 11,
-      deaths: 2,
-      assists: 8,
-      duration: 1800,
-      cs: 100,
-      gold: 12000,
-      damage: 9999,
-      items: [3006, 3078, 0, 0, 0, 0, 3364],
-      spell1: 4,
-      spell2: 14,
-    }));
+    const history = Array.from({ length: 260 }, (_, i) => {
+      const remake = i === 2;
+      return {
+        gameId: 1000 + i,
+        queueId: i < 10 ? 2400 : i < 20 ? 420 : i % 2 === 0 ? 440 : 420,
+        championId: 23 + (i % 3),
+        playedAt: new Date(
+          Date.UTC(2026, 9, 17, 0, 0) - i * 3600000,
+        ).toISOString(),
+        win: remake ? false : i % 3 === 0,
+        kills: remake ? 0 : i % 11,
+        deaths: remake ? 0 : 2,
+        assists: remake ? 0 : 8,
+        duration: remake ? 75 : 1800,
+        earlyEnd: remake,
+        cs: remake ? 0 : 100,
+        gold: remake ? 500 : 12000,
+        damage: remake ? 0 : 9999,
+        participation: remake ? null : 50,
+        position: "MIDDLE",
+        roster: Array.from({ length: 10 }, (_, participant) => ({
+          participantId: participant + 1,
+          teamId: participant < 5 ? 100 : 200,
+          championId: participant === 0 ? 23 + (i % 3) : 40 + participant,
+          displayName: `匿名玩家${participant + 1}`,
+          target: participant === 0,
+        })),
+        items: [3006, 3078, 0, 0, 0, 0, 3364],
+        spell1: 4,
+        spell2: 14,
+      };
+    });
     const meta = (records) => ({
       returned: records.length,
       parsed: records.length,
@@ -259,21 +272,24 @@ async function main() {
           `${selected.length} / ${size} 场`,
         ),
       );
-      const wins = selected.filter((m) => m.win).length;
+      const statistical = selected.filter(
+        (m) => !(m.earlyEnd === true && m.duration <= 5 * 60),
+      );
+      const wins = statistical.filter((m) => m.win).length;
       assert.equal(
         (await page.locator(".players-workspace .analysis-sample-win").textContent()).trim(),
-        selected.length
-          ? `${Math.round((wins * 100) / selected.length)}%`
+        statistical.length
+          ? `${Math.round((wins * 100) / statistical.length)}%`
           : "—",
       );
-      const kills = selected.reduce((n, m) => n + m.kills, 0),
-        assists = selected.reduce((n, m) => n + m.assists, 0),
-        deaths = selected.reduce((n, m) => n + m.deaths, 0);
+      const kills = statistical.reduce((n, m) => n + m.kills, 0),
+        assists = statistical.reduce((n, m) => n + m.assists, 0),
+        deaths = statistical.reduce((n, m) => n + m.deaths, 0);
       assert.equal(
         (
           await page.locator(".players-workspace .analysis-sample-kda").first().textContent()
         ).trim(),
-        selected.length
+        statistical.length
           ? ((kills + assists) / Math.max(1, deaths)).toFixed(2)
           : "—",
       );
@@ -318,6 +334,22 @@ async function main() {
       [10, 20, 30, 40, 50],
     );
     await waitForPageCalls("Paged#TEST", 2);
+    assert.equal(
+      await page.locator(".players-workspace .match-mini-roster").count(),
+      20,
+      "first page did not retain both team compositions",
+    );
+    assert.equal(
+      await page.locator(".players-workspace .match-roster-missing").count(),
+      0,
+      "first page showed a weaker roster state than later pages",
+    );
+    const remakeCard = page.locator(".players-workspace .match-card.remake");
+    assert.equal(await remakeCard.count(), 1);
+    assert.match(await remakeCard.locator(".outcome").textContent(), /^重开/);
+    assert.equal(await remakeCard.locator(".match-performance small").textContent(), "— KDA");
+    assert.match(await remakeCard.locator(".match-facts").textContent(), /重开记录/);
+    assert.doesNotMatch(await remakeCard.textContent(), /零死亡/);
     assert.deepEqual(
       pageCalls().map((c) => c.args[2]),
       [20, 40],
@@ -654,6 +686,7 @@ async function main() {
 
     // Jump supports cached and unqueried pages; invalid input never sends requests.
     await search("Jump#TEST");
+    await waitForPageCalls("Jump#TEST", 2);
     const jumpInput = page.getByLabel("跳转页码", { exact: true });
     const jumpButton = page.getByRole("button", { name: "跳转", exact: true });
     const beforeBadJump = pageCalls().length;
@@ -681,7 +714,8 @@ async function main() {
       pageCalls()
         .slice(beforeBadJump)
         .map((c) => c.args[2]),
-      [20, 40],
+      [],
+      "jump to an already prepared page refetched history",
     );
     await checkSample("all", 20);
     const beforeCachedJump = pageCalls().length;

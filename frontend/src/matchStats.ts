@@ -1,8 +1,18 @@
 import type { Match, Stats } from "../bindings/leaguepingo/internal/core/models";
 
+export function isRemake(match: Match) {
+  return (
+    match.earlyEnd === true &&
+    match.duration != null &&
+    match.duration >= 0 &&
+    match.duration <= 5 * 60
+  );
+}
+
 export function sampleStats(matches: Match[]): Stats {
-  const outcomes = matches.filter((m) => m.win != null);
-  const complete = matches.filter(
+  const statistical = matches.filter((m) => !isRemake(m));
+  const outcomes = statistical.filter((m) => m.win != null);
+  const complete = statistical.filter(
     (m) => m.kills != null && m.deaths != null && m.assists != null,
   );
   const wins = outcomes.filter((m) => m.win).length;

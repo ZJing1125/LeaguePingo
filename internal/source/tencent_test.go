@@ -25,6 +25,11 @@ func TestTencentLCUAdapter(t *testing.T) {
 		switch {
 		case strings.Contains(request.URL.Path, "gameflow-phase"):
 			body = `"ChampSelect"`
+		case request.URL.Path == "/lol-rso-auth/v1/authorization":
+			body = `{"currentPlatformId":"NJ100"}`
+		case strings.Contains(request.URL.Path, "ServiceEndpoint"):
+			// An unusable discovery result exercises the bounded LCU fallback.
+			body = `"https://invalid.example"`
 		case strings.Contains(request.URL.Path, "gameflow/v1/session"):
 			body = `{"gameData":{"gameId":42,"teamOne":[{"puuid":"p1"}],"teamTwo":[]}}`
 		case strings.Contains(request.URL.Path, "champ-select/v1/session"):
@@ -67,7 +72,7 @@ func TestTencentLCUAdapter(t *testing.T) {
 	if _, err := s.FindByRiotID(ctx, "Player"); err == nil {
 		t.Fatal("partial Riot ID accepted")
 	}
-	if len(paths) != 7 {
+	if len(paths) != 9 {
 		t.Fatalf("unexpected request count: %v", paths)
 	}
 }

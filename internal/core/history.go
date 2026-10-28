@@ -62,6 +62,8 @@ type historyParticipant struct {
 		Role string `json:"role"`
 	} `json:"timeline"`
 	Stats struct {
+		ParticipantID int   `json:"participantId"`
+		TeamID        int   `json:"teamId"`
 		EarlyEnd      *bool `json:"gameEndedInEarlySurrender"`
 		Perk0         *int  `json:"perk0"`
 		Perk1         *int  `json:"perk1"`
@@ -140,6 +142,7 @@ func ParseHistory(data []byte, puuid string) (HistoryResult, error) {
 			if json.Unmarshal(raw, &p) != nil {
 				continue
 			}
+			normalizeHistoryParticipant(&p)
 			// A conflicting explicit identity must never be overridden by an index.
 			if p.PUUID != puuid && (IsKnownPUUID(p.PUUID) || p.ParticipantID <= 0 || identity[p.ParticipantID] != puuid) {
 				continue
@@ -230,6 +233,15 @@ func historyRole(p historyParticipant) string {
 	return strings.ToUpper(strings.TrimSpace(role))
 }
 
+func normalizeHistoryParticipant(p *historyParticipant) {
+	if p.ParticipantID <= 0 {
+		p.ParticipantID = p.Stats.ParticipantID
+	}
+	if p.TeamID <= 0 {
+		p.TeamID = p.Stats.TeamID
+	}
+}
+
 func standardPosition(value string) string {
 	switch strings.ToUpper(strings.TrimSpace(value)) {
 	case "TOP":
@@ -318,7 +330,11 @@ func historyPeers(game historyGame, target historyParticipant) ([]MatchPeer, *fl
 	total, complete := 0, true
 	for _, raw := range game.Participants {
 		var p historyParticipant
-		if json.Unmarshal(raw, &p) != nil || p.ParticipantID <= 0 || seen[p.ParticipantID] {
+		if json.Unmarshal(raw, &p) != nil {
+			return nil, nil
+		}
+		normalizeHistoryParticipant(&p)
+		if p.ParticipantID <= 0 || seen[p.ParticipantID] {
 			return nil, nil
 		}
 		seen[p.ParticipantID] = true

@@ -108,7 +108,7 @@ func BuildScoutReport(matches []Match, masteries []ChampionMastery, season *Scou
 			for _, m := range all {
 				if m.QueueID == q {
 					selected = append(selected, m)
-					if m.Kills != nil && m.Deaths != nil && m.Assists != nil {
+					if !IsRemake(m) && m.Kills != nil && m.Deaths != nil && m.Assists != nil {
 						k += float64(*m.Kills)
 						d += float64(*m.Deaths)
 						a += float64(*m.Assists)
@@ -142,6 +142,9 @@ func BuildScoutReport(matches []Match, masteries []ChampionMastery, season *Scou
 			}
 			if !m.PlayedAt.Before(cutoff.Add(-30 * 24 * time.Hour)) {
 				month = append(month, m)
+				if IsRemake(m) {
+					continue
+				}
 				if m.MapID != nil && *m.MapID != 11 {
 					continue
 				}

@@ -60,6 +60,40 @@ func TestSGPExplicitPagingUsesTrustedHostSessionAndRawOffset(t *testing.T) {
 	}
 }
 
+func TestInitialHistoryUsesSameRichSGPSummaryAsLaterPages(t *testing.T) {
+	remoteCalls := 0
+	remote := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		remoteCalls++
+		if r.URL.Query().Get("startIndex") != "0" || r.URL.Query().Get("count") != "20" {
+			t.Fatal("initial history did not request the first summary page")
+		}
+		participants := []string{}
+		for i := 1; i <= 10; i++ {
+			team := 100
+			puuid := fmt.Sprintf("player-%d", i)
+			if i > 5 {
+				team = 200
+			}
+			if i == 1 {
+				puuid = "target"
+			}
+			participants = append(participants, fmt.Sprintf(`{"puuid":%q,"participantId":%d,"teamId":%d,"championId":%d,"kills":%d,"deaths":2,"assists":4}`, puuid, i, team, 20+i, i))
+		}
+		body := `{"games":[{"metadata":{"product":"lol","info_type":"summary","match_id":"NJ100_77"},"json":{"gameId":77,"platformId":"NJ100","queueId":420,"participants":[` + strings.Join(participants, ",") + `]}}]}`
+		return jsonResponse(body), nil
+	})}
+	local := lcu.NewClient(lcu.Credentials{})
+	local.HTTP.Transport = roundTripFunc(func(*http.Request) (*http.Response, error) {
+		t.Fatal("rich SGP first page unexpectedly fell back to the incomplete LCU summary")
+		return nil, nil
+	})
+	s := &TencentLCU{client: local, sgp: &sgpHistory{http: remote, origin: "https://nj100-sgp.lol.qq.com:21019", platform: "NJ100", token: "synthetic", expires: time.Now().Add(time.Minute)}}
+	result, err := s.History(context.Background(), "target")
+	if err != nil || remoteCalls != 1 || len(result.Matches) != 1 || len(result.Matches[0].Roster) != 10 || result.Matches[0].Participation == nil {
+		t.Fatalf("initial rich history mismatch: %+v %v", result, err)
+	}
+}
+
 func TestSGPScoutingAndBrowseSharePagesButChangedHeadInvalidatesCursorCache(t *testing.T) {
 	calls, head := 0, 1
 	r := &sgpHistory{origin: "https://nj100-sgp.lol.qq.com:21019", platform: "NJ100", token: "synthetic", expires: time.Now().Add(time.Minute)}

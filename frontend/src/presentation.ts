@@ -3,6 +3,7 @@ import type {
   Participant,
   HistoryMeta,
 } from "../bindings/leaguepingo/internal/core/models";
+import { isRemake } from "./matchStats";
 import runeCatalog from "./assets/game/rune-names.json";
 import { gameAsset } from "./gameAssets";
 import { hasPlayerName } from "./playerState";
@@ -76,7 +77,13 @@ export function tierName(tier: string) {
   return tiers[tier] ?? "段位未知";
 }
 export function outcome(m: Match) {
-  return m.win == null ? "未知" : m.win ? "胜利" : "失败";
+  return isRemake(m)
+    ? "重开"
+    : m.win == null
+      ? "未知"
+      : m.win
+        ? "胜利"
+        : "失败";
 }
 export function date(value: string | null | undefined) {
   if (!value) return "日期未知";
@@ -142,7 +149,7 @@ export function recentOutcomes(p: Participant) {
   return (
     (p.history ?? [])
       .slice(0, 5)
-      .map((m) => (m.win == null ? "?" : m.win ? "胜" : "负"))
+      .map((m) => (isRemake(m) ? "重" : m.win == null ? "?" : m.win ? "胜" : "负"))
       .join(" · ") || "暂无样本"
   );
 }

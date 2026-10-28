@@ -39,6 +39,21 @@ func TestStatsDistinguishEmptyUnknownAndZero(t *testing.T) {
 	}
 }
 
+func TestShortExplicitEarlyEndIsRemakeAndNotAStatisticalLoss(t *testing.T) {
+	remake := Match{EarlyEnd: ptr(true), Duration: ptr(75), Win: ptr(false), Kills: ptr(0), Deaths: ptr(0), Assists: ptr(0)}
+	if !IsRemake(remake) {
+		t.Fatal("short explicit early-end record was not classified as a remake")
+	}
+	got := CalculateStats([]Match{remake, {Win: ptr(true), Kills: ptr(4), Deaths: ptr(2), Assists: ptr(6)}})
+	if got.Games != 2 || got.OutcomeGames != 1 || got.Wins != 1 || got.Losses != 0 || got.KDAGames != 1 || got.WinRate == nil || *got.WinRate != 100 || got.KDA == nil || *got.KDA != 5 {
+		t.Fatalf("remake polluted aggregate statistics: %+v", got)
+	}
+	longEarlyLoss := Match{EarlyEnd: ptr(true), Duration: ptr(16 * 60), Win: ptr(false)}
+	if IsRemake(longEarlyLoss) {
+		t.Fatal("a normal early surrender was relabeled as a remake")
+	}
+}
+
 func TestGameflowUsesCurrentPlayersTeamAndProvidedNames(t *testing.T) {
 	data := []byte(`{"gameData":{"gameId":42,"teamOne":[{"puuid":"opponent","summonerName":"Opponent#TEST"}],"teamTwo":[{"puuid":"self","summonerName":"Me#TEST"}]}}`)
 	_, players, err := ParseGameflowRosterForPlayer(data, "self")

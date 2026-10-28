@@ -14,12 +14,13 @@ import (
 	"leaguepingo/internal/core"
 )
 
-const historyStoreSchema = 1
+const historyStoreSchema = 2
 const historyStorePlayers = 64
 
 // historyStore persists only de-identified match summaries. The key is a
-// one-way hash of the verified PUUID and rosters are removed before writing,
-// so the cache never contains player IDs, Riot IDs, access tokens or names.
+// one-way hash of the verified PUUID. Anonymous team/champion composition is
+// retained, while roster names are removed before writing, so the cache never
+// contains player IDs, Riot IDs, access tokens or names.
 type historyStore struct {
 	mu      sync.Mutex
 	path    string
@@ -42,13 +43,24 @@ type historyStoreEntry struct {
 
 func openHistoryStore(path string) (*historyStore, error) {
 	s := &historyStore{path: path, entries: map[string]historyStoreEntry{}, wake: make(chan struct{}, 1), stop: make(chan struct{}), done: make(chan struct{})}
+	migrate := false
 	b, err := os.ReadFile(path)
 	if err == nil {
 		var file historyStoreFile
-		if json.Unmarshal(b, &file) != nil || file.Schema != historyStoreSchema {
+		if json.Unmarshal(b, &file) != nil {
+			return nil, errors.New("本地战绩缓存格式不兼容")
+		}
+		if file.Schema == 1 {
+			// Schema 1 removed whole rosters and caused the first page to lose
+			// composition after restart. Drop those incomplete summaries once.
+			migrate = true
+		} else if file.Schema != historyStoreSchema {
 			return nil, errors.New("本地战绩缓存格式不兼容")
 		}
 		for key, entry := range file.Entries {
+			if migrate {
+				break
+			}
 			if !validHistoryStoreKey(key) || entry.UpdatedAt.IsZero() || len(entry.Pages) > 50 {
 				continue
 			}
@@ -69,6 +81,9 @@ func openHistoryStore(path string) (*historyStore, error) {
 		return nil, errors.New("无法读取本地战绩缓存")
 	}
 	go s.writer()
+	if migrate {
+		s.wake <- struct{}{}
+	}
 	return s, nil
 }
 
@@ -92,7 +107,10 @@ func validStoredPage(page core.HistoryPage, offset int) bool {
 func sanitizeHistoryPage(page core.HistoryPage) core.HistoryPage {
 	page.Matches = append([]core.Match(nil), page.Matches...)
 	for i := range page.Matches {
-		page.Matches[i].Roster = nil
+		page.Matches[i].Roster = append([]core.MatchPeer(nil), page.Matches[i].Roster...)
+		for j := range page.Matches[i].Roster {
+			page.Matches[i].Roster[j].DisplayName = ""
+		}
 	}
 	return page
 }

@@ -217,20 +217,18 @@ func (s *TencentLCU) Name(ctx context.Context, puuid string) (string, error) {
 }
 
 func (s *TencentLCU) History(ctx context.Context, puuid string) (core.HistoryResult, error) {
-	// The first recent-history batch stays on LCU. Independent season scouting
-	// uses ScoutPage; user-driven browsing uses HistoryPage.
-	page, err := s.lcuHistoryPage(ctx, puuid, 0, 20)
+	// Use the same verified SUMMARY contract for the first and later pages so
+	// participation and both line-ups do not disappear only on page one.
+	page, err := s.sgpHistoryPage(ctx, puuid, 0)
 	if err == nil {
-		s.sgpMu.Lock()
-		if s.sgp != nil {
-			var head int64
-			if len(page.Matches) > 0 {
-				head = page.Matches[0].GameID
-			}
-			s.sgp.rememberHead(puuid, head)
-		}
-		s.sgpMu.Unlock()
+		return core.HistoryResult{Matches: page.Matches, Meta: page.Meta}, nil
 	}
+	if ctx.Err() != nil {
+		return core.HistoryResult{}, errors.New("战绩查询超时或已取消")
+	}
+	// Keep the local client as a bounded fallback when the verified regional
+	// summary service is unavailable.
+	page, err = s.lcuHistoryPage(ctx, puuid, 0, 20)
 	return core.HistoryResult{Matches: page.Matches, Meta: page.Meta}, err
 }
 

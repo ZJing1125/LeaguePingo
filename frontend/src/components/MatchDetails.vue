@@ -6,6 +6,7 @@ import { errorMessage, kda, number, percent, decimal, sampleStats, positionName 
 import { championName } from '../gameAssets';
 import { targetPlayer } from '../analysisData';
 import { analysisCache } from '../analysisCache';
+import { isRemake } from '../matchStats';
 import GameIcon from './GameIcon.vue';
 import RuneIcon from './RuneIcon.vue';
 import MatchSummary from './MatchSummary.vue';
@@ -28,7 +29,12 @@ const canLoad = computed(() => !!props.connected && !props.player.stale && !prop
 const teams = computed(() => [...new Set((detail.value?.players ?? []).map(p => p.teamId))].sort());
 const teamName = (id: number) => id === 100 ? '蓝方' : id === 200 ? '红方' : `队伍 ${id}`;
 const teamPlayers = (id: number) => (detail.value?.players ?? []).filter(p => p.teamId === id);
-const teamResult = (id: number) => { const values = teamPlayers(id).map(p => p.summary.win).filter(v => v != null); return values.length && values.every(v => v === values[0]) ? (values[0] ? '胜利' : '失败') : ''; };
+const teamResult = (id: number) => {
+  const players = teamPlayers(id);
+  if (players.some(p => isRemake(p.summary))) return '重开';
+  const values = players.map(p => p.summary.win).filter(v => v != null);
+  return values.length && values.every(v => v === values[0]) ? (values[0] ? '胜利' : '失败') : '';
+};
 type TeamMetric = 'kills' | 'gold' | 'damage' | 'damageTaken' | 'cs' | 'visionScore';
 function teamTotal(id: number, field: TeamMetric) {
   const players = teamPlayers(id), values = players.map(p => p.summary[field]);
@@ -114,7 +120,7 @@ watch([key, canLoad, detail], ([requestKey, allowed, current]) => {
       <template v-else-if="tab === 'timeline'"><MatchTimeline v-if="timeline && detail" :timeline="timeline" :detail="detail"/><div v-else class="analysis-load"><span>{{ provided ? '这是保留的赛后资料，时间线未保留。' : '按时间回看击杀、资源、位置与经济变化。' }}</span><button v-if="!provided" class="secondary" :disabled="busy || !canLoad" @click="load('timeline')">{{ busy ? '正在读取时间线…' : '读取本场时间线' }}</button></div></template>
       <template v-else-if="tab === 'build'"><MatchBuild v-if="match" :match="match" :timeline="timeline" :participant-id="target?.participantId"/><div v-if="!timeline && !provided" class="analysis-load"><span>终局符文已展示，读取时间线后查看出装与加点顺序。</span><button class="secondary" :disabled="busy || !canLoad" @click="load('timeline')">{{ busy ? '正在读取时间线…' : '读取本场时间线' }}</button></div></template>
     </div>
-    <details class="detail-note"><summary>统计说明</summary><p>对局 #{{ gameId }}。未取得的数值显示 —；提前结束不代表已确认重开，仍计入当前样本。</p></details>
+    <details class="detail-note"><summary>统计说明</summary><p>对局 #{{ gameId }}。未取得的数值显示 —；明确提前结束且不超过 5 分钟的记录标为重开，不计入胜率或 KDA。</p></details>
   </section>
 </template>
 

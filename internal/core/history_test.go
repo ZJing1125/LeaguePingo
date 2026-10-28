@@ -54,3 +54,11 @@ func TestHistoryRichFieldsPreserveUnknownAndZero(t *testing.T) {
 		t.Fatal("rich fields conflated unknown and zero")
 	}
 }
+
+func TestHistoryRosterAcceptsParticipantAndTeamInsideStats(t *testing.T) {
+	data := []byte(`{"games":{"games":[{"gameId":51,"participants":[{"puuid":"target","championId":1,"stats":{"participantId":1,"teamId":100,"kills":2,"assists":3}},{"puuid":"ally","championId":2,"stats":{"participantId":2,"teamId":100,"kills":1}}]}]}}`)
+	got, err := ParseHistory(data, "target")
+	if err != nil || len(got.Matches) != 1 || len(got.Matches[0].Roster) != 2 || got.Matches[0].Roster[0].TeamID != 100 || !got.Matches[0].Roster[0].Target {
+		t.Fatalf("nested participant identity/team was not normalized: %+v %v", got.Matches, err)
+	}
+}

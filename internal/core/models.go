@@ -123,6 +123,13 @@ type MatchPeer struct {
 	Target        bool   `json:"target"`
 }
 
+// IsRemake uses both the explicit early-end signal and a short duration. A
+// normal early surrender remains a completed loss; a short aborted game stays
+// visible in history but does not contribute to win-rate or KDA statistics.
+func IsRemake(match Match) bool {
+	return match.EarlyEnd != nil && *match.EarlyEnd && match.Duration != nil && *match.Duration >= 0 && *match.Duration <= 5*60
+}
+
 type HistoryMeta struct {
 	Returned  int            `json:"returned"`
 	Parsed    int            `json:"parsed"`
@@ -227,6 +234,9 @@ func CalculateStats(matches []Match) Stats {
 	var kills, deaths, assists int
 	for _, match := range matches {
 		out.Games++
+		if IsRemake(match) {
+			continue
+		}
 		if match.Win != nil {
 			out.OutcomeGames++
 			if *match.Win {
