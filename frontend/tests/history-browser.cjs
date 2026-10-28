@@ -111,7 +111,8 @@ async function main() {
           args = request.args?.args ?? [];
         calls.push({ method, args });
         let result;
-        if (method === 'PostGameStatus') result={revision:0,returnEnabled:false,queueEnabled:false,delaySeconds:10,status:'off',dueAt:'0001-01-01T00:00:00Z'};
+        if (method === 'GuideStatus') result={revision:0,status:'idle',query:{},base:null,matchup:null};
+    else if (method === 'PostGameStatus') result={revision:0,returnEnabled:false,queueEnabled:false,delaySeconds:10,status:'off',dueAt:'0001-01-01T00:00:00Z'};
         else if (method === "AutoAcceptStatus") result = {revision:0,enabled:false,delaySeconds:1,status:"off",dueAt:"0001-01-01T00:00:00Z"};
         else if (method === "Snapshot") result = snapshot;
         else if (method === "OverlayStatus")

@@ -5,11 +5,13 @@ import (
 
 	"leaguepingo/internal/core"
 	"leaguepingo/internal/engine"
+	"leaguepingo/internal/guides"
 	"leaguepingo/internal/settings"
 )
 
 // AppService is the small UI boundary; all game data remains inside the Go engine.
 type AppService struct {
+	guides            *guides.Service
 	engine            *engine.Engine
 	overlay           *overlayController
 	settings          *settings.Store
@@ -100,4 +102,17 @@ func (s *AppService) EnsureProfile(ctx context.Context, key string, connectionID
 
 func (s *AppService) LoadRanks(ctx context.Context, key string, connectionID uint64) (core.Participant, error) {
 	return s.engine.LoadRanks(ctx, key, connectionID)
+}
+
+func (s *AppService) GuideStatus() guides.State {
+	if s.guides == nil {
+		return guides.State{Status: "idle"}
+	}
+	return s.guides.Snapshot()
+}
+func (s *AppService) SelectGuide(position string, opponent int, retry bool) (guides.State, error) {
+	if s.guides == nil {
+		return guides.State{Status: "idle"}, nil
+	}
+	return s.guides.Select(position, opponent, retry)
 }

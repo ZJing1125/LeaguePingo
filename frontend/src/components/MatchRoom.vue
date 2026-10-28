@@ -5,6 +5,7 @@ import type { Participant, Snapshot } from '../../bindings/leaguepingo/internal/
 import { errorMessage, queueName, type PlayerViewState } from '../presentation';
 import { hasCurrentMatch } from '../matchRoom';
 import AppIcon from './AppIcon.vue';
+import GuidePanel from './GuidePanel.vue';
 import MatchRoster from './MatchRoster.vue';
 import PlayerDrawer from './PlayerDrawer.vue';
 import PlayerView from './PlayerView.vue';
@@ -79,6 +80,8 @@ async function changeQueue(value: number) {
       <template v-if="currentAvailable">
         <div class="review-section-title"><h2>{{ party ? '房间成员' : '赛前资料' }}</h2><QueueSwitch :value="queue" :busy="changingQueue || !snapshot?.connected" @change="changeQueue"/></div>
         <p v-if="error || snapshot?.rosterError" class="quality-warning" role="status">{{ error || snapshot?.rosterError }}</p>
+        <GuidePanel :snapshot="snapshot"/>
+        <p v-if="inGame && snapshot?.groupCoverage" class="review-note">分组标识已返回 {{snapshot.groupCoverage}} / {{players.length}} 人 · 国服组队规则待实机核验</p>
         <RosterProgress v-if="players.length" :players="players" :queue="queue"/>
         <MatchRoster v-if="players.length" :players="players" :selected-key="selectedKey" :party="party" :allies-only="!inGame" :frozen="snapshot?.frozen" :queue="queue" @select="selectedKey = $event.key"/>
         <div v-else class="review-empty"><AppIcon name="match" :size="36"/><h2>等待当前名单</h2><p>{{ inGame ? '客户端返回玩家身份后会在这里展示。' : '客户端返回我方成员后会在这里展示。' }}</p></div>

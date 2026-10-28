@@ -22,7 +22,8 @@ async function main(){
     const req=route.request().postDataJSON();if(await desktop.handle(route,req))return;
     const name=methods[req.args?.methodID],args=req.args?.args??[];calls.push(name);
     let result=null;
-    if (name === 'PostGameStatus') result={revision:0,returnEnabled:false,queueEnabled:false,delaySeconds:10,status:'off',dueAt:'0001-01-01T00:00:00Z'};
+    if (name === 'GuideStatus') result={revision:0,status:'idle',query:{},base:null,matchup:null};
+    else if (name === 'PostGameStatus') result={revision:0,returnEnabled:false,queueEnabled:false,delaySeconds:10,status:'off',dueAt:'0001-01-01T00:00:00Z'};
     else if(name==='AutoAcceptStatus')result={revision:0,enabled:false,delaySeconds:1,status:'off',dueAt:'0001-01-01T00:00:00Z'};
     else if(name==='Snapshot')result=snapshot;
     else if(name==='Info')result={version:'synthetic',commit:'analysis-test',requests:{},shortcut:'Ctrl+Shift+P',holdEnabled:true,holdKey:'Backquote'};

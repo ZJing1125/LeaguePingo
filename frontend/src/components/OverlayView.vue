@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import GuidePanel from "./GuidePanel.vue";
+import { useGuide } from "../useGuide";
+import { computed, ref, watch } from "vue";
 import type { Snapshot } from "../../bindings/leaguepingo/internal/core/models";
 import type { OverlayState } from "../../bindings/leaguepingo/models";
 import { date } from "../presentation";
@@ -16,6 +18,10 @@ const props = defineProps<{
   busy: boolean;
   error: string;
 }>();
+const guideState=useGuide(),guideOpen=ref(false);
+watch(()=>`${props.snapshot?.connectionId}:${props.snapshot?.selfKey}:${props.snapshot?.gameId}`,()=>guideOpen.value=false);
+const hasGuide=computed(()=>guideState.value?.scope===`${props.snapshot?.connectionId}:${props.snapshot?.selfKey||''}:${props.snapshot?.gameId||0}`&&!!(guideState.value?.base||guideState.value?.matchup));
+const displayGuide=computed(()=>guideOpen.value&&hasGuide.value&&!['hold','preview'].includes(props.state?.mode||''));
 const players = computed(() => props.snapshot?.participants ?? []);
 const reports = computed(() => scoutStatus(players.value, props.snapshot?.scoutQueue ?? 420));
 const reportTime = computed(() => {
@@ -34,6 +40,7 @@ defineEmits<{ hide: []; pin: [] }>();
         <div><strong>LeaguePingo</strong><small>对局快览</small></div>
       </div>
       <div v-if="!['hold','preview'].includes(state?.mode || '')" class="overlay-controls">
+        <button class="guide-switch" v-if="hasGuide" :aria-pressed="displayGuide" @click="guideOpen=!guideOpen">{{displayGuide?'双方资料':'本局攻略'}}</button>
         <button
           :disabled="busy || !state"
           :aria-label="state?.pinned ? '取消置顶' : '置顶'"
@@ -63,12 +70,13 @@ defineEmits<{ hide: []; pin: [] }>();
       <p v-if="state?.warning || error" class="error-banner" role="status">
         {{ error || state?.warning }}
       </p>
-      <RosterProgress v-if="players.length" :players="players" :queue="snapshot?.scoutQueue ?? 420" compact />
+      <GuidePanel v-if="displayGuide" :snapshot="snapshot" summary/>
+      <RosterProgress v-if="players.length && !displayGuide" :players="players" :queue="snapshot?.scoutQueue ?? 420" compact />
       <div v-if="!players.length" class="empty-state">
         <AppIcon name="match" :size="30" />
         <p>等待本局名单</p>
       </div>
-      <div v-else class="overlay-groups">
+      <div v-else-if="!displayGuide" class="overlay-groups">
         <section v-for="team in ['ally', 'enemy']" :key="team">
           <h2>
             {{
@@ -112,3 +120,5 @@ defineEmits<{ hide: []; pin: [] }>();
     <div v-if="state?.mode==='preview'" class="preview-timer" aria-hidden="true"><i/></div>
   </main>
 </template>
+
+<style scoped>.overlay-controls .guide-switch{width:auto;min-width:76px;font-size:12px;white-space:nowrap;}</style>

@@ -167,6 +167,11 @@ export interface MatchTimeline {
 }
 
 export interface Participant {
+    "premadeLabel"?: string;
+    "premadeGroup"?: string;
+    "premadeSize"?: number;
+    "groupSource"?: string;
+    "position"?: string;
     "connectionId": number;
     "key": string;
     "puuid"?: string;
@@ -276,6 +281,11 @@ export interface ScoutSeason {
 }
 
 export interface Snapshot {
+    "groupCoverage": number;
+    "groupStatus": string;
+    "gameMode"?: string;
+    "mapId"?: number;
+    "gameVersion"?: string;
     "connectionId": number;
     "selfKey": string;
     "knownCount": number;

@@ -15,6 +15,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 import * as core$0 from "./internal/core/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as guides$0 from "./internal/guides/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as postgame$0 from "./internal/postgame/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -66,6 +69,10 @@ export function EnsureProfile(key: string, connectionID: number): $CancellablePr
 
 export function ExportDiagnostics(): $CancellablePromise<string> {
     return $Call.ByID(407729836);
+}
+
+export function GuideStatus(): $CancellablePromise<guides$0.State> {
+    return $Call.ByID(4047961444);
 }
 
 export function HideOverlay(): $CancellablePromise<$models.OverlayState> {
@@ -138,6 +145,10 @@ export function RefreshReview(gameID: number): $CancellablePromise<core$0.Snapsh
 
 export function RefreshRoster(): $CancellablePromise<core$0.Snapshot> {
     return $Call.ByID(3264360598);
+}
+
+export function SelectGuide(position: string, opponent: number, retry: boolean): $CancellablePromise<guides$0.State> {
+    return $Call.ByID(3111403970, position, opponent, retry);
 }
 
 export function SetOverlayPinned(pinned: boolean): $CancellablePromise<$models.OverlayState> {

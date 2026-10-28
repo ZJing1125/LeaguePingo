@@ -16,6 +16,7 @@ import (
 	"leaguepingo/internal/companion"
 	"leaguepingo/internal/core"
 	"leaguepingo/internal/engine"
+	"leaguepingo/internal/guides"
 	"leaguepingo/internal/hold"
 	"leaguepingo/internal/settings"
 	"leaguepingo/internal/source"
@@ -95,7 +96,19 @@ func main() {
 	if offlineSmoke {
 		discover = func() (source.Source, error) { return nil, source.ErrNotConnected }
 	}
+	backend.guides = guides.New(ctx, filepath.Join(configDir, "guide-cache"), nil)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case state := <-backend.guides.Changes():
+				app.Event.Emit("leaguepingo:guide", state)
+			}
+		}
+	}()
 	backend.engine, err = engine.NewWithHistoryCache(discover, func(snapshot core.Snapshot) {
+		backend.guides.Observe(snapshot)
 		held.Allow(companion.InGame(snapshot))
 		app.Event.Emit("leaguepingo:snapshot", snapshot)
 		select {

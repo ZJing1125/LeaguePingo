@@ -22,6 +22,13 @@ type Discoverer func() (Client, error)
 const inGameRosterAttemptLimit = 3
 
 type Engine struct {
+	groupLabels         map[string]string
+	groupScope          string
+	groupAttempted      bool
+	groupCancel         context.CancelFunc
+	groupMembers        map[string]string
+	groupSides          map[string]string
+	groupPositions      map[string]string
 	autoAccept          *readycheck.Controller
 	postGame            *postgame.Controller
 	mu                  sync.RWMutex
@@ -371,6 +378,10 @@ func (e *Engine) poll(ctx context.Context) {
 
 // Retained data can still be displayed, but can never become a new connection's cache.
 func (e *Engine) invalidateConnectionLocked() {
+	if e.groupCancel != nil {
+		e.groupCancel()
+		e.groupCancel = nil
+	}
 	e.autoAccept.Observe(nil, 0, "")
 	e.postGame.Observe(nil, postgame.Observation{})
 	e.stopReviewLocked()
@@ -412,6 +423,10 @@ func (e *Engine) invalidateConnectionLocked() {
 
 // Keep the frozen match available while exposing why reconnection failed.
 func (e *Engine) disconnectLocked(message string) {
+	if e.groupCancel != nil {
+		e.groupCancel()
+		e.groupCancel = nil
+	}
 	e.autoAccept.Observe(nil, 0, "")
 	e.postGame.Observe(nil, postgame.Observation{})
 	e.stopReviewLocked()
@@ -762,6 +777,14 @@ func (e *Engine) loadName(ctx context.Context, client Client, puuid string, vers
 func (e *Engine) PrioritizePlayer(key string) { e.mu.Lock(); e.preferred = key; e.mu.Unlock() }
 
 func (e *Engine) publishLocked() {
+	if m, ok := e.client.(source.SessionMetadataSource); ok {
+		v := m.SessionMetadata()
+		e.snapshot.QueueID = v.QueueID
+		e.snapshot.GameMode = v.GameMode
+		e.snapshot.MapID = v.MapID
+		e.snapshot.GameVersion = v.Version
+	}
+	e.syncGroupingLocked()
 	e.syncReviewLocked()
 	e.snapshot.Review = e.review
 	e.observePostGameLocked()
@@ -1220,7 +1243,7 @@ func rosterChanged(old, current []core.Participant) bool {
 		return true
 	}
 	for i := range old {
-		if old[i].ConnectionID != current[i].ConnectionID || old[i].Key != current[i].Key || old[i].ChampionID != current[i].ChampionID || old[i].ChampionState != current[i].ChampionState || old[i].Team != current[i].Team {
+		if old[i].ConnectionID != current[i].ConnectionID || old[i].Key != current[i].Key || old[i].ChampionID != current[i].ChampionID || old[i].ChampionState != current[i].ChampionState || old[i].Team != current[i].Team || old[i].GroupToken != current[i].GroupToken || old[i].Position != current[i].Position {
 			return true
 		}
 	}

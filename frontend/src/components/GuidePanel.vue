@@ -1,0 +1,49 @@
+<script setup lang="ts">
+import { computed, ref } from 'vue';
+import * as Service from '../../bindings/leaguepingo/appservice';
+import type { Snapshot } from '../../bindings/leaguepingo/internal/core/models';
+import { useGuide, acceptGuide } from '../useGuide';
+import { championName } from '../gameAssets';
+import { errorMessage } from '../presentation';
+import GameIcon from './GameIcon.vue';
+import RuneIcon from './RuneIcon.vue';
+const props=defineProps<{snapshot:Snapshot|null;compact?:boolean;summary?:boolean}>();
+const state=useGuide(),error=ref(''),busy=ref(false),expanded=ref(false),showDetail=ref(false);
+const condensed=computed(()=>!!props.summary||(!props.compact&&!showDetail.value));
+const self=computed(()=>props.snapshot?.participants?.find(p=>p.key===props.snapshot?.selfKey));
+const relevant=computed(()=>state.value?.scope===`${props.snapshot?.connectionId}:${props.snapshot?.selfKey||''}:${props.snapshot?.gameId||0}`);
+const current=computed(()=>relevant.value?state.value:null);
+const guide=computed(()=>current.value?.matchup??current.value?.base);
+const enemies=computed(()=>props.snapshot?.participants?.filter(p=>p.team==='enemy'&&p.championId)||[]);
+const sections=computed(()=>guide.value?.builds?.filter(s=>!condensed.value||s.label==='核心装备')||[]);
+const tips=computed(()=>guide.value?.tips?.slice(0,condensed.value?2:undefined)||[]);
+const shown=computed(()=>(!props.summary||!!guide.value)&&!!self.value?.championId&&['ChampSelect','GameStart','InProgress','Reconnect'].includes(props.snapshot?.phase||''));
+async function select(position:string,opponent:number,retry=false){if(busy.value)return;error.value='';busy.value=true;try{acceptGuide(await Service.SelectGuide(position,opponent,retry));}catch(e){error.value=errorMessage(e);}finally{busy.value=false;}}
+function changePosition(event:Event){void select((event.target as HTMLSelectElement).value,0);}
+function changeOpponent(event:Event){void select(current.value?.query.position||'',Number((event.target as HTMLSelectElement).value));}
+</script>
+<template>
+ <section v-if="shown" class="guide-panel" :class="{compact,summary,brief:condensed}" aria-label="本局英雄攻略">
+  <header class="guide-heading"><div><h2>{{summary?'本局攻略':'英雄攻略'}} <small>{{current?.modeLabel}}</small></h2><p>{{championName(self?.championId||0)}}<template v-if="current?.query.opponent"> <span>对阵</span> {{championName(current.query.opponent)}}</template></p></div><span v-if="current?.status==='loading'" class="guide-loading" role="status">准备中</span><button v-if="!compact&&!summary&&guide" class="text-button" :aria-expanded="showDetail" @click="showDetail=!showDetail">{{showDetail?'收起完整攻略':'展开完整攻略'}}</button></header>
+  <div v-if="!summary && current && !['idle','unsupported'].includes(current.status)" class="guide-filters">
+   <label v-if="current.query.mode!=='aram'">本局位置<select aria-label="攻略分路" :disabled="busy" :value="current.positionExplicit?current.query.position:''" @change="changePosition"><option value="">请选择位置</option><option value="top">上路</option><option value="jungle">打野</option><option value="mid">中路</option><option value="adc">下路</option><option value="support">辅助</option></select></label>
+   <label v-if="current.query.mode==='ranked'&&!current.reference&&current.query.position">对位英雄<select aria-label="攻略对位英雄" :value="current.query.opponent" :disabled="busy" @change="changeOpponent"><option :value="0">按明确分路 / 英雄通用</option><option v-for="p in enemies" :key="p.key" :value="p.championId">{{championName(p.championId||0)}}</option></select></label>
+   <button class="text-button" :disabled="busy||current.status==='loading'" @click="select(current.query.position,current.query.opponent,true)">刷新攻略</button>
+  </div>
+  <p v-if="error||current?.message" class="guide-status" role="status">{{error||current?.message}}</p>
+  <p v-if="current?.reference" class="guide-status">参考 OP.GG 排位数据，适用于峡谷玩法参考。</p>
+  <p v-if="current?.stale||current?.versionMismatch" class="guide-status">{{current.versionMismatch?'来源数据版本与当前客户端不同，请结合版本调整。':'显示已缓存攻略，可稍后重试更新。'}}</p>
+  <div v-if="guide" class="guide-content">
+   <div class="guide-builds"><section v-for="section in sections" :key="section.label"><h3>{{section.label}}</h3><div v-for="(build,n) in (section.options||[]).slice(0,expanded&&!condensed?3:1)" :key="n" class="guide-build-row"><span class="guide-item-icons"><GameIcon v-for="(id,i) in build.ids" :key="i" :id="id" :kind="section.label==='召唤师技能'?'spells':'items'" :size="compact||summary?26:32" :title="build.names?.[i]||''"/></span><span v-if="!summary" class="guide-build-rate"><b>{{build.winRate==null?'—':`${build.winRate.toFixed(1)}%`}}</b><small>{{build.games?`${build.games.toLocaleString()} 场`:'样本未提供'}}</small></span></div></section></div>
+   <section v-if="guide.runes?.length" class="guide-runes"><h3>符文配置</h3><div><RuneIcon v-for="(id,i) in guide.runes" :key="i" :id="id" :size="26" :title="guide.runeNames?.[i]||''"/></div><p v-if="!condensed">{{guide.runeNames?.join(' · ')}}</p></section>
+   <section v-if="guide.skills?.length&&!condensed"><h3>技能加点</h3><ol class="guide-skills"><li v-for="(skill,i) in guide.skills" :key="i"><small>{{i+1}}</small><b>{{skill}}</b></li></ol></section>
+   <section v-if="tips.length" class="guide-tips"><h3>对位要点 <small>峡谷分路参考</small></h3><div v-for="tip in tips" :key="tip.label"><h4>{{tip.label}}</h4><p>{{tip.text}}</p></div></section>
+   <button v-if="!condensed" class="text-button guide-more" @click="expanded=!expanded">{{expanded?'收起备选方案':'查看备选方案'}}</button>
+   <footer><span>来源 OP.GG · {{guide.version?`版本 ${guide.version}`:'版本未提供'}} · {{new Date(guide.fetchedAt).toLocaleString()}}</span><a v-if="!summary" :href="guide.sourceUrl" target="_blank" rel="noopener noreferrer">查看原文 ↗</a></footer>
+  </div>
+  <p v-else-if="!current" class="guide-status">正在同步本局攻略…</p>
+ </section>
+</template>
+<style scoped>
+.guide-panel{min-width:0;border:1px solid var(--border);border-radius:7px;background:var(--panel);margin:12px 0;color:var(--text);font-size:13px;}.guide-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);}.guide-heading h2{font-size:15px;margin:0 0 5px;}.guide-heading h2 small{font-size:12px;color:var(--muted);font-weight:400;margin-left:8px;}.guide-heading p{font-size:13px;margin:0;line-height:1.6;}.guide-heading p span{color:var(--muted);margin:0 5px;}.guide-loading,.guide-status{font-size:12px;color:var(--muted);line-height:1.7;}.guide-loading{white-space:nowrap;}.guide-status{padding:0 16px;}.guide-filters{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;padding:12px 16px 0;}.guide-filters label{display:grid;gap:5px;color:var(--muted);font-size:12px;min-width:0;}.guide-filters select{max-width:100%;min-height:30px;font-size:12px;}.guide-content{padding:14px 16px;min-width:0;}.guide-content h3{font-size:13px;margin:0 0 10px;}.guide-content h3 small{font-size:11px;color:var(--muted);font-weight:400;}.guide-builds{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 24px;}.guide-build-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}.guide-item-icons{display:flex;flex-wrap:wrap;gap:4px;}.guide-build-rate{display:grid;text-align:right;font-size:12px;font-variant-numeric:tabular-nums;flex:none;}.guide-build-rate small{font-size:11px;color:var(--muted);margin-top:3px;}.guide-content>section{margin-top:20px;}.guide-runes>div{display:flex;flex-wrap:wrap;gap:6px;}.guide-runes p{color:var(--muted);font-size:12px;line-height:1.7;}.guide-skills{display:flex;flex-wrap:wrap;list-style:none;padding:0;margin:0;gap:4px;}.guide-skills li{display:grid;text-align:center;gap:4px;}.guide-skills small{font-size:11px;color:var(--muted);}.guide-skills b{padding:5px 7px;border:1px solid var(--border);background:var(--surface-2);border-radius:3px;font-size:12px;}.guide-tips h4{font-size:12px;margin:14px 0 5px;}.guide-tips p{font-size:13px;line-height:1.85;white-space:pre-line;overflow-wrap:anywhere;margin:0;}.guide-more{margin-top:14px;}.guide-content footer{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;border-top:1px solid var(--border);padding-top:12px;margin-top:16px;font-size:11px;color:var(--muted);line-height:1.6;}.guide-content a{color:var(--accent);}.compact{margin:8px;}.compact .guide-heading,.compact .guide-content{padding:12px;}.compact .guide-filters{padding:10px 12px 0;}.compact .guide-filters label{width:100%;}.compact .guide-builds{grid-template-columns:1fr;gap:12px;}.compact .guide-heading p{font-size:12px;}.brief .guide-heading{padding:10px 12px;}.brief .guide-content{padding:12px;display:flex;flex-wrap:wrap;gap:12px 20px;}.brief .guide-builds{display:block;}.brief .guide-content>section{margin:0;}.brief .guide-tips{flex:1;min-width:200px;}.brief .guide-tips h4,.brief .guide-tips h3{display:none;}.brief .guide-tips p{font-size:12px;line-height:1.6;max-height:3.2em;overflow:hidden;}.brief footer{width:100%;margin:0;padding-top:8px;}@media(max-width:600px){.guide-builds{grid-template-columns:1fr;}}
+</style>

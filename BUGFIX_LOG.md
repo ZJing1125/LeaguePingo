@@ -797,3 +797,12 @@ LEAGUEPINGO_LIVE_LCU_TEST=1 go test ./internal/lcu -run '^TestLiveClientPhase$' 
 ### 尚未覆盖
 剩余风险、人工验证步骤或后续工作。
 ```
+
+
+## BUG-0071 / BUG-0072 — 双方来源分组与OP.GG本局攻略
+
+用户批准双方完整组队关系与按游戏模式接入OP.GG攻略。已有名单未保留teamParticipantId，本批补解析双方明确标识与分路，GSM league-session授权补取当前局（6秒/2次/每次2秒），验证比赛/账号/阵营与迟到隔离；以匿名同组码展示、未知不补单排，新增Windows匿名诊断入口。国服组队语义和双方全量覆盖尚未实机验收，不能称需求1全量完成。
+
+新增独立Go官方MCP适配/受限压缩文本解析、模式分类、8秒有界取消任务、6小时公共缓存和版本/样本/来源展示；当前对局、侧栏和缓存快览共享独立revision事件。未知分路手选，普通匹配为排位来源参考，大乱斗不使用峡谷对位工具。复用本地官方图标和已批准主题，没有服务端/大模型/新运行依赖。客户端凭据与玩家标识不发送OP.GG。
+
+验证：公共OP.GG真实请求ranked/flex/aram与GALIO–AHRI mid归一化通过；portable（11个internal包测试/vet、策略、前端生产构建）通过；分组/指南/source/engine race通过；9组浏览器smoke通过，包含新增280/880攻略与原720侧栏五人、1100×640快览十人。锁定Wails绑定生成及Windows amd64根包测试程序交叉编译通过，未在Windows执行。Linux不生成交付exe，Windows国服准确性/原生体验与性能待验收。详见HERO_GUIDES/PREMADE_GROUPS。

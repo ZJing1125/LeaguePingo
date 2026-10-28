@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useGuide } from "./useGuide";
 import AutoAcceptNotice from "./components/AutoAcceptNotice.vue";
 import PostGameNotice from "./components/PostGameNotice.vue";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
@@ -31,6 +32,7 @@ const mainElement = ref<HTMLElement | null>(null);
 const { messages: playerErrors, setMessage } = useTransientMessages();
 const searchError = computed(() => playerErrors.search || "");
 const league = useLeagueSnapshot();
+useGuide(); // Subscribe once at startup; navigating to the guide is a memory-only view.
 const { snapshot, status } = league;
 const workspace = usePlayerWorkspace(snapshot, (player) => {
   delete playerErrors[operationKey(player)];

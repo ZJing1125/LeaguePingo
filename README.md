@@ -112,3 +112,5 @@ LEAGUEPINGO_LIVE_ROSTER_TEST=1 go test ./internal/source -run '^TestLiveRoster$'
 显式后续查询会向已核验的腾讯当前大区 `*-sgp.lol.qq.com:21019` HTTPS 服务提交目标玩家标识和当前会话授权，这是战绩查询本身，不是遥测；不向第三方发送凭据。仅支持当前大区，不绕过服务端权限。自动准备仍使用 LCU，SGP 只用于主动分页；会话授权不传入 WebView、不存文件，换号清除。
 
 架构与扩展边界见 [架构说明](docs/ARCHITECTURE.md)。
+
+本局英雄攻略接入OP.GG官方服务，支持已核验的排位、灵活与普通大乱斗分析，峡谷对位、公共缓存和跨窗口展示见[HERO_GUIDES](docs/HERO_GUIDES.md)。双方来源分组标记及匿名核验工具见[PREMADE_GROUPS](docs/PREMADE_GROUPS.md)，国服真实组队准确性仍待实机对照。

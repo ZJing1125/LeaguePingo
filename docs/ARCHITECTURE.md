@@ -1,5 +1,8 @@
 # 架构与技术选型
 
+BUG-0071/0072新增当前局来源分组字段与独立OP.GG攻略服务。分组优先现有名单，GSM当前局有界补充；攻略由main快照回调观察，独立任务/缓存和revision事件，不进入战绩scheduler。详见[PREMADE_GROUPS.md](PREMADE_GROUPS.md)、[HERO_GUIDES.md](HERO_GUIDES.md)。
+
+
 ## BUG-0070 赛后单轮动作
 
 Engine先冻结review，再将无玩家列表的Observation交给独立postgame.Controller；动作与资料scheduler分离。阶段事件只取消/提示，不能跳过复盘冻结创建任务。返回与搜索固定端点各最多一次，超时先按真实阶段核验、未知不重发；同局attempted阻止取消后重排。详见[POST_GAME.md](POST_GAME.md)。

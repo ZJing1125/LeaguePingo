@@ -1,5 +1,8 @@
 # 前端迭代与组件预览
 
+BUG-0072：useGuide以单窗口共享订阅消费leaguepingo:guide，GuideStatus只读内存，SelectGuide只选择合法分路和当前敌方英雄。GuidePanel正文使用文本插值，禁止v-html或执行压缩响应。BUG-0071的PremadeBadge消费匿名分组与人数，不从历史推算。
+
+
 ## BUG-0070 赛后自动操作
 
 SettingsPanel新增两个默认关闭的独立开关与10秒默认排队倒计时，统一显式保存、恢复默认仅草稿及失败保留。PostGameNotice与自动接受状态分离，通过post-game事件/revision同步主窗和侧栏，等待/倒计时可显式取消，不请求玩家资料或改变窗口焦点。post-game.cjs接入test:smoke；严格模拟桥接只补齐PostGameStatus内存读取。

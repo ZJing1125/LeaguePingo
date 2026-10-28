@@ -22,6 +22,8 @@ type TencentLCU struct {
 	sgpMu     sync.Mutex
 	sgp       *sgpHistory
 	queueID   atomic.Int32
+	metaMu    sync.Mutex
+	meta      SessionMetadata
 	masteryMu sync.Mutex
 	masteries map[string]cachedMastery
 }
@@ -29,6 +31,9 @@ type TencentLCU struct {
 func (*TencentLCU) Region() string { return "CN" }
 func (s *TencentLCU) ResetIdentity() {
 	s.queueID.Store(0)
+	s.metaMu.Lock()
+	s.meta = SessionMetadata{}
+	s.metaMu.Unlock()
 	s.selfMu.Lock()
 	s.selfPUUID = ""
 	s.selfMu.Unlock()
@@ -87,6 +92,15 @@ func (s *TencentLCU) ChampSelectRoster(ctx context.Context) (int64, []core.Parti
 	if err != nil {
 		return 0, nil, err
 	}
+	var queue struct {
+		QueueID int `json:"queueId"`
+	}
+	if json.Unmarshal(raw, &queue) == nil && queue.QueueID > 0 {
+		s.queueID.Store(int32(queue.QueueID))
+		s.metaMu.Lock()
+		s.meta.QueueID = queue.QueueID
+		s.metaMu.Unlock()
+	}
 	return core.ParseChampSelectSession(raw)
 }
 
@@ -130,6 +144,7 @@ func (s *TencentLCU) Lobby(ctx context.Context) ([]core.Participant, error) {
 
 func (s *TencentLCU) CurrentQueue() int { return int(s.queueID.Load()) }
 func (s *TencentLCU) rememberQueue(raw []byte, lobby bool) {
+	s.rememberMetadata(raw, lobby)
 	var v struct {
 		GameData struct {
 			Queue struct {

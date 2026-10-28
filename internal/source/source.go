@@ -111,3 +111,15 @@ type PostGameSource interface {
 	PlayAgain(context.Context) error
 	StartSearch(context.Context) error
 }
+
+// Current-session metadata is obtained with existing roster/lobby reads.
+type SessionMetadata struct {
+	QueueID  int
+	GameMode string
+	MapID    int
+	Version  string
+}
+type SessionMetadataSource interface{ SessionMetadata() SessionMetadata }
+type GroupingSource interface {
+	Grouping(context.Context, int64) ([]core.Participant, error)
+}

@@ -7,6 +7,9 @@ import (
 )
 
 type rosterMember struct {
+	TeamParticipantID *int64 `json:"teamParticipantId"`
+	SelectedPosition  string `json:"selectedPosition"`
+	AssignedPosition  string `json:"assignedPosition"`
 	NameFields
 	PUUID              string `json:"puuid"`
 	ChampionID         *int   `json:"championId"`
@@ -75,7 +78,9 @@ func ParseGameflowRosterForPlayer(data []byte, selfPUUID string) (int64, []Parti
 			return session.GameData.GameID, nil, fmt.Errorf("当前账号不在本局名单中，无法确认双方阵营")
 		}
 	}
-	return session.GameData.GameID, mergeRoster(allies, enemies), nil
+	players := mergeRoster(allies, enemies)
+	AssignPremades(players, "lcu")
+	return session.GameData.GameID, players, nil
 }
 
 func ParseChampSelectRoster(data []byte) ([]Participant, error) {
@@ -169,6 +174,7 @@ func mergeRoster(allies, enemies []rosterMember) []Participant {
 			}
 			out = append(out, Participant{
 				Key: key, PUUID: member.PUUID, DisplayName: name,
+				GroupToken: groupToken(member.TeamParticipantID), Position: rosterPosition(member.SelectedPosition, member.AssignedPosition),
 				Team: team, ChampionID: championID, ChampionState: championState,
 				IdentityState: identity, PrivacyState: "unknown", HistoryState: HistoryPending,
 			})
