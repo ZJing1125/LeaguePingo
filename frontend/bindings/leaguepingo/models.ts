@@ -6,6 +6,9 @@
 import * as diagnostics$0 from "./internal/diagnostics/models.js";
 
 export interface AppInfo {
+    "autoReturnEnabled": boolean;
+    "autoQueueEnabled": boolean;
+    "autoQueueDelay": number;
     "autoAcceptEnabled": boolean;
     "autoAcceptDelay": number;
     "version": string;

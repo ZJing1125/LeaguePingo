@@ -102,3 +102,12 @@ type ChampSelectSource interface {
 type ChampSelectEventSource interface {
 	WatchChampSelect(context.Context, func()) error
 }
+
+// PostGameSource exposes fixed local actions, never a generic mutation API.
+type PostGameSource interface {
+	Phase(context.Context) (string, error)
+	AccountIdentity(context.Context) (string, error)
+	LobbyControl(context.Context) (core.LobbyControl, error)
+	PlayAgain(context.Context) error
+	StartSearch(context.Context) error
+}

@@ -1,5 +1,9 @@
 # 前端迭代与组件预览
 
+## BUG-0070 赛后自动操作
+
+SettingsPanel新增两个默认关闭的独立开关与10秒默认排队倒计时，统一显式保存、恢复默认仅草稿及失败保留。PostGameNotice与自动接受状态分离，通过post-game事件/revision同步主窗和侧栏，等待/倒计时可显式取消，不请求玩家资料或改变窗口焦点。post-game.cjs接入test:smoke；严格模拟桥接只补齐PostGameStatus内存读取。
+
 ## BUG-0069 自动接受设置与状态
 
 SettingsPanel新增默认关闭的开关与0/1/3/5秒延迟，仍使用区域统一显式保存及部分保存语义。AutoAcceptNotice在主界面与展开侧栏复用，订阅独立事件并按revision择新；倒计时只更新本地时间，不调用游戏接口，跳过为显式动作。关闭设置、换主题和普通玩家快照不发接受请求。auto-accept.cjs接入test:smoke，原有严格模拟桥接补齐只读状态方法。

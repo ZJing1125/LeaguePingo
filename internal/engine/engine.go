@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"leaguepingo/internal/core"
+	"leaguepingo/internal/postgame"
 	"leaguepingo/internal/readycheck"
 	"leaguepingo/internal/source"
 )
@@ -22,6 +23,7 @@ const inGameRosterAttemptLimit = 3
 
 type Engine struct {
 	autoAccept          *readycheck.Controller
+	postGame            *postgame.Controller
 	mu                  sync.RWMutex
 	discover            Discoverer
 	client              Client
@@ -88,6 +90,7 @@ func NewWithHistoryCache(discover Discoverer, onChange func(core.Snapshot), path
 func newEngine(discover Discoverer, onChange func(core.Snapshot)) *Engine {
 	e := &Engine{discover: discover, onChange: onChange, lookupGate: make(chan struct{}, 1), phaseWake: make(chan struct{}, 1), champWake: make(chan struct{}, 1), scheduler: newScheduler(), cache: map[string]core.Participant{}, aliases: map[string]string{}, snapshot: core.Snapshot{Stage: "disconnected", UpdatedAt: time.Now(), Participants: []core.Participant{}}}
 	e.autoAccept = readycheck.New()
+	e.postGame = postgame.New()
 	if onChange != nil {
 		e.updates = make(chan core.Snapshot, 32)
 		go func() {
@@ -106,6 +109,9 @@ func (e *Engine) Snapshot() core.Snapshot {
 }
 
 func (e *Engine) Run(ctx context.Context) {
+	postDone := make(chan struct{})
+	go func() { defer close(postDone); e.postGame.Run(ctx) }()
+	defer func() { <-postDone }()
 	acceptDone := make(chan struct{})
 	go func() { defer close(acceptDone); e.autoAccept.Run(ctx) }()
 	defer func() { <-acceptDone }()
@@ -366,6 +372,7 @@ func (e *Engine) poll(ctx context.Context) {
 // Retained data can still be displayed, but can never become a new connection's cache.
 func (e *Engine) invalidateConnectionLocked() {
 	e.autoAccept.Observe(nil, 0, "")
+	e.postGame.Observe(nil, postgame.Observation{})
 	e.stopReviewLocked()
 	e.stopScoutingLocked()
 	e.scouting.scope = ""
@@ -406,6 +413,7 @@ func (e *Engine) invalidateConnectionLocked() {
 // Keep the frozen match available while exposing why reconnection failed.
 func (e *Engine) disconnectLocked(message string) {
 	e.autoAccept.Observe(nil, 0, "")
+	e.postGame.Observe(nil, postgame.Observation{})
 	e.stopReviewLocked()
 	e.stopScoutingLocked()
 	if e.homeCancel != nil {
@@ -756,6 +764,7 @@ func (e *Engine) PrioritizePlayer(key string) { e.mu.Lock(); e.preferred = key; 
 func (e *Engine) publishLocked() {
 	e.syncReviewLocked()
 	e.snapshot.Review = e.review
+	e.observePostGameLocked()
 	if e.onChange == nil {
 		return
 	}

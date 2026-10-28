@@ -23,6 +23,7 @@ const {mockWindowRuntime}=require('./window-runtime.cjs');
  const request=route.request().postDataJSON();if(await runtime.handle(route,request))return;
  const method=methods[request.args?.methodID],args=request.args?.args??[];calls.push(method);let result=null;
  if(method==='Snapshot')result=snapshot;
+ else if (method === 'PostGameStatus') result={revision:0,returnEnabled:false,queueEnabled:false,delaySeconds:10,status:'off',dueAt:'0001-01-01T00:00:00Z'};
  else if(method==='AutoAcceptStatus')result=state;
  else if(method==='Info')result=info;
  else if(method==='OverlayStatus')result={revision:1,mode:'sidebar',visible:true,sidebarEnabled:true,sidebarWidth:320,holdEnabled:true};

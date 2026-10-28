@@ -54,6 +54,7 @@ func (e *Engine) observePhase(version, sequence uint64, phase string) {
 	e.phaseEpoch++
 	e.phaseHint = phase
 	e.observeAutoAcceptLocked(phase)
+	e.postGame.Hint(version, phase)
 	if stageForPhase(phase) != e.snapshot.Stage || phase == "GameStart" {
 		e.stopScoutingLocked()
 	}

@@ -358,3 +358,9 @@ func (s *TencentLCU) MatchDetail(ctx context.Context, gameID int64, target strin
 	}
 	return core.ParseSGPMatchDetail(raw, gameID, target, platform)
 }
+
+func (s *TencentLCU) LobbyControl(ctx context.Context) (core.LobbyControl, error) {
+	return s.client.LobbyControl(ctx)
+}
+func (s *TencentLCU) PlayAgain(ctx context.Context) error   { return s.client.PlayAgain(ctx) }
+func (s *TencentLCU) StartSearch(ctx context.Context) error { return s.client.StartSearch(ctx) }

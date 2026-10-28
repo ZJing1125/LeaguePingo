@@ -16,7 +16,7 @@ Engine将核验后的连接及阶段通知internal/readycheck.Controller，现�
 
 独立State带递增revision，通过leaguepingo:auto-accept事件同步主界面和展开的客户端侧栏；初始化读取AutoAcceptStatus，较旧结果丢弃。显示待连接、已开启、倒计时/跳过、确认中、已接受、手动响应、结果未确认和客户端不支持状态。它不改变玩家Snapshot，不触发玩家查询，不创建窗口或抢焦点。主窗口隐藏、侧栏关闭时后端仍可执行。
 
-不引入服务端、截图识别、模拟点击、CEF注入、自动重排、自动拒绝或自动选英雄。现有开源参考是LeagueAkari的阶段/取消流程、LeagueKit的事件与轮询兜底及提交前核验、ezlol的外部本地实现；本批为独立Go实现，没有复制其源码或新增运行依赖。LCU非正式支持接口，腾讯版本兼容和产品审核结论仍需单独核验，见上一轮研究及Riot官方League Client API说明：https://developer.riotgames.com/docs/lol 。
+本自动接受模块不引入服务端、截图识别、模拟点击、CEF注入、自动重排、自动拒绝或自动选英雄。用户另行批准的赛后返回/排队独立见[POST_GAME.md](POST_GAME.md)。现有开源参考是LeagueAkari的阶段/取消流程、LeagueKit的事件与轮询兜底及提交前核验、ezlol的外部本地实现；本批为独立Go实现，没有复制其源码或新增运行依赖。LCU非正式支持接口，腾讯版本兼容和产品审核结论仍需单独核验，见上一轮研究及Riot官方League Client API说明：https://developer.riotgames.com/docs/lol 。
 
 ## 验证
 

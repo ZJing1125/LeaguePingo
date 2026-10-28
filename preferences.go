@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"leaguepingo/internal/diagnostics"
+	"leaguepingo/internal/postgame"
 	"leaguepingo/internal/readycheck"
 	"leaguepingo/internal/settings"
 )
@@ -18,6 +19,9 @@ var Commit = "source-build"
 var BuildTime = "unrecorded"
 
 type AppInfo struct {
+	AutoReturnEnabled bool                          `json:"autoReturnEnabled"`
+	AutoQueueEnabled  bool                          `json:"autoQueueEnabled"`
+	AutoQueueDelay    int                           `json:"autoQueueDelay"`
 	AutoAcceptEnabled bool                          `json:"autoAcceptEnabled"`
 	AutoAcceptDelay   int                           `json:"autoAcceptDelay"`
 	Version           string                        `json:"version"`
@@ -40,7 +44,7 @@ func (s *AppService) Info() AppInfo {
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
 	cfg := s.settings.Snapshot()
-	return AppInfo{AutoAcceptEnabled: cfg.AutoAcceptEnabled, AutoAcceptDelay: cfg.AutoAcceptDelay, Version: Version, Commit: Commit, BuildTime: BuildTime, Shortcut: cfg.Shortcut, HoldEnabled: cfg.HoldEnabled, HoldKey: cfg.HoldKey, SidebarEnabled: cfg.SidebarEnabled, PreviewEnabled: cfg.PreviewEnabled, SidebarWidth: cfg.SidebarWidth, SettingsWarning: s.settingsWarning,
+	return AppInfo{AutoReturnEnabled: cfg.AutoReturnEnabled, AutoQueueEnabled: cfg.AutoQueueEnabled, AutoQueueDelay: cfg.AutoQueueDelay, AutoAcceptEnabled: cfg.AutoAcceptEnabled, AutoAcceptDelay: cfg.AutoAcceptDelay, Version: Version, Commit: Commit, BuildTime: BuildTime, Shortcut: cfg.Shortcut, HoldEnabled: cfg.HoldEnabled, HoldKey: cfg.HoldKey, SidebarEnabled: cfg.SidebarEnabled, PreviewEnabled: cfg.PreviewEnabled, SidebarWidth: cfg.SidebarWidth, SettingsWarning: s.settingsWarning,
 		GoHeapBytes: mem.HeapAlloc, Goroutines: runtime.NumGoroutine(), Requests: diagnostics.Default.Snapshot(), PerformanceScope: "仅 Go 堆；不包含 WebView2，不代表总内存、游戏 FPS 或网络延迟"}
 }
 func (s *AppService) ConfigureCompanion(sidebar, preview bool, width int) (AppInfo, error) {
@@ -131,3 +135,19 @@ func (s *AppService) ConfigureAutoAccept(enabled bool, delay int) (AppInfo, erro
 }
 func (s *AppService) AutoAcceptStatus() readycheck.State        { return s.engine.AutoAcceptStatus() }
 func (s *AppService) SkipAutoAccept() (readycheck.State, error) { return s.engine.SkipAutoAccept() }
+
+func (s *AppService) ConfigurePostGame(ret, queue bool, delay int) (AppInfo, error) {
+	if !postgame.ValidDelay(delay) {
+		return AppInfo{}, errors.New("排队延迟仅支持 5、10、15、20 秒")
+	}
+	old := s.settings.Snapshot()
+	s.settings.SetPostGame(ret, queue, delay)
+	if err := s.settings.Save(); err != nil {
+		s.settings.SetPostGame(old.AutoReturnEnabled, old.AutoQueueEnabled, old.AutoQueueDelay)
+		return AppInfo{}, err
+	}
+	_ = s.engine.ConfigurePostGame(ret, queue, delay)
+	return s.Info(), nil
+}
+func (s *AppService) PostGameStatus() postgame.State          { return s.engine.PostGameStatus() }
+func (s *AppService) CancelPostGame() (postgame.State, error) { return s.engine.CancelPostGame() }

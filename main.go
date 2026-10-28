@@ -106,12 +106,15 @@ func main() {
 	if err != nil {
 		log.Print("无法读取本地战绩缓存，将使用本次运行内存缓存")
 	}
+	_ = backend.engine.ConfigurePostGame(store.Snapshot().AutoReturnEnabled, store.Snapshot().AutoQueueEnabled, store.Snapshot().AutoQueueDelay)
 	_ = backend.engine.ConfigureAutoAccept(store.Snapshot().AutoAcceptEnabled, store.Snapshot().AutoAcceptDelay)
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
 				return
+			case state := <-backend.engine.PostGameChanges():
+				app.Event.Emit("leaguepingo:post-game", state)
 			case state := <-backend.engine.AutoAcceptChanges():
 				app.Event.Emit("leaguepingo:auto-accept", state)
 			}

@@ -1,5 +1,9 @@
 # 架构与技术选型
 
+## BUG-0070 赛后单轮动作
+
+Engine先冻结review，再将无玩家列表的Observation交给独立postgame.Controller；动作与资料scheduler分离。阶段事件只取消/提示，不能跳过复盘冻结创建任务。返回与搜索固定端点各最多一次，超时先按真实阶段核验、未知不重发；同局attempted阻止取消后重排。详见[POST_GAME.md](POST_GAME.md)。
+
 ## BUG-0069 自动接受动作通道
 
 Engine持有独立readycheck.Controller，阶段事件与已核验HTTP阶段只负责观察；动作任务不进入玩家资料scheduler。仅排队/确认期间订阅ready-check并有界读取本机状态，验证后调用固定接受端点，结果不确定不盲目重发。状态通过独立有序事件同步，不改玩家Snapshot。详见[AUTO_ACCEPT.md](AUTO_ACCEPT.md)。

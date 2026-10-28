@@ -15,6 +15,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 import * as core$0 from "./internal/core/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as postgame$0 from "./internal/postgame/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as readycheck$0 from "./internal/readycheck/models.js";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -29,6 +32,10 @@ export function AuxiliaryReady(): $CancellablePromise<void> {
     return $Call.ByID(1368087149);
 }
 
+export function CancelPostGame(): $CancellablePromise<postgame$0.State> {
+    return $Call.ByID(2530344064);
+}
+
 export function ConfigureAutoAccept(enabled: boolean, delay: number): $CancellablePromise<$models.AppInfo> {
     return $Call.ByID(2458339489, enabled, delay);
 }
@@ -39,6 +46,10 @@ export function ConfigureCompanion(sidebar: boolean, preview: boolean, width: nu
 
 export function ConfigureHold(enabled: boolean, key: string): $CancellablePromise<$models.AppInfo> {
     return $Call.ByID(3168600939, enabled, key);
+}
+
+export function ConfigurePostGame(ret: boolean, queue: boolean, delay: number): $CancellablePromise<$models.AppInfo> {
+    return $Call.ByID(3851110686, ret, queue, delay);
 }
 
 export function ConfigureShortcut(key: string): $CancellablePromise<$models.AppInfo> {
@@ -95,6 +106,10 @@ export function MatchTimeline(key: string, connectionID: number, gameID: number)
 
 export function OverlayStatus(): $CancellablePromise<$models.OverlayState> {
     return $Call.ByID(2104693908);
+}
+
+export function PostGameStatus(): $CancellablePromise<postgame$0.State> {
+    return $Call.ByID(4282913048);
 }
 
 export function PrioritizePlayer(key: string): $CancellablePromise<void> {

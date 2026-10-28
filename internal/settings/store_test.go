@@ -125,3 +125,26 @@ func TestAutoAcceptDefaultsAndRoundtrip(t *testing.T) {
 		t.Fatal("invalid preference should disarm the action")
 	}
 }
+
+func TestPostGameDefaultsAndPersistence(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	s, _ := Open(path)
+	if s.Snapshot().AutoReturnEnabled || s.Snapshot().AutoQueueEnabled || s.Snapshot().AutoQueueDelay != 10 {
+		t.Fatal("post-game default must be off/10 seconds")
+	}
+	s.SetPostGame(true, true, 15)
+	if err := s.Save(); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Open(path)
+	if err != nil || !s.Snapshot().AutoReturnEnabled || !s.Snapshot().AutoQueueEnabled || s.Snapshot().AutoQueueDelay != 15 {
+		t.Fatal("post-game config not persisted")
+	}
+	if err := os.WriteFile(path, []byte(`{"schema":1,"autoReturnEnabled":true,"autoQueueEnabled":true,"autoQueueDelay":0}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	s, _ = Open(path)
+	if s.Snapshot().AutoReturnEnabled || s.Snapshot().AutoQueueEnabled || s.Snapshot().AutoQueueDelay != 10 {
+		t.Fatal("invalid delay did not disarm post-game automation")
+	}
+}

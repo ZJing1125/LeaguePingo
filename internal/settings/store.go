@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"leaguepingo/internal/postgame"
 	"leaguepingo/internal/readycheck"
 )
 
@@ -19,6 +20,9 @@ type Rect struct {
 	Height int `json:"height"`
 }
 type Config struct {
+	AutoReturnEnabled bool   `json:"autoReturnEnabled"`
+	AutoQueueEnabled  bool   `json:"autoQueueEnabled"`
+	AutoQueueDelay    int    `json:"autoQueueDelay"`
 	AutoAcceptEnabled bool   `json:"autoAcceptEnabled"`
 	AutoAcceptDelay   int    `json:"autoAcceptDelay"`
 	Schema            int    `json:"schema"`
@@ -39,7 +43,7 @@ type Store struct {
 }
 
 func Default() Config {
-	return Config{Schema: 1, AutoAcceptDelay: 1, Shortcut: "Ctrl+Shift+P", Pinned: true, HoldEnabled: true, HoldKey: "Backquote", SidebarEnabled: true, PreviewEnabled: true, SidebarWidth: 320, Main: Rect{Width: 1280, Height: 800}, Overlay: Rect{Width: 1100, Height: 640}}
+	return Config{Schema: 1, AutoQueueDelay: 10, AutoAcceptDelay: 1, Shortcut: "Ctrl+Shift+P", Pinned: true, HoldEnabled: true, HoldKey: "Backquote", SidebarEnabled: true, PreviewEnabled: true, SidebarWidth: 320, Main: Rect{Width: 1280, Height: 800}, Overlay: Rect{Width: 1100, Height: 640}}
 }
 func Open(path string) (*Store, error) {
 	s := &Store{path: path, config: Default()}
@@ -61,6 +65,11 @@ func Open(path string) (*Store, error) {
 	if !readycheck.ValidDelay(c.AutoAcceptDelay) {
 		c.AutoAcceptDelay = 1
 		c.AutoAcceptEnabled = false
+	}
+	if !postgame.ValidDelay(c.AutoQueueDelay) {
+		c.AutoQueueDelay = 10
+		c.AutoReturnEnabled = false
+		c.AutoQueueEnabled = false
 	}
 	c.Shortcut = key
 	c.SidebarWidth = max(280, min(c.SidebarWidth, 420))
@@ -159,4 +168,10 @@ func (s *Store) SetAutoAccept(enabled bool, delay int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.config.AutoAcceptEnabled, s.config.AutoAcceptDelay = enabled, delay
+}
+
+func (s *Store) SetPostGame(ret, queue bool, delay int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.config.AutoReturnEnabled, s.config.AutoQueueEnabled, s.config.AutoQueueDelay = ret, queue, delay
 }
