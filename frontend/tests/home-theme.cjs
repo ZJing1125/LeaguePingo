@@ -77,7 +77,11 @@ async function main() {
     await page.locator(".home-account h2").filter({ hasText: self.displayName }).waitFor();
     assert.equal(await nav.getByRole("button", { name: "首页", exact: true }).getAttribute("aria-current"), "page");
     assert.equal(await page.locator(".home-match").count(), 20);
-    assert.equal(await page.locator(".home-analysis-main .champion-table tbody tr").count(), 5);
+    const homeSidebar = page.locator(".home-ranks");
+    assert.equal(await homeSidebar.locator(".champion-table tbody tr").count(), 5);
+    assert.equal(await page.locator(".home-analysis-main .champion-analysis").count(), 0, "common champions still consumed match-column height");
+    assert(await homeSidebar.evaluate(sidebar => { const champions=sidebar.querySelector('.champion-analysis'),mastery=sidebar.querySelector('.mastery-panel'); return !!champions && !!mastery && !!(champions.compareDocumentPosition(mastery) & Node.DOCUMENT_POSITION_FOLLOWING); }), "common champions must precede all-mode mastery");
+    assert(await page.locator(".home-match-list").evaluate(el => el.clientHeight >= 780), "recent matches did not gain enough reading height");
     assert((await page.locator(".home-ranks").innerText()).includes("翡翠 II"));
     assert((await page.locator(".home-ranks").innerText()).includes("黄金 I"));
     assert.equal(calls.filter(c => c === "CurrentPlayer").length, 1);

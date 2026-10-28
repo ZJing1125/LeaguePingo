@@ -52,6 +52,7 @@ const historyMessage = computed(() => !props.snapshot?.connected ? "连接游戏
         <section v-if="!player" class="home-panel home-rank"><span>我的段位</span><RankEmblem /><strong>等待账号资料</strong><small>连接客户端后显示</small></section>
         <section class="home-panel home-session"><span class="home-panel-caption">当前状态</span><strong><i class="connection-light" :class="{ online: snapshot?.connected }" />{{ status.split(" · ")[0] }}</strong><p>{{ snapshot?.stage === 'in-game' ? "游戏中按住 ~ 查看本局资料，松开隐藏。" : "进入房间或选人后，客户端左侧展示我方资料。" }}</p><button v-if="hasCurrentMatch(snapshot) || snapshot?.review" :class="hasCurrentMatch(snapshot) ? 'primary' : 'secondary'" @click="$emit('match')">{{ hasCurrentMatch(snapshot) ? '查看当前对局' : '查看赛后分析' }} <AppIcon name="chevron" :size="14" /></button></section>
         <PlaystylePanel :matches="matches" :scope="sampleLabel"/>
+        <ChampionAnalysis :matches="matches" :scope="sampleLabel" :fetched-at="player?.historyMeta?.fetchedAt"/>
         <MasteryPanel v-if="player" :player="player"/>
       </aside>
       <div class="home-analysis-main"><OverviewPerformance :matches="matches" :scope="sampleLabel"/>
@@ -66,7 +67,6 @@ const historyMessage = computed(() => !props.snapshot?.connected ? "连接游戏
         <nav class="home-pagination" aria-label="首页战绩分页"><button class="secondary" :disabled="busy || state.pageBusy || (state.page ?? 1) <= 1" @click="goPage((state.page ?? 1) - 1)">上一页</button><span>第 {{ state.page ?? 1 }} 页<small>每页20场</small></span><button class="secondary" :disabled="busy || state.pageBusy || ((state.page ?? 1) >= knownPages && (!state.hasMore || !canFetch))" @click="goPage((state.page ?? 1) + 1)">下一页</button><form class="home-page-jump" @submit.prevent="jumpPage"><input v-model="jumpDraft" aria-label="首页跳转页码" :aria-invalid="!!jumpError" :title="`可输入 1–${maxJumpPage} 页`" inputmode="numeric" maxlength="3" :disabled="busy || state.pageBusy" /><button class="secondary" :disabled="busy || state.pageBusy">跳转</button></form></nav>
         <p v-if="jumpError" class="page-jump-error" role="alert">{{ jumpError }}</p>
       </section>
-      <ChampionAnalysis :matches="matches" :scope="sampleLabel" :fetched-at="player?.historyMeta?.fetchedAt"/>
       <div class="home-sample-note"><HistoryNotice v-if="player" :player="noticePlayer" :stats="stats" :filtered="state.queue !== 'all'"/></div>
       </div>
     </div>

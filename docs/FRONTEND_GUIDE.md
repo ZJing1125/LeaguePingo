@@ -1,5 +1,9 @@
 # 前端迭代与组件预览
 
+## BUG-0068：首页常用英雄位置
+
+HomeView只实例化一份ChampionAnalysis，放入home-ranks并位于MasteryPanel之前；home-analysis-main只保留近期分析、战绩和样本说明。home-theme回归同时核对组件归属、DOM顺序和战绩区最小阅读高度。常用英雄的本地范围/搜索不得改变全部模式熟练度，也不得新增玩家请求。
+
 ## BUG-0067：对局室状态选择
 
 App传入完整Snapshot给MatchRoom。当前页面直接消费participants并复用MatchRoster/RosterProgress，房间/选人alliesOnly，加载/局内按返回名单展示；ReviewRoom仅消费review，归档与当前数据不混用。当前和归档各自保留玩家筛选/弹层状态，连接或当前局变化时重置当前选择，归档新gameId时重置归档。两种浮层都connected=false，只允许缓存浏览；prepared/captured分别解释当前准备和历史归档，无自动历史/资料/详情读取。当前模式经SetScoutQueue同步辅助窗，归档模式仍局部切换。
