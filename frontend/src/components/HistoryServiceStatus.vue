@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import type { Participant } from '../../bindings/leaguepingo/internal/core/models';
 import * as Service from '../../bindings/leaguepingo/appservice';
 import { errorMessage } from '../errors';
+import ExperimentalBadge from './ExperimentalBadge.vue';
 
 const props=defineProps<{player:Participant;connected?:boolean;busy?:boolean;automatic?:boolean;readonly?:boolean;inline?:boolean}>();
 const emit=defineEmits<{recovered:[player:Participant];retry:[]}>();
@@ -53,6 +54,7 @@ onBeforeUnmount(()=>{alive=false;stop();clearInterval(clock);document.removeEven
 </script>
 <template>
  <div v-if="inline || state" class="history-service-status" :class="{degraded:state&&!inline,inline}" role="status">
+  <ExperimentalBadge v-if="(inline && player.cached) || (!inline && state)" feature="本地战绩缓存与恢复"/>
   <span>{{age}}</span>
   <template v-if="state && !inline">
    <span>{{player.history?.length?'远端战绩暂不可用，已保留当前记录。':'战绩暂不可用，玩家资料仍可查看。'}} {{running?'正在后台重试…':scheduled?`约 ${seconds} 秒后自动重试。`:seconds?`请等待约 ${seconds} 秒后重试。`:exhausted?'自动重试已暂停，可手动重试。':'可手动重试。'}}</span>

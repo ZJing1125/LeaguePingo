@@ -9,10 +9,12 @@ import BrandIcon from './BrandIcon.vue';
 import AppIcon from './AppIcon.vue';
 import QueueSwitch from './QueueSwitch.vue';
 import SidebarPlayer from './SidebarPlayer.vue';
+import ExperimentalBadge from './ExperimentalBadge.vue';
 const props=defineProps<{snapshot:Snapshot|null;state:OverlayState|null;status:string;error:string}>();
 defineEmits<{collapse:[value:boolean];queue:[value:number]}>();
 const tab=ref('players');
 const players=computed(()=>props.snapshot?.participants?.filter(p=>p.team==='ally') ?? []);
+const hasGroups=computed(()=>players.value.some(p=>p.premadeGroup && (p.premadeSize||0)>1));
 const picking=computed(()=>props.snapshot?.phase==='ChampSelect');
 </script>
 <template>
@@ -21,7 +23,7 @@ const picking=computed(()=>props.snapshot?.phase==='ChampSelect');
   </main>
   <main v-else class="client-sidebar desktop-app" :data-side="state?.sidebarSide" aria-label="客户端玩家侧栏">
     <header class="sidebar-header"><BrandIcon/><strong>LeaguePingo</strong><button class="icon-button" aria-label="收起客户端侧栏" title="收起侧栏" @click="$emit('collapse',true)"><AppIcon name="minimise" :size="17"/></button></header>
-    <div class="sidebar-heading"><div><h1><button class="sidebar-tab" aria-label="玩家资料" :aria-pressed="tab==='players'" @click="tab='players'">{{ picking?'我方阵容':'房间成员' }}</button></h1><button class="sidebar-tab guide-tab" :aria-pressed="tab==='guide'" @click="tab='guide'">本局攻略</button><small>{{ status.split(' · ')[0] }} · {{ players.length }} 人</small></div><QueueSwitch :value="snapshot?.scoutQueue ?? 420" compact @change="$emit('queue',$event)"/></div>
+    <div class="sidebar-heading"><div><h1><button class="sidebar-tab" aria-label="玩家资料" :aria-pressed="tab==='players'" @click="tab='players'">{{ picking?'我方阵容':'房间成员' }}</button></h1><button class="sidebar-tab guide-tab" :aria-pressed="tab==='guide'" @click="tab='guide'">本局攻略</button><small><ExperimentalBadge v-if="hasGroups" feature="双方同组标识" label="同组实验性"/><template v-else>{{ status.split(' · ')[0] }}</template> · {{ players.length }} 人</small></div><QueueSwitch :value="snapshot?.scoutQueue ?? 420" compact @change="$emit('queue',$event)"/></div>
     <p v-if="error || state?.warning || snapshot?.rosterError" class="quality-warning" role="status">{{ error || state?.warning || snapshot?.rosterError }}</p>
     <AutoAcceptNotice compact />
     <PostGameNotice compact />

@@ -8,6 +8,7 @@ import { errorMessage } from '../presentation';
 import GameIcon from './GameIcon.vue';
 import RuneIcon from './RuneIcon.vue';
 import MayhemAugments from './MayhemAugments.vue';
+import ExperimentalBadge from './ExperimentalBadge.vue';
 const props=defineProps<{snapshot:Snapshot|null;compact?:boolean;summary?:boolean}>();
 const state=useGuide(),error=ref(''),busy=ref(false),expanded=ref(false),showDetail=ref(false);
 const condensed=computed(()=>!!props.summary||(!props.compact&&!showDetail.value));
@@ -26,7 +27,7 @@ function changeOpponent(event:Event){void select(current.value?.query.position||
 </script>
 <template>
  <section v-if="shown" class="guide-panel" :class="{compact,summary,brief:condensed}" aria-label="本局英雄攻略">
-  <header class="guide-heading"><div><h2>{{summary?'本局攻略':'英雄攻略'}} <small>{{current?.modeLabel}}</small></h2><p>{{championName(self?.championId||0)}}<template v-if="current?.query.opponent"> <span>对阵</span> {{championName(current.query.opponent)}}</template></p></div><span v-if="current?.status==='loading'" class="guide-loading" role="status">准备中</span><button v-if="!compact&&!summary&&guide" class="text-button" :aria-expanded="showDetail" @click="showDetail=!showDetail">{{showDetail?'收起完整攻略':'展开完整攻略'}}</button></header>
+  <header class="guide-heading"><div><h2>{{summary?'本局攻略':'英雄攻略'}} <small>{{current?.modeLabel}}</small> <ExperimentalBadge feature="英雄攻略与模式适配"/></h2><p>{{championName(self?.championId||0)}}<template v-if="current?.query.opponent"> <span>对阵</span> {{championName(current.query.opponent)}}</template></p></div><span v-if="current?.status==='loading'" class="guide-loading" role="status">准备中</span><button v-if="!compact&&!summary&&guide" class="text-button" :aria-expanded="showDetail" @click="showDetail=!showDetail">{{showDetail?'收起完整攻略':'展开完整攻略'}}</button></header>
   <div v-if="!summary && current && !['idle','unsupported'].includes(current.status)" class="guide-filters">
    <label v-if="['ranked','flex'].includes(current.query.mode)">本局位置<select aria-label="攻略分路" :disabled="busy" :value="current.positionExplicit?current.query.position:''" @change="changePosition"><option value="">请选择位置</option><option value="top">上路</option><option value="jungle">打野</option><option value="mid">中路</option><option value="adc">下路</option><option value="support">辅助</option></select></label>
    <label v-if="current.query.mode==='ranked'&&!current.reference&&current.query.position">对位英雄<select aria-label="攻略对位英雄" :value="current.query.opponent" :disabled="busy" @change="changeOpponent"><option :value="0">按明确分路 / 英雄通用</option><option v-for="p in enemies" :key="p.key" :value="p.championId">{{championName(p.championId||0)}}</option></select></label>

@@ -11,6 +11,7 @@ import PlayerScoutCard from "./PlayerScoutCard.vue";
 import { rankedMode } from "../scoutStats";
 import { scoutStatus } from "../scoutStatus";
 import RosterProgress from "./RosterProgress.vue";
+import ExperimentalBadge from "./ExperimentalBadge.vue";
 const props = defineProps<{
   snapshot: Snapshot | null;
   state: OverlayState | null;
@@ -66,6 +67,7 @@ defineEmits<{ hide: []; pin: [] }>();
           :class="{ online: snapshot?.connected }"
         ></span
         >{{ status }} · {{ rankedMode(snapshot?.scoutQueue ?? 420) }}
+        <ExperimentalBadge v-if="players.some(p => p.premadeGroup && (p.premadeSize || 0) > 1)" feature="双方同组标识" label="同组实验性"/>
       </div>
       <p v-if="state?.warning || error" class="error-banner" role="status">
         {{ error || state?.warning }}

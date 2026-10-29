@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import type { Participant } from "../../bindings/leaguepingo/internal/core/models";
 import PlayerScoutCard from "./PlayerScoutCard.vue";
+import ExperimentalBadge from "./ExperimentalBadge.vue";
 
 const props = defineProps<{
   players: Participant[];
@@ -44,7 +45,7 @@ const teams = computed(() =>
     >
       <h2>
         <span>{{ team.label }}</span
-        ><small>{{ team.players.length }} 人</small>
+        ><small><ExperimentalBadge v-if="team.players.some(p => p.premadeGroup && (p.premadeSize || 0) > 1)" feature="双方同组标识" label="同组实验性"/> {{ team.players.length }} 人</small>
       </h2>
       <div class="team-player-list">
         <button
