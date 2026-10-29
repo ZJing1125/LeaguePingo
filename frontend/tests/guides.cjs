@@ -70,5 +70,21 @@ const {makePlayer,now}=require('./analysis-fixture.cjs');
  if(process.env.UI_SCREENSHOT_PREFIX){await main.screenshot({path:process.env.UI_SCREENSHOT_PREFIX+'-mayhem-main.png'});await side.screenshot({path:process.env.UI_SCREENSHOT_PREFIX+'-mayhem-sidebar.png'});await overlay.screenshot({path:process.env.UI_SCREENSHOT_PREFIX+'-mayhem-overlay.png'});}
  await side.getByRole('button',{name:'清空',exact:true}).click();await main.locator('.compare-augment').waitFor({state:'detached'});
  state={...state,revision:state.revision+1,status:'idle',query:{...state.query,champion:99},base:null,candidates:[]};for(const p of pages)await p.evaluate(data=>window._wails.dispatchWailsEvent({name:'leaguepingo:guide',data}),state);assert.equal(await side.locator('.augment-row').count(),0,'old champion augments cleared');
- assert.equal(calls.filter(c=>c.name==='GuideStatus').length,pages.length,'one memory read per window');assert.deepEqual(errors,[]);console.log('PASS: Mayhem candidates/search/quality/shared-selection/dark-overlay/no-fetch; guide/cache/failure/mode/manual-position/cross-window/stale-event and group badges; 880/280 layouts, light/dark (synthetic).');
+
+ state={...state,revision:state.revision+1,status:'ready',query:{...query,mode:'arena',opponent:0},modeLabel:'斗魂竞技场',base:{...guide,query:{...query,mode:'arena',opponent:0},augments:augments.map((a,i)=>({...a,winRate:i===0?0:52.5,games:1234,performance:null,popularity:null})),runes:[],builds:[{label:'核心装备',options:[{ids:[999999],names:['棱彩装备名称'],games:0,winRate:null}]}],tips:[{label:'虚空之女',text:'搭档组合胜率 51.59% · 1223 场'}]},matchup:null,candidates:[]};
+ for(const p of pages)await p.evaluate(data=>window._wails.dispatchWailsEvent({name:'leaguepingo:guide',data}),state);
+ await side.getByRole('checkbox',{name:'比较强化1',exact:true}).check();
+ assert((await side.locator('.mayhem-augments').innerText()).includes('胜率 0.00%'),'Arena known zero win rate lost');
+ assert(!(await side.locator('.mayhem-augments').innerText()).includes('OP级'),'Arena must not invent Mayhem tiers');
+ assert(!(await side.locator('.compare-augment').innerText()).includes('表现分'),'Arena scores must not be fabricated');
+ await side.getByText('棱彩装备名称',{exact:true}).waitFor();
+ if(process.env.UI_SCREENSHOT_PREFIX)await side.screenshot({path:process.env.UI_SCREENSHOT_PREFIX+'-arena-sidebar.png'});
+ for(const mode of ['urf','nexus-blitz']){
+  state={...state,revision:state.revision+1,query:{...state.query,mode},modeLabel:mode==='urf'?'无限火力':'极限闪击',base:{...guide,augments:[],version:mode==='urf'?'16.04':'13.23',referenceNote:'轮换模式资料可能来自较早版本，请结合页面版本和当前规则使用。'},candidates:[]};
+  for(const p of pages)await p.evaluate(data=>window._wails.dispatchWailsEvent({name:'leaguepingo:guide',data}),state);
+  await side.getByText(state.base.referenceNote,{exact:true}).waitFor();
+  assert.equal(await side.getByRole('combobox',{name:'攻略分路'}).count(),0,'rotating mode falsely requires a lane');
+  assert.equal(await side.locator('.mayhem-augments').count(),0,'stale augment mode leaked');
+ }
+ assert.equal(calls.filter(c=>c.name==='GuideStatus').length,pages.length,'one memory read per window');assert.deepEqual(errors,[]);console.log('PASS: Arena real stats/rotating version references/mode isolation; Mayhem candidates/search/quality/shared-selection/dark-overlay/no-fetch; guide/cache/failure/mode/manual-position/cross-window/stale-event and group badges; 880/280 layouts, light/dark (synthetic).');
  }finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1});

@@ -96,7 +96,7 @@ func (s *Service) Select(position string, opponent int, retry bool) (State, erro
 func (s *Service) Candidates(scope string, champion int, ids []int) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.state.Scope != scope || s.state.Query.Champion != champion || s.state.Query.Mode != "aram-mayhem" || s.state.Base == nil || len(ids) > 3 {
+	if s.state.Scope != scope || s.state.Query.Champion != champion || (s.state.Query.Mode != "aram-mayhem" && s.state.Query.Mode != "arena") || s.state.Base == nil || len(ids) > 3 {
 		return s.state, errors.New("请选择最多三个当前英雄的强化符文")
 	}
 	seen := map[int]bool{}
@@ -135,7 +135,7 @@ func (s *Service) update(force bool) {
 		pos = "mid"
 	} // required by provider for ARAM; never presented as an inferred lane
 	q.Position = pos
-	if modeName == "aram" || modeName == "aram-mayhem" {
+	if noLane(modeName) {
 		q.Position = "mid"
 		explicit = false
 	}
@@ -165,7 +165,7 @@ func (s *Service) update(force bool) {
 			}
 		}
 	}
-	if modeName != "aram" && modeName != "aram-mayhem" && !explicit {
+	if !noLane(modeName) && !explicit {
 		q.Position = ""
 	}
 	status, message := "loading", "正在准备 OP.GG 攻略"
@@ -199,8 +199,8 @@ func (s *Service) update(force bool) {
 	}
 	s.state = State{Revision: s.state.Revision, Scope: s.scope, Status: status, Message: message, Query: q, ModeLabel: label, Reference: reference, PositionExplicit: explicit}
 	s.state.Candidates = candidates
-	if modeName == "aram-mayhem" && champions[q.Champion] != "" {
-		s.state.SourceURL = mayhemURL(q, "build")
+	if pageMode(modeName) && champions[q.Champion] != "" {
+		s.state.SourceURL = guidePageURL(q, "build")
 	}
 	if status != "loading" {
 		s.publish()

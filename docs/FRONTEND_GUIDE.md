@@ -1,5 +1,7 @@
 # 前端迭代与组件预览
 
+BUG-0075：MayhemAugments复用到竞技场时切换来源推荐与胜率/样本展示，不能把默认tier=0渲染成OP级；GuidePanel仅ranked/flex显示分路，轮换版本说明常驻，搭档数据采用竞技场标题。模式装备在本地图集中缺少图标时，同时展示来源装备名，不按变体ID猜成普通装备，不额外下载图片。
+
 BUG-0073：MayhemAugments只消费Guide.base.augments；搜索品质在本地，候选通过GuideCandidates共享并由revision事件同步。GuidePanel与OverlayView额外核对当前英雄，拒绝同局旧英雄攻略。品质1/4/8与梯度分开，未知不补零，快览攻略面板明确使用深色tokens。
 
 BUG-0072：useGuide以单窗口共享订阅消费leaguepingo:guide，GuideStatus只读内存，SelectGuide只选择合法分路和当前敌方英雄。GuidePanel正文使用文本插值，禁止v-html或执行压缩响应。BUG-0071的PremadeBadge消费匿名分组与人数，不从历史推算。

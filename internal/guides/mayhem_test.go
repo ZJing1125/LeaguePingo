@@ -14,7 +14,7 @@ import (
 
 func flightFixture(q Query, tab string, records string) []byte {
 	b, _ := json.Marshal([]any{1, records})
-	return []byte(`<link rel="canonical" href="` + mayhemURL(q, tab) + `"><title>英雄模式16.21版本</title><script>self.__next_f.push(` + string(b) + `)</script>`)
+	return []byte(`<link rel="canonical" href="` + guidePageURL(q, tab) + `"><title>英雄模式16.21版本</title><script>self.__next_f.push(` + string(b) + `)</script>`)
 }
 
 const augmentRecords = `1:["$","$L99",null,{"data":[{"id":1,"name":"坦克引擎","desc":"获得<shield>护盾</shield><br>持续生效。","tier":0,"rarity":4,"performance":110,"popular":3},{"id":2,"name":"强化二","desc":"说明二","tier":1,"rarity":1,"performance":0,"popular":0},{"id":3,"name":"强化三","desc":"说明三","tier":2,"rarity":8},{"id":4,"name":"强化四","desc":"说明四","tier":3,"rarity":1}]}]
@@ -29,7 +29,7 @@ const buildRecords = `1:["$","tr","core_items_0",{"children":"$L2"}]
 
 func TestMayhemPageNormalization(t *testing.T) {
 	q := Query{Mode: "aram-mayhem", Champion: 3, Position: "mid"}
-	p, err := parseFlight(flightFixture(q, "augments", augmentRecords), mayhemURL(q, "augments"))
+	p, err := parseFlight(flightFixture(q, "augments", augmentRecords), guidePageURL(q, "augments"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestMayhemPageNormalization(t *testing.T) {
 	if err != nil || len(a) != 4 || a[0].Tier != 0 || a[0].Rarity != 4 || strings.Contains(a[0].Description, "<") || a[1].Performance == nil || *a[1].Performance != 0 {
 		t.Fatalf("augment loss %v %+v", err, a)
 	}
-	p, err = parseFlight(flightFixture(q, "build", buildRecords), mayhemURL(q, "build"))
+	p, err = parseFlight(flightFixture(q, "build", buildRecords), guidePageURL(q, "build"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,18 +46,18 @@ func TestMayhemPageNormalization(t *testing.T) {
 		t.Fatalf("bad normalized page %+v %v %s", b, s, v)
 	}
 	p.walk("$L6", true, func(any) {}) // cyclic references terminate
-	if _, err = parseFlight(flightFixture(q, "build", buildRecords), mayhemURL(q, "augments")); err == nil {
+	if _, err = parseFlight(flightFixture(q, "build", buildRecords), guidePageURL(q, "augments")); err == nil {
 		t.Fatal("wrong hero/tab accepted")
 	}
 	// A schema containing only MCP's lower tiers must not become a top list.
 	partial := strings.ReplaceAll(strings.ReplaceAll(augmentRecords, `"tier":0`, `"tier":3`), `"tier":1`, `"tier":4`)
 	partial = strings.ReplaceAll(partial, `"tier":2`, `"tier":5`)
-	p, _ = parseFlight(flightFixture(q, "augments", partial), mayhemURL(q, "augments"))
+	p, _ = parseFlight(flightFixture(q, "augments", partial), guidePageURL(q, "augments"))
 	if _, err = p.augments(); err == nil {
 		t.Fatal("incomplete low-tier list accepted")
 	}
-	raw := []byte(`<link rel="canonical" href="` + mayhemURL(q, "build") + `"><script>self.__next_f.push([1,run()])</script>`)
-	if _, err = parseFlight(raw, mayhemURL(q, "build")); err == nil {
+	raw := []byte(`<link rel="canonical" href="` + guidePageURL(q, "build") + `"><script>self.__next_f.push([1,run()])</script>`)
+	if _, err = parseFlight(raw, guidePageURL(q, "build")); err == nil {
 		t.Fatal("executable source accepted")
 	}
 }

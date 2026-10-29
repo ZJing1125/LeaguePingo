@@ -5,6 +5,7 @@ import * as Service from '../../bindings/leaguepingo/appservice';
 import { acceptGuide } from '../useGuide';
 import { errorMessage } from '../presentation';
 const props = defineProps<{ state: State; compact?: boolean; summary?: boolean }>();
+const arena = computed(() => props.state.query.mode === 'arena');
 const search = ref(''), rarity = ref(0), expanded = ref(false), busy = ref(false), error = ref('');
 const augments = computed(() => props.state.base?.augments || []);
 const selected = computed(() => props.state.candidates || []);
@@ -12,7 +13,7 @@ const compared = computed(() => selected.value.map(id => augments.value.find(a =
 const matches = computed(() => augments.value.filter(a => (!rarity.value || a.rarity === rarity.value) && (!search.value.trim() || a.name.includes(search.value.trim()) || a.description.includes(search.value.trim()))));
 const visible = computed(() => expanded.value || search.value.trim() ? matches.value : matches.value.slice(0, 6));
 function quality(a: Augment) { return ({ 1: '银', 4: '金', 8: '棱彩' } as Record<number, string>)[a.rarity] || '品质未知'; }
-function tier(a: Augment) { return a.tier === 0 ? 'OP级' : `${a.tier}级`; }
+function tier(a: Augment) { return arena.value ? '推荐' : a.tier === 0 ? 'OP级' : `${a.tier}级`; }
 async function choose(id?: number) {
  if (busy.value) return;
  const ids = id == null ? [] : selected.value.includes(id) ? selected.value.filter(a => a !== id) : [...selected.value, id];
@@ -24,8 +25,8 @@ async function choose(id?: number) {
 }
 </script>
 <template>
- <section class="mayhem-augments" :class="{ compact, summary }" aria-label="海克斯强化符文">
-  <div class="augment-heading"><h3>强化符文 <small>{{ augments.length }} 项</small></h3><span>OP.GG 梯度</span></div>
+ <section class="mayhem-augments" :class="{ compact, summary }" :aria-label="arena ? '竞技场强化符文' : '海克斯强化符文'">
+  <div class="augment-heading"><h3>强化符文 <small>{{ augments.length }} 项</small></h3><span>OP.GG {{ arena ? '推荐' : '梯度' }}</span></div>
   <p class="augment-help">手动勾选本次出现的三个候选，比较当前英雄的强化表现。</p>
   <div class="augment-filters">
    <input v-model="search" type="search" aria-label="搜索强化符文" placeholder="搜索名称或效果" />
@@ -37,7 +38,8 @@ async function choose(id?: number) {
    <div class="compare-grid"><article v-for="a in compared" :key="a.id" class="compare-augment">
     <div><b>{{ a.name }}</b><span>{{ tier(a) }} · {{ quality(a) }}</span></div>
     <p>{{ a.description }}</p>
-    <small>表现分 {{ a.performance == null ? '—' : a.performance.toFixed(1) }} · 热度分 {{ a.popularity == null ? '—' : a.popularity.toFixed(2) }}</small>
+    <small v-if="arena">胜率 {{a.winRate == null ? '—' : `${a.winRate.toFixed(2)}%`}} · {{a.games ? `${a.games.toLocaleString()} 场` : '样本未提供'}}</small>
+    <small v-else>表现分 {{ a.performance == null ? '—' : a.performance.toFixed(1) }} · 热度分 {{ a.popularity == null ? '—' : a.popularity.toFixed(2) }}</small>
     <button class="secondary" :disabled="busy" :aria-label="`移除${a.name}`" @click="choose(a.id)">移除</button>
    </article></div>
   </div>
@@ -46,12 +48,13 @@ async function choose(id?: number) {
    <label v-for="a in visible" :key="a.id" class="augment-row" :class="{ chosen: selected.includes(a.id) }">
     <input type="checkbox" :aria-label="`比较${a.name}`" :checked="selected.includes(a.id)" :disabled="busy || (!selected.includes(a.id) && selected.length >= 3)" @change="choose(a.id)" />
     <span class="augment-tier">{{ tier(a) }}</span>
-    <span class="augment-body"><span><b>{{ a.name }}</b><small>{{ quality(a) }}</small></span><span class="augment-desc">{{ a.description }}</span></span>
+    <span class="augment-body"><span><b>{{ a.name }}</b><small>{{ quality(a) }}</small></span><span class="augment-desc">{{ a.description }}</span><small v-if="arena">胜率 {{a.winRate == null ? '—' : `${a.winRate.toFixed(2)}%`}} · {{a.games ? `${a.games.toLocaleString()} 场` : '样本未提供'}}</small></span>
    </label>
   </div>
   <p v-if="!matches.length" class="augment-help">没有匹配的强化符文。未收录不代表本局不会出现。</p>
   <button v-if="matches.length > 6 && !search.trim()" class="secondary augment-more" :aria-expanded="expanded" @click="expanded = !expanded">{{ expanded ? '收起列表' : `显示全部 ${matches.length} 项` }}</button>
-  <p class="augment-footnote">表现分与热度分为来源指标。强化数据未提供胜率、样本量及版本；请结合本局选择。</p>
+  <p v-if="arena" class="augment-footnote">各品质按来源顺序展示。胜率沿用来源口径，不等同于夺冠率。</p>
+  <p v-else class="augment-footnote">表现分与热度分为来源指标。强化数据未提供胜率、样本量及版本；请结合本局选择。</p>
  </section>
 </template>
 <style scoped>

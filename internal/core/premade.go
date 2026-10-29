@@ -32,7 +32,8 @@ func rosterPosition(values ...string) string {
 }
 
 // AssignPremades describes explicit source groups only. Missing/unique IDs never
-// imply solo queue. Scope by map side; numeric IDs may be reused by the other side.
+// imply solo queue. Direct LCU slot fields do not require revealing an identity.
+// Scope by map side; numeric IDs may be reused by the other side.
 func AssignPremades(players []Participant, source string) {
 	groups := map[string][]int{}
 	for i := range players {
@@ -40,7 +41,7 @@ func AssignPremades(players []Participant, source string) {
 		p.PremadeGroup = ""
 		p.PremadeSize = 0
 		p.GroupSource = ""
-		if IsKnownPUUID(p.PUUID) && p.GroupToken != "" {
+		if (IsKnownPUUID(p.PUUID) || p.Key != "") && (p.Team == "ally" || p.Team == "enemy") && p.GroupToken != "" {
 			p.GroupSource = source
 			groups[p.Team+":"+p.GroupToken] = append(groups[p.Team+":"+p.GroupToken], i)
 		}

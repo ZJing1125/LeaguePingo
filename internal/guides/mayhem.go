@@ -19,46 +19,53 @@ import (
 // Public, per-champion OP.GG pages. No player identifiers, cookies, scripts,
 // remote assets or arbitrary destinations are used. The MCP augment tool omits
 // tiers 0–2, so it cannot supply the complete recommendation list.
-func mayhemURL(q Query, tab string) string {
-	return "https://op.gg/zh-cn/lol/modes/aram-mayhem/" + strings.ToLower(strings.ReplaceAll(champions[q.Champion], "_", "")) + "/" + tab
+func guidePageURL(q Query, tab string) string {
+	return "https://op.gg/zh-cn/lol/modes/" + q.Mode + "/" + strings.ToLower(strings.ReplaceAll(champions[q.Champion], "_", "")) + "/" + tab
 }
-func (o *OPgg) mayhemPage(ctx context.Context, q Query, tab string) (*flightPage, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, mayhemURL(q, tab), nil)
+func (o *OPgg) publicPage(ctx context.Context, q Query, tab string) (*flightPage, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, guidePageURL(q, tab), nil)
 	if err != nil {
-		return nil, errors.New("海克斯攻略请求无效")
+		return nil, errors.New("模式攻略请求无效")
 	}
 	req.Header.Set("Accept", "text/html")
 	req.Header.Set("User-Agent", "LeaguePingo/1 (+https://github.com/ZJing1125/LeaguePingo)")
 	resp, err := o.http.Do(req)
 	if err != nil {
-		return nil, errors.New("OP.GG 海克斯攻略连接失败或超时")
+		return nil, errors.New("OP.GG 模式攻略连接失败或超时")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("OP.GG 海克斯攻略暂不可用（HTTP %d）", resp.StatusCode)
+		return nil, fmt.Errorf("OP.GG 模式攻略暂不可用（HTTP %d）", resp.StatusCode)
 	}
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, (3<<20)+1))
 	if err != nil || len(raw) > 3<<20 {
-		return nil, errors.New("海克斯攻略响应超出限制")
+		return nil, errors.New("模式攻略响应超出限制")
 	}
-	return parseFlight(raw, mayhemURL(q, tab))
+	return parseFlight(raw, guidePageURL(q, tab))
 }
-func (o *OPgg) fetchMayhem(ctx context.Context, q Query) (*Guide, error) {
-	g := &Guide{Query: q, FetchedAt: time.Now().UTC(), SourceURL: mayhemURL(q, "build")}
-	aug, aerr := o.mayhemPage(ctx, q, "augments")
+func (o *OPgg) fetchAugmentMode(ctx context.Context, q Query) (*Guide, error) {
+	g := &Guide{Query: q, FetchedAt: time.Now().UTC(), SourceURL: guidePageURL(q, "build")}
+	aug, aerr := o.publicPage(ctx, q, "augments")
 	if aerr == nil {
-		g.Augments, aerr = aug.augments()
+		if q.Mode == "arena" {
+			g.Augments, aerr = aug.arenaAugments()
+		} else {
+			g.Augments, aerr = aug.augments()
+		}
 		g.AugmentsOmitted = aug.omitted
 	}
-	build, berr := o.mayhemPage(ctx, q, "build")
+	build, berr := o.publicPage(ctx, q, "build")
 	if berr == nil {
 		g.Builds, g.Skills, g.Version = build.builds()
+		if q.Mode == "arena" {
+			g.Tips = build.arenaSynergies()
+		}
 		if len(g.Builds) == 0 || len(g.Skills) == 0 {
 			berr = errors.New("出装或加点页面结构已变化")
 		}
 	}
 	if aerr != nil && berr != nil {
-		return nil, errors.New("海克斯攻略暂不可用，请稍后重试或查看原文")
+		return nil, errors.New("模式攻略暂不可用，请稍后重试或查看原文")
 	}
 	if aerr != nil {
 		g.Notice = "强化符文暂未读取成功，可重试或查看原文。"
@@ -68,7 +75,7 @@ func (o *OPgg) fetchMayhem(ctx context.Context, q Query) (*Guide, error) {
 	}
 	encoded, _ := json.Marshal(g)
 	if len(encoded) > 256<<10 {
-		return nil, errors.New("海克斯攻略内容超出限制")
+		return nil, errors.New("模式攻略内容超出限制")
 	}
 	return g, nil
 }
@@ -92,11 +99,11 @@ type flightPage struct {
 
 func parseFlight(raw []byte, expected string) (*flightPage, error) {
 	if len(raw) > 3<<20 {
-		return nil, errors.New("海克斯攻略响应超出限制")
+		return nil, errors.New("模式攻略响应超出限制")
 	}
 	// Canonical must match the requested hero, mode and tab, even on HTTP 200.
 	if !strings.Contains(string(raw), `rel="canonical" href="`+expected+`"`) {
-		return nil, errors.New("海克斯攻略页面身份不匹配")
+		return nil, errors.New("模式攻略页面身份不匹配")
 	}
 	var stream strings.Builder
 	for _, match := range flightScript.FindAllSubmatch(raw, -1) {
@@ -126,13 +133,13 @@ func parseFlight(raw []byte, expected string) (*flightPage, error) {
 			continue
 		}
 		if _, exists := page.records[key]; exists {
-			return nil, errors.New("海克斯攻略记录重复")
+			return nil, errors.New("模式攻略记录重复")
 		}
 		page.records[key] = v
 		page.order = append(page.order, key)
 	}
 	if len(page.records) == 0 {
-		return nil, errors.New("海克斯攻略页面结构已变化")
+		return nil, errors.New("模式攻略页面结构已变化")
 	}
 	return page, nil
 }
@@ -287,7 +294,7 @@ func (p *flightPage) builds() ([]BuildSection, []string, string) {
 				return
 			}
 			if typ == "tr" {
-				for _, prefix := range []string{"starter_items", "core_items", "boots"} {
+				for _, prefix := range []string{"starter_items", "core_items", "boots", "prism_items"} {
 					if !strings.HasPrefix(k, prefix+"_") {
 						continue
 					}
@@ -330,7 +337,7 @@ func (p *flightPage) builds() ([]BuildSection, []string, string) {
 		})
 	}
 	result := []BuildSection{}
-	for _, sec := range []struct{ key, label string }{{"starter_items", "出门装"}, {"core_items", "核心装备"}, {"boots", "鞋子"}} {
+	for _, sec := range []struct{ key, label string }{{"starter_items", "出门装"}, {"core_items", "核心装备"}, {"boots", "鞋子"}, {"prism_items", "棱彩装备"}} {
 		options := []Build{}
 		for i := 0; i < 3; i++ {
 			if b, ok := rows[sec.key][i]; ok {

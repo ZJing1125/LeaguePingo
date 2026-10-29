@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"strconv"
 	"strings"
 	"time"
 
@@ -52,6 +53,8 @@ type Augment struct {
 	Rarity      int      `json:"rarity"`
 	Performance *float64 `json:"performance"`
 	Popularity  *float64 `json:"popularity"`
+	WinRate     *float64 `json:"winRate,omitempty"`
+	Games       int      `json:"games,omitempty"`
 }
 type Guide struct {
 	Query           Query          `json:"query"`
@@ -66,6 +69,7 @@ type Guide struct {
 	Augments        []Augment      `json:"augments,omitempty"`
 	AugmentsOmitted int            `json:"augmentsOmitted,omitempty"`
 	Notice          string         `json:"notice,omitempty"`
+	ReferenceNote   string         `json:"referenceNote,omitempty"`
 }
 type State struct {
 	Revision         uint64 `json:"revision"`
@@ -85,6 +89,21 @@ type State struct {
 }
 
 func mode(s core.Snapshot) (string, string, bool) {
+	for _, spec := range []struct {
+		queues            []int
+		mode, label, game string
+		mapID             int
+	}{{[]int{900, 1900}, "urf", "无限火力", "URF", 11}, {[]int{1300}, "nexus-blitz", "极限闪击", "NEXUSBLITZ", 21}, {[]int{1700, 1710}, "arena", "斗魂竞技场", "CHERRY", 30}} {
+		for _, q := range spec.queues {
+			if s.QueueID == q {
+				if s.MapID != 0 && s.MapID != spec.mapID || s.GameMode != "" && !strings.EqualFold(s.GameMode, spec.game) {
+					return "", "当前模式暂无已核验攻略", false
+				}
+				return spec.mode, spec.label, false
+			}
+		}
+	}
+
 	if s.QueueID == 2400 {
 		if (s.MapID != 0 && s.MapID != 12) || (s.GameMode != "" && !strings.EqualFold(s.GameMode, "ARAM") && !strings.EqualFold(s.GameMode, "ARAM_MAYHEM")) {
 			return "", "当前模式暂无已核验攻略", false
@@ -118,11 +137,23 @@ func patch(v string) string {
 	if len(p) < 2 {
 		return ""
 	}
-	return p[0] + "." + p[1]
+	major, e1 := strconv.ParseUint(p[0], 10, 16)
+	minor, e2 := strconv.ParseUint(p[1], 10, 16)
+	if e1 != nil || e2 != nil {
+		return ""
+	}
+	return fmt.Sprintf("%d.%d", major, minor)
 }
 func validPosition(p string) bool {
 	return p == "top" || p == "jungle" || p == "mid" || p == "adc" || p == "support"
 }
 func validQuery(q Query) bool {
-	return champions[q.Champion] != "" && (q.Opponent == 0 || champions[q.Opponent] != "") && validPosition(q.Position) && (q.Mode == "ranked" || q.Mode == "flex" || q.Mode == "aram" || q.Mode == "aram-mayhem") && (q.Opponent == 0 || q.Mode == "ranked")
+	return champions[q.Champion] != "" && (q.Opponent == 0 || champions[q.Opponent] != "") && validPosition(q.Position) && (q.Mode == "ranked" || q.Mode == "flex" || q.Mode == "aram" || q.Mode == "aram-mayhem" || q.Mode == "arena" || q.Mode == "urf" || q.Mode == "nexus-blitz") && (q.Opponent == 0 || q.Mode == "ranked")
+}
+
+func noLane(mode string) bool {
+	return mode == "aram" || mode == "aram-mayhem" || mode == "arena" || mode == "urf" || mode == "nexus-blitz"
+}
+func pageMode(mode string) bool {
+	return mode == "aram-mayhem" || mode == "arena" || mode == "urf" || mode == "nexus-blitz"
 }

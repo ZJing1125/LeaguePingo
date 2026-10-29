@@ -9,6 +9,8 @@ export interface Augment {
     "rarity": number;
     "performance": number | null;
     "popularity": number | null;
+    "winRate"?: number | null;
+    "games"?: number;
 }
 
 export interface Build {
@@ -36,6 +38,7 @@ export interface Guide {
     "augments"?: Augment[] | null;
     "augmentsOmitted"?: number;
     "notice"?: string;
+    "referenceNote"?: string;
 }
 
 export interface Query {

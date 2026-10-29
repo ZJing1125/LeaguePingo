@@ -1,5 +1,7 @@
 # LeaguePingo
 
+攻略现支持竞技场独立推荐及无限火力/极限闪击来源版本参考；组队核验可对照匿名十槽位基准。实际国服准确性与Windows运行仍待验收。
+
 海克斯大乱斗攻略已接入OP.GG公开英雄页：强化梯度/品质/中文效果、出装加点及跨窗口手动三候选比较。Windows国服实机待验收；范围与后续批次见[攻略说明](docs/HERO_GUIDES.md)。
 
 LeaguePingo 是面向《英雄联盟》腾讯国服的桌面战绩助手原型，使用 Wails 3 beta、Go、Vue 3 和 TypeScript。当前优先开发 Windows；macOS 待 Windows 端成熟后适配，目前仅保留构建资源，不代表已经支持。代码托管于私有 GitHub 仓库，仍处于原型开发与国服实机联调阶段。

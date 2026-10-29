@@ -49,3 +49,24 @@ func TestGroupMetadataMergeRejectsConflictAndPreservesRoster(t *testing.T) {
 		t.Fatal("duplicate identities accepted")
 	}
 }
+
+func TestGroupComparisonCountsExplicitAnonymousSlots(t *testing.T) {
+	truth := []int{1, 1, 2, 2, 2, 1, 1, 2, 3, 4}
+	players := make([]Participant, 10)
+	for i := range players {
+		side := "ally"
+		if i >= 5 {
+			side = "enemy"
+		}
+		players[i] = Participant{Key: fmt.Sprintf("slot-%d", i), Team: side, GroupToken: fmt.Sprint(truth[i])}
+	}
+	r, err := CompareGroupSlots(players, truth)
+	if err != nil || r.KnownPlayers != 10 || r.ComparedPairs != 20 || r.UnknownPairs != 0 || r.WrongMerge != 0 || r.WrongSplit != 0 {
+		t.Fatal("explicit anonymous group coverage lost", r, err)
+	}
+	players[0].GroupToken = ""
+	r, _ = CompareGroupSlots(players, truth)
+	if r.KnownPlayers != 9 || r.UnknownPairs != 4 {
+		t.Fatal("anonymous slot without source field counted as known", r)
+	}
+}

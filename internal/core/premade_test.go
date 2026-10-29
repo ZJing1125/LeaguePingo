@@ -23,3 +23,16 @@ func TestPremadeGroupsAreExplicitAndScopedBySide(t *testing.T) {
 		t.Fatal("raw group IDs exposed")
 	}
 }
+
+func TestExplicitAnonymousSlotsCanShowGroupsWithoutUnmasking(t *testing.T) {
+	_, ps, err := ParseGameflowRosterForPlayer([]byte(`{"gameData":{"gameId":42,"teamOne":[{"puuid":"self","teamParticipantId":12},{"teamParticipantId":12}],"teamTwo":[{"teamParticipantId":15},{"teamParticipantId":15}]}}`), "self")
+	if err != nil || len(ps) != 4 || ps[1].PremadeSize != 2 || ps[2].PremadeSize != 2 {
+		t.Fatal("explicit anonymous group omitted", err)
+	}
+	if IsKnownPUUID(ps[1].PUUID) || ps[1].IdentityState == IdentityKnown {
+		t.Fatal("grouping revealed an identity")
+	}
+	if ps[0].PremadeGroup == ps[2].PremadeGroup {
+		t.Fatal("sides merged")
+	}
+}

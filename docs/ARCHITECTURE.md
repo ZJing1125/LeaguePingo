@@ -1,5 +1,7 @@
 # 架构与技术选型
 
+BUG-0075：公共页源复用固定路径/受限Flight解析；rotating.go处理轮换符文及竞技场品质表/胜率/搭档，Guide.ReferenceNote明确页面版本，传统分路对位不跨模式复用；无新依赖或玩家取数通道。
+
 BUG-0073：guides增加固定OP.GG海克斯两公共页面适配，受限Flight JSON解析、3MiB/页，任务预算沿用原独立通道。GuideCandidates仅在scope/英雄核验后共享内存候选事件，不取数/落盘；source修复队列与顶层map元数据。详见HERO_GUIDES。
 
 BUG-0071/0072新增当前局来源分组字段与独立OP.GG攻略服务。分组优先现有名单，GSM当前局有界补充；攻略由main快照回调观察，独立任务/缓存和revision事件，不进入战绩scheduler。详见[PREMADE_GROUPS.md](PREMADE_GROUPS.md)、[HERO_GUIDES.md](HERO_GUIDES.md)。

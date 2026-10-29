@@ -82,7 +82,7 @@ func TestGuidePreparationCachingModeAndFailure(t *testing.T) {
 	if s.Snapshot().Base == nil {
 		t.Fatal("failed refresh erased cached guide")
 	}
-	snap.QueueID = 1700
+	snap.QueueID = 99999
 	s.Observe(snap)
 	if s.Snapshot().Status != "unsupported" || s.Snapshot().Base != nil {
 		t.Fatal("unknown mode reused ARAM/ranked guide")

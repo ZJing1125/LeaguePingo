@@ -72,7 +72,7 @@ func CompareGroupSlots(players []Participant, truth []int) (GroupComparison, err
 			return r, errors.New("槽位基准格式无效")
 		}
 		sides[p.Team]++
-		if IsKnownPUUID(p.PUUID) && p.GroupToken != "" {
+		if (IsKnownPUUID(p.PUUID) || p.Key != "") && p.GroupToken != "" {
 			r.KnownPlayers++
 		}
 	}
@@ -85,7 +85,7 @@ func CompareGroupSlots(players []Participant, truth []int) (GroupComparison, err
 			if a.Team != b.Team {
 				continue
 			}
-			if !IsKnownPUUID(a.PUUID) || !IsKnownPUUID(b.PUUID) || a.GroupToken == "" || b.GroupToken == "" {
+			if (!IsKnownPUUID(a.PUUID) && a.Key == "") || (!IsKnownPUUID(b.PUUID) && b.Key == "") || a.GroupToken == "" || b.GroupToken == "" {
 				r.UnknownPairs++
 				continue
 			}
