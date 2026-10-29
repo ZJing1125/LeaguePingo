@@ -150,4 +150,3 @@ jobs:
             bin/artifacts.json
           if-no-files-found: error
           retention-days: 7
-

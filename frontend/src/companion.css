@@ -13,7 +13,7 @@
 .sidebar-heading .queue-switch button {flex:1;font-size:12px;padding:5px 9px;}
 .sidebar-players {flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:0 10px 10px;scrollbar-gutter:stable;}
 .sidebar-player {background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:6px;}
-.sidebar-player summary {display:flex;flex-direction:column;cursor:pointer;list-style:none;padding:5px 8px;gap:3px;}
+.sidebar-player summary {display:flex;flex-direction:column;cursor:pointer;list-style:none;padding:4px 8px;gap:3px;}
 .sidebar-player summary::-webkit-details-marker {display:none;}
 .sidebar-player summary:focus-visible {outline:2px solid var(--accent);outline-offset:-3px;}
 .sidebar-player summary:hover {background:var(--hover);}
