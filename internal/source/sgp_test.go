@@ -2,6 +2,7 @@ package source
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,8 +12,31 @@ import (
 	"testing"
 	"time"
 
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/lcu"
 )
+
+type cancelingSGPBody struct{ cancel context.CancelFunc }
+
+func (b cancelingSGPBody) Read([]byte) (int, error) {
+	b.cancel()
+	return 0, errors.New("private-response-body")
+}
+func (cancelingSGPBody) Close() error { return nil }
+
+func TestSGPBodyReadFailureRetainsCancellationPrecedence(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	calls := 0
+	r := &sgpHistory{origin: "https://synthetic.invalid", http: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		calls++
+		return &http.Response{StatusCode: 200, Body: cancelingSGPBody{cancel}}, nil
+	})}}
+	_, status, err := r.getAuthorized(ctx, "/synthetic", "synthetic-token", "/sgp-history")
+	if status != 200 || calls != 1 || apperrors.CodeOf(err) != apperrors.RequestCanceled || !errors.Is(err, context.Canceled) {
+		t.Fatalf("lost cancellation or changed attempts: %v", err)
+	}
+}
 
 func jsonResponse(body string) *http.Response {
 	return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}

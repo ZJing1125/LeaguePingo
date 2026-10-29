@@ -21,6 +21,27 @@ type failingResponseBody struct{}
 func (failingResponseBody) Read([]byte) (int, error) { return 0, errors.New("synthetic-private-body") }
 func (failingResponseBody) Close() error             { return nil }
 
+type cancelingResponseBody struct{ cancel context.CancelFunc }
+
+func (b cancelingResponseBody) Read([]byte) (int, error) {
+	b.cancel()
+	return 0, errors.New("private-body-read")
+}
+func (cancelingResponseBody) Close() error { return nil }
+
+func TestBodyReadFailureRetainsRequestCancellationPrecedence(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c := NewClient(Credentials{Port: 12345})
+	c.HTTP.Transport = requestTransport(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 200, Body: cancelingResponseBody{cancel}}, nil
+	})
+	_, err := c.Get(ctx, "/private-body")
+	if apperrors.CodeOf(err) != apperrors.RequestCanceled || !errors.Is(err, context.Canceled) {
+		t.Fatalf("body read lost request cancellation: %v", err)
+	}
+}
+
 func TestRequestErrorsDoNotExposeIdentityURLOrTransportDetails(t *testing.T) {
 	for _, tt := range []struct {
 		name    string

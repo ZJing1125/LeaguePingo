@@ -207,6 +207,9 @@ func (r *sgpHistory) getAuthorized(ctx context.Context, path, token, category st
 	}
 	raw, err = io.ReadAll(io.LimitReader(response.Body, (8<<20)+1))
 	if err != nil || len(raw) > 8<<20 {
+		if ctx.Err() != nil {
+			return nil, response.StatusCode, apperrors.Normalize(ctx.Err(), apperrors.InvalidResponse)
+		}
 		if err != nil {
 			return nil, response.StatusCode, apperrors.Normalize(err, apperrors.InvalidResponse)
 		}

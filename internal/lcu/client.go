@@ -181,6 +181,9 @@ func (c *Client) request(ctx context.Context, method, path string, body []byte) 
 	}
 	data, err = io.ReadAll(io.LimitReader(response.Body, 8<<20))
 	if err != nil {
+		if ctx.Err() != nil {
+			err = ctx.Err()
+		}
 		return nil, apperrors.Normalize(err, apperrors.InvalidResponse)
 	}
 	return data, nil
