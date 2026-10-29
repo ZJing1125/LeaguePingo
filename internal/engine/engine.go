@@ -1158,7 +1158,13 @@ func (e *Engine) refreshHydratedHistory(client Client, generation, version uint6
 		if e.snapshot.Generation == generation {
 			for i := range e.snapshot.Participants {
 				if e.snapshot.Participants[i].PUUID == player.PUUID {
-					e.snapshot.Participants[i] = player
+					if err == nil {
+						core.ApplyHistory(&e.snapshot.Participants[i], history)
+					} else {
+						e.snapshot.Participants[i].HistoryMeta.Service = player.HistoryMeta.Service
+						e.snapshot.Participants[i].HistoryMeta.CheckedAt = player.HistoryMeta.CheckedAt
+						e.snapshot.Participants[i].Error = player.Error
+					}
 				}
 			}
 			e.snapshot.UpdatedAt = time.Now()

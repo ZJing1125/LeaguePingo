@@ -107,6 +107,13 @@ func TestDegradedLocalFallbackDoesNotEraseOldRemoteHistoryOrWriteDisk(t *testing
 
 func TestCachedHomeRefreshPublishesOutageWithoutChangingDataTime(t *testing.T) {
 	e, f, p := recoveryEngine(t)
+	live := p
+	live.ChampionID = 99
+	live.Position = "TOP"
+	live.PremadeLabel = "A"
+	live.PremadeGroup = "ally-synthetic"
+	e.snapshot.QueueID = 420 // Group labels are deliberately cleared for unsupported queues.
+	e.snapshot.Participants = []core.Participant{live}
 	f.historyFn = func(context.Context, string) (core.HistoryResult, error) {
 		return core.HistoryResult{Meta: core.HistoryMeta{Service: p.HistoryMeta.Service}}, apperrors.HTTP(apperrors.DataService, 503)
 	}
@@ -115,6 +122,10 @@ func TestCachedHomeRefreshPublishesOutageWithoutChangingDataTime(t *testing.T) {
 	case next := <-e.PlayerUpdates():
 		if next.Key != p.Key || next.HistoryMeta.Service == nil || next.Profile == nil || next.History[0].GameID != 10 || !next.HistoryMeta.FetchedAt.Equal(*p.HistoryMeta.FetchedAt) {
 			t.Fatal("idle event dropped retained data or fabricated freshness")
+		}
+		current := e.Snapshot().Participants[0]
+		if current.ChampionID != 99 || current.Position != "TOP" || current.PremadeGroup != "ally-synthetic" {
+			t.Fatal("history refresh overwrote current roster metadata")
 		}
 	case <-time.After(time.Second):
 		t.Fatal("empty-roster home never received background status")
