@@ -7,7 +7,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const policyFiles = ['AGENTS.md', 'Taskfile.yml', 'build/windows/Taskfile.yml',
   'build/Taskfile.yml', 'build/config.yml', 'scripts/build.sh', 'scripts/run.sh',
   'scripts/dev.sh', 'scripts/verify.sh', 'scripts/audit-player-data.sh', 'docs/ci/verify.yml.example',
-  'frontend/package.json', 'frontend/preview/package.json', 'frontend/preview/histoire.config.ts'];
+  'frontend/package.json', 'frontend/preview/package.json', 'frontend/preview/histoire.config.ts',
+  '.github/workflows/ci.yml'];
 
 // A deliberately restricted policy check, not a general YAML parser. Keep
 // entry tasks simple and also test their expansion with the real Wails runner.
@@ -93,6 +94,20 @@ export function checkWorkflow(read) {
     requireText(file, 'source "$task_root/scripts/env.sh"');
   }
   requireText('docs/ci/verify.yml.example', 'bash scripts/build.sh bin/leaguepingo-ci.exe');
+  // Fixed CI entry points. The Windows job delegates verification to build.sh
+  // exactly once; a green portable job is never desktop verification.
+  const ci = contents['.github/workflows/ci.yml'];
+  for (const text of ['branches: [dev]', 'branches: [dev, main]', 'contents: read',
+    'needs: portable', 'runs-on: ubuntu-latest', 'runs-on: windows-latest',
+    'run: bash scripts/verify.sh portable', 'git status --porcelain -- frontend/bindings',
+    "github.event_name == 'workflow_dispatch' && inputs.upload_exe"])
+    requireText('.github/workflows/ci.yml', text);
+  if ((ci.match(/run: bash scripts\/build\.sh bin\/leaguepingo-ci\.exe/g) || []).length !== 1 ||
+      /^\s*(?:run: |.*&&\s*)(?:go|garble)\s+build\b/m.test(ci) ||
+      /run: bash scripts\/verify\.sh(?:\s*\n|\s+windows)/.test(ci) ||
+      /^\s*pull_request_target:/m.test(ci)) {
+    throw new Error('CI must use portable checks followed by one managed Windows build');
+  }
   const frontendScripts = JSON.parse(contents['frontend/package.json']).scripts;
   const previewScripts = JSON.parse(contents['frontend/preview/package.json']).scripts;
   const previewRoutes = {

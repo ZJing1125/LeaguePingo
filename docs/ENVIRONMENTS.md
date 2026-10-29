@@ -48,4 +48,6 @@ portable 是用户/开发者显式选择的子集，不因缺少 Windows 依赖�
 
 当前没有远程部署/下载/安装流程。将来需要分发时应另立批次，实现文件传输、SHA-256 核验、本机登记/切换及本机回退保护。远程构建成功只能证明远程构建结果，不能据此删除本机已验收版。构建机没有用户验收记录时只能称前一候选，不应宣称它已通过游戏验收。
 
-`docs/ci/verify.yml.example` 仍为 Windows CI 草案，未启用远程 Actions，不新建远程主机。本机专用环境文件不能上传到 CI；CI 用其自身工具环境和依赖配置。
+`.github/workflows/ci.yml`为远程Actions入口：dev推送、指向dev/main的PR及手动触发先执行Linux portable，再执行Windows `bash scripts/build.sh bin/leaguepingo-ci.exe`。build.sh内已含完整验证，不重复调用verify；锁定CLI版本取自go.mod，使用runner自带浏览器。`docs/ci/verify.yml.example`是保留的历史草案，不作为启用入口。本机专用环境文件不能上传到CI；CI用其自身工具环境和依赖配置。
+
+截图保留7天。EXE及其本机产物清单仅在手动触发并明确勾选upload_exe时上传，用于测试；不发布release、不自动部署到游戏电脑或登记为用户已验收。远程成功只证明该提交在runner通过自动化验证与构建，国服客户端、游戏性能和干净Win10安装仍未验证。静态分析建议任务按优化清单Q4另批接入。

@@ -47,6 +47,21 @@ test('unsupported environment flags fail instead of silently changing the target
   }
   assert.throws(() => checkEnvironment({}, 'darwin', 'arm64'));
 });
+test('CI preserves managed build, binding verification and opt-in executable upload', () => {
+  const file = '.github/workflows/ci.yml';
+  for (const [before, after] of [
+    ['run: bash scripts/build.sh bin/leaguepingo-ci.exe', 'run: go build -o bin/leaguepingo-ci.exe .'],
+    ['run: bash scripts/build.sh bin/leaguepingo-ci.exe', 'run: bash scripts/verify.sh windows\n      - run: bash scripts/build.sh bin/leaguepingo-ci.exe'],
+    ['needs: portable', 'needs: []'],
+    ['git status --porcelain -- frontend/bindings', 'git diff -- frontend/bindings'],
+    ["github.event_name == 'workflow_dispatch' && inputs.upload_exe", 'success()'],
+    ['  pull_request:', '  pull_request_target:'],
+  ]) {
+    assert.ok(files[file].includes(before), before);
+    const changed = files[file].replace(before, after);
+    assert.throws(() => checkWorkflow(f => f === file ? changed : files[f]), undefined, before);
+  }
+});
 test('component preview routes cannot become product or desktop delivery entry points', () => {
   for (const [file, change] of [
     ['frontend/package.json', json => { json.scripts['build:components'] = 'wails3 build'; }],

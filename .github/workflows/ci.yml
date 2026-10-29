@@ -1,0 +1,153 @@
+name: CI
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [dev, main]
+  workflow_dispatch:
+    inputs:
+      upload_exe:
+        description: 上传 CI 构建出的 exe（仅用于测试，不是正式交付）
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # 测试通过 BROWSER_EXECUTABLE 使用系统 Edge/Chrome，不需要 Playwright 自带浏览器。
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
+jobs:
+  # 第一关：Linux 快速检查。失败就不再启动更贵的 Windows 任务。
+  portable:
+    name: Portable checks (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x" # 与 go.mod 的 go 1.25 保持一致，升级 Go 时同步修改
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies (locked)
+        run: npm --prefix frontend ci
+
+      # 内容：workflow 策略检查、脚本测试、前端 vue-tsc + 生产构建、
+      # go test/vet ./internal/...、git diff --check
+      - name: Portable verification
+        run: bash scripts/verify.sh portable
+
+  # 第二关：Windows 完整验证 + 编译。只验证自动化部分，不等于真实国服客户端验收。
+  windows:
+    name: Windows verify and build
+    needs: portable
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # 必须在 checkout 之前设置，避免脚本被转成 CRLF。
+      - name: Keep LF line endings
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v5
+        id: go
+        with:
+          go-version: "1.25.x"
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # Wails CLI 版本直接取 go.mod，保证与后端依赖一致（verify.sh 也会校验前后端版本相同）。
+      - name: Resolve Wails version and tool paths
+        id: wails
+        run: |
+          version=$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v3)
+          gobin=$(cygpath -m "$(go env GOPATH)/bin")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "gobin=$gobin" >> "$GITHUB_OUTPUT"
+          echo "$(cygpath -w "$gobin")" >> "$GITHUB_PATH"
+
+      - name: Cache Wails CLI
+        id: wails-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.wails.outputs.gobin }}/wails3.exe
+          key: wails3-${{ runner.os }}-${{ steps.wails.outputs.version }}-go${{ steps.go.outputs.go-version }}
+
+      - name: Install Wails CLI
+        if: steps.wails-cache.outputs.cache-hit != 'true'
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@${{ steps.wails.outputs.version }}
+
+      - name: Install frontend dependencies (locked)
+        run: npm --prefix frontend ci
+
+      # 使用 windows-latest 自带的 Edge；找不到时脚本会明确报错，不会静默跳过。
+      - name: Locate browser for Playwright tests
+        run: |
+          browser=$(node scripts/environment.mjs browser)
+          echo "Using browser: $browser"
+          echo "BROWSER_EXECUTABLE=$browser" >> "$GITHUB_ENV"
+
+      # build.sh 内含：environment/check/audit → verify.sh（生成绑定、前端构建、syso、
+      # go test ./...、go vet ./...、Playwright 烟测）→ 编译 → sha256 → 登记产物。
+      - name: Verify and build (scripts/build.sh)
+        run: bash scripts/build.sh bin/leaguepingo-ci.exe
+
+      # 提交的 TS 绑定必须与 Go 接口一致（包含未跟踪的新文件）。
+      - name: Check generated bindings are committed
+        run: |
+          if [ -n "$(git status --porcelain -- frontend/bindings)" ]; then
+            git status --short -- frontend/bindings
+            echo "::error::frontend/bindings 与 Go 接口不一致，请本地运行 wails3 generate bindings -clean=true -ts -i 后提交"
+            exit 1
+          fi
+
+      # 构建成功时 build.sh 会把界面截图放在 artifacts/leaguepingo-ci/ 下。
+      # 构建失败时 build.sh 会清理残留，目录可能为空，此时以任务日志为准。
+      - name: Upload UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshots
+          path: artifacts/leaguepingo-ci/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # 仅手动触发并勾选时上传，供测试使用；它不是正式交付程序。
+      - name: Upload CI executable (manual only)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.upload_exe }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: leaguepingo-ci-exe
+          path: |
+            bin/leaguepingo-ci.exe
+            bin/artifacts.json
+          if-no-files-found: error
+          retention-days: 7
+
