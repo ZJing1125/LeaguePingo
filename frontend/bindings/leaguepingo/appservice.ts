@@ -151,6 +151,10 @@ export function RefreshRoster(): $CancellablePromise<core$0.Snapshot> {
     return $Call.ByID(3264360598);
 }
 
+export function RetryHistory(key: string, connectionID: number): $CancellablePromise<core$0.Participant> {
+    return $Call.ByID(3074571136, key, connectionID);
+}
+
 export function SelectGuide(position: string, opponent: number, retry: boolean): $CancellablePromise<guides$0.State> {
     return $Call.ByID(3111403970, position, opponent, retry);
 }

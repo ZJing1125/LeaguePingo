@@ -24,6 +24,7 @@ type Discoverer func() (Client, error)
 const inGameRosterAttemptLimit = 3
 
 type Engine struct {
+	historyRecovery     historyRecovery
 	readiness           diagnostics.Readiness
 	groupLabels         map[string]string
 	groupScope          string
@@ -100,6 +101,7 @@ func NewWithHistoryCache(discover Discoverer, onChange func(core.Snapshot), path
 func newEngine(discover Discoverer, onChange func(core.Snapshot)) *Engine {
 	e := &Engine{discover: discover, onChange: onChange, lookupGate: make(chan struct{}, 1), phaseWake: make(chan struct{}, 1), champWake: make(chan struct{}, 1), scheduler: newScheduler(), cache: map[string]core.Participant{}, aliases: map[string]string{}, snapshot: core.Snapshot{Stage: "disconnected", UpdatedAt: time.Now(), Participants: []core.Participant{}}}
 	e.autoAccept = readycheck.New()
+	e.historyRecovery.updates = make(chan core.Participant, 64)
 	e.postGame = postgame.New()
 	if onChange != nil {
 		e.updates = make(chan core.Snapshot, 32)
@@ -145,6 +147,7 @@ func (e *Engine) Run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			e.mu.Lock()
+			e.historyRecovery.stop()
 			e.readiness.Reset()
 			e.stopReviewLocked()
 			e.stopScoutingLocked()
@@ -385,6 +388,8 @@ func (e *Engine) poll(ctx context.Context) {
 
 // Retained data can still be displayed, but can never become a new connection's cache.
 func (e *Engine) invalidateConnectionLocked() {
+	e.historyRecovery.stop()
+	e.historyRecovery = historyRecovery{updates: e.historyRecovery.updates}
 	e.readiness.Reset()
 	if e.groupCancel != nil {
 		e.groupCancel()
@@ -470,6 +475,9 @@ func (e *Engine) disconnectLocked(message string) {
 }
 
 func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.Participant, message string) {
+	if phase != e.snapshot.Phase {
+		e.historyRecovery.stop()
+	}
 	e.readiness.Phase(phase, time.Now())
 	if stage != "idle" && e.homeCancel != nil {
 		e.homeCancel()
@@ -960,10 +968,20 @@ func (e *Engine) loadManualHistoryGuarded(ctx context.Context, client Client, ge
 	if err != nil {
 		// A refresh failure must keep verified history. A first failure still
 		// returns a usable identity so optional profile data can be inspected.
-		if (sameClient && ok && historyCached(cached)) || hadHistory {
+		if history.Meta.Service == nil && ((sameClient && ok && historyCached(cached)) || hadHistory) {
 			return core.Participant{}, apperrors.Normalize(err, apperrors.DataUnavailable)
 		}
+		if sameClient && ok && historyCached(cached) {
+			player = cached
+		}
 		player.HistoryState = core.HistoryFailed
+		if len(player.History) > 0 {
+			player.HistoryState = core.HistoryReady
+			player.Cached = true
+		}
+		checked := time.Now()
+		player.HistoryMeta.CheckedAt = &checked
+		player.HistoryMeta.Service = history.Meta.Service
 		player.Error = "已确认玩家身份；" + apperrors.UserMessage(err, apperrors.DataUnavailable)
 	} else {
 		core.ApplyHistory(&player, history)
@@ -1051,6 +1069,9 @@ func cachedPlayer(p core.Participant, offline bool) core.Participant {
 	return p
 }
 func (e *Engine) cachePlayerLocked(p core.Participant) {
+	if p.HistoryMeta.Service == nil && historyCached(p) && p.Error == "" {
+		delete(e.historyRecovery.entries, p.Key)
+	}
 	if old, ok := e.cache[p.PUUID]; ok && old.ConnectionID == p.ConnectionID && core.IsPlaceholderName(p.DisplayName) && !core.IsPlaceholderName(old.DisplayName) {
 		p.DisplayName = old.DisplayName
 	}
@@ -1086,38 +1107,58 @@ func (e *Engine) hydrateHistory(player *core.Participant) bool {
 }
 
 func (e *Engine) refreshHydratedHistory(client Client, generation, version uint64, player core.Participant) {
-	parent := context.Background()
-	e.mu.RLock()
-	if e.initialMatch.parent != nil {
-		parent = e.initialMatch.parent
+	e.mu.Lock()
+	if e.historyRecovery.background == nil {
+		e.historyRecovery.background = map[string]*historyRecoveryEntry{}
 	}
-	e.mu.RUnlock()
+	if e.historyRecovery.background[player.PUUID] != nil || len(e.historyRecovery.background) >= 64 {
+		e.mu.Unlock()
+		return
+	}
+	parent := e.initialMatch.parent
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(parent, 12*time.Second)
+	task := &historyRecoveryEntry{cancel: cancel}
+	e.historyRecovery.background[player.PUUID] = task
+	epoch := e.phaseEpoch
+	e.mu.Unlock()
 	go func() {
-		ctx, cancel := context.WithTimeout(parent, 12*time.Second)
 		defer cancel()
+		defer func() {
+			e.mu.Lock()
+			if e.historyRecovery.background[player.PUUID] == task {
+				delete(e.historyRecovery.background, player.PUUID)
+			}
+			e.mu.Unlock()
+		}()
 		history, err := e.scheduler.history(ctx, fmt.Sprintf("%d:%s", version, player.PUUID), false, func(request context.Context) (core.HistoryResult, error) {
 			return client.History(request, player.PUUID)
 		})
-		if err != nil {
-			return
-		}
-		core.ApplyHistory(&player, history)
-		player.ConnectionID = version
 		e.mu.Lock()
 		defer e.mu.Unlock()
-		if e.client == nil || e.clientVersion != version {
+		if ctx.Err() != nil || e.client == nil || e.clientVersion != version || e.phaseEpoch != epoch {
 			return
 		}
 		if current, ok := e.cache[player.PUUID]; ok && current.ConnectionID == version {
-			player.DisplayName = current.DisplayName
-			player.Profile = current.Profile
-			player.PrivacyState = current.PrivacyState
+			player = current
 		}
+		if err == nil {
+			core.ApplyHistory(&player, history)
+		} else {
+			checked := time.Now()
+			player.HistoryMeta.CheckedAt = &checked
+			player.HistoryMeta.Service = history.Meta.Service
+			player.Error = apperrors.UserMessage(err, apperrors.DataUnavailable)
+		}
+		player.ConnectionID = version
 		e.cachePlayerLocked(player)
+		e.publishPlayerLocked(player)
 		if e.snapshot.Generation == generation {
 			for i := range e.snapshot.Participants {
 				if e.snapshot.Participants[i].PUUID == player.PUUID {
-					core.ApplyHistory(&e.snapshot.Participants[i], history)
+					e.snapshot.Participants[i] = player
 				}
 			}
 			e.snapshot.UpdatedAt = time.Now()

@@ -118,10 +118,16 @@ function onKey(event: KeyboardEvent) {
   }
 }
 let componentAlive = true;
+let stopPlayer: (()=>void)|undefined;
 let stopSnapshot: (() => void) | undefined,
   stopOverlay: (() => void) | undefined;
 onMounted(async () => {
   window.addEventListener("keydown", onKey);
+  stopPlayer=Events.On('leaguepingo:player-updated',event=>{
+    const p=event.data as import('../bindings/leaguepingo/internal/core/models').Participant;
+    if(!snapshot.value?.connected || p.connectionId!==snapshot.value.connectionId)return;
+    workspace.acceptRecovery(p);home.accept(p);
+  });
   stopSnapshot = Events.On("leaguepingo:snapshot", (event) => {
     acceptSnapshot(event.data as SnapshotModel);
   });
@@ -141,6 +147,7 @@ onMounted(async () => {
 onUnmounted(() => {
   componentAlive = false;
   stopSnapshot?.();
+  stopPlayer?.();
   stopOverlay?.();
   window.removeEventListener("keydown", onKey);
 });
@@ -249,6 +256,7 @@ onUnmounted(() => {
         @modal="homeModalOpen = $event" @open="openPlayerDetails"
         @match="view = 'match'"
         @refresh="refreshHome"
+        @recovered="home.accept"
       />
       <section v-show="view === 'players'" class="players-workspace">
         <PlayerTabs
@@ -270,8 +278,10 @@ onUnmounted(() => {
           :busy="manualBusy"
           :refreshing="refreshing(active)"
           :connected="snapshot?.connected"
+          :automatic-history="snapshot?.stage==='idle'"
           :error="playerErrors[operationKey(active)] || active.error"
           @refresh="refreshPlayer"
+          @recovered="workspace.acceptRecovery"
         />
         <div v-else class="empty-state initial-empty">
           <AppIcon name="search" :size="42" />

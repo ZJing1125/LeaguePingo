@@ -9,7 +9,7 @@ const mod = new Module(filename, module);
 mod.filename = filename;
 mod.paths = module.paths;
 mod._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText, filename);
-const {errorMessage} = mod.exports;
+const {errorMessage,retryTime} = mod.exports;
 const messages = require('../../internal/apperrors/messages.json');
 for (const [code, message] of Object.entries(messages)) {
   const err = new Error('LCU HTTP 503 https://private-host/player#DEMO?token=secret');
@@ -26,3 +26,6 @@ for (const reason of [undefined, null, 500, '<html>secret</html>', '看似安全
   assert.equal(errorMessage(reason), messages.Unexpected, 'untrusted text became UI content');
 }
 console.log('PASS: shared error catalog, Wails RuntimeError cause, hostile/unknown errors and fixed Chinese fallback.');
+const at='2026-10-29T12:00:00Z';
+assert.equal(retryTime({cause:{code:'RateLimited',retryAt:at}}),Date.parse(at));
+for(const reason of [null,new Error('HTTP 503'),{cause:{code:'AccessDenied',retryAt:at}},{cause:{code:'ServiceBusy',retryAt:'invalid'}},{cause:{code:'RequestTimeout'}}])assert.equal(retryTime(reason),0);

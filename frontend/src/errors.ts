@@ -16,3 +16,11 @@ export function errorMessage(reason: unknown): string {
   }
   return messages.Unexpected;
 }
+
+export function retryTime(reason: unknown): number {
+  if (!reason || typeof reason!=='object' || !('cause' in reason)) return 0;
+  const cause=reason.cause;
+  if(!cause || typeof cause!=='object' || !('code' in cause) || !('retryAt' in cause))return 0;
+  if(typeof cause.code!=='string' || !['NotLoggedIn','RateLimited','ServiceBusy','NetworkUnavailable','RequestTimeout'].includes(cause.code) || typeof cause.retryAt!=='string')return 0;
+  return Date.parse(cause.retryAt)||0;
+}

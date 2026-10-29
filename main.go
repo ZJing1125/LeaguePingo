@@ -138,6 +138,16 @@ func main() {
 			}
 		}
 	}()
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case player := <-backend.engine.PlayerUpdates():
+				app.Event.Emit("leaguepingo:player-updated", player)
+			}
+		}
+	}()
 	mainWindow = app.Window.NewWithOptions(mainWindowOptions(offlineSmoke))
 	// Closing the main window keeps the lightweight helper available in the tray.
 	mainWindow.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {

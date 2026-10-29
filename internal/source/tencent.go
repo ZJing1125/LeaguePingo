@@ -40,6 +40,7 @@ func (s *TencentLCU) ResetIdentity() {
 	s.selfMu.Unlock()
 	s.sgpMu.Lock()
 	if s.sgp != nil {
+		s.sgp.cooldown = serviceCooldown{}
 		s.sgp.token, s.sgp.origin, s.sgp.platform = "", "", ""
 		s.sgp.leagueToken = ""
 		s.sgp.expires, s.sgp.leagueExpires = time.Time{}, time.Time{}
@@ -257,8 +258,16 @@ func (s *TencentLCU) History(ctx context.Context, puuid string) (core.HistoryRes
 	}
 	// Keep the local client as a bounded fallback when the verified regional
 	// summary service is unavailable.
+	serviceErr := err
 	page, err = s.lcuHistoryPage(ctx, puuid, 0, 20)
-	return core.HistoryResult{Matches: page.Matches, Meta: page.Meta}, err
+	page.Meta.Service = historyServiceState(serviceErr)
+	if err != nil {
+		if ctx.Err() != nil {
+			return core.HistoryResult{Meta: page.Meta}, apperrors.Request(ctx, ctx.Err(), apperrors.DataService)
+		}
+		return core.HistoryResult{Meta: page.Meta}, serviceErr
+	}
+	return core.HistoryResult{Matches: page.Matches, Meta: page.Meta}, nil
 }
 
 func (s *TencentLCU) HistoryPage(ctx context.Context, puuid string, offset int) (core.HistoryPage, error) {
@@ -276,9 +285,13 @@ func (s *TencentLCU) HistoryPage(ctx context.Context, puuid string, offset int) 
 	// fallback, never evidence that the account only has 50 lifetime games.
 	page, fallbackErr := s.lcuHistoryPage(ctx, puuid, offset, 50)
 	if fallbackErr != nil {
+		if ctx.Err() != nil {
+			return core.HistoryPage{}, apperrors.Request(ctx, ctx.Err(), apperrors.DataService)
+		}
 		return core.HistoryPage{}, apperrors.Normalize(err, apperrors.DataUnavailable)
 	}
 	page.LimitReason = "完整战绩服务暂不可用，当前仅展示客户端最近至多 50 场混合模式记录；不能据此判断该模式无战绩。"
+	page.Meta.Service = historyServiceState(err)
 	page.HasMore = false
 	return page, nil
 }

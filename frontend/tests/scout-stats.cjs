@@ -116,3 +116,13 @@ assert.equal(teamMetric(detail,'kills').teams[0].total,10);assert.equal(teamMetr
 const frame={players:detail.players.map(p=>({participantId:p.participantId,gold:0}))};assert.equal(teamGold(frame,detail,100),0);assert.equal(teamGold({players:[]},detail,100),null);
 assert.deepEqual(matchBadges({kills:0,deaths:null,assists:0}),[]);assert.deepEqual(matchBadges({kills:1,deaths:0,assists:1,pentaKills:1}),['五杀','零死亡']);
 console.log('PASS: overview sample/denominators, explicit position evidence, seven-day boundaries, known-empty mastery, complete-team totals, timeline zero vs missing and factual badges.');
+
+// Service observation time is independent of the age of retained match data.
+const full = {...before,historyMeta:{fetchedAt:'2026-10-29T01:00:00Z',checkedAt:'2026-10-29T01:00:00Z'},history:[{gameId:10}]};
+const outage = {...full,historyMeta:{...full.historyMeta,checkedAt:'2026-10-29T02:00:00Z',service:{code:'ServiceBusy'}}};
+merged=newestPlayer(outage,full);
+assert.equal(merged.historyMeta.service.code,'ServiceBusy');assert.equal(merged.historyMeta.fetchedAt,full.historyMeta.fetchedAt);assert.equal(merged.history[0].gameId,10);
+merged=newestPlayer({...outage,historyMeta:{fetchedAt:'2026-10-29T03:00:00Z',checkedAt:'2026-10-29T03:00:00Z',service:undefined}},outage);
+assert.equal(merged.historyMeta.service,undefined,'successful update must clear prior outage');
+assert.equal(newestPlayer(full,merged).historyMeta.service,undefined,'late old status cannot resurrect failure');
+console.log('PASS: retained-history timestamp and separate service-state clock, successful recovery and stale-event rejection.');

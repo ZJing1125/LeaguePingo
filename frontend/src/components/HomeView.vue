@@ -19,9 +19,10 @@ import PlayerDrawer from './PlayerDrawer.vue';
 import MatchHistoryRow from './MatchHistoryRow.vue';
 import MatchDetails from './MatchDetails.vue';
 import { hasCurrentMatch } from '../matchRoom';
+import HistoryServiceStatus from './HistoryServiceStatus.vue';
 
 const props = defineProps<{ player: Participant | null; snapshot: Snapshot | null; status: string; loading: boolean; busy: boolean; error: string; active?: boolean }>();
-const emit=defineEmits<{ open: [player: Participant]; match: []; refresh: []; modal:[open:boolean] }>();
+const emit=defineEmits<{ open: [player: Participant]; match: []; refresh: []; modal:[open:boolean];recovered:[player:Participant] }>();
 const selectedGame=ref<number|null>(null);
 watch(()=>`${props.active}:${props.player?.connectionId}:${props.player?.key}`,()=>{selectedGame.value=null;});
 const state = ref<PlayerViewState>({ queue: "all", expanded: [], sampleSize: 20 });
@@ -58,7 +59,8 @@ const historyMessage = computed(() => !props.snapshot?.connected ? "连接游戏
       </aside>
       <div class="home-analysis-main"><OverviewPerformance :matches="matches" :scope="sampleLabel"/>
       <section ref="historyTop" class="home-panel home-recent">
-        <header><h2>最近战绩</h2><button class="text-button" :disabled="!player || busy || loading" @click="player && $emit('open', player)">完整战绩 <AppIcon name="chevron" :size="13" /></button></header>
+        <header><h2>最近战绩</h2><HistoryServiceStatus v-if="player" inline readonly :player="player"/><button class="text-button" :disabled="!player || busy || loading" @click="player && $emit('open', player)">完整战绩 <AppIcon name="chevron" :size="13" /></button></header>
+        <HistoryServiceStatus v-if="player" :player="player" :connected="snapshot?.connected" :busy="busy || loading || state.pageBusy || state.warmBusy" :automatic="active!==false && snapshot?.stage==='idle' && (state.page??1)===1" @recovered="emit('recovered',$event)" @retry="emit('refresh')"/>
         <div class="home-history-filters"><select v-model="state.queue" aria-label="首页战绩模式" :disabled="!player || busy" @change="changeCriteria"><option value="all">全部模式</option><option v-for="mode in modes" :key="mode" :value="String(mode)">{{ queueName(mode) }}</option></select><select v-model.number="state.sampleSize" aria-label="首页分析场数" :disabled="!player || busy" @change="changeCriteria"><option v-for="size in SAMPLE_SIZES" :key="size" :value="size">最近 {{ size }} 场</option></select><span>{{ stats.games }} / {{ state.sampleSize ?? 20 }} 场</span></div>
         <div v-if="state.pageBusy || state.warmBusy || state.sourceLimit || state.pageError || state.browseNotice" class="home-browse-status" role="status"><span>{{ state.pageBusy ? '正在读取更多战绩…' : state.warmBusy ? '正在后台准备单双排与灵活数据，当前结果可继续使用。' : state.pageError || state.sourceLimit || state.browseNotice }}</span><button v-if="state.pageBusy" class="text-button" @click="state.stopRequested = true">停止</button><button v-else-if="!state.warmBusy && needsSamples && canFetch" class="text-button" :disabled="busy" @click="fill()">继续查找</button></div>
         <div ref="historyScroll" class="home-match-list">

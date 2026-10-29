@@ -1,5 +1,7 @@
 # 架构与技术选型
 
+U2：source共享SGP冷却门只决定是否允许读取，不内部轮询/阻塞等待。engine提供受配额的单次RetryHistory与有界本地PlayerUpdates，保留资料与服务状态独立时钟；UI只在允许的活动场景调度有限恢复，分页重试仍在原操作预算内。见[DATA_RECOVERY.md](DATA_RECOVERY.md)。
+
 U1：apperrors提供固定错误码与Go/TS共用中文目录。底层按HTTP/上下文类型分类，AppService命名error返回统一Present，配合Wails MarshalError保护message与cause；前端只按码映射。快照/攻略/原生窗口警告在发布前归一，显式导出仅包含最多128桶服务/码/状态/计数。无原文或新增请求/重试，见[ERRORS.md](ERRORS.md)。
 
 F1：diagnostics包含固定窗口请求P95、引擎选人首结果计量、原子热键耗时和局内Resources采集器；processstats复用原perfprobe的Windows原生计数。main只在已确认InProgress启用采样；OS读取独立于引擎锁/调度，退出/阶段换代拒绝迟到结果。ExportDiagnostics单独追加聚合performance，不向前端推送资源流或导出原始进程/玩家数据。详见PERFORMANCE。

@@ -114,6 +114,9 @@ func (s *TencentLCU) sgpRanks(ctx context.Context, puuid string) ([]core.Rank, e
 	s.sgpMu.Lock()
 	defer s.sgpMu.Unlock()
 	r := s.sgpClientLocked()
+	if err := r.cooldown.blocked(time.Now()); err != nil {
+		return nil, err
+	}
 	if r.leagueToken == "" || !time.Now().Before(r.leagueExpires) {
 		if err := s.ensureSGPOrigin(ctx, r); err != nil {
 			return nil, err

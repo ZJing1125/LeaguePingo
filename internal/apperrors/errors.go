@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"time"
 )
 
 type Code string
@@ -56,6 +57,7 @@ const (
 	InvalidAcceptDelay         Code = "InvalidAcceptDelay"
 	InvalidQueueDelay          Code = "InvalidQueueDelay"
 	MatchNotReady              Code = "MatchNotReady"
+	RecoveryExhausted          Code = "RecoveryExhausted"
 )
 
 type Service string
@@ -78,15 +80,17 @@ var messages = func() map[Code]string {
 }()
 
 type Error struct {
-	code   Code
-	status int
+	code    Code
+	status  int
+	retryAt *time.Time
 	// Only context sentinels may be retained, never raw transport/parser errors.
 	cause error
 }
 
 type Presentation struct {
-	Code    Code   `json:"code"`
-	Message string `json:"message"`
+	Code    Code       `json:"code"`
+	Message string     `json:"message"`
+	RetryAt *time.Time `json:"retryAt,omitempty"`
 }
 
 func Message(code Code) string {
@@ -109,7 +113,7 @@ func (e *Error) Unwrap() error {
 	return e.cause
 }
 func (e *Error) MarshalJSON() ([]byte, error) {
-	return json.Marshal(Presentation{e.code, e.Error()})
+	return json.Marshal(Presentation{Code: e.code, Message: e.Error(), RetryAt: e.retryAt})
 }
 
 // Normalize preserves known classifications through wrapping but drops the
@@ -204,6 +208,32 @@ func HTTP(service Service, status int) *Error {
 	e := New(code)
 	if status >= 100 && status <= 599 {
 		e.status = status
+	}
+	return e
+}
+
+func Status(err error) int {
+	if err == nil {
+		return 0
+	}
+	return Normalize(err, Unexpected).status
+}
+func RetryAt(err error) *time.Time {
+	if err == nil {
+		return nil
+	}
+	v := Normalize(err, Unexpected).retryAt
+	if v == nil {
+		return nil
+	}
+	copy := *v
+	return &copy
+}
+func WithRetryAt(err error, at time.Time) *Error {
+	e := Normalize(err, DataUnavailable)
+	if e != nil {
+		at = at.UTC()
+		e.retryAt = &at
 	}
 	return e
 }

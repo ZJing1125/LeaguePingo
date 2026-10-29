@@ -11,7 +11,7 @@ suggested_repo_path: docs/OPTIMIZATION_BACKLOG.md
 
 # 1. 使用规则（agent 先读）
 
-执行记录（实施起始基线4d57e0b，附件审阅基线cc229e7）：Q1已实施并通过dev推送实跑，见下方记录；F1本地度量已实施，口径与验证见PERFORMANCE.md；U1错误码与中文提示已实施，协议与验证见ERRORS.md及本提交CI，其余任务尚未实施。该清单是任务输入，原审阅统计与推断不能当作当前事实。其他任务仍按依赖逐项核实；未执行的Windows/国服检查保留未验证状态。
+执行记录（实施起始基线4d57e0b，附件审阅基线cc229e7）：Q1已实施并通过dev推送实跑，见下方记录；F1本地度量已实施，口径与验证见PERFORMANCE.md；U1错误码与中文提示、U2降级与有界恢复已实施，协议与验证分别见ERRORS.md、DATA_RECOVERY.md及本提交CI，其余任务尚未实施。该清单是任务输入，原审阅统计与推断不能当作当前事实。其他任务仍按依赖逐项核实；未执行的Windows/国服检查保留未验证状态。
 
 Q1首次运行：[40856437383](https://github.com/ZJing1125/LeaguePingo/actions/runs/40856437383)，Linux成功，Windows原生Go检查通过，侧栏720px五卡高度回归失败。已根据日志修复摘要内边距，保留原验收断言。修复提交dd33476的[40857941063](https://github.com/ZJing1125/LeaguePingo/actions/runs/40857941063)两个job全部成功：Windows全包test/vet、绑定生成/一致性、九项浏览器回归、EXE编译及产物审计均通过。EXE只存在runner，未上传、部署或登记为用户已验收；截图保留7天。PR事件配置已做语法检查，未专门新建PR测试。默认分支仍为main，手动触发入口需工作流进入默认分支后才能使用；本批未修改main或默认分支。
 
@@ -662,10 +662,13 @@ id: U2
 title: 数据服务不可用时的降级与恢复
 priority: P0
 area: ux
-status: todo
+status: implemented
 confidence: inferred
 needs_human: false
-problem: 数据服务失败时的展示和重试策略需要统一。
+problem: >-
+  已实现共享退避/Retry-After门、保留LCU与旧资料、独立服务状态及获取时间；
+  可见空闲首页/查询首批与无回退的显式分页有界恢复，手动优先，局内及只读卡不新增读取。
+  范围、次数、存储与验证见DATA_RECOVERY.md及本提交CI；真实国服故障场景待人工。
 evidence:
   - internal/source/sgp.go（401 时会清令牌、拒绝重定向）
 actions:

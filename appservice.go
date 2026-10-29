@@ -88,6 +88,11 @@ func (s *AppService) RefreshHistory(ctx context.Context, key string, connectionI
 	return s.engine.RefreshHistory(ctx, key, connectionID)
 }
 
+func (s *AppService) RetryHistory(ctx context.Context, key string, connectionID uint64) (serviceValue core.Participant, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
+	return s.engine.RetryHistory(ctx, key, connectionID)
+}
+
 func (s *AppService) RefreshData(ctx context.Context, key string, connectionID uint64) (serviceValue core.Participant, serviceErr error) {
 	defer apperrors.Present(&serviceErr)
 	return s.engine.RefreshData(ctx, key, connectionID)

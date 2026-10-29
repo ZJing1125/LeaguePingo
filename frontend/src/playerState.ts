@@ -49,7 +49,10 @@ export function newestPlayer(
   const currentScoutTime = Date.parse(current.scout?.fetchedAt ?? "") || 0;
   const retainedScoutTime = Date.parse(retained.scout?.fetchedAt ?? "") || 0;
   const scout = (currentScoutTime >= retainedScoutTime ? current.scout : retained.scout) ?? current.scout ?? retained.scout;
-  const merged = { ...history, displayName, scout, ...(current.championState !== undefined ? { championId: current.championId, championState: current.championState } : {}) };
+  const currentChecked = Date.parse(current.historyMeta?.checkedAt ?? current.historyMeta?.fetchedAt ?? '') || 0;
+  const retainedChecked = Date.parse(retained.historyMeta?.checkedAt ?? retained.historyMeta?.fetchedAt ?? '') || 0;
+  const service = currentChecked >= retainedChecked ? current.historyMeta : retained.historyMeta;
+  const merged = { ...history, historyMeta: { ...history.historyMeta, service: service?.service, checkedAt: service?.checkedAt }, displayName, scout, ...(current.championState !== undefined ? { championId: current.championId, championState: current.championState } : {}) };
   return profile
     ? { ...merged, profile, privacyState: profile.privacyState }
     : merged;

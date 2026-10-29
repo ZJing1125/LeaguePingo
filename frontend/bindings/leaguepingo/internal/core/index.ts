@@ -11,6 +11,7 @@ export type {
     FieldFreshness,
     HistoryMeta,
     HistoryPage,
+    HistoryServiceState,
     Match,
     MatchDetail,
     MatchPeer,

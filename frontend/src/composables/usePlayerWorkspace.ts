@@ -104,6 +104,14 @@ export function usePlayerWorkspace(
         tabs.value[Math.min(i, tabs.value.length - 1)]?.key ?? "";
   }
 
+  function acceptRecovery(player:Participant) {
+    if(!snapshot.value?.connected || player.connectionId!==snapshot.value.connectionId)return;
+    const index=tabs.value.findIndex(p=>p.key===player.key && p.connectionId===player.connectionId);
+    if(index>=0)tabs.value[index]=newestPlayer(player,tabs.value[index]!)!;
+    if(selectedResult.value?.key===player.key && selectedResult.value.connectionId===player.connectionId)
+      selectedResult.value=newestPlayer(player,selectedResult.value);
+  }
+
   return {
     view,
     tabs,
@@ -118,5 +126,6 @@ export function usePlayerWorkspace(
     openPlayer,
     closeTab,
     acceptSnapshot,
+    acceptRecovery,
   };
 }

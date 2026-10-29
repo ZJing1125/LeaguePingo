@@ -1,5 +1,7 @@
 # 前端迭代与组件预览
 
+U2：HistoryServiceStatus显示原fetchedAt的相对时间和独立服务状态，正常时间嵌入原工具栏，不减少五场可见密度；只在可见空闲首页/查询首批调度受Go配额限制的RetryHistory，失败等候不占手动忙状态，离开/隐藏/阶段变化取消。HistoryPage无结果时的同页重试仍受原预算限制；player-updated仅合并当前连接已打开玩家，不自动开标签或换页。见DATA_RECOVERY.md。
+
 ## 错误提示
 
 操作异常统一调用`presentation.errorMessage`，只按Wails `cause.code`映射共享固定中文；未知异常使用统一提示，禁止渲染reason.message或String(reason)。本地校验可用`errors.codedError`，不能把接口正文包装成文案。服务出口及脱敏诊断协议见[ERRORS.md](ERRORS.md)。

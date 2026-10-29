@@ -137,12 +137,20 @@ func IsRemake(match Match) bool {
 }
 
 type HistoryMeta struct {
-	Returned  int            `json:"returned"`
-	Parsed    int            `json:"parsed"`
-	Excluded  int            `json:"excluded"`
-	Reasons   map[string]int `json:"reasons,omitempty"`
-	FetchedAt *time.Time     `json:"fetchedAt"`
-	Scope     string         `json:"scope"`
+	Service   *HistoryServiceState `json:"service,omitempty"`
+	CheckedAt *time.Time           `json:"checkedAt,omitempty"`
+	Returned  int                  `json:"returned"`
+	Parsed    int                  `json:"parsed"`
+	Excluded  int                  `json:"excluded"`
+	Reasons   map[string]int       `json:"reasons,omitempty"`
+	FetchedAt *time.Time           `json:"fetchedAt"`
+	Scope     string               `json:"scope"`
+}
+
+// Transient service state. Never persist it as history or infer player privacy.
+type HistoryServiceState struct {
+	Code    string     `json:"code"`
+	RetryAt *time.Time `json:"retryAt,omitempty"`
 }
 type HistoryResult struct {
 	Matches []Match     `json:"matches"`
@@ -279,6 +287,16 @@ func CalculateStats(matches []Match) Stats {
 }
 
 func ApplyHistory(player *Participant, result HistoryResult) {
+	now := time.Now()
+	result.Meta.CheckedAt = &now
+	if result.Meta.Service != nil && player.HistoryMeta.FetchedAt != nil && len(player.History) > 0 {
+		player.HistoryMeta.Service = result.Meta.Service
+		player.HistoryMeta.CheckedAt = &now
+		player.Cached = true
+		player.HistoryState = HistoryReady
+		player.Error = ""
+		return // A limited local fallback must not replace a verified full snapshot.
+	}
 	if result.Meta.FetchedAt == nil {
 		now := time.Now()
 		result.Meta.FetchedAt = &now

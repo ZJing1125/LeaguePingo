@@ -95,6 +95,8 @@ func (e *Engine) RefreshData(ctx context.Context, key string, connectionID uint6
 	if historyErr != nil {
 		result = player
 	}
+	historyService := result.HistoryMeta.Service
+	historyChecked := result.HistoryMeta.CheckedAt
 	if _, supported := client.(source.ProfileSource); supported && ctx.Err() == nil {
 		if enriched, err := e.loadProfileData(ctx, key, connectionID, false); err == nil {
 			result = enriched
@@ -115,6 +117,11 @@ func (e *Engine) RefreshData(ctx context.Context, key string, connectionID uint6
 		}
 		e.snapshot.UpdatedAt = time.Now()
 		e.publishLocked()
+	}
+	if historyService != nil {
+		result.HistoryMeta.Service = historyService
+		result.HistoryMeta.CheckedAt = historyChecked
+		e.cachePlayerLocked(result)
 	}
 	return result, nil
 }

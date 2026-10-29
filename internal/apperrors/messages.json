@@ -40,5 +40,6 @@
   "DiagnosticWriteFailed": "无法保存诊断摘要，请检查设置目录权限和磁盘空间后重试。",
   "InvalidAcceptDelay": "接受延迟仅支持 0、1、3、5 秒，请重新选择后保存。",
   "InvalidQueueDelay": "排队延迟仅支持 5、10、15、20 秒，请重新选择后保存。",
-  "MatchNotReady": "本局结算暂未返回，可稍后同步，已有资料保留。"
+  "MatchNotReady": "本局结算暂未返回，可稍后同步，已有资料保留。",
+  "RecoveryExhausted": "自动重试已暂停，已有资料保留；需要时可手动重试。"
 }

@@ -52,6 +52,9 @@ func (e *Engine) observePhase(version, sequence uint64, phase string) {
 		return
 	}
 	e.phaseEpoch++
+	if stageForPhase(phase) != "idle" {
+		e.historyRecovery.stop()
+	}
 	e.phaseHint = phase
 	e.readiness.Phase(phase, time.Now())
 	e.observeAutoAcceptLocked(phase)

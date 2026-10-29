@@ -16,6 +16,8 @@ export interface FieldFreshness {
 }
 
 export interface HistoryMeta {
+    "service"?: HistoryServiceState | null;
+    "checkedAt"?: string | null;
     "returned": number;
     "parsed": number;
     "excluded": number;
@@ -31,6 +33,14 @@ export interface HistoryPage {
     "nextOffset": number;
     "hasMore": boolean;
     "limitReason"?: string;
+}
+
+/**
+ * Transient service state. Never persist it as history or infer player privacy.
+ */
+export interface HistoryServiceState {
+    "code": string;
+    "retryAt"?: string | null;
 }
 
 export enum HistoryState {

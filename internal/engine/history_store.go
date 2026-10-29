@@ -105,6 +105,8 @@ func validStoredPage(page core.HistoryPage, offset int) bool {
 }
 
 func sanitizeHistoryPage(page core.HistoryPage) core.HistoryPage {
+	page.Meta.Service = nil
+	page.Meta.CheckedAt = nil
 	page.Matches = append([]core.Match(nil), page.Matches...)
 	for i := range page.Matches {
 		page.Matches[i].Roster = append([]core.MatchPeer(nil), page.Matches[i].Roster...)
@@ -152,6 +154,9 @@ func (s *historyStore) get(puuid string, offset int, maxAge time.Duration) (core
 }
 
 func (s *historyStore) put(puuid string, page core.HistoryPage) {
+	if page.Meta.Service != nil {
+		return
+	} // Do not persist degraded/session state as a fresh remote page.
 	if s == nil || puuid == "" || !validStoredPage(page, page.Offset) {
 		return
 	}

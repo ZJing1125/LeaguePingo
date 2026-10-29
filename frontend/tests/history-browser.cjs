@@ -82,6 +82,7 @@ async function main() {
       historyMeta: meta(history.slice(0, 20)),
       stats: {},
     });
+    let automaticFailures=0;
     let failNextPage = false,
       repeatNextPage = false,
       limitedNextPage = false,
@@ -133,6 +134,7 @@ async function main() {
         else if (method === "HistoryPage") {
           const [key, connection, offset] = args;
           assert.equal(connection, 7);
+          if(automaticFailures>0){automaticFailures--;return route.fulfill({status:400,json:{kind:'RuntimeError',message:'private HTTP 503',cause:{code:'ServiceBusy',retryAt:new Date(Date.now()+600).toISOString()}}});}
           if (holdPage) {
             holdPage = false;
             await new Promise((resolve) => {
@@ -474,6 +476,17 @@ async function main() {
     assert(
       (await page.locator(".page-indicator").textContent()).includes("第 2 页"),
     );
+
+    // A failed same-page read retries outside the Go lane, within the existing
+    // action/page budget. No old page is discarded while waiting.
+    await page.getByRole('button',{name:'刷新数据',exact:true}).click();await idle();
+    automaticFailures=2;
+    const retryStart=pageCalls().length;
+    await page.getByRole('button',{name:'下一页',exact:true}).click();await idle();
+    const retried=pageCalls().slice(retryStart);
+    assert(retried.length>=3 && retried.length<=5,'retry exceeded the original five-page action budget');
+    assert.deepEqual(retried.slice(0,3).map(x=>x.args[2]),[20,20,20],'retries advanced the cursor after failure');
+    assert((await page.locator('.page-indicator').textContent()).includes('第 2 页'));
 
     // Fifty rare-mode samples appear only beyond the former five-page/15s stop.
     await search("Late#TEST");

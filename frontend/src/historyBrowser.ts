@@ -2,7 +2,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch, type Ref } from "vue";
 import * as Service from "../bindings/leaguepingo/appservice";
 import type { Participant } from "../bindings/leaguepingo/internal/core/models";
 import { errorMessage, queueName, type PlayerViewState } from "./presentation";
-import { codedError } from './errors';
+import { codedError, retryTime } from './errors';
 
 export const HISTORY_PAGE_SIZE = 20;
 export const MAX_HISTORY_PAGES = 50;
@@ -218,6 +218,27 @@ export function useHistoryBrowser(
     else state.pageBusy = true;
     const started = Date.now();
     let requests = 0;
+    let retries=0;
+    const budget=kind==='samples'?SAMPLE_SCAN_BUDGET:15000;
+    const pageBudget=kind==='samples'?MAX_HISTORY_PAGES:5;
+    async function fetchPage(offset:number) {
+      for(;;){
+        if(!current() || state.stopRequested || !workspaceActive() || props.busy)throw codedError('RequestCanceled');
+        requests++;
+        try { return await Service.HistoryPage(target.key,target.connectionId,offset); }
+        catch(reason){
+          const at=retryTime(reason),delay=Math.max(500,at-Date.now());
+          if(background || !at || retries>=2 || requests>=pageBudget || Date.now()-started+delay>=budget)throw reason;
+          retries++;
+          state.browseNotice=`战绩服务暂不可用，稍后自动重试（${retries}/2）；已有记录保留。`;
+          const until=Date.now()+delay;
+          while(Date.now()<until){
+            if(!current() || state.stopRequested || !workspaceActive() || props.busy || !props.connected)throw codedError('RequestCanceled');
+            await new Promise(resolve=>setTimeout(resolve,Math.min(100,until-Date.now())));
+          }
+        }
+      }
+    }
     try {
       while (
         current() &&
@@ -254,11 +275,7 @@ export function useHistoryBrowser(
           state.hasMore = false;
           break;
         }
-        const result = await Service.HistoryPage(
-          target.key,
-          target.connectionId,
-          offset,
-        );
+        const result = await fetchPage(offset);
         if (!current()) return;
         if (
           result.offset !== offset ||
@@ -277,7 +294,6 @@ export function useHistoryBrowser(
         ) {
           throw codedError('HistoryRepeated');
         }
-        requests++;
         state.extra = [...(state.extra ?? []), ...(result.matches ?? [])];
         state.pageMeta = [...(state.pageMeta ?? []), result.meta];
         state.nextOffset = result.nextOffset;
@@ -306,7 +322,10 @@ export function useHistoryBrowser(
         state.browseNotice = `当前可查询范围内没有第 ${page} 页，已保留当前页。`;
       }
     } catch (reason) {
-      if (current() && !background) state.pageError = errorMessage(reason);
+      if (current() && !background && workspaceActive()) {
+        if(state.stopRequested)state.browseNotice='已停止查找，已获取记录保留。';
+        else state.pageError = errorMessage(reason);
+      }
     } finally {
       if (current()) {
         if (background) state.warmBusy = false;
@@ -315,7 +334,7 @@ export function useHistoryBrowser(
     }
   }
   async function warmRanked(revision: number) {
-    if (props.compact || !workspaceActive() || props.busy || revision !== warmRevision)
+    if (props.player.historyMeta?.service || props.compact || !workspaceActive() || props.busy || revision !== warmRevision)
       return;
     for (const queue of ["420", "440"]) {
       if (revision !== warmRevision || !workspaceActive()) return;

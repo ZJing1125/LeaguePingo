@@ -26,6 +26,7 @@ const {makePlayer,now}=require('./analysis-fixture.cjs');
  else if(name==='AutoAcceptStatus')result={revision:0,enabled:false,status:'off'};
  else if(name==='PostGameStatus')result={revision:0,returnEnabled:false,queueEnabled:false,status:'off'};
  else if(['CurrentPlayer','EnsureProfile'].includes(name))result=own;
+ else if(name==='HistoryPage'){assert.equal(args[2],20,'guide fixture started an unexpected deep scan');result={matches:[],offset:20,nextOffset:20,hasMore:false,meta:{returned:0,parsed:0,fetchedAt:now}};}
  else if(name!=='AuxiliaryReady')throw Error('unexpected guide bridge '+name);
  return route.fulfill({json:result});}
  const rel=url.pathname==='/'?'index.html':url.pathname.slice(1);assert(!rel.includes('..'));return route.fulfill({body:await fs.readFile(path.join(__dirname,'../dist',rel)),contentType:rel.endsWith('.js')?'text/javascript':rel.endsWith('.css')?'text/css':rel.endsWith('.png')?'image/png':rel.endsWith('.jpg')?'image/jpeg':'text/html'});

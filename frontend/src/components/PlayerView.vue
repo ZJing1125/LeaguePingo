@@ -12,6 +12,7 @@ import {
 import PlayerProfileHeader from "./PlayerProfileHeader.vue";
 import MatchHistoryRow from "./MatchHistoryRow.vue";
 import HistoryNotice from "./HistoryNotice.vue";
+import HistoryServiceStatus from './HistoryServiceStatus.vue';
 
 import AppIcon from "./AppIcon.vue";
 import MatchDetails from "./MatchDetails.vue";
@@ -41,9 +42,11 @@ const props = defineProps<{
   scoutQueue?: number;
   captured?: boolean;
   prepared?: boolean;
+  automaticHistory?: boolean;
 }>();
 const emit = defineEmits<{
   refresh: [player: Participant];
+  recovered:[player:Participant];
 }>();
 const historyScroll = ref<HTMLElement | null>(null);
 const profileCollapsed = ref(false);
@@ -139,7 +142,7 @@ function toggle(id: number) {
             <span
               class="toolbar-time"
               :title="`战绩获取于 ${date(player.historyMeta?.fetchedAt)}`"
-              >{{ date(player.historyMeta?.fetchedAt) }}</span
+              ><HistoryServiceStatus inline readonly :player="player"/></span
             ><button
               class="secondary"
               :disabled="busy || !connected || player.identityState !== 'known'"
@@ -151,6 +154,7 @@ function toggle(id: number) {
             </button>
           </div>
         </div>
+        <HistoryServiceStatus :player="player" :connected="connected" :busy="busy || state.pageBusy || state.warmBusy" :readonly="compact || captured || prepared" :automatic="automaticHistory && active!==false && (state.page??1)===1" @recovered="emit('recovered',$event)" @retry="emit('refresh',player)"/>
         <details v-if="compact && player.scout" class="scout-explanation">
           <summary>本局统计说明 · {{ scouting.queueLabel }}</summary>
           <p v-if="scouting.hero?.games != null && scouting.report?.season">{{ scouting.report.season.name }} · 本英雄{{ scouting.report.complete ? '全部模式' : '已读全模式' }} {{ scouting.hero.games }} 场。</p>
