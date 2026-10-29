@@ -51,3 +51,5 @@ portable 是用户/开发者显式选择的子集，不因缺少 Windows 依赖�
 `.github/workflows/ci.yml`为远程Actions入口：dev推送、指向dev/main的PR及手动触发先执行Linux portable，再执行Windows `bash scripts/build.sh bin/leaguepingo-ci.exe`。build.sh内已含完整验证，不重复调用verify；锁定CLI版本取自go.mod，使用runner自带浏览器。`docs/ci/verify.yml.example`是保留的历史草案，不作为启用入口。本机专用环境文件不能上传到CI；CI用其自身工具环境和依赖配置。
 
 截图保留7天。EXE及其本机产物清单仅在手动触发并明确勾选upload_exe时上传，用于测试；不发布release、不自动部署到游戏电脑或登记为用户已验收。远程成功只证明该提交在runner通过自动化验证与构建，国服客户端、游戏性能和干净Win10安装仍未验证。静态分析建议任务按优化清单Q4另批接入。
+
+2026-10-29，dd33476的[CI 40857941063](https://github.com/ZJing1125/LeaguePingo/actions/runs/40857941063)已通过Linux及Windows两级任务。此前307fa29的首轮发现Windows侧栏720px高度溢出，修复后保留原断言并通过。该记录是hosted runner自动化结果，不是游戏电脑的实机验收。PR事件尚未专门新建PR触发验证；手动入口受GitHub默认分支规则限制，当前默认main未含此工作流，需后续正常合入默认分支后才可使用，不为启用按钮擅自修改main。
