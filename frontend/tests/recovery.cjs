@@ -73,10 +73,15 @@ async function main(){
   const before=retryCount;
   await home.locator('.home-match .match-main').first().click();
   const detail=page.getByRole('dialog',{name:'对局详情',exact:true});await detail.waitFor();
+  const late=player('self',false);late.history[0].gameId=12;late.historyMeta.fetchedAt=new Date().toISOString();late.historyMeta.checkedAt=late.historyMeta.fetchedAt;
+  await page.evaluate(data=>window._wails.dispatchWailsEvent({name:'leaguepingo:player-updated',data}),late);
+  await page.evaluate(data=>window._wails.dispatchWailsEvent({name:'leaguepingo:player-updated',data}),updated);
   await page.waitForTimeout(1400);assert.equal(retryCount,before,'automatic recovery interrupted an open match detail');
+  assert(await detail.isVisible(),'arriving cache update replaced the match being read');
   snapshot={...snapshot,phase:'InProgress',stage:'in-game',generation:2};
   await page.evaluate(data=>window._wails.dispatchWailsEvent({name:'leaguepingo:snapshot',data}),snapshot);
   await detail.press('Escape');await detail.waitFor({state:'detached'});
+  await home.locator('.history-service-status.degraded').waitFor({state:'detached'});
   await page.waitForTimeout(1200);assert.equal(retryCount,before,'entering game left a scheduled recovery active');
   assert.equal(await home.locator('.home-match').count(),1);
   for(const width of [1280,880]){await page.setViewportSize({width,height:800});assert(await home.evaluate(el=>el.scrollWidth<=el.clientWidth+1),'recovery status overflow');await saveUIArtifact(page,process.env.UI_SCREENSHOT_PREFIX,`recovery-${width}`);}

@@ -18,7 +18,7 @@ import HomeView from "./components/HomeView.vue";
 import MatchRoom from "./components/MatchRoom.vue";
 import { useTransientMessages } from "./transientMessages";
 import { errorMessage, normalizeRiotIDInput } from "./presentation";
-import { operationKey, playerTabId } from "./playerState";
+import { newestPlayer, operationKey, playerTabId } from "./playerState";
 import { useLeagueSnapshot } from "./composables/useLeagueSnapshot";
 import { usePlayerWorkspace } from "./composables/usePlayerWorkspace";
 import { usePlayerActions } from "./composables/usePlayerActions";
@@ -118,6 +118,24 @@ function onKey(event: KeyboardEvent) {
   }
 }
 let componentAlive = true;
+const pendingPlayers=new Map<string,import('../bindings/leaguepingo/internal/core/models').Participant>();
+function readingPlayer(key:string){
+  return homeModalOpen.value && key===snapshot.value?.selfKey || view.value==='players' && active.value?.key===key && workspace.stateFor(key).expanded.length>0;
+}
+function playerUpdate(p:import('../bindings/leaguepingo/internal/core/models').Participant){
+  if(!snapshot.value?.connected || p.connectionId!==snapshot.value.connectionId)return;
+  if(readingPlayer(p.key)){
+    if(!pendingPlayers.has(p.key) && pendingPlayers.size>=64)pendingPlayers.delete(pendingPlayers.keys().next().value!);
+    pendingPlayers.set(p.key,newestPlayer(p,pendingPlayers.get(p.key)??null)!);return;
+  }
+  workspace.acceptRecovery(p);home.accept(p);
+}
+watch(()=>[homeModalOpen.value,view.value,active.value?.key,active.value?workspace.stateFor(active.value.key).expanded.length:0,snapshot.value?.connected,snapshot.value?.connectionId],()=>{
+  for(const [key,p] of pendingPlayers){
+    if(!snapshot.value?.connected || p.connectionId!==snapshot.value.connectionId){pendingPlayers.delete(key);continue;}
+    if(!readingPlayer(key)){pendingPlayers.delete(key);playerUpdate(p);}
+  }
+});
 let stopPlayer: (()=>void)|undefined;
 let stopSnapshot: (() => void) | undefined,
   stopOverlay: (() => void) | undefined;
@@ -125,8 +143,7 @@ onMounted(async () => {
   window.addEventListener("keydown", onKey);
   stopPlayer=Events.On('leaguepingo:player-updated',event=>{
     const p=event.data as import('../bindings/leaguepingo/internal/core/models').Participant;
-    if(!snapshot.value?.connected || p.connectionId!==snapshot.value.connectionId)return;
-    workspace.acceptRecovery(p);home.accept(p);
+    playerUpdate(p);
   });
   stopSnapshot = Events.On("leaguepingo:snapshot", (event) => {
     acceptSnapshot(event.data as SnapshotModel);
