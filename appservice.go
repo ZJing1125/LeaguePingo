@@ -110,6 +110,13 @@ func (s *AppService) GuideStatus() guides.State {
 	}
 	return s.guides.Snapshot()
 }
+
+func (s *AppService) GuideCandidates(scope string, champion int, ids []int) (guides.State, error) {
+	if s.guides == nil {
+		return guides.State{Status: "idle"}, nil
+	}
+	return s.guides.Candidates(scope, champion, ids)
+}
 func (s *AppService) SelectGuide(position string, opponent int, retry bool) (guides.State, error) {
 	if s.guides == nil {
 		return guides.State{Status: "idle"}, nil

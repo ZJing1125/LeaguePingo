@@ -20,7 +20,7 @@ const props = defineProps<{
 }>();
 const guideState=useGuide(),guideOpen=ref(false);
 watch(()=>`${props.snapshot?.connectionId}:${props.snapshot?.selfKey}:${props.snapshot?.gameId}`,()=>guideOpen.value=false);
-const hasGuide=computed(()=>guideState.value?.scope===`${props.snapshot?.connectionId}:${props.snapshot?.selfKey||''}:${props.snapshot?.gameId||0}`&&!!(guideState.value?.base||guideState.value?.matchup));
+const hasGuide=computed(()=>guideState.value?.query.champion===props.snapshot?.participants?.find(p=>p.key===props.snapshot?.selfKey)?.championId&&guideState.value?.scope===`${props.snapshot?.connectionId}:${props.snapshot?.selfKey||''}:${props.snapshot?.gameId||0}`&&!!(guideState.value?.base||guideState.value?.matchup));
 const displayGuide=computed(()=>guideOpen.value&&hasGuide.value&&!['hold','preview'].includes(props.state?.mode||''));
 const players = computed(() => props.snapshot?.participants ?? []);
 const reports = computed(() => scoutStatus(players.value, props.snapshot?.scoutQueue ?? 420));

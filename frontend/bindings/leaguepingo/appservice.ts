@@ -71,6 +71,10 @@ export function ExportDiagnostics(): $CancellablePromise<string> {
     return $Call.ByID(407729836);
 }
 
+export function GuideCandidates(scope: string, champion: number, ids: number[] | null): $CancellablePromise<guides$0.State> {
+    return $Call.ByID(2893450040, scope, champion, ids);
+}
+
 export function GuideStatus(): $CancellablePromise<guides$0.State> {
     return $Call.ByID(4047961444);
 }

@@ -91,6 +91,29 @@ func (s *Service) Select(position string, opponent int, retry bool) (State, erro
 	s.update(retry)
 	return s.state, nil
 }
+
+// Candidates only changes shared in-memory selection; it never starts a fetch.
+func (s *Service) Candidates(scope string, champion int, ids []int) (State, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.state.Scope != scope || s.state.Query.Champion != champion || s.state.Query.Mode != "aram-mayhem" || s.state.Base == nil || len(ids) > 3 {
+		return s.state, errors.New("请选择最多三个当前英雄的强化符文")
+	}
+	seen := map[int]bool{}
+	for _, id := range ids {
+		valid := false
+		for _, a := range s.state.Base.Augments {
+			valid = valid || a.ID == id
+		}
+		if !valid || seen[id] {
+			return s.state, errors.New("强化符文已变化，请重新选择")
+		}
+		seen[id] = true
+	}
+	s.state.Candidates = append([]int{}, ids...)
+	s.publish()
+	return s.state, nil
+}
 func (s *Service) update(force bool) {
 	snapshot := s.snapshot
 	modeName, label, reference := mode(snapshot)
@@ -112,6 +135,10 @@ func (s *Service) update(force bool) {
 		pos = "mid"
 	} // required by provider for ARAM; never presented as an inferred lane
 	q.Position = pos
+	if modeName == "aram" || modeName == "aram-mayhem" {
+		q.Position = "mid"
+		explicit = false
+	}
 	if modeName == "ranked" && !reference {
 		q.Opponent = s.overrideOpponent
 		if q.Opponent > 0 {
@@ -138,7 +165,7 @@ func (s *Service) update(force bool) {
 			}
 		}
 	}
-	if modeName != "aram" && !explicit {
+	if modeName != "aram" && modeName != "aram-mayhem" && !explicit {
 		q.Position = ""
 	}
 	status, message := "loading", "正在准备 OP.GG 攻略"
@@ -166,7 +193,15 @@ func (s *Service) update(force bool) {
 	s.generation++
 	token := s.generation
 	s.current = key
+	var candidates []int
+	if s.state.Query == q && s.state.Scope == s.scope {
+		candidates = append([]int{}, s.state.Candidates...)
+	}
 	s.state = State{Revision: s.state.Revision, Scope: s.scope, Status: status, Message: message, Query: q, ModeLabel: label, Reference: reference, PositionExplicit: explicit}
+	s.state.Candidates = candidates
+	if modeName == "aram-mayhem" && champions[q.Champion] != "" {
+		s.state.SourceURL = mayhemURL(q, "build")
+	}
 	if status != "loading" {
 		s.publish()
 		return
@@ -257,10 +292,23 @@ func (s *Service) load(ctx context.Context, token uint64, base, q Query, force b
 			s.failures[key] = time.Now()
 			lastError = err.Error()
 		} else {
+			if g.Notice != "" {
+				s.failures[key] = time.Now()
+			}
 			s.cache[key] = g
 			s.save(key, g)
 			if query.Opponent == 0 {
 				s.state.Base = g
+				ids := s.state.Candidates
+				s.state.Candidates = nil
+				for _, id := range ids {
+					for _, a := range g.Augments {
+						if a.ID == id {
+							s.state.Candidates = append(s.state.Candidates, id)
+							break
+						}
+					}
+				}
 			} else {
 				s.state.Matchup = g
 			}
@@ -273,6 +321,11 @@ func (s *Service) load(ctx context.Context, token uint64, base, q Query, force b
 	defer s.mu.Unlock()
 	if token != s.generation || ctx.Err() != nil {
 		return
+	}
+	for _, g := range []*Guide{s.state.Base, s.state.Matchup} {
+		if g != nil && g.Notice != "" {
+			lastError = g.Notice
+		}
 	}
 	s.state.Status = "ready"
 	s.state.Message = ""
@@ -293,7 +346,10 @@ func cacheKey(q Query) string {
 func (s *Service) cached(q Query) *Guide {
 	key := cacheKey(q)
 	if g := s.cache[key]; g != nil {
-		return g
+		if !g.FetchedAt.After(time.Now().Add(time.Minute)) && time.Since(g.FetchedAt) <= 7*24*time.Hour {
+			return g
+		}
+		delete(s.cache, key)
 	}
 	if s.dir == "" {
 		return nil
@@ -312,9 +368,10 @@ func (s *Service) cached(q Query) *Guide {
 		return nil
 	}
 	s.cache[key] = &g
+	s.trimMemory()
 	return &g
 }
-func (s *Service) save(key string, g *Guide) {
+func (s *Service) trimMemory() {
 	if len(s.cache) > 128 {
 		keys := make([]string, 0, len(s.cache))
 		for k := range s.cache {
@@ -325,6 +382,9 @@ func (s *Service) save(key string, g *Guide) {
 			delete(s.cache, k)
 		}
 	}
+}
+func (s *Service) save(key string, g *Guide) {
+	s.trimMemory()
 	if s.dir == "" || os.MkdirAll(s.dir, 0700) != nil {
 		return
 	}

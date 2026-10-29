@@ -19,6 +19,7 @@ const {makePlayer,now}=require('./analysis-fixture.cjs');
  if(url.pathname==='/wails/runtime'){const r=route.request().postDataJSON();if(await runtime.handle(route,r))return;const name=methods[r.args?.methodID],args=r.args?.args||[];calls.push({name,args});let result=null;
  if(name==='Snapshot')result=snapshot;
  else if(name==='GuideStatus')result=state;
+ else if(name==='GuideCandidates'){assert.equal(args[0],state.scope);assert.equal(args[1],state.query.champion);state={...state,revision:state.revision+1,candidates:args[2]};result=state;for(const p of pages)await p.evaluate(data=>window._wails.dispatchWailsEvent({name:'leaguepingo:guide',data}),state);}
  else if(name==='SelectGuide'){state={...state,revision:state.revision+1,status:'loading',query:{...state.query,position:args[0],opponent:args[1]}};result=state;}
  else if(name==='Info')result={version:'synthetic',commit:'guides-test',requests:{},shortcut:'Ctrl+Shift+P',holdEnabled:true,holdKey:'Backquote',sidebarEnabled:true,sidebarWidth:320};
  else if(name==='OverlayStatus')result={revision:1,visible:true,mode:view.includes('overlay')?'manual':'sidebar',sidebarEnabled:true,sidebarWidth:320};
@@ -44,5 +45,30 @@ const {makePlayer,now}=require('./analysis-fixture.cjs');
  if(process.env.UI_SCREENSHOT_PREFIX){await main.screenshot({path:process.env.UI_SCREENSHOT_PREFIX+'-main-dark.png'});await side.screenshot({path:process.env.UI_SCREENSHOT_PREFIX+'-sidebar-dark.png'});}
  await main.getByRole('combobox',{name:'界面主题',exact:true}).selectOption('light');if(process.env.UI_SCREENSHOT_PREFIX)await main.screenshot({path:process.env.UI_SCREENSHOT_PREFIX+'-main-light.png'});
  state={...state,revision:state.revision+1,status:'unsupported',message:'当前模式暂无已核验攻略',base:null,matchup:null};for(const p of pages)await p.evaluate(data=>window._wails.dispatchWailsEvent({name:'leaguepingo:guide',data}),state);await side.getByText('当前模式暂无已核验攻略',{exact:true}).waitFor();assert.equal(await side.locator('.guide-build-row').count(),0);
- assert.equal(calls.filter(c=>c.name==='GuideStatus').length,pages.length,'one memory read per window');assert.deepEqual(errors,[]);console.log('PASS: guide/cache/failure/mode/manual-position/cross-window/stale-event and group badges; 880/280 layouts, light/dark (synthetic).');
+
+ const augments=Array.from({length:8},(_,i)=>({id:1000+i,name:`强化${i+1}`,description:i===0?'对手控制较多时提供护盾，保持生存。':'提升技能与装备的配合效果。',tier:i%6,rarity:[1,4,8][i%3],performance:i===0?0:80+i,popularity:2+i/10}));
+ snapshot.queueId=2400;
+ state={...state,revision:state.revision+1,status:'ready',message:'',query:{mode:'aram-mayhem',champion:3,position:'mid',opponent:0,patch:''},modeLabel:'海克斯大乱斗',base:{...guide,augments,runes:[],skills:['Q','W','E'],sourceUrl:'https://op.gg/zh-cn/lol/modes/aram-mayhem/galio/build'},matchup:null,candidates:[],stale:false};
+ for(const p of pages)await p.evaluate(({snapshot,state})=>{window._wails.dispatchWailsEvent({name:'leaguepingo:snapshot',data:snapshot});window._wails.dispatchWailsEvent({name:'leaguepingo:guide',data:state});},{snapshot,state});
+ await side.getByRole('checkbox',{name:'比较强化1',exact:true}).waitFor();
+ assert.equal(await side.getByRole('combobox',{name:'攻略分路'}).count(),0,'Mayhem must not require lanes');
+ const guideCalls=calls.filter(c=>c.name==='SelectGuide').length;
+ await side.getByRole('checkbox',{name:'比较强化1',exact:true}).check();
+ await side.getByRole('checkbox',{name:'比较强化2',exact:true}).check();
+ await side.getByRole('checkbox',{name:'比较强化3',exact:true}).check();
+ await overlay.getByRole('button',{name:'本局攻略',exact:true}).click();
+ await overlay.locator('.compare-augment').nth(2).waitFor();
+ assert.equal(await side.getByRole('checkbox',{name:'比较强化4',exact:true}).isDisabled(),true);
+ assert.equal(await overlay.locator('.compare-augment').count(),3,'choices shared across windows');
+ assert.equal(await overlay.locator('.guide-panel').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(26, 36, 39)','overlay must keep dark contrast in light theme');
+ await side.getByRole('searchbox',{name:'搜索强化符文'}).fill('强化8');assert.equal(await side.locator('.augment-row').count(),1);
+ await side.getByRole('searchbox',{name:'搜索强化符文'}).fill('');
+ await side.getByRole('combobox',{name:'强化符文品质'}).selectOption('8');assert.equal(await side.locator('.augment-row').count(),2);
+ assert.equal(calls.filter(c=>c.name==='SelectGuide').length,guideCalls,'search/quality/compare must not fetch guides');
+ for(const p of [main,side,overlay])assert(await p.locator('.mayhem-augments').evaluate(e=>e.scrollWidth<=e.clientWidth),'Mayhem overflow');
+ assert(await side.locator('.compare-augment').first().innerText().then(t=>t.includes('表现分 0.0')),'known zero preserved');
+ if(process.env.UI_SCREENSHOT_PREFIX){await main.screenshot({path:process.env.UI_SCREENSHOT_PREFIX+'-mayhem-main.png'});await side.screenshot({path:process.env.UI_SCREENSHOT_PREFIX+'-mayhem-sidebar.png'});await overlay.screenshot({path:process.env.UI_SCREENSHOT_PREFIX+'-mayhem-overlay.png'});}
+ await side.getByRole('button',{name:'清空',exact:true}).click();await main.locator('.compare-augment').waitFor({state:'detached'});
+ state={...state,revision:state.revision+1,status:'idle',query:{...state.query,champion:99},base:null,candidates:[]};for(const p of pages)await p.evaluate(data=>window._wails.dispatchWailsEvent({name:'leaguepingo:guide',data}),state);assert.equal(await side.locator('.augment-row').count(),0,'old champion augments cleared');
+ assert.equal(calls.filter(c=>c.name==='GuideStatus').length,pages.length,'one memory read per window');assert.deepEqual(errors,[]);console.log('PASS: Mayhem candidates/search/quality/shared-selection/dark-overlay/no-fetch; guide/cache/failure/mode/manual-position/cross-window/stale-event and group badges; 880/280 layouts, light/dark (synthetic).');
  }finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1});

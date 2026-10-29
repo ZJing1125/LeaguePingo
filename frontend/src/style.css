@@ -990,6 +990,14 @@ select {
   padding: 14px 22px;
   gap: 0;
 }
+.overlay-shell .guide-panel {
+ --panel: #1a2427;
+ --surface-2: #253531;
+ --input-bg: #141c20;
+ --button-bg: #253531;
+ --button-text: #e5eadb;
+ --hover: #30463c;
+}
 .overlay-head {
   background: none;
   border: 0;

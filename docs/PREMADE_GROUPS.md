@@ -23,3 +23,5 @@
 自动回归覆盖同阵营分组、原始标识不导出、未知不补单排、SGP比赛/身份校验、双方关联、一次任务和迟到隔离。实际语义未验证前保留“同组”而非“已确认双排”的文案。
 
 来源参考：LeagueAkari computed-state.ts的getLiveTeamParticipantGroups、additional-info-controller.ts及sgp/gsm.ts（56cdfde00e56148f4641d1a8cf86acb66e903124）。本批独立实现，无运行依赖或源码复制。
+
+P1后续核验包含海克斯大乱斗2400：现有匿名Windows审计入口可以读取其当前LCU/GSM结构；在真实双方组队语义和覆盖率验收通过前，engine仍不开放2400的分组标记。当前Linux无游戏客户端与双方真实组队基准，不能完成该验收。

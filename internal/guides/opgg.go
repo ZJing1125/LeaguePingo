@@ -89,6 +89,9 @@ func (o *OPgg) Fetch(ctx context.Context, q Query) (*Guide, error) {
 	if !validQuery(q) {
 		return nil, errors.New("当前模式或英雄暂无已核验攻略")
 	}
+	if q.Mode == "aram-mayhem" {
+		return o.fetchMayhem(ctx, q)
+	}
 	headers := http.Header{"Content-Type": {"application/json"}, "Accept": {"application/json, text/event-stream"}}
 	init, err := o.rpc(ctx, headers, 1, "initialize", map[string]any{"protocolVersion": "2024-11-05", "capabilities": map[string]any{}, "clientInfo": map[string]string{"name": "LeaguePingo", "version": "1"}})
 	if err != nil {

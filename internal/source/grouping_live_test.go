@@ -32,6 +32,13 @@ func TestLiveCurrentGrouping(t *testing.T) {
 	if err != nil || id <= 0 {
 		t.Fatal("current match not confirmed")
 	}
+	meta := s.SessionMetadata()
+	mode := "other"
+	switch meta.GameMode {
+	case "ARAM", "ARAM_MAYHEM", "CLASSIC":
+		mode = meta.GameMode
+	}
+	t.Logf("queue=%d map=%d mode=%s", meta.QueueID, meta.MapID, mode)
 	extra, remoteErr := s.Grouping(ctx, id)
 	if remoteErr != nil {
 		t.Log("SGP grouping unavailable; local fields only")

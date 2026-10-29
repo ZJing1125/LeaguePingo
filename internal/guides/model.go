@@ -44,16 +44,28 @@ type Tip struct {
 	Label string `json:"label"`
 	Text  string `json:"text"`
 }
+type Augment struct {
+	ID          int      `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Tier        int      `json:"tier"`
+	Rarity      int      `json:"rarity"`
+	Performance *float64 `json:"performance"`
+	Popularity  *float64 `json:"popularity"`
+}
 type Guide struct {
-	Query     Query          `json:"query"`
-	Version   string         `json:"version"`
-	FetchedAt time.Time      `json:"fetchedAt"`
-	SourceURL string         `json:"sourceUrl"`
-	Builds    []BuildSection `json:"builds"`
-	Runes     []int          `json:"runes"`
-	RuneNames []string       `json:"runeNames"`
-	Skills    []string       `json:"skills"`
-	Tips      []Tip          `json:"tips"`
+	Query           Query          `json:"query"`
+	Version         string         `json:"version"`
+	FetchedAt       time.Time      `json:"fetchedAt"`
+	SourceURL       string         `json:"sourceUrl"`
+	Builds          []BuildSection `json:"builds"`
+	Runes           []int          `json:"runes"`
+	RuneNames       []string       `json:"runeNames"`
+	Skills          []string       `json:"skills"`
+	Tips            []Tip          `json:"tips"`
+	Augments        []Augment      `json:"augments,omitempty"`
+	AugmentsOmitted int            `json:"augmentsOmitted,omitempty"`
+	Notice          string         `json:"notice,omitempty"`
 }
 type State struct {
 	Revision         uint64 `json:"revision"`
@@ -68,9 +80,17 @@ type State struct {
 	Matchup          *Guide `json:"matchup"`
 	Stale            bool   `json:"stale"`
 	VersionMismatch  bool   `json:"versionMismatch"`
+	SourceURL        string `json:"sourceUrl,omitempty"`
+	Candidates       []int  `json:"candidates,omitempty"`
 }
 
 func mode(s core.Snapshot) (string, string, bool) {
+	if s.QueueID == 2400 {
+		if (s.MapID != 0 && s.MapID != 12) || (s.GameMode != "" && !strings.EqualFold(s.GameMode, "ARAM") && !strings.EqualFold(s.GameMode, "ARAM_MAYHEM")) {
+			return "", "当前模式暂无已核验攻略", false
+		}
+		return "aram-mayhem", "海克斯大乱斗", false
+	}
 	if (s.QueueID == 420 || s.QueueID == 440 || s.QueueID == 400 || s.QueueID == 430 || s.QueueID == 490) && ((s.MapID != 0 && s.MapID != 11) || (s.GameMode != "" && !strings.EqualFold(s.GameMode, "CLASSIC"))) {
 		return "", "当前模式暂无已核验攻略", false
 	}
@@ -104,5 +124,5 @@ func validPosition(p string) bool {
 	return p == "top" || p == "jungle" || p == "mid" || p == "adc" || p == "support"
 }
 func validQuery(q Query) bool {
-	return champions[q.Champion] != "" && (q.Opponent == 0 || champions[q.Opponent] != "") && validPosition(q.Position) && (q.Mode == "ranked" || q.Mode == "flex" || q.Mode == "aram") && (q.Opponent == 0 || q.Mode == "ranked")
+	return champions[q.Champion] != "" && (q.Opponent == 0 || champions[q.Opponent] != "") && validPosition(q.Position) && (q.Mode == "ranked" || q.Mode == "flex" || q.Mode == "aram" || q.Mode == "aram-mayhem") && (q.Opponent == 0 || q.Mode == "ranked")
 }
