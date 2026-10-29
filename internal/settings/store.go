@@ -21,6 +21,7 @@ type Rect struct {
 	Height int `json:"height"`
 }
 type Config struct {
+	AutoSkipHonor     bool   `json:"autoSkipHonor"`
 	AutoReturnEnabled bool   `json:"autoReturnEnabled"`
 	AutoQueueEnabled  bool   `json:"autoQueueEnabled"`
 	AutoQueueDelay    int    `json:"autoQueueDelay"`
@@ -175,4 +176,10 @@ func (s *Store) SetPostGame(ret, queue bool, delay int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.config.AutoReturnEnabled, s.config.AutoQueueEnabled, s.config.AutoQueueDelay = ret, queue, delay
+}
+
+func (s *Store) SetSkipHonor(enabled bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.config.AutoSkipHonor = enabled
 }

@@ -6,6 +6,7 @@
 import * as diagnostics$0 from "./internal/diagnostics/models.js";
 
 export interface AppInfo {
+    "autoSkipHonor": boolean;
     "autoReturnEnabled": boolean;
     "autoQueueEnabled": boolean;
     "autoQueueDelay": number;

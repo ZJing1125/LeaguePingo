@@ -148,3 +148,30 @@ func TestPostGameDefaultsAndPersistence(t *testing.T) {
 		t.Fatal("invalid delay did not disarm post-game automation")
 	}
 }
+
+func TestSkipHonorIndependentPreferenceAndOldConfigs(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	s, _ := Open(path)
+	if s.Snapshot().AutoSkipHonor {
+		t.Fatal("skip honor enabled by default")
+	}
+	s.SetSkipHonor(true)
+	if err := s.Save(); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Open(path)
+	if err != nil || !s.Snapshot().AutoSkipHonor || s.Snapshot().AutoReturnEnabled || s.Snapshot().AutoQueueEnabled {
+		t.Fatal("skip honor preference coupled to return/queue", err)
+	}
+	s.SetPostGame(true, true, 15)
+	if !s.Snapshot().AutoSkipHonor {
+		t.Fatal("return config overwrote skip preference")
+	}
+	if err := os.WriteFile(path, []byte(`{"schema":1,"autoReturnEnabled":true,"autoQueueEnabled":true,"autoQueueDelay":10}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	s, err = Open(path)
+	if err != nil || s.Snapshot().AutoSkipHonor || !s.Snapshot().AutoReturnEnabled {
+		t.Fatal("old configuration unexpectedly enabled skip", err)
+	}
+}

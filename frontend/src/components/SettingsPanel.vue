@@ -12,11 +12,12 @@ defineEmits<{ close: []; theme: [value: ThemePreference] }>();
 const areas = [{ id: 'appearance', label: '外观' }, { id: 'game', label: '游戏辅助' }, { id: 'diagnostics', label: '诊断与关于' }];
 const area = ref('appearance');
 const holdEnabled = ref(true), holdKey = ref('Backquote'), shortcut = ref('Ctrl+Shift+P');
+const autoSkipHonor=ref(false);
 const autoReturnEnabled=ref(false),autoQueueEnabled=ref(false),autoQueueDelay=ref(10);
 const autoAcceptEnabled=ref(false), autoAcceptDelay=ref(1);
 const sidebarEnabled=ref(true), previewEnabled=ref(true), sidebarWidth=ref(320);
 const info = ref<AppInfo | null>(null), busy = ref(false), message = ref(''), error = ref('');
-const dirty = computed(() => !!info.value && (autoReturnEnabled.value !== (info.value.autoReturnEnabled ?? false) || autoQueueEnabled.value !== (info.value.autoQueueEnabled ?? false) || autoQueueDelay.value !== (info.value.autoQueueDelay ?? 10) || autoAcceptEnabled.value !== (info.value.autoAcceptEnabled ?? false) || autoAcceptDelay.value !== (info.value.autoAcceptDelay ?? 1) || shortcut.value !== info.value.shortcut || holdEnabled.value !== (info.value.holdEnabled ?? true) || holdKey.value !== (info.value.holdKey || 'Backquote') || sidebarEnabled.value !== (info.value.sidebarEnabled ?? true) || previewEnabled.value !== (info.value.previewEnabled ?? true) || sidebarWidth.value !== (info.value.sidebarWidth || 320)));
+const dirty = computed(() => !!info.value && (autoSkipHonor.value !== (info.value.autoSkipHonor ?? false) || autoReturnEnabled.value !== (info.value.autoReturnEnabled ?? false) || autoQueueEnabled.value !== (info.value.autoQueueEnabled ?? false) || autoQueueDelay.value !== (info.value.autoQueueDelay ?? 10) || autoAcceptEnabled.value !== (info.value.autoAcceptEnabled ?? false) || autoAcceptDelay.value !== (info.value.autoAcceptDelay ?? 1) || shortcut.value !== info.value.shortcut || holdEnabled.value !== (info.value.holdEnabled ?? true) || holdKey.value !== (info.value.holdKey || 'Backquote') || sidebarEnabled.value !== (info.value.sidebarEnabled ?? true) || previewEnabled.value !== (info.value.previewEnabled ?? true) || sidebarWidth.value !== (info.value.sidebarWidth || 320)));
 const metrics = computed(() => Object.entries(info.value?.requests ?? {}).flatMap(([category, metric]) => metric ? [{ category, ...metric }] : []));
 const panel = ref<HTMLElement | null>(null);
 const opener = document.activeElement;
@@ -39,7 +40,7 @@ async function load() {
   try {
     const result = await Service.Info();
     if (!alive) return;
-    info.value = result; shortcut.value = result.shortcut;
+    info.value = result; shortcut.value = result.shortcut; autoSkipHonor.value=result.autoSkipHonor ?? false;
     autoReturnEnabled.value=result.autoReturnEnabled ?? false;autoQueueEnabled.value=result.autoQueueEnabled ?? false;autoQueueDelay.value=result.autoQueueDelay ?? 10;
     autoAcceptEnabled.value=result.autoAcceptEnabled ?? false;autoAcceptDelay.value=result.autoAcceptDelay ?? 1;
     holdEnabled.value = result.holdEnabled ?? true; holdKey.value = result.holdKey || 'Backquote';
@@ -62,14 +63,14 @@ async function saveGame() {
     if(autoAcceptEnabled.value !== (info.value.autoAcceptEnabled ?? false) || autoAcceptDelay.value !== (info.value.autoAcceptDelay ?? 1)) {
       info.value=await Service.ConfigureAutoAccept(autoAcceptEnabled.value,autoAcceptDelay.value);applied=true;
     }
-    if(autoReturnEnabled.value !== (info.value.autoReturnEnabled ?? false) || autoQueueEnabled.value !== (info.value.autoQueueEnabled ?? false) || autoQueueDelay.value !== (info.value.autoQueueDelay ?? 10)) {
-      info.value=await Service.ConfigurePostGame(autoReturnEnabled.value,autoQueueEnabled.value,autoQueueDelay.value);applied=true;
+    if(autoSkipHonor.value !== (info.value.autoSkipHonor ?? false) || autoReturnEnabled.value !== (info.value.autoReturnEnabled ?? false) || autoQueueEnabled.value !== (info.value.autoQueueEnabled ?? false) || autoQueueDelay.value !== (info.value.autoQueueDelay ?? 10)) {
+      info.value=await Service.ConfigurePostGame(autoReturnEnabled.value,autoQueueEnabled.value,autoQueueDelay.value,autoSkipHonor.value);applied=true;
     }
     message.value = '游戏辅助设置已保存。';
   } catch (reason) { error.value = `${applied ? '部分设置已生效；' : ''}${errorMessage(reason)}`; }
   finally { busy.value = false; }
 }
-function defaults() { autoReturnEnabled.value=false;autoQueueEnabled.value=false;autoQueueDelay.value=10; autoAcceptEnabled.value=false;autoAcceptDelay.value=1; shortcut.value = 'Ctrl+Shift+P'; holdEnabled.value = true; holdKey.value = 'Backquote'; sidebarEnabled.value=true;previewEnabled.value=true;sidebarWidth.value=320; message.value = '已恢复默认选项，保存后生效。'; }
+function defaults() { autoSkipHonor.value=false;autoReturnEnabled.value=false;autoQueueEnabled.value=false;autoQueueDelay.value=10; autoAcceptEnabled.value=false;autoAcceptDelay.value=1; shortcut.value = 'Ctrl+Shift+P'; holdEnabled.value = true; holdKey.value = 'Backquote'; sidebarEnabled.value=true;previewEnabled.value=true;sidebarWidth.value=320; message.value = '已恢复默认选项，保存后生效。'; }
 async function exportReport() {
   busy.value = true; error.value = ''; message.value = '';
   try { message.value = `已保存本地诊断：${await Service.ExportDiagnostics()}`; }
@@ -101,7 +102,7 @@ onUnmounted(() => { alive = false; void nextTick(() => { if (opener instanceof H
         </template>
         <form v-else-if="area === 'game'" class="settings-game" @submit.prevent="saveGame">
           <section class="settings-group"><h2>自动接受对局 <ExperimentalBadge feature="自动接受对局"/></h2><p class="muted">国服实机验证未完成。默认关闭，开启后按设定延迟接受；可跳过本次，不发送拒绝、不模拟点击。</p><div class="settings-companion"><label><input v-model="autoAcceptEnabled" type="checkbox" aria-label="启用自动接受对局" :disabled="busy"/>启用自动接受对局</label><label>接受延迟<select v-model.number="autoAcceptDelay" aria-label="自动接受延迟" :disabled="busy"><option v-for="seconds in [0,1,3,5]" :key="seconds" :value="seconds">{{ seconds ? `${seconds} 秒` : '立即' }}</option></select></label></div><p class="muted" v-if="info">当前生效：{{ info.autoAcceptEnabled ? `已开启 · ${info.autoAcceptDelay ? `${info.autoAcceptDelay} 秒后接受` : '立即接受'}` : '已关闭' }}</p></section>
-          <section class="settings-group"><h2>赛后返回与下一局 <ExperimentalBadge feature="赛后返回与自动排队"/></h2><p class="muted">国服实机验证未完成。两个开关默认关闭；保留复盘后尝试返回，不自动投票或跳过奖励。只有单人或队长且房间就绪才排队，可取消本次。</p><div class="settings-companion"><label><input v-model="autoReturnEnabled" type="checkbox" aria-label="赛后自动返回房间" :disabled="busy"/>赛后自动返回房间</label><label><input v-model="autoQueueEnabled" type="checkbox" aria-label="返回后自动排队" :disabled="busy"/>返回后自动排队</label><label>排队倒计时<select v-model.number="autoQueueDelay" aria-label="自动排队倒计时" :disabled="busy"><option v-for="seconds in [5,10,15,20]" :key="seconds" :value="seconds">{{ seconds }} 秒</option></select></label></div><p v-if="autoQueueEnabled && !autoReturnEnabled" class="muted">手动返回房间后，才会开始排队倒计时。</p><p class="muted" v-if="info">当前生效：返回{{ info.autoReturnEnabled ? '开启' : '关闭' }} · 排队{{ info.autoQueueEnabled ? `开启 / ${info.autoQueueDelay} 秒` : '关闭' }}</p></section>
+          <section class="settings-group"><h2>赛后点赞与下一局 <ExperimentalBadge feature="赛后返回与自动排队"/></h2><p class="muted">国服实机验证未完成。三个选项默认关闭；保留复盘后尝试返回，不自动投票或跳过奖励。只有单人或队长且房间就绪才排队，可取消本次。</p><div class="settings-companion"><label><input v-model="autoSkipHonor" type="checkbox" aria-label="自动跳过点赞" :disabled="busy"/>自动跳过点赞</label><small class="muted">可单独开启，3 秒倒计时内可取消。不会替你选择点赞对象；已手动选择时等待你完成。</small><label><input v-model="autoReturnEnabled" type="checkbox" aria-label="赛后自动返回房间" :disabled="busy"/>赛后自动返回房间</label><label><input v-model="autoQueueEnabled" type="checkbox" aria-label="返回后自动排队" :disabled="busy"/>返回后自动排队</label><label>排队倒计时<select v-model.number="autoQueueDelay" aria-label="自动排队倒计时" :disabled="busy"><option v-for="seconds in [5,10,15,20]" :key="seconds" :value="seconds">{{ seconds }} 秒</option></select></label></div><p v-if="autoQueueEnabled && !autoReturnEnabled" class="muted">手动返回房间后，才会开始排队倒计时。</p><p class="muted" v-if="info">当前生效：跳过点赞{{ info.autoSkipHonor ? '开启' : '关闭' }} · 返回{{ info.autoReturnEnabled ? '开启' : '关闭' }} · 排队{{ info.autoQueueEnabled ? `开启 / ${info.autoQueueDelay} 秒` : '关闭' }}</p></section>
           <section class="settings-group"><h2>客户端侧栏与开局快览</h2><p class="muted">侧栏优先靠左，空间不足时换右侧或折叠。加载游戏时自动展示一次，6 秒后收起。</p><div class="settings-companion"><label><input v-model="sidebarEnabled" type="checkbox" :disabled="busy"/>启用客户端侧栏</label><label><input v-model="previewEnabled" type="checkbox" :disabled="busy"/>开局自动展示快览</label><label>侧栏宽度<select v-model.number="sidebarWidth" :disabled="busy" aria-label="侧栏宽度"><option v-for="width in [280,300,320,340,360,380,400,420]" :key="width" :value="width">{{ width }} px</option></select></label></div></section>
           <section class="settings-group"><h2>局内按住快览</h2><p class="muted">加载和对局中，游戏前台按住显示，松开隐藏。鼠标和按键继续交给游戏。</p>
             <div class="settings-hold"><label><input v-model="holdEnabled" type="checkbox" aria-label="启用局内按住快览" :disabled="busy" />启用按住快览</label><select v-model="holdKey" aria-label="局内按住键" :disabled="busy"><option value="Backquote">~ / 反引号（无需 Shift）</option><option v-for="key in ['F8', 'F9', 'F10']" :key="key" :value="key">{{ key }}</option></select></div>
@@ -115,7 +116,7 @@ onUnmounted(() => { alive = false; void nextTick(() => { if (opener instanceof H
         <template v-else>
           <h2>LeaguePingo {{ info?.version ?? '加载中' }} · {{ info?.commit ?? '—' }}</h2>
           <p class="muted">构建 {{ info?.buildTime ?? '—' }} · 游戏资源 {{ assetVersion }}</p>
-          <section class="settings-validation" aria-label="国服实机验证状态"><h2>实机验证</h2><p class="muted">以下能力仍属实验性：自动接受、赛后返回与排队、双方同组标识、英雄攻略、本地战绩缓存与恢复。自动化检查通过后，仍需在实际客户端中逐项核对。</p></section>
+          <section class="settings-validation" aria-label="国服实机验证状态"><h2>实机验证</h2><p class="muted">以下能力仍属实验性：自动接受、赛后跳过点赞、返回与排队、双方同组标识、英雄攻略、本地战绩缓存与恢复。自动化检查通过后，仍需在实际客户端中逐项核对。</p></section>
           <h2>本地诊断</h2><p class="muted">导出版本、请求汇总与运行状态，便于排查问题。文件不含玩家身份、战绩或鉴权信息，由你选择是否分享。</p>
           <div v-if="info" class="runtime-summary"><span>Go 堆 {{ (info.goHeapBytes / 1048576).toFixed(1) }} MiB</span><span>协程 {{ info.goroutines }}</span><small>{{ info.performanceScope }}</small></div>
           <table v-if="metrics.length" class="diagnostic-table"><thead><tr><th>类别</th><th>请求 / 失败</th><th>平均 / 最慢 ms</th></tr></thead><tbody><tr v-for="metric in metrics" :key="metric.category"><td>{{ metric.category }}</td><td>{{ metric.calls }} / {{ metric.failed }}</td><td>{{ metric.calls ? Math.round(metric.totalMs / metric.calls) : '—' }} / {{ metric.maxMs }}</td></tr></tbody></table>

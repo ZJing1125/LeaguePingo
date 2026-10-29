@@ -19,14 +19,20 @@ func (e *Engine) observePostGameLocked() {
 	}
 	e.postGame.Observe(client, o)
 }
-func (e *Engine) ConfigurePostGame(ret, queue bool, delay int) error {
+func (e *Engine) ConfigurePostGame(ret, queue bool, delay int, skipHonor ...bool) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if err := e.postGame.Configure(ret, queue, delay); err != nil {
+	if err := e.postGame.Configure(ret, queue, delay, skipHonor...); err != nil {
 		return err
 	}
 	e.observePostGameLocked()
 	return nil
+}
+func (e *Engine) ConfigureSkipHonor(enabled bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.postGame.ConfigureSkipHonor(enabled)
+	e.observePostGameLocked()
 }
 func (e *Engine) PostGameStatus() postgame.State          { return e.postGame.Snapshot() }
 func (e *Engine) PostGameChanges() <-chan postgame.State  { return e.postGame.Changes() }

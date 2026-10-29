@@ -114,13 +114,13 @@ func TestPostGameSaveAppliesOnlyAfterPersistence(t *testing.T) {
 	store, _ := settings.Open(filepath.Join(dir, "settings.json"))
 	e := engine.New(nil, nil)
 	s := &AppService{settings: store, engine: e}
-	if _, err := s.ConfigurePostGame(true, true, 10); err != nil {
+	if _, err := s.ConfigurePostGame(true, true, 10, false); err != nil {
 		t.Fatal(err)
 	}
 	if !e.PostGameStatus().ReturnEnabled || !e.PostGameStatus().QueueEnabled {
 		t.Fatal("post-game setting not applied")
 	}
-	if _, err := s.ConfigurePostGame(true, true, 0); err == nil {
+	if _, err := s.ConfigurePostGame(true, true, 0, false); err == nil {
 		t.Fatal("unsupported delay accepted")
 	}
 	blocker := filepath.Join(dir, "file")
@@ -130,10 +130,34 @@ func TestPostGameSaveAppliesOnlyAfterPersistence(t *testing.T) {
 	broken, _ := settings.Open(filepath.Join(blocker, "settings.json"))
 	s.settings = broken
 	_ = e.ConfigurePostGame(false, false, 10)
-	if _, err := s.ConfigurePostGame(true, true, 15); err == nil {
+	if _, err := s.ConfigurePostGame(true, true, 15, false); err == nil {
 		t.Fatal("save failure hidden")
 	}
 	if broken.Snapshot().AutoQueueEnabled || e.PostGameStatus().QueueEnabled {
 		t.Fatal("failed save enabled automatic queue")
+	}
+}
+
+func TestSkipHonorSaveAppliesIndependentlyAndRollsBack(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := settings.Open(filepath.Join(dir, "settings.json"))
+	e := engine.New(nil, nil)
+	s := &AppService{settings: store, engine: e}
+	info, err := s.ConfigurePostGame(false, false, 10, true)
+	if err != nil || !info.AutoSkipHonor || !e.PostGameStatus().SkipHonor || e.PostGameStatus().ReturnEnabled || e.PostGameStatus().QueueEnabled {
+		t.Fatal("skip preference not independently applied", err)
+	}
+	blocker := filepath.Join(dir, "file")
+	if err := os.WriteFile(blocker, []byte("file"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	broken, _ := settings.Open(filepath.Join(blocker, "settings.json"))
+	s.settings = broken
+	e.ConfigureSkipHonor(false)
+	if _, err := s.ConfigurePostGame(false, false, 10, true); err == nil {
+		t.Fatal("save failure hidden")
+	}
+	if broken.Snapshot().AutoSkipHonor || e.PostGameStatus().SkipHonor {
+		t.Fatal("failed save enabled skip")
 	}
 }

@@ -51,8 +51,8 @@ export function ConfigureHold(enabled: boolean, key: string): $CancellablePromis
     return $Call.ByID(3168600939, enabled, key);
 }
 
-export function ConfigurePostGame(ret: boolean, queue: boolean, delay: number): $CancellablePromise<$models.AppInfo> {
-    return $Call.ByID(3851110686, ret, queue, delay);
+export function ConfigurePostGame(ret: boolean, queue: boolean, delay: number, skipHonor: boolean): $CancellablePromise<$models.AppInfo> {
+    return $Call.ByID(3851110686, ret, queue, delay, skipHonor);
 }
 
 export function ConfigureShortcut(key: string): $CancellablePromise<$models.AppInfo> {

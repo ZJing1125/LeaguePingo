@@ -394,5 +394,11 @@ func (s *TencentLCU) MatchDetail(ctx context.Context, gameID int64, target strin
 func (s *TencentLCU) LobbyControl(ctx context.Context) (core.LobbyControl, error) {
 	return s.client.LobbyControl(ctx)
 }
-func (s *TencentLCU) PlayAgain(ctx context.Context) error   { return s.client.PlayAgain(ctx) }
+func (s *TencentLCU) PlayAgain(ctx context.Context) error { return s.client.PlayAgain(ctx) }
+func (s *TencentLCU) HonorBallot(ctx context.Context) (int64, bool, error) {
+	return s.client.HonorBallot(ctx)
+}
+func (s *TencentLCU) CompleteHonorBallot(ctx context.Context) error {
+	return s.client.CompleteHonorBallot(ctx)
+}
 func (s *TencentLCU) StartSearch(ctx context.Context) error { return s.client.StartSearch(ctx) }

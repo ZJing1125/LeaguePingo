@@ -29,7 +29,7 @@ async function main(){
     else if(name==='Info')result={version:'synthetic',commit:'analysis-test',requests:{},shortcut:'Ctrl+Shift+P',holdEnabled:true,holdKey:'Backquote'};
     else if(name==='OverlayStatus')result={revision:0,visible:false,sidebarEnabled:true,sidebarWidth:320};
     else if(['CurrentPlayer','Lookup','RefreshData','EnsureProfile'].includes(name))result=player;
-    else if(name==='HistoryPage')result={matches:Array.from({length:20},(_,i)=>({...player.history[i],gameId:70021+i,playedAt:new Date(Date.parse(now)-(20+i)*4*3600000).toISOString()})),meta:{fetchedAt:now,returned:20,parsed:20,excluded:0},offset:args[2],nextOffset:args[2]+20,hasMore:false};
+    else if(name==='HistoryPage'){assert.equal(args[2],20,'analysis fixture must not scan beyond its one bounded warm/page read');result={matches:Array.from({length:20},(_,i)=>({...player.history[i],gameId:70021+i,playedAt:new Date(Date.parse(now)-(20+i)*4*3600000).toISOString()})),meta:{fetchedAt:now,returned:20,parsed:20,excluded:0},offset:args[2],nextOffset:args[2]+20,hasMore:false};}
     else if(name==='MatchDetail')result=makeDetail(args[2]);
     else if(name==='MatchTimeline'){
      if(failTimeline)return route.fulfill({status:500,json:{message:'本场时间线暂未取得'}});
@@ -69,14 +69,17 @@ async function main(){
   assert.equal(calls.filter(n=>n==='MatchDetail').length,1,'opening one game must load exactly that game detail');
   assert.equal(await page.locator('.full-match-detail tbody tr').count(),10);
   assert.equal(await page.locator('.detail-loadout').first().locator('.game-icon').count(),7);
-  const before=calls.length;
+  // Existing idle ranked warm-up may finish while switching analysis tabs.
+  // Its single bounded HistoryPage is checked above; all other calls stay fixed.
+  const analysisCalls=()=>calls.filter(n=>n!=='HistoryPage').length;
+  const before=analysisCalls();
   await page.getByRole('tab',{name:'团队分析',exact:true}).click();
   await page.locator('.team-analysis').waitFor();
   assert.equal(await page.locator('.team-metric').count(),6);
-  assert.equal(calls.length,before,'team analysis fetched unrequested data');
+  assert.equal(analysisCalls(),before,'team analysis fetched unrequested data');
   await shot('team-dark');
   await page.getByRole('tab',{name:'时间线',exact:true}).click();
-  assert.equal(calls.length,before,'opening timeline tab must not scan games');
+  assert.equal(analysisCalls(),before,'opening timeline tab must not scan games');
   await page.getByRole('button',{name:'读取本场时间线',exact:true}).click();
   await page.locator('.match-timeline .timeline-map').waitFor();
   assert.equal(calls.filter(n=>n==='MatchTimeline').length,1);

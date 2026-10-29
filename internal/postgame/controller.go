@@ -11,6 +11,7 @@ import (
 )
 
 type State struct {
+	SkipHonor     bool      `json:"skipHonor"`
 	Revision      uint64    `json:"revision"`
 	ReturnEnabled bool      `json:"returnEnabled"`
 	QueueEnabled  bool      `json:"queueEnabled"`
@@ -87,7 +88,7 @@ func (c *Controller) publishLocked(status string, due time.Time) {
 }
 func (c *Controller) idleLocked() {
 	s := "armed"
-	if !c.state.ReturnEnabled && !c.state.QueueEnabled {
+	if !c.state.ReturnEnabled && !c.state.QueueEnabled && !c.state.SkipHonor {
 		s = "off"
 	}
 	c.publishLocked(s, time.Time{})
@@ -101,21 +102,36 @@ func (c *Controller) stopLocked(status string) {
 	c.publishLocked(status, time.Time{})
 	c.signal()
 }
-func (c *Controller) Configure(ret, queue bool, delay int) error {
+func (c *Controller) Configure(ret, queue bool, delay int, skipHonor ...bool) error {
 	if !ValidDelay(delay) {
 		return errors.New("排队延迟仅支持 5、10、15、20 秒")
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.state.ReturnEnabled == ret && c.state.QueueEnabled == queue && c.state.DelaySeconds == delay {
+	skip := c.state.SkipHonor
+	if len(skipHonor) > 0 {
+		skip = skipHonor[0]
+	}
+	if c.state.ReturnEnabled == ret && c.state.QueueEnabled == queue && c.state.DelaySeconds == delay && c.state.SkipHonor == skip {
 		return nil
 	}
 	c.stopLocked("cancelled")
-	c.state.ReturnEnabled, c.state.QueueEnabled, c.state.DelaySeconds = ret, queue, delay
+	c.state.ReturnEnabled, c.state.QueueEnabled, c.state.DelaySeconds, c.state.SkipHonor = ret, queue, delay, skip
 	// Publish config changes even when the visible status stays the same.
 	c.state.Status = ""
 	c.idleLocked()
 	return nil
+}
+func (c *Controller) ConfigureSkipHonor(enabled bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.state.SkipHonor == enabled {
+		return
+	}
+	c.stopLocked("cancelled")
+	c.state.SkipHonor = enabled
+	c.state.Status = ""
+	c.idleLocked()
 }
 func (c *Controller) Cancel() (State, error) {
 	c.mu.Lock()
@@ -174,7 +190,7 @@ func (c *Controller) Observe(client source.PostGameSource, o Observation) {
 		c.candidate = nil
 		return
 	}
-	if !c.state.ReturnEnabled && !c.state.QueueEnabled {
+	if !c.state.ReturnEnabled && !c.state.QueueEnabled && !c.state.SkipHonor {
 		return
 	}
 	if c.candidate == nil || c.candidate.id == c.attempted || o.ReviewID != c.candidate.id || !completion(o.Phase) {
@@ -275,10 +291,11 @@ func (c *Controller) sameAccount(ctx context.Context, job *task) bool {
 	req, cancel := context.WithTimeout(ctx, c.timing.request)
 	defer cancel()
 	id, err := job.client.AccountIdentity(req)
-	return err == nil && id == job.account && id != "" && ctx.Err() == nil
+	return err == nil && id == job.account && id != "" && ctx.Err() == nil && req.Err() == nil
 }
 func (c *Controller) runTask(ctx context.Context, job *task) {
 	var preAt, returnDue, returnSent, lobbyAt, queueDue time.Time
+	honor := honorProgress{}
 	party, members := "", ""
 	for {
 		if ctx.Err() != nil {
@@ -287,6 +304,7 @@ func (c *Controller) runTask(ctx context.Context, job *task) {
 		c.mu.Lock()
 		valid := c.job == job
 		ret, queue, delay, settled := c.state.ReturnEnabled, c.state.QueueEnabled, c.state.DelaySeconds, c.settled
+		skip := c.state.SkipHonor
 		c.mu.Unlock()
 		if !valid {
 			return
@@ -308,6 +326,35 @@ func (c *Controller) runTask(ctx context.Context, job *task) {
 			return
 		}
 		now := time.Now()
+		if skip && !honor.done {
+			if phase == "WaitingForStats" || (phase != "Lobby" && !settled && now.Sub(job.started) < c.timing.settlement) {
+				c.status(job, "waiting-result", time.Time{})
+				if !pause(ctx, c.timing.probe) {
+					return
+				}
+				continue
+			}
+			ready, stop := c.advanceHonor(ctx, job, phase, &honor)
+			if stop {
+				return
+			}
+			if !ready {
+				if !pause(ctx, c.timing.probe) {
+					return
+				}
+				continue
+			}
+			// The ceremony request/verification may consume time or change phase.
+			continue
+		}
+		if skip && honor.done && !ret && !queue {
+			status := "honor-not-needed"
+			if !honor.sent.IsZero() {
+				status = "honor-skipped"
+			}
+			c.status(job, status, time.Time{})
+			return
+		}
 		if phase != "Lobby" {
 			if !returnSent.IsZero() {
 				if now.Sub(returnSent) > c.timing.verify {
@@ -319,7 +366,7 @@ func (c *Controller) runTask(ctx context.Context, job *task) {
 			} else if phase == "WaitingForStats" || (!settled && now.Sub(job.started) < c.timing.settlement) {
 				c.status(job, "waiting-result", time.Time{})
 			} else {
-				if phase == "PreEndOfGame" {
+				if phase == "PreEndOfGame" && !skip {
 					if preAt.IsZero() {
 						preAt = now
 					}

@@ -19,6 +19,7 @@ var Commit = "source-build"
 var BuildTime = "unrecorded"
 
 type AppInfo struct {
+	AutoSkipHonor     bool                          `json:"autoSkipHonor"`
 	AutoReturnEnabled bool                          `json:"autoReturnEnabled"`
 	AutoQueueEnabled  bool                          `json:"autoQueueEnabled"`
 	AutoQueueDelay    int                           `json:"autoQueueDelay"`
@@ -44,7 +45,7 @@ func (s *AppService) Info() AppInfo {
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
 	cfg := s.settings.Snapshot()
-	return AppInfo{AutoReturnEnabled: cfg.AutoReturnEnabled, AutoQueueEnabled: cfg.AutoQueueEnabled, AutoQueueDelay: cfg.AutoQueueDelay, AutoAcceptEnabled: cfg.AutoAcceptEnabled, AutoAcceptDelay: cfg.AutoAcceptDelay, Version: Version, Commit: Commit, BuildTime: BuildTime, Shortcut: cfg.Shortcut, HoldEnabled: cfg.HoldEnabled, HoldKey: cfg.HoldKey, SidebarEnabled: cfg.SidebarEnabled, PreviewEnabled: cfg.PreviewEnabled, SidebarWidth: cfg.SidebarWidth, SettingsWarning: s.settingsWarning,
+	return AppInfo{AutoSkipHonor: cfg.AutoSkipHonor, AutoReturnEnabled: cfg.AutoReturnEnabled, AutoQueueEnabled: cfg.AutoQueueEnabled, AutoQueueDelay: cfg.AutoQueueDelay, AutoAcceptEnabled: cfg.AutoAcceptEnabled, AutoAcceptDelay: cfg.AutoAcceptDelay, Version: Version, Commit: Commit, BuildTime: BuildTime, Shortcut: cfg.Shortcut, HoldEnabled: cfg.HoldEnabled, HoldKey: cfg.HoldKey, SidebarEnabled: cfg.SidebarEnabled, PreviewEnabled: cfg.PreviewEnabled, SidebarWidth: cfg.SidebarWidth, SettingsWarning: s.settingsWarning,
 		GoHeapBytes: mem.HeapAlloc, Goroutines: runtime.NumGoroutine(), Requests: diagnostics.Default.Snapshot(), PerformanceScope: "仅 Go 堆；不包含 WebView2，不代表总内存、游戏 FPS 或网络延迟"}
 }
 func (s *AppService) ConfigureCompanion(sidebar, preview bool, width int) (serviceValue AppInfo, serviceErr error) {
@@ -148,18 +149,20 @@ func (s *AppService) SkipAutoAccept() (serviceValue readycheck.State, serviceErr
 	return s.engine.SkipAutoAccept()
 }
 
-func (s *AppService) ConfigurePostGame(ret, queue bool, delay int) (serviceValue AppInfo, serviceErr error) {
+func (s *AppService) ConfigurePostGame(ret, queue bool, delay int, skipHonor bool) (serviceValue AppInfo, serviceErr error) {
 	defer apperrors.Present(&serviceErr)
 	if !postgame.ValidDelay(delay) {
 		return AppInfo{}, apperrors.New(apperrors.InvalidQueueDelay)
 	}
 	old := s.settings.Snapshot()
 	s.settings.SetPostGame(ret, queue, delay)
+	s.settings.SetSkipHonor(skipHonor)
 	if err := s.settings.Save(); err != nil {
 		s.settings.SetPostGame(old.AutoReturnEnabled, old.AutoQueueEnabled, old.AutoQueueDelay)
+		s.settings.SetSkipHonor(old.AutoSkipHonor)
 		return AppInfo{}, err
 	}
-	_ = s.engine.ConfigurePostGame(ret, queue, delay)
+	_ = s.engine.ConfigurePostGame(ret, queue, delay, skipHonor)
 	return s.Info(), nil
 }
 func (s *AppService) PostGameStatus() postgame.State { return s.engine.PostGameStatus() }

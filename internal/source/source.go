@@ -112,6 +112,12 @@ type PostGameSource interface {
 	StartSearch(context.Context) error
 }
 
+// Optional, fixed local ceremony actions, with no player list or vote API.
+type HonorSource interface {
+	HonorBallot(context.Context) (gameID int64, hasSelections bool, err error)
+	CompleteHonorBallot(context.Context) error
+}
+
 // Current-session metadata is obtained with existing roster/lobby reads.
 type SessionMetadata struct {
 	QueueID  int
