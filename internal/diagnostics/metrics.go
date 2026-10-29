@@ -34,6 +34,12 @@ var Default = &Collector{values: map[string]Metric{}}
 // Fixed allow-list: never retain paths, player IDs, credentials or error text.
 func Category(path string) string {
 	switch {
+	case path == "/lol-honor-v2/v1/vote-completion":
+		return "honor-completion"
+	case path == "/lol-pre-end-of-game/v1/currentSequenceEvent":
+		return "post-game-sequence"
+	case path == "/lol-pre-end-of-game/v1/complete/missions-celebration":
+		return "post-game-continue"
 	case path == "/lol-honor-v2/v1/ballot":
 		return "honor-ballot"
 	case path == "/lol-honor/v1/ballot":

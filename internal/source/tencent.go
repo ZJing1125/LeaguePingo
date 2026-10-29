@@ -401,4 +401,13 @@ func (s *TencentLCU) HonorBallot(ctx context.Context) (int64, bool, error) {
 func (s *TencentLCU) CompleteHonorBallot(ctx context.Context) error {
 	return s.client.CompleteHonorBallot(ctx)
 }
+func (s *TencentLCU) HonorVoteCompletion(ctx context.Context) (int64, error) {
+	return s.client.HonorVoteCompletion(ctx)
+}
+func (s *TencentLCU) PostGameSequence(ctx context.Context) (string, error) {
+	return s.client.PostGameSequence(ctx)
+}
+func (s *TencentLCU) ContinuePostGameProgress(ctx context.Context) error {
+	return s.client.ContinuePostGameProgress(ctx)
+}
 func (s *TencentLCU) StartSearch(ctx context.Context) error { return s.client.StartSearch(ctx) }

@@ -74,7 +74,9 @@ func prepare(t *testing.T, f *fake, ret, queue bool) *Controller {
 	// Action tests do not wait five wall-clock seconds. The supported preference
 	// range/defaults and cancellable real countdown are covered separately.
 	c.state.DelaySeconds = 0
-	c.Observe(f, observed("InProgress"))
+	initial := observed("InProgress")
+	initial.QueueID = f.lobby.QueueID
+	c.Observe(f, initial)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { c.Run(ctx); close(done) }()

@@ -12,6 +12,8 @@ type honorFake struct {
 	ballot                    int64
 	selected, selectAtAccount bool
 	honorReads, submits       int
+	completion                int64
+	completionReads           int
 	mode                      string
 	ballotGate, ballotEntered chan struct{}
 }
@@ -27,7 +29,7 @@ func (f *honorFake) HonorBallot(context.Context) (int64, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.honorReads++
-	if f.mode == "unavailable" {
+	if f.mode == "unavailable" || (f.mode == "ballot-after-submit-error" && f.submits > 0) {
 		return 0, false, errors.New("synthetic unsupported")
 	}
 	return f.ballot, f.selected, nil
@@ -44,6 +46,11 @@ func (f *honorFake) CompleteHonorBallot(context.Context) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.submits++
+	if f.mode == "retained-ballot" || f.mode == "ballot-after-submit-error" {
+		f.completion = 42
+		f.phase = "EndOfGame"
+		return errors.New("synthetic response lost")
+	}
 	if f.mode != "unknown" {
 		f.ballot = 0
 		if f.mode != "stuck-phase" {
@@ -226,8 +233,11 @@ func TestHonorManualWaitHasBoundedReads(t *testing.T) {
 	c.Observe(f, observed("PreEndOfGame"))
 	waitStatus(t, c, "honor-unavailable")
 	reads, n := f.honorCounts()
-	if reads != maxHonorReads || n != 0 {
-		t.Fatal("unbounded manual ceremony reads", reads, n)
+	f.mu.Lock()
+	completionReads := f.completionReads
+	f.mu.Unlock()
+	if reads+completionReads != maxHonorReads || n != 0 {
+		t.Fatal("unbounded combined manual ceremony reads", reads, completionReads, n)
 	}
 }
 
@@ -279,5 +289,50 @@ func TestSkipHonorNewGameAndAtomicSettings(t *testing.T) {
 	waitStatus(t, c, "honor-skipped")
 	if _, n := f.honorCounts(); n != 2 {
 		t.Fatal("new game did not receive its own honor action")
+	}
+}
+
+func (f *honorFake) HonorVoteCompletion(context.Context) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.completionReads++
+	return f.completion, nil
+}
+
+func TestRetainedHonorBallotDoesNotBlockMayhemReturnAndQueue(t *testing.T) {
+	for _, start := range []string{"PreEndOfGame", "EndOfGame"} {
+		t.Run(start, func(t *testing.T) {
+			f := honorFixture()
+			f.phase = start
+			f.mode = "retained-ballot"
+			f.lobby.QueueID = 2400
+			c := prepare(t, f.fake, true, true)
+			c.ConfigureSkipHonor(true)
+			live := observed("InProgress")
+			live.QueueID = 2400
+			c.Observe(f, live)
+			o := observed(start)
+			o.QueueID = 2400
+			c.Observe(f, o)
+			waitStatus(t, c, "queued")
+			_, n := f.honorCounts()
+			r, q := counts(f.fake)
+			if n != 1 || r != 1 || q != 1 {
+				t.Fatal("retained Mayhem ballot interrupted chain", n, r, q)
+			}
+		})
+	}
+}
+
+func TestHonorCompletionWorksWhenOldBallotEndpointDisappears(t *testing.T) {
+	f := honorFixture()
+	f.phase = "EndOfGame"
+	f.mode = "ballot-after-submit-error"
+	c := prepare(t, f.fake, true, true)
+	c.ConfigureSkipHonor(true)
+	c.Observe(f, observed("EndOfGame"))
+	waitStatus(t, c, "queued")
+	if _, n := f.honorCounts(); n != 1 {
+		t.Fatal("honor was resubmitted")
 	}
 }

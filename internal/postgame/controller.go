@@ -296,6 +296,7 @@ func (c *Controller) sameAccount(ctx context.Context, job *task) bool {
 func (c *Controller) runTask(ctx context.Context, job *task) {
 	var preAt, returnDue, returnSent, lobbyAt, queueDue time.Time
 	honor := honorProgress{}
+	sequence := sequenceProgress{}
 	party, members := "", ""
 	for {
 		if ctx.Err() != nil {
@@ -334,7 +335,7 @@ func (c *Controller) runTask(ctx context.Context, job *task) {
 				}
 				continue
 			}
-			ready, stop := c.advanceHonor(ctx, job, phase, &honor)
+			ready, stop := c.advanceHonor(ctx, job, phase, &honor, &sequence)
 			if stop {
 				return
 			}
@@ -346,6 +347,18 @@ func (c *Controller) runTask(ctx context.Context, job *task) {
 			}
 			// The ceremony request/verification may consume time or change phase.
 			continue
+		}
+		if !sequence.sent.IsZero() && !sequence.done {
+			ready, stop := c.advanceContinue(ctx, job, phase, &sequence)
+			if stop {
+				return
+			}
+			if !ready {
+				if !pause(ctx, c.timing.probe) {
+					return
+				}
+				continue
+			}
 		}
 		if skip && honor.done && !ret && !queue {
 			status := "honor-not-needed"
@@ -398,6 +411,38 @@ func (c *Controller) runTask(ctx context.Context, job *task) {
 					if fresh != "PreEndOfGame" && fresh != "EndOfGame" {
 						c.status(job, "cancelled", time.Time{})
 						return
+					}
+					if (fresh == "PreEndOfGame" || fresh == "EndOfGame") && !sequence.done {
+						ready, stop := c.advanceContinue(ctx, job, fresh, &sequence)
+						if stop {
+							return
+						}
+						if !ready {
+							if !pause(ctx, c.timing.probe) {
+								return
+							}
+							continue
+						}
+						// Recheck the phase/account after any presentation work.
+						if !sequence.sent.IsZero() {
+							continue
+						}
+						if !c.sameAccount(ctx, job) {
+							c.status(job, "cancelled", time.Time{})
+							return
+						}
+						fresh, err = c.phase(ctx, job)
+						if err != nil {
+							c.status(job, "failed", time.Time{})
+							return
+						}
+						if fresh == "Lobby" {
+							continue
+						}
+						if fresh != "PreEndOfGame" && fresh != "EndOfGame" {
+							c.status(job, "cancelled", time.Time{})
+							return
+						}
 					}
 					if ctx.Err() != nil {
 						return

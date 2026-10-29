@@ -11,6 +11,26 @@ import (
 
 const honorBallotPath = "/lol-honor-v2/v1/ballot"
 const submitHonorBallotPath = "/lol-honor/v1/ballot"
+const honorCompletionPath = "/lol-honor-v2/v1/vote-completion"
+
+func (c *Client) HonorVoteCompletion(ctx context.Context) (int64, error) {
+	raw, err := c.Get(ctx, honorCompletionPath)
+	if err != nil {
+		return 0, err
+	}
+	return parseHonorCompletion(raw)
+}
+
+func parseHonorCompletion(raw []byte) (int64, error) {
+	var v struct {
+		GameID *int64 `json:"gameId"`
+	}
+	if len(raw) > 4096 || json.Unmarshal(raw, &v) != nil || v.GameID == nil || *v.GameID < 0 {
+		return 0, apperrors.New(apperrors.InvalidResponse)
+	}
+	// fullTeamVote=false still represents this game's completed ballot.
+	return *v.GameID, nil
+}
 
 // Only retain the game and whether the user has already selected any honors.
 // Ballot identities and candidate lists never leave this transient parser.

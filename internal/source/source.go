@@ -118,6 +118,17 @@ type HonorSource interface {
 	CompleteHonorBallot(context.Context) error
 }
 
+type HonorCompletionSource interface {
+	HonorVoteCompletion(context.Context) (int64, error)
+}
+
+// Only the known post-game progress presentation can be continued; no generic
+// sequence name or reward-selection API is exposed to the controller/UI.
+type PostGameSequenceSource interface {
+	PostGameSequence(context.Context) (string, error)
+	ContinuePostGameProgress(context.Context) error
+}
+
 // Current-session metadata is obtained with existing roster/lobby reads.
 type SessionMetadata struct {
 	QueueID  int

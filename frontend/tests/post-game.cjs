@@ -63,6 +63,8 @@ const {mockWindowRuntime}=require('./window-runtime.cjs');
   await side.getByRole('button',{name:'取消本次',exact:true}).click();await emit();await page.getByText('本次赛后自动操作已取消',{exact:true}).waitFor();
  }
  await emit({...state,revision:state.revision-1,status:'queued'});assert.equal(await page.getByText('已开始排队',{exact:true}).count(),0);assert.equal(calls.filter(c=>c==='CancelPostGame').length,3);
+ state={...state,revision:state.revision+1,status:'continuing-postgame'};await emit();
+ await side.getByText('正在完成赛后继续步骤…',{exact:true}).waitFor();
  state={...state,revision:state.revision+1,status:'honor-unconfirmed'};await emit();
  await side.getByText('未确认点赞页已结束，请在客户端检查',{exact:true}).waitFor();
  assert(await side.locator('.post-game-notice').evaluate(el=>el.scrollWidth<=el.clientWidth));

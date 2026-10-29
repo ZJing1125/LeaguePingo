@@ -29,6 +29,10 @@ const text=computed(()=>{
  case 'waiting-result':return '等待赛后结算与复盘保留';
  case 'waiting-return':return '等待返回房间后自动排队';
  case 'waiting-ready':return '等待队友返回或房间就绪';
+ case 'waiting-postgame':return '等待赛后页面完成';
+ case 'continuing-postgame':return '正在完成赛后继续步骤…';
+ case 'continue-unavailable':return '暂时无法继续赛后页面，请在客户端完成本次流程';
+ case 'continue-unconfirmed':return '未确认赛后继续步骤已完成，请在客户端检查';
  case 'returning':return '正在返回房间…';
  case 'queueing':return '正在确认排队状态…';
  case 'returned':return '已返回房间';
@@ -49,7 +53,7 @@ onUnmounted(()=>{alive=false;stop?.();if(clock)clearInterval(clock);});
 <template>
  <div v-if="state && (state.returnEnabled || state.queueEnabled || state.skipHonor)" class="post-game-notice" :class="{compact}" :data-status="state.status">
   <span role="status">{{ error || text }}</span>
-  <button v-if="['waiting-honor','honor-countdown','waiting-result','waiting-return','waiting-ready','return-countdown','queue-countdown'].includes(state.status)" class="secondary" :disabled="busy" @click="cancel">取消本次</button>
+  <button v-if="['waiting-postgame','continuing-postgame','waiting-honor','honor-countdown','waiting-result','waiting-return','waiting-ready','return-countdown','queue-countdown'].includes(state.status)" class="secondary" :disabled="busy" @click="cancel">取消本次</button>
  </div>
 </template>
 <style scoped>
