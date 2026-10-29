@@ -91,6 +91,7 @@ func Start(state *State) (*Monitor, error) {
 		}
 		keyboard := syscall.NewCallback(func(code int, w uintptr, l unsafe.Pointer) uintptr {
 			started := time.Now()
+			measured := false
 			if code >= 0 {
 				e := (*keyEvent)(l)
 				down := w == 0x100 || w == 0x104
@@ -103,6 +104,7 @@ func Start(state *State) (*Monitor, error) {
 					}
 					m.State.Input(key, down, down && gameForeground)
 					if key == m.State.CurrentKey() {
+						measured = true
 						heldVK, heldKey = e.VK, key
 						if down && m.State.Desired() && timer == 0 {
 							timer, _, _ = setTimer.Call(0, 0, 150, 0)
@@ -116,8 +118,11 @@ func Start(state *State) (*Monitor, error) {
 					}
 				}
 			}
-			// Own callback body only; exclude downstream hooks. Never retain keys.
-			diagnostics.KeyboardCallback.Record(time.Since(started))
+			// Only the configured physical key's own body, excluding downstream hooks.
+			// No key values or timings for unrelated/injected input are retained.
+			if measured {
+				diagnostics.KeyboardCallback.Record(time.Since(started))
+			}
 			r, _, _ := nextHook.Call(0, uintptr(code), w, uintptr(l))
 			return r
 		})

@@ -8,7 +8,7 @@
 | --- | --- |
 | `info.requests.<分类>.p95Ms / recentSamples` | 每个固定请求分类最近最多256次的nearest-rank P95，单位毫秒，包含失败请求；无样本为null，真实0保留。SGP各通道独立，含sgp-group；不是合并所有通道的P95或网络RTT。次数/失败/总耗时/最大耗时仍为本次运行累计。 |
 | `performance.champSelectFirstData` | 从助手首次观察ChampSelect，到首次发布包含我方有效近期战绩（包括已确认空列表）或独立统计的快照。只出现姓名/头像不算；重复快照只计一次；已退出/断线/换连接/换号不记录为0，而计abandoned。资料时间早于入口计preexistingResults，包含房间预取与缓存；不是纯网络请求耗时或前端绘制完成时间。 |
-| `performance.keyboardCallback` | 回调自身的调用数及total/mean/max微秒，排除CallNextHookEx下游链路。仅用时钟与原子计数，不保留键值、扫描码、按键顺序或原始事件。没有启用或尚无事件时meanUs为null。原有前台进程检查尚在回调内，S1仍待处理与国服实测。 |
+| `performance.keyboardCallback` | 仅配置键、非注入事件的回调自身调用数及total/mean/max微秒，排除CallNextHookEx下游链路。仅用时钟与原子计数，不保留键值、扫描码、按键顺序或原始事件；无关按键不计入。尚无对应事件时meanUs/maxUs为null。原有前台进程检查尚在回调内，S1仍待处理与国服实测。 |
 | `performance.inGameResources` | 确认InProgress时取助手及其可读后代（含WebView2）的计数，首个样本只作CPU基线，此后约5秒一次。导出整机归一CPU最近/按有效观测时长加权平均/峰值、私有字节与工作集最近值/峰值、样本与失败计数、采集耗时。CPU首次为null，真实空闲区间为0。 |
 
 资源采样复用`cmd/perfprobe`抽出的`internal/processstats` Windows原生计数代码；探针命令及CSV格式不变。计数读取在应用锁外，最多读取256个助手树成员，读取失败或截断计partial；上一端点缺失也会标记对应CPU区间为lastPartial。PID加创建时间仅用于内存中的相邻CPU基线，阶段退出即清除，不导出PID、创建时间、进程名、路径或命令行。新进程首个区间不补累计CPU，PID复用不产生尖峰。
