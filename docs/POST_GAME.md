@@ -2,6 +2,10 @@
 
 两个独立开关默认关闭：赛后自动返回房间、返回后自动排队。排队倒计时默认10秒，可选5/10/15/20秒。只开排队时等待用户手动返回房间；只开返回时任何队员均可尝试返回，不发起搜索。使用现有本机设置持久化，保存成功才应用，失败恢复原配置，恢复默认只修改草稿。自动接受仍由BUG-0069独立控制，不自动替用户打开它。
 
+2026-10-30用户报告P1/P2没有问题，但点赞页仍需手动处理，见[R1反馈](acceptance/R1-feedback.md)。当前不包含自动跳过点赞，不能称为完整赛后全自动：PreEndOfGame的15秒是留给用户的等待时间，play-again不等同提交荣誉票。实际点赞页阶段和程序/客户端版本尚未反馈。
+
+候选方法已核对[LeagueAkari的荣誉接口](https://github.com/LeagueAkari/LeagueAkari/blob/56cdfde00e56148f4641d1a8cf86acb66e903124/src/shared/http-api-axios-helper/league-client/honor.ts)及其honor-controller：投票对象由单独honor方法处理，最后用无请求体的POST /lol-honor/v1/ballot提交。该源码只证明存在独立提交步骤，不能证明不投票直接提交在当前腾讯客户端一定能关闭页面。本项目尚未接入此步骤；自动跳过或保留手动点赞需按用户偏好处理，不引入自动选择点赞对象、插件注入或模拟点击。
+
 ## 触发与复盘
 
 Engine在publishLocked中先执行syncReviewLocked，再将标量状态传给postgame.Controller。只有本连接、当前核验账号、已在InProgress观察到非零比赛编号和队列的对局，结束后又存在相同比赛的冻结review时，才允许创建任务。普通建房、助手在结算阶段才启动、退选、观战、掉线或只有旧review均不能触发。每比赛至多创建一轮；取消、禁用、手动排队及失败不重置attempted，重复快照不再启动，新比赛才重新获得资格。
