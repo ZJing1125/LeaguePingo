@@ -3,6 +3,12 @@ set -euo pipefail
 task_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$task_root"
 source scripts/env.sh
+if [[ $# -gt 0 ]]; then
+ if [[ $# != 2 || "$1" != --expected || ! -f "$2" ]]; then
+  echo 'Usage: bash scripts/audit-current-groups.sh [--expected local-slot-groups.json]' >&2; exit 1
+ fi
+ export LEAGUEPINGO_GROUP_EXPECTED="$2"
+fi
 if [[ "$(go env GOHOSTOS)" != windows || "$(go env GOHOSTARCH)" != amd64 || "$(go env GOOS)" != windows || "$(go env GOARCH)" != amd64 ]]; then
  echo 'NOT VERIFIED: run on Windows amd64 with the logged-in client during loading/gameplay.' >&2
  exit 1

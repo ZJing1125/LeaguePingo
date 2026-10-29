@@ -94,7 +94,7 @@ func (e *Engine) syncGroupingLocked() {
 
 	for i := range e.snapshot.Participants {
 		p := &e.snapshot.Participants[i]
-		if e.groupMembers[p.PUUID] != "" && p.PremadeGroup != "" {
+		if e.groupMembers[p.PUUID] != "" && e.groupSides[p.PUUID] == p.Team && e.groupMembers[p.PUUID] == p.GroupToken {
 			p.GroupSource = "sgp"
 		}
 	}
@@ -125,43 +125,43 @@ func (e *Engine) syncGroupingLocked() {
 				return
 			}
 			if err == nil {
-				// Cross-check every member and side, without replacing the current roster.
-				tokens := map[string]string{}
-				positions := map[string]string{}
-				sides := map[string]string{}
+				// Use the same identity/side checks in product and explicit audit.
+				if _, checkErr := core.MergeGroupFields(e.snapshot.Participants, members); checkErr != nil {
+					e.mu.Unlock()
+					return
+				}
 				conflict := false
 				for _, p := range members {
-					if core.IsKnownPUUID(p.PUUID) {
-						positions[p.PUUID] = p.Position
-						sides[p.PUUID] = p.Team
-						if p.GroupToken != "" {
-							tokens[p.PUUID] = p.GroupToken
-						}
+					if side := e.groupSides[p.PUUID]; side != "" && side != p.Team {
+						conflict = true
 					}
-					for _, q := range e.snapshot.Participants {
-						if p.PUUID == q.PUUID && p.Team != q.Team {
-							conflict = true
-						}
-						if p.PUUID == q.PUUID && p.Team == q.Team {
-							if q.GroupToken != "" && p.GroupToken != "" && q.GroupToken != p.GroupToken {
-								conflict = true
-							}
-							positions[p.PUUID] = p.Position
-							if p.GroupToken != "" {
-								tokens[p.PUUID] = p.GroupToken
-							}
-						}
+					if token := e.groupMembers[p.PUUID]; token != "" && p.GroupToken != "" && token != p.GroupToken {
+						conflict = true
 					}
 				}
 				if conflict {
 					e.mu.Unlock()
 					return
 				}
-				e.groupMembers = tokens
-				e.groupSides = sides
-				e.groupPositions = positions
+				if e.groupMembers == nil {
+					e.groupMembers = map[string]string{}
+					e.groupSides = map[string]string{}
+					e.groupPositions = map[string]string{}
+				}
+				for _, p := range members {
+					if !core.IsKnownPUUID(p.PUUID) {
+						continue
+					}
+					e.groupSides[p.PUUID] = p.Team
+					if p.GroupToken != "" {
+						e.groupMembers[p.PUUID] = p.GroupToken
+					}
+					if p.Position != "" {
+						e.groupPositions[p.PUUID] = p.Position
+					}
+				}
 				e.publishLocked()
-				all := len(tokens) == 10 && len(members) == 10
+				all := len(e.groupMembers) == 10
 				e.mu.Unlock()
 				if all {
 					return

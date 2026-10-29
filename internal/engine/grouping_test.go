@@ -88,3 +88,46 @@ func TestLateRosterIdentityUsesPreparedGroupMetadata(t *testing.T) {
 		t.Fatal("group code not scoped to game")
 	}
 }
+
+type partialGroupClient struct {
+	*fakeClient
+	count atomic.Int32
+}
+
+func (f *partialGroupClient) Grouping(context.Context, int64) ([]core.Participant, error) {
+	if f.count.Add(1) == 1 {
+		return []core.Participant{{PUUID: "self", Team: "ally", GroupToken: "8"}, {PUUID: "late", Team: "ally", GroupToken: "8"}}, nil
+	}
+	return []core.Participant{{PUUID: "enemy", Team: "enemy", GroupToken: "9"}, {PUUID: "enemy2", Team: "enemy", GroupToken: "9"}}, nil
+}
+func TestSecondPartialGroupingDoesNotEraseLateIdentity(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	f := &partialGroupClient{fakeClient: &fakeClient{}}
+	e := New(nil, nil)
+	e.client = f
+	e.clientVersion = 1
+	e.initialMatch.parent = ctx
+	e.snapshot = core.Snapshot{ConnectionID: 1, SelfKey: "self", GameID: 42, QueueID: 420, Connected: true, Phase: "InProgress", Participants: []core.Participant{{Key: "self", PUUID: "self", Team: "ally"}}}
+	e.mu.Lock()
+	e.syncGroupingLocked()
+	e.mu.Unlock()
+	end := time.Now().Add(3 * time.Second)
+	for f.count.Load() < 2 && time.Now().Before(end) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if f.count.Load() != 2 {
+		t.Fatal("second bounded lookup not attempted")
+	}
+	// Wait for publication under the same lock before inspecting prepared fields.
+	if e.groupMembers["late"] != "8" {
+		t.Fatal("second partial response erased prepared identity")
+	}
+	e.snapshot.Participants = append(e.snapshot.Participants, core.Participant{Key: "late", PUUID: "late", Team: "ally"})
+	e.syncGroupingLocked()
+	if e.snapshot.Participants[1].PremadeSize != 2 || e.snapshot.Participants[1].GroupSource != "sgp" {
+		t.Fatal("late group not restored with correct source")
+	}
+}

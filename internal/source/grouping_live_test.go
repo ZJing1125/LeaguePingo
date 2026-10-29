@@ -2,6 +2,9 @@ package source
 
 import (
 	"context"
+	"encoding/json"
+	"io"
+	"leaguepingo/internal/core"
 	"os"
 	"runtime"
 	"testing"
@@ -85,4 +88,35 @@ func TestLiveCurrentGrouping(t *testing.T) {
 		t.Logf("SGP slot=%d side=%s field=%t group=%d count=%d", i+1, p.Team, p.GroupToken != "", g, p.PremadeSize)
 	}
 	t.Log("STRUCTURE ONLY: verify both teams against known matchmaking party rosters; absence does not mean solo.")
+	if path := os.Getenv("LEAGUEPINGO_GROUP_EXPECTED"); path != "" {
+		file, err := os.Open(path)
+		if err != nil {
+			t.Fatal("expected slot file unavailable")
+		}
+		defer file.Close()
+		raw, err := io.ReadAll(io.LimitReader(file, 4097))
+		if err != nil || len(raw) > 4096 {
+			t.Fatal("expected slot file exceeds bounds")
+		}
+		var expected struct {
+			QueueID int   `json:"queueId"`
+			Groups  []int `json:"groups"`
+		}
+		if json.Unmarshal(raw, &expected) != nil || expected.QueueID != meta.QueueID {
+			t.Fatal("expected queue differs; discard comparison")
+		}
+		merged, err := core.MergeGroupFields(local, extra)
+		if err != nil {
+			t.Fatal("source conflict; comparison rejected")
+		}
+		result, err := core.CompareGroupSlots(merged, expected.Groups)
+		if err != nil {
+			t.Fatal("invalid ten-slot baseline")
+		}
+		t.Logf("COMPARISON known=%d/10 pairs=%d together=%d wrong_merge=%d wrong_split=%d unknown_pairs=%d", result.KnownPlayers, result.ComparedPairs, result.CorrectTogether, result.WrongMerge, result.WrongSplit, result.UnknownPairs)
+		if result.KnownPlayers != 10 || result.WrongMerge != 0 || result.WrongSplit != 0 || result.UnknownPairs != 0 {
+			t.Fatal("NOT VERIFIED: incomplete or incorrect partition")
+		}
+		t.Log("MATCHED supplied baseline for this match only; baseline authenticity and other matches/modes remain unverified.")
+	}
 }
