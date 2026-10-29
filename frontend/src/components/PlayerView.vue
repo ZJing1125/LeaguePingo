@@ -154,7 +154,7 @@ function toggle(id: number) {
             </button>
           </div>
         </div>
-        <HistoryServiceStatus :player="player" :connected="connected" :busy="busy || state.pageBusy || state.warmBusy" :readonly="compact || captured || prepared" :automatic="automaticHistory && active!==false && (state.page??1)===1" @recovered="emit('recovered',$event)" @retry="emit('refresh',player)"/>
+        <HistoryServiceStatus :player="player" :connected="connected" :busy="busy || state.pageBusy || state.warmBusy" :readonly="compact || captured || prepared" :automatic="automaticHistory && active!==false && state.expanded.length===0 && (state.page??1)===1" @recovered="emit('recovered',$event)" @retry="emit('refresh',player)"/>
         <details v-if="compact && player.scout" class="scout-explanation">
           <summary>本局统计说明 · {{ scouting.queueLabel }}</summary>
           <p v-if="scouting.hero?.games != null && scouting.report?.season">{{ scouting.report.season.name }} · 本英雄{{ scouting.report.complete ? '全部模式' : '已读全模式' }} {{ scouting.hero.games }} 场。</p>

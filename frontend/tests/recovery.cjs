@@ -37,6 +37,7 @@ async function main(){
      else{result=player(args[0]);result.historyMeta.checkedAt=new Date().toISOString();}
     }
     else if(method==='RefreshData'){result=player(args[0],false);result.historyMeta.fetchedAt=new Date().toISOString();result.historyMeta.checkedAt=result.historyMeta.fetchedAt;}
+    else if(method==='MatchDetail')result={gameId:args[2],connectionId:1,partial:true,players:[],teams:[],fetchedAt:new Date().toISOString()};
     else if(method==='HistoryPage')result={matches:[],offset:args[2],nextOffset:args[2],hasMore:false,meta:{returned:0,parsed:0}};
     else throw new Error(`unexpected service ${method}`);
     return route.fulfill({json:result});
@@ -65,14 +66,18 @@ async function main(){
   await view.locator('.history-service-status.degraded').waitFor({state:'detached'});
   assert(calls.includes('RefreshData'),'manual retry unavailable after exhaustion');
   // A local background update must reach the home even with an empty roster.
-  const updated=player('self');updated.historyMeta.checkedAt=new Date().toISOString();updated.historyMeta.service.retryAt=new Date(Date.now()+5000).toISOString();
+  const updated=player('self');updated.historyMeta.checkedAt=new Date().toISOString();updated.historyMeta.service.retryAt=new Date(Date.now()+1200).toISOString();
   await page.evaluate(data=>window._wails.dispatchWailsEvent({name:'leaguepingo:player-updated',data}),updated);
   await page.getByRole('navigation',{name:'工作区'}).getByRole('button',{name:'首页',exact:true}).click();
   await home.locator('.history-service-status.degraded').waitFor();
   const before=retryCount;
+  await home.locator('.home-match .match-main').first().click();
+  const detail=page.getByRole('dialog',{name:'对局详情',exact:true});await detail.waitFor();
+  await page.waitForTimeout(1400);assert.equal(retryCount,before,'automatic recovery interrupted an open match detail');
   snapshot={...snapshot,phase:'InProgress',stage:'in-game',generation:2};
   await page.evaluate(data=>window._wails.dispatchWailsEvent({name:'leaguepingo:snapshot',data}),snapshot);
-  await page.waitForTimeout(5200);assert.equal(retryCount,before,'entering game left a scheduled recovery active');
+  await detail.press('Escape');await detail.waitFor({state:'detached'});
+  await page.waitForTimeout(1200);assert.equal(retryCount,before,'entering game left a scheduled recovery active');
   assert.equal(await home.locator('.home-match').count(),1);
   for(const width of [1280,880]){await page.setViewportSize({width,height:800});assert(await home.evaluate(el=>el.scrollWidth<=el.clientWidth+1),'recovery status overflow');await saveUIArtifact(page,process.env.UI_SCREENSHOT_PREFIX,`recovery-${width}`);}
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
