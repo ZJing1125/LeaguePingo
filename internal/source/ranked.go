@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/core"
 )
 
@@ -121,8 +122,11 @@ func (s *TencentLCU) sgpRanks(ctx context.Context, puuid string) ([]core.Rank, e
 		// used by SUMMARY history. LCU returns this token as a JSON string.
 		var token string
 		raw, err := s.client.Get(ctx, "/lol-league-session/v1/league-session-token")
-		if err != nil || json.Unmarshal(raw, &token) != nil || strings.TrimSpace(token) == "" || len(token) > 32768 || strings.ContainsAny(token, "\r\n") {
-			return nil, errors.New("当前会话暂未提供排位授权")
+		if err != nil {
+			return nil, err
+		}
+		if json.Unmarshal(raw, &token) != nil || strings.TrimSpace(token) == "" || len(token) > 32768 || strings.ContainsAny(token, "\r\n") {
+			return nil, apperrors.New(apperrors.NotLoggedIn)
 		}
 		r.leagueToken, r.leagueExpires = token, time.Now().Add(2*time.Minute)
 	}

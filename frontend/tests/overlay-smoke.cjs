@@ -1,4 +1,5 @@
 // No real accounts or downloads. Uses a locally installed Edge and Playwright.
+const messages = require('../../internal/apperrors/messages.json');
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
@@ -156,7 +157,7 @@ async function main() {
               status: 400,
               json: {
                 kind: "RuntimeError",
-                message: "按住设置保存失败，原设置保留",
+                message: "按住设置保存失败，原设置保留", cause: {code: "SettingsWriteFailed"},
               },
             });
           result = info = { ...info, holdEnabled: args[0], holdKey: args[1] };
@@ -166,7 +167,7 @@ async function main() {
               status: 400,
               json: {
                 kind: "RuntimeError",
-                message: "快捷键注册失败，可能被占用；原设置保留",
+                message: "快捷键注册失败，可能被占用；原设置保留", cause: {code: "ShortcutUnavailable"},
               },
             });
           result = info = { ...info, shortcut: args[0] };
@@ -198,7 +199,8 @@ async function main() {
               status: 400,
               json: {
                 kind: "RuntimeError",
-                message:
+                cause: {code: args[0] === "test-5" ? "RateLimited" : args[0] === "Alpha#TEST" ? "RequestTimeout" : "DataUnavailable"},
+ message:
                   args[0] === "test-5"
                     ? "A query failed"
                     : args[0] === "Alpha#TEST"
@@ -290,7 +292,7 @@ async function main() {
           });
           return route.fulfill({
             status: 400,
-            json: { kind: "RuntimeError", message: "Beta profile failed" },
+            json: { kind: "RuntimeError", cause: {code: "DataUnavailable"}, message: "Beta profile failed" },
           });
         } else if (method === "LoadProfile" && args[0] === "test-6")
           result = {
@@ -361,7 +363,7 @@ async function main() {
             });
             return route.fulfill({
               status: 400,
-              json: { kind: "RuntimeError", message: "Alpha history failed" },
+              json: { kind: "RuntimeError", cause: {code: "RequestTimeout"}, message: "Alpha history failed" },
             });
           }
           if (method === "RefreshHistory" && args[0] === "test-5") {
@@ -370,7 +372,7 @@ async function main() {
             });
             return route.fulfill({
               status: 400,
-              json: { kind: "RuntimeError", message: "A query failed" },
+              json: { kind: "RuntimeError", cause: {code: "RateLimited"}, message: "A query failed" },
             });
           }
           if (args[0] === "Missing#TEST")
@@ -378,7 +380,7 @@ async function main() {
               status: 400,
               json: {
                 kind: "RuntimeError",
-                message: "无法确认此 ID 对应的账号",
+                cause: {code: "PlayerIdentityUnavailable"}, message: "无法确认此 ID 对应的账号",
               },
             });
           result = player(args[0]);
@@ -822,14 +824,14 @@ async function main() {
     );
     assert(
       !(await page.locator(".players-workspace").textContent()).includes(
-        "Alpha history failed",
+        messages.RequestTimeout,
       ),
       "A history failure leaked to B",
     );
     await page.getByRole("tab", { name: "Alpha#TEST", exact: true }).click();
     await page
       .locator(".player-error")
-      .filter({ hasText: "Alpha history failed" })
+      .filter({ hasText: messages.RequestTimeout })
       .waitFor();
     await page.getByRole("tab", { name: "Beta#TEST", exact: true }).click();
     await page.getByRole("button", { name: "刷新数据", exact: true }).click();
@@ -844,14 +846,14 @@ async function main() {
     );
     assert(
       !(await page.locator(".players-workspace").textContent()).includes(
-        "Beta profile failed",
+        messages.DataUnavailable,
       ),
       "B profile failure leaked to A",
     );
     await page.getByRole("tab", { name: "Beta#TEST", exact: true }).click();
     await page
       .locator(".player-error")
-      .filter({ hasText: "Beta profile failed" })
+      .filter({ hasText: messages.DataUnavailable })
       .waitFor();
     await page
       .locator(".player-error")
@@ -881,7 +883,7 @@ async function main() {
     );
     await page.getByLabel("战绩模式筛选").selectOption("420");
     await search("Missing#TEST");
-    await page.getByRole("alert").filter({ hasText: "无法确认" }).waitFor();
+    await page.getByRole("alert").filter({ hasText: messages.PlayerIdentityUnavailable }).waitFor();
     assert.equal(
       await page
         .getByRole("heading", { name: "Alpha#TEST", exact: true })
@@ -1028,7 +1030,7 @@ async function main() {
     await page.getByRole("button", { name: "保存游戏辅助设置" }).click();
     await page
       .getByRole("alert")
-      .filter({ hasText: "按住设置保存失败" })
+      .filter({ hasText: messages.SettingsWriteFailed })
       .waitFor();
     assert.notEqual(info.holdKey, "F9");
     rejectHold = false;

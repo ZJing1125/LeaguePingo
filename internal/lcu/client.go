@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -18,10 +17,11 @@ import (
 	"strings"
 	"time"
 
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/diagnostics"
 )
 
-var ErrNotFound = errors.New("League 客户端未连接")
+var ErrNotFound = apperrors.New(apperrors.ClientNotRunning)
 
 type Credentials struct {
 	Port     int
@@ -36,18 +36,18 @@ type Client struct {
 
 func ParseLockfile(raw string) (Credentials, error) {
 	if strings.TrimSpace(raw) == "" {
-		return Credentials{}, errors.New("客户端 lockfile 为空")
+		return Credentials{}, apperrors.New(apperrors.ClientConfigurationInvalid)
 	}
 	parts := strings.Split(strings.TrimSpace(raw), ":")
 	if len(parts) != 5 || parts[0] != "LeagueClient" || parts[4] != "https" {
-		return Credentials{}, errors.New("客户端 lockfile 格式无效")
+		return Credentials{}, apperrors.New(apperrors.ClientConfigurationInvalid)
 	}
 	if pid, err := strconv.Atoi(parts[1]); err != nil || pid <= 0 {
-		return Credentials{}, errors.New("客户端进程 ID 无效")
+		return Credentials{}, apperrors.New(apperrors.ClientConfigurationInvalid)
 	}
 	port, err := strconv.Atoi(parts[2])
 	if err != nil || port < 1 || port > 65535 || parts[3] == "" {
-		return Credentials{}, errors.New("客户端连接信息无效")
+		return Credentials{}, apperrors.New(apperrors.ClientConfigurationInvalid)
 	}
 	return Credentials{Port: port, Password: parts[3]}, nil
 }
@@ -66,7 +66,7 @@ func DiscoverFromPaths(paths []string) (*Client, error) {
 			continue
 		}
 		if info.IsDir() {
-			lastErr = errors.New("客户端 lockfile 路径指向目录")
+			lastErr = apperrors.New(apperrors.ClientConfigurationInvalid)
 			continue
 		}
 		contents, err := os.ReadFile(filepath.Clean(path))
@@ -82,16 +82,16 @@ func DiscoverFromPaths(paths []string) (*Client, error) {
 		return NewClient(cred), nil
 	}
 	if lastErr != nil {
-		return nil, fmt.Errorf("%w：%w", ErrNotFound, lastErr)
+		return nil, errors.Join(lastErr, ErrNotFound)
 	}
 	return nil, ErrNotFound
 }
 
 func lockfileReadError(err error) error {
 	if errors.Is(err, os.ErrPermission) {
-		return errors.New("没有权限读取客户端 lockfile")
+		return apperrors.New(apperrors.ClientPermissionDenied)
 	}
-	return errors.New("无法读取客户端 lockfile")
+	return apperrors.New(apperrors.ClientConfigurationInvalid)
 }
 
 // ParseConnectionArgs accepts only LeagueClient/LeagueClientUx's LCU flags.
@@ -105,11 +105,11 @@ func ParseConnectionArgs(args []string) (Credentials, error) {
 			continue
 		}
 		if _, exists := values[key]; exists {
-			return Credentials{}, errors.New("客户端连接启动参数重复")
+			return Credentials{}, apperrors.New(apperrors.ClientConfigurationInvalid)
 		}
 		if !hasValue {
 			if i+1 >= len(args) || strings.HasPrefix(args[i+1], "--") {
-				return Credentials{}, errors.New("客户端连接启动参数缺少值")
+				return Credentials{}, apperrors.New(apperrors.ClientConfigurationInvalid)
 			}
 			i++
 			value = args[i]
@@ -119,7 +119,7 @@ func ParseConnectionArgs(args []string) (Credentials, error) {
 	port, err := strconv.Atoi(values["--app-port"])
 	token := values["--remoting-auth-token"]
 	if err != nil || port < 1 || port > 65535 || token == "" || strings.ContainsAny(token, "\r\n\x00") {
-		return Credentials{}, errors.New("客户端启动参数中没有有效的 LCU 端口或鉴权信息")
+		return Credentials{}, apperrors.New(apperrors.ClientConfigurationInvalid)
 	}
 	return Credentials{Port: port, Password: token, Region: values["--region"]}, nil
 }
@@ -147,21 +147,24 @@ func (c *Client) LookupSummonerAlias(ctx context.Context, name, tag string) ([]b
 		TagLine  string `json:"tagLine"`
 	}{{GameName: name, TagLine: tag}})
 	if err != nil {
-		return nil, errors.New("客户端查询参数编码失败")
+		return nil, apperrors.New(apperrors.ClientConfigurationInvalid)
 	}
 	return c.request(ctx, http.MethodPost, "/lol-summoner/v1/summoners/aliases", body)
 }
 
 func (c *Client) request(ctx context.Context, method, path string, body []byte) (data []byte, resultErr error) {
 	started, status := time.Now(), 0
-	defer func() { diagnostics.Default.Record(path, time.Since(started), status, resultErr != nil) }()
+	defer func() {
+		diagnostics.Default.Record(path, time.Since(started), status, resultErr != nil)
+		apperrors.Failures.Record(apperrors.LocalClient, resultErr)
+	}()
 	if !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") {
-		return nil, errors.New("invalid LCU path")
+		return nil, apperrors.New(apperrors.InvalidResponse)
 	}
 	endpoint := fmt.Sprintf("https://127.0.0.1:%d%s", c.Cred.Port, path)
 	request, err := http.NewRequestWithContext(ctx, method, endpoint, bytes.NewReader(body))
 	if err != nil {
-		return nil, errors.New("客户端请求构造失败")
+		return nil, apperrors.New(apperrors.InvalidResponse)
 	}
 	request.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("riot:"+c.Cred.Password)))
 	if body != nil {
@@ -169,42 +172,18 @@ func (c *Client) request(ctx context.Context, method, path string, body []byte) 
 	}
 	response, err := c.HTTP.Do(request)
 	if err != nil {
-		return nil, safeRequestError(ctx, err, "客户端连接失败，请确认客户端仍在运行后重试")
+		return nil, apperrors.Request(ctx, err, apperrors.LocalClient)
 	}
 	defer response.Body.Close()
 	status = response.StatusCode
 	if response.StatusCode != http.StatusOK && !(method == http.MethodPost && (path == readyCheckPath+"/accept" || path == playAgainPath || path == startSearchPath) && response.StatusCode == http.StatusNoContent) {
-		return nil, fmt.Errorf("LCU HTTP %d", response.StatusCode)
+		return nil, apperrors.HTTP(apperrors.LocalClient, response.StatusCode)
 	}
 	data, err = io.ReadAll(io.LimitReader(response.Body, 8<<20))
 	if err != nil {
-		return nil, safeRequestError(ctx, err, "客户端响应读取失败，请稍后重试")
+		return nil, apperrors.Normalize(err, apperrors.InvalidResponse)
 	}
 	return data, nil
-}
-
-// Preserve only safe cancellation classifications. The raw net/url error can
-// contain a complete query URL and player identity, so never return or wrap it.
-type requestError struct {
-	message string
-	cause   error
-}
-
-func (e *requestError) Error() string { return e.message }
-func (e *requestError) Unwrap() error { return e.cause }
-
-func safeRequestError(ctx context.Context, err error, fallback string) error {
-	if ctx.Err() != nil {
-		err = ctx.Err()
-	}
-	if errors.Is(err, context.Canceled) {
-		return &requestError{message: "客户端请求已取消", cause: context.Canceled}
-	}
-	var networkError net.Error
-	if errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &networkError) && networkError.Timeout()) {
-		return &requestError{message: "客户端响应超时，请稍后重试", cause: context.DeadlineExceeded}
-	}
-	return errors.New(fallback)
 }
 
 func HistoryPath(puuid string, count int) string {

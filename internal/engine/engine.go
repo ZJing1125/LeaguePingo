@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/core"
 	"leaguepingo/internal/diagnostics"
 	"leaguepingo/internal/postgame"
@@ -217,9 +218,10 @@ func (e *Engine) poll(ctx context.Context) {
 			e.invalidateConnectionLocked()
 			client = found
 		} else {
-			message := "无法获取客户端连接信息"
+			message := apperrors.Message(apperrors.ClientNotRunning)
 			if err != nil {
-				message = err.Error()
+				message = apperrors.UserMessage(err, apperrors.ClientUnavailable)
+				apperrors.Failures.Record(apperrors.LocalClient, err)
 			}
 			e.disconnectLocked(message)
 		}
@@ -239,7 +241,7 @@ func (e *Engine) poll(ctx context.Context) {
 	if err != nil {
 		e.mu.Lock()
 		if e.snapshot.Generation == generation && e.clientVersion == version && e.phaseEpoch == epoch {
-			e.disconnectLocked("客户端本地接口连接失败：" + err.Error())
+			e.disconnectLocked(apperrors.UserMessage(err, apperrors.ClientUnavailable))
 		}
 		e.mu.Unlock()
 		return
@@ -369,7 +371,7 @@ func (e *Engine) poll(ctx context.Context) {
 	if preparationStage(stage) || refresh {
 		message := ""
 		if rosterErr != nil {
-			message = "本地名单暂时读取失败，保留已有资料；可稍后手动刷新"
+			message = "名单暂未更新；" + apperrors.UserMessage(rosterErr, apperrors.NoRoster)
 		}
 		if e.snapshot.RosterError != message {
 			e.snapshot.RosterError = message
@@ -735,7 +737,7 @@ func (e *Engine) prepare(ctx context.Context, token uint64, client Client, versi
 			}
 			e.updatePrepared(token, player.PUUID, func(p *core.Participant) {
 				p.HistoryState = core.HistoryFailed
-				p.Error = "战绩准备失败，可手动重试"
+				p.Error = apperrors.UserMessage(err, apperrors.DataUnavailable)
 			})
 			continue
 		}
@@ -778,7 +780,7 @@ func (e *Engine) loadName(ctx context.Context, client Client, puuid string, vers
 	current := e.client != nil && e.clientVersion == version
 	e.mu.RUnlock()
 	if !current {
-		return "", errors.New("连接已变化，请重新查询玩家名称")
+		return "", apperrors.New(apperrors.StaleData)
 	}
 	return client.Name(requestCtx, puuid)
 }
@@ -897,7 +899,7 @@ func (e *Engine) lookupPlayer(ctx context.Context, key string, force bool) (core
 		player = entry
 	}
 	if !core.IsKnownPUUID(player.PUUID) {
-		return core.Participant{}, errors.New("客户端尚未提供该玩家身份，可刷新名单或输入完整 ID 查询")
+		return core.Participant{}, apperrors.New(apperrors.PlayerIdentityUnavailable)
 	}
 	if !force && historyCached(player) && (client == nil || cacheFresh(player)) {
 		return e.enrichCachedProfile(ctx, cachedPlayer(player, client == nil)), nil
@@ -914,7 +916,7 @@ func (e *Engine) beginLookup(ctx context.Context) (context.Context, func(), erro
 		bounded, cancel := context.WithTimeout(ctx, 12*time.Second)
 		return bounded, func() { cancel(); <-e.lookupGate }, nil
 	default:
-		return nil, nil, errors.New("已有查询正在进行，请等待完成后再试")
+		return nil, nil, apperrors.New(apperrors.QueryBusy)
 	}
 }
 
@@ -942,7 +944,7 @@ func (e *Engine) loadManualHistoryGuarded(ctx context.Context, client Client, ge
 	}
 	player = e.resolvePlayerName(ctx, client, version, player, true)
 	if player.Stale {
-		return core.Participant{}, errors.New("连接已变化，请重新查询玩家")
+		return core.Participant{}, apperrors.New(apperrors.StaleData)
 	}
 	hadHistory := historyCached(player)
 	player.HistoryState = core.HistoryLoading
@@ -959,10 +961,10 @@ func (e *Engine) loadManualHistoryGuarded(ctx context.Context, client Client, ge
 		// A refresh failure must keep verified history. A first failure still
 		// returns a usable identity so optional profile data can be inspected.
 		if (sameClient && ok && historyCached(cached)) || hadHistory {
-			return core.Participant{}, fmt.Errorf("已找到玩家，但战绩请求失败: %w", err)
+			return core.Participant{}, apperrors.Normalize(err, apperrors.DataUnavailable)
 		}
 		player.HistoryState = core.HistoryFailed
-		player.Error = "已确认玩家身份，但战绩暂不可用；可重试战绩或独立更新资料"
+		player.Error = "已确认玩家身份；" + apperrors.UserMessage(err, apperrors.DataUnavailable)
 	} else {
 		core.ApplyHistory(&player, history)
 	}
@@ -1145,29 +1147,29 @@ func (e *Engine) RefreshRoster(ctx context.Context) (core.Snapshot, error) {
 	}
 	stage := stageForPhase(phase)
 	if !preparationStage(stage) && !activeMatch(phase) {
-		return e.Snapshot(), errors.New("当前没有可刷新的房间或对局名单，请稍后重试")
+		return e.Snapshot(), apperrors.New(apperrors.NoRoster)
 	}
 	var gameID int64
 	var roster []core.Participant
 	if stage == "party" {
 		lobby, ok := client.(source.LobbySource)
 		if !ok {
-			return e.Snapshot(), errors.New("当前数据源不支持房间成员")
+			return e.Snapshot(), apperrors.New(apperrors.Unsupported)
 		}
 		roster, err = lobby.Lobby(ctx)
 	} else {
 		gameID, roster, err = readRoster(ctx, client, stage)
 	}
 	if err != nil {
-		return e.Snapshot(), fmt.Errorf("本地名单刷新失败：%w", err)
+		return e.Snapshot(), apperrors.Normalize(err, apperrors.NoRoster)
 	}
 	if len(roster) == 0 {
-		return e.Snapshot(), errors.New("客户端暂未提供名单，请稍后再试")
+		return e.Snapshot(), apperrors.New(apperrors.NoRoster)
 	}
 	e.mu.Lock()
 	if generation != e.snapshot.Generation || version != e.clientVersion || epoch != e.phaseEpoch || (stage == "preparing" && champEpoch != e.champEpoch) {
 		e.mu.Unlock()
-		return e.Snapshot(), errors.New("对局状态已变化，请重试刷新名单")
+		return e.Snapshot(), apperrors.New(apperrors.StaleData)
 	}
 	for i := range roster {
 		roster[i].ConnectionID = version

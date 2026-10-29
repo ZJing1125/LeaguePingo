@@ -2,8 +2,8 @@ package engine
 
 import (
 	"context"
-	"errors"
 
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/core"
 )
 
@@ -21,7 +21,7 @@ func (e *Engine) CurrentPlayer(ctx context.Context, connectionID uint64) (core.P
 	key := e.accountIdentity
 	if client == nil || version != connectionID || !core.IsKnownPUUID(key) {
 		e.mu.Unlock()
-		return core.Participant{}, errors.New("当前账号尚未就绪，请等待客户端连接")
+		return core.Participant{}, apperrors.New(apperrors.NotLoggedIn)
 	}
 	player, cached := e.cache[key]
 	for _, p := range e.snapshot.Participants {
@@ -34,7 +34,7 @@ func (e *Engine) CurrentPlayer(ctx context.Context, connectionID uint64) (core.P
 	if !idle || cached {
 		e.mu.Unlock()
 		if !cached {
-			return core.Participant{}, errors.New("本局资料正在准备，可前往对局室查看")
+			return core.Participant{}, apperrors.New(apperrors.QueryBusy)
 		}
 		if idle && !cacheFresh(player) {
 			e.refreshHydratedHistory(client, generation, version, player)

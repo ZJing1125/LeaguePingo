@@ -2,10 +2,10 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/core"
 	"leaguepingo/internal/source"
 )
@@ -28,7 +28,7 @@ type scoutPreparation struct {
 
 func (e *Engine) SetScoutQueue(queue int) (core.Snapshot, error) {
 	if queue != 420 && queue != 440 {
-		return e.Snapshot(), errors.New("请选择单双排或灵活组排")
+		return e.Snapshot(), apperrors.New(apperrors.InvalidQueue)
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -331,7 +331,7 @@ func (e *Engine) prepareScouting(ctx context.Context, version uint64, scope stri
 			e.mu.Unlock()
 			if err != nil {
 				c.done = true
-				c.message = "已保留读取结果"
+				c.message = apperrors.UserMessage(err, apperrors.DataUnavailable)
 			} else {
 				if page.Offset != c.offset || page.Meta.Returned < 0 || page.Meta.Returned > 20 || page.NextOffset != c.offset+page.Meta.Returned || page.LimitReason != "" {
 					c.done = true

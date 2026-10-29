@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/core"
 	"leaguepingo/internal/diagnostics"
 )
@@ -67,8 +68,11 @@ func (s *TencentLCU) ensureSGPOrigin(ctx context.Context, r *sgpHistory) error {
 		{"/lol-platform-config/v1/namespaces/PlayerPreferences/ServiceEndpoint", &configured},
 	} {
 		raw, err := s.client.Get(ctx, item.path)
-		if err != nil || json.Unmarshal(raw, item.target) != nil {
-			return errors.New("无法核验当前大区服务")
+		if err != nil {
+			return err
+		}
+		if json.Unmarshal(raw, item.target) != nil {
+			return apperrors.New(apperrors.InvalidResponse)
 		}
 	}
 	origin, err := trustedSGPOrigin(auth.Platform, configured)
@@ -87,11 +91,11 @@ var tencentPlatform = regexp.MustCompile(`^[A-Z][A-Z0-9]{1,11}$`)
 
 func trustedSGPOrigin(platform, configured string) (string, error) {
 	if !tencentPlatform.MatchString(platform) {
-		return "", errors.New("当前大区无法核验")
+		return "", apperrors.New(apperrors.Unsupported)
 	}
 	expected := "https://" + strings.ToLower(platform) + "-sgp.lol.qq.com:21019"
 	if configured != expected && configured != expected+"/" {
-		return "", errors.New("客户端未提供可信的当前大区战绩服务")
+		return "", apperrors.New(apperrors.Unsupported)
 	}
 	return expected, nil
 }
@@ -151,8 +155,11 @@ func (s *TencentLCU) ensureHistorySession(ctx context.Context, r *sgpHistory) er
 			Access string `json:"accessToken"`
 		}
 		raw, err := s.client.Get(ctx, "/entitlements/v1/token")
-		if err != nil || json.Unmarshal(raw, &token) != nil || token.Access == "" || len(token.Access) > 32768 || strings.ContainsAny(token.Access, "\r\n") {
-			return errors.New("当前会话暂未提供战绩授权")
+		if err != nil {
+			return err
+		}
+		if json.Unmarshal(raw, &token) != nil || token.Access == "" || len(token.Access) > 32768 || strings.ContainsAny(token.Access, "\r\n") {
+			return apperrors.New(apperrors.NotLoggedIn)
 		}
 		r.token, r.expires = token.Access, time.Now().Add(2*time.Minute)
 	}
@@ -181,23 +188,29 @@ func (r *sgpHistory) get(ctx context.Context, path string) (raw []byte, status i
 
 func (r *sgpHistory) getAuthorized(ctx context.Context, path, token, category string) (raw []byte, status int, resultErr error) {
 	started := time.Now()
-	defer func() { diagnostics.Default.Record(category, time.Since(started), status, resultErr != nil) }()
+	defer func() {
+		diagnostics.Default.Record(category, time.Since(started), status, resultErr != nil)
+		apperrors.Failures.Record(apperrors.DataService, resultErr)
+	}()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, r.origin+path, nil)
 	if err != nil {
-		return nil, 0, errors.New("数据请求构造失败")
+		return nil, 0, apperrors.New(apperrors.InvalidResponse)
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	response, err := r.http.Do(req)
 	if err != nil {
-		return nil, 0, errors.New("数据服务连接失败或超时")
+		return nil, 0, apperrors.Request(ctx, err, apperrors.DataService)
 	}
 	defer response.Body.Close()
 	if response.StatusCode != 200 {
-		return nil, response.StatusCode, fmt.Errorf("数据服务 HTTP %d", response.StatusCode)
+		return nil, response.StatusCode, apperrors.HTTP(apperrors.DataService, response.StatusCode)
 	}
 	raw, err = io.ReadAll(io.LimitReader(response.Body, (8<<20)+1))
 	if err != nil || len(raw) > 8<<20 {
-		return nil, response.StatusCode, errors.New("数据响应读取失败或超出限制")
+		if err != nil {
+			return nil, response.StatusCode, apperrors.Normalize(err, apperrors.InvalidResponse)
+		}
+		return nil, response.StatusCode, apperrors.New(apperrors.InvalidResponse)
 	}
 	return raw, response.StatusCode, nil
 }

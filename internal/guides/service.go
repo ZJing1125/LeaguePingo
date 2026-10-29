@@ -4,10 +4,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
-
 	"os"
 	"path/filepath"
 	"sort"
@@ -15,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/core"
 )
 
@@ -73,7 +72,7 @@ func (s *Service) Select(position string, opponent int, retry bool) (State, erro
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if position != "" && !validPosition(position) {
-		return s.state, errors.New("请选择有效分路")
+		return s.state, apperrors.New(apperrors.InvalidPosition)
 	}
 	if opponent != 0 {
 		valid := false
@@ -83,7 +82,7 @@ func (s *Service) Select(position string, opponent int, retry bool) (State, erro
 			}
 		}
 		if !valid {
-			return s.state, errors.New("对手已不在当前阵容，请重新选择")
+			return s.state, apperrors.New(apperrors.StaleData)
 		}
 	}
 	s.overridePosition = position
@@ -97,7 +96,7 @@ func (s *Service) Candidates(scope string, champion int, ids []int) (State, erro
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.state.Scope != scope || s.state.Query.Champion != champion || (s.state.Query.Mode != "aram-mayhem" && s.state.Query.Mode != "arena") || s.state.Base == nil || len(ids) > 3 {
-		return s.state, errors.New("请选择最多三个当前英雄的强化符文")
+		return s.state, apperrors.New(apperrors.InvalidCandidates)
 	}
 	seen := map[int]bool{}
 	for _, id := range ids {
@@ -106,7 +105,7 @@ func (s *Service) Candidates(scope string, champion int, ids []int) (State, erro
 			valid = valid || a.ID == id
 		}
 		if !valid || seen[id] {
-			return s.state, errors.New("强化符文已变化，请重新选择")
+			return s.state, apperrors.New(apperrors.InvalidCandidates)
 		}
 		seen[id] = true
 	}
@@ -290,7 +289,7 @@ func (s *Service) load(ctx context.Context, token uint64, base, q Query, force b
 				delete(s.failures, oldKey)
 			}
 			s.failures[key] = time.Now()
-			lastError = err.Error()
+			lastError = apperrors.UserMessage(err, apperrors.GuideUnavailable)
 		} else {
 			if g.Notice != "" {
 				s.failures[key] = time.Now()

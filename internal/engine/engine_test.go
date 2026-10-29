@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/core"
 )
 
@@ -67,7 +68,7 @@ func (f *fakeClient) Phase(context.Context) (string, error) {
 }
 
 func TestDiscoveryFailureIsPublishedAndRecovers(t *testing.T) {
-	discoverErr := errors.New("客户端 lockfile 为空")
+	var discoverErr error = apperrors.New(apperrors.ClientConfigurationInvalid)
 	fake := &fakeClient{phase: "Lobby"}
 	e := New(func() (Client, error) { return fake, discoverErr }, nil)
 	// Observe publication without starting the UI callback worker.
@@ -75,7 +76,7 @@ func TestDiscoveryFailureIsPublishedAndRecovers(t *testing.T) {
 	e.updates = make(chan core.Snapshot, 4)
 	e.poll(context.Background())
 	snapshot := e.Snapshot()
-	if snapshot.Connected || snapshot.Stage != "disconnected" || !strings.Contains(snapshot.Message, "lockfile 为空") {
+	if snapshot.Connected || snapshot.Stage != "disconnected" || snapshot.Message != apperrors.Message(apperrors.ClientConfigurationInvalid) {
 		t.Fatalf("discovery error not exposed: %+v", snapshot)
 	}
 	select {
@@ -123,7 +124,7 @@ func TestLocalRosterPollingDoesNotStartPlayerPreparation(t *testing.T) {
 }
 
 func TestFrozenCacheSurvivesPhaseAndDiscoveryFailure(t *testing.T) {
-	fake := &fakeClient{phase: "InProgress", phaseErr: errors.New("LCU HTTP 401"), rosterErr: errors.New("temporarily unavailable")}
+	fake := &fakeClient{phase: "InProgress", phaseErr: apperrors.HTTP(apperrors.LocalClient, 401), rosterErr: errors.New("temporarily unavailable")}
 	var discoverErr error
 	e := New(func() (Client, error) { return fake, discoverErr }, nil)
 	e.client = fake
@@ -132,10 +133,10 @@ func TestFrozenCacheSurvivesPhaseAndDiscoveryFailure(t *testing.T) {
 		Participants: []core.Participant{{Key: "cached", DisplayName: "Cached player"}},
 	}
 	e.poll(context.Background())
-	if snapshot := e.Snapshot(); snapshot.Connected || !snapshot.Frozen || len(snapshot.Participants) != 1 || !strings.Contains(snapshot.Message, "401") {
+	if snapshot := e.Snapshot(); snapshot.Connected || !snapshot.Frozen || len(snapshot.Participants) != 1 || !strings.Contains(snapshot.Message, apperrors.Message(apperrors.NotLoggedIn)) || strings.Contains(snapshot.Message, "401") {
 		t.Fatalf("phase failure lost cache or diagnostic: %+v", snapshot)
 	}
-	discoverErr = errors.New("没有权限查询客户端启动参数")
+	discoverErr = apperrors.New(apperrors.ClientPermissionDenied)
 	e.lastLookup = time.Time{}
 	e.poll(context.Background())
 	if snapshot := e.Snapshot(); snapshot.Connected || !snapshot.Frozen || len(snapshot.Participants) != 1 || !strings.Contains(snapshot.Message, discoverErr.Error()) {

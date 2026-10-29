@@ -1,11 +1,14 @@
 package main
 
 import (
+	"time"
+
 	"github.com/wailsapp/wails/v3/pkg/application"
+
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/companion"
 	"leaguepingo/internal/core"
 	"leaguepingo/internal/settings"
-	"time"
 )
 
 // All controller access is serialized on Wails' UI thread, including snapshots.
@@ -206,7 +209,7 @@ func (o *overlayController) reconcileHold() OverlayState {
 			o.state.Mode = "hold"
 			if err := w.showHold(); err != nil {
 				o.hideOnUI()
-				o.state.HoldWarning = err.Error()
+				o.state.HoldWarning = apperrors.UserMessage(err, apperrors.HoldUnavailable)
 				return
 			}
 			if !o.holdDesired() {
@@ -290,7 +293,7 @@ func (o *overlayController) reconcileCompanion(s core.Snapshot, frame clientFram
 			if o.state.Mode != mode || !o.state.Visible || o.lastPlacement != p.Bounds {
 				if w, ok := o.window.(interface{ showSidebar(settings.Rect) error }); ok {
 					if err := w.showSidebar(p.Bounds); err != nil {
-						o.state.Warning = err.Error()
+						o.state.Warning = apperrors.UserMessage(err, apperrors.OverlayUnavailable)
 						o.hideOnUI()
 						return
 					}
@@ -356,7 +359,7 @@ func (o *overlayController) reconcileCompanion(s core.Snapshot, frame clientFram
 		}
 		o.preview.Consume()
 		if err := w.showHold(); err != nil {
-			o.state.HoldWarning = err.Error()
+			o.state.HoldWarning = apperrors.UserMessage(err, apperrors.HoldUnavailable)
 			o.hideOnUI()
 			return
 		}

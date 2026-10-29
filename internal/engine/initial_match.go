@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/core"
 )
 
@@ -175,7 +176,7 @@ func (e *Engine) prepareInitialMatch(ctx context.Context, version uint64, gameID
 			}
 			if err != nil {
 				p.HistoryState = core.HistoryFailed
-				p.Error = "开局补齐失败，可手动查询重试"
+				p.Error = apperrors.UserMessage(err, apperrors.DataUnavailable)
 			} else {
 				core.ApplyHistory(p, history)
 				e.cachePlayerLocked(*p)

@@ -1,17 +1,18 @@
 package core
 
 import (
-	"errors"
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"leaguepingo/internal/apperrors"
 )
 
 // NormalizeRiotID removes clipboard presentation controls, not characters that
 // can distinguish names (inner spaces, joiners, accents or variation selectors).
 // Keep the equivalent input cleanup in frontend/src/presentation.ts in sync.
 func NormalizeRiotID(value string) (string, error) {
-	invalid := errors.New("请输入完整 ID，例如 玩家名#标签")
+	invalid := apperrors.New(apperrors.InvalidRiotID)
 	if !utf8.ValidString(value) {
 		return "", invalid
 	}

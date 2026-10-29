@@ -2,12 +2,12 @@ package source
 
 import (
 	"context"
-	"errors"
 
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/core"
 )
 
-var ErrNotConnected = errors.New("战绩数据源未连接")
+var ErrNotConnected = apperrors.New(apperrors.ClientNotRunning)
 
 // SessionSource owns local client state; remote player data can be composed separately.
 type SessionSource interface {

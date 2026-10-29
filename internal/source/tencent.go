@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/core"
 	"leaguepingo/internal/lcu"
 )
@@ -66,7 +67,10 @@ func (s *TencentLCU) Phase(ctx context.Context) (string, error) {
 	}
 	var phase string
 	err = json.Unmarshal(raw, &phase)
-	return phase, err
+	if err != nil {
+		return "", apperrors.Normalize(err, apperrors.InvalidResponse)
+	}
+	return phase, nil
 }
 
 func (s *TencentLCU) WatchPhase(ctx context.Context, notify func(string)) error {
@@ -249,7 +253,7 @@ func (s *TencentLCU) History(ctx context.Context, puuid string) (core.HistoryRes
 		return core.HistoryResult{Matches: page.Matches, Meta: page.Meta}, nil
 	}
 	if ctx.Err() != nil {
-		return core.HistoryResult{}, errors.New("战绩查询超时或已取消")
+		return core.HistoryResult{}, apperrors.Request(ctx, ctx.Err(), apperrors.DataService)
 	}
 	// Keep the local client as a bounded fallback when the verified regional
 	// summary service is unavailable.
@@ -266,13 +270,13 @@ func (s *TencentLCU) HistoryPage(ctx context.Context, puuid string, offset int) 
 		return page, nil
 	}
 	if ctx.Err() != nil {
-		return core.HistoryPage{}, errors.New("战绩补取超时或已取消，已有记录保留")
+		return core.HistoryPage{}, apperrors.Request(ctx, ctx.Err(), apperrors.DataService)
 	}
 	// Some CN clients ignore begIndex. A single verified prefix is a limited
 	// fallback, never evidence that the account only has 50 lifetime games.
 	page, fallbackErr := s.lcuHistoryPage(ctx, puuid, offset, 50)
 	if fallbackErr != nil {
-		return core.HistoryPage{}, errors.New("完整战绩服务暂不可用，客户端也未提供有效后续页；已有记录保留，请稍后重试")
+		return core.HistoryPage{}, apperrors.Normalize(err, apperrors.DataUnavailable)
 	}
 	page.LimitReason = "完整战绩服务暂不可用，当前仅展示客户端最近至多 50 场混合模式记录；不能据此判断该模式无战绩。"
 	page.HasMore = false
@@ -324,12 +328,12 @@ func (s *TencentLCU) FindByRiotID(ctx context.Context, riotID string) (core.Part
 	raw, err := s.client.LookupSummonerAlias(ctx, name, tag)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			return core.Participant{}, errors.New("玩家身份查询超时：客户端暂未响应，请稍后重试")
+			return core.Participant{}, apperrors.Normalize(err, apperrors.RequestTimeout)
 		}
 		if errors.Is(err, context.Canceled) {
-			return core.Participant{}, errors.New("玩家身份查询已取消")
+			return core.Participant{}, apperrors.Normalize(err, apperrors.RequestCanceled)
 		}
-		return core.Participant{}, fmt.Errorf("玩家身份查询失败：%w", err)
+		return core.Participant{}, apperrors.Normalize(err, apperrors.DataUnavailable)
 	}
 	var profiles []struct {
 		PUUID    string `json:"puuid"`
@@ -337,17 +341,17 @@ func (s *TencentLCU) FindByRiotID(ctx context.Context, riotID string) (core.Part
 		TagLine  string `json:"tagLine"`
 	}
 	if err := json.Unmarshal(raw, &profiles); err != nil || profiles == nil {
-		return core.Participant{}, errors.New("玩家身份查询返回格式异常")
+		return core.Participant{}, apperrors.New(apperrors.InvalidResponse)
 	}
 	if len(profiles) == 0 {
-		return core.Participant{}, errors.New("当前客户端未找到此 ID 对应的账号，请核对名称、标签和所在大区")
+		return core.Participant{}, apperrors.New(apperrors.PlayerNotFound)
 	}
 	if len(profiles) != 1 {
-		return core.Participant{}, errors.New("无法确认此 ID 对应的账号")
+		return core.Participant{}, apperrors.New(apperrors.PlayerIdentityUnavailable)
 	}
 	profile := profiles[0]
 	if !core.IsKnownPUUID(profile.PUUID) || !strings.EqualFold(profile.GameName, name) || !strings.EqualFold(profile.TagLine, tag) {
-		return core.Participant{}, errors.New("无法确认此 ID 对应的账号")
+		return core.Participant{}, apperrors.New(apperrors.PlayerIdentityUnavailable)
 	}
 	return core.Participant{Key: profile.PUUID, PUUID: profile.PUUID,
 		DisplayName: profile.GameName + "#" + profile.TagLine, IdentityState: core.IdentityKnown,
@@ -356,7 +360,7 @@ func (s *TencentLCU) FindByRiotID(ctx context.Context, riotID string) (core.Part
 
 func (s *TencentLCU) MatchDetail(ctx context.Context, gameID int64, target string) (core.MatchDetail, error) {
 	if gameID <= 0 || !core.IsKnownPUUID(target) {
-		return core.MatchDetail{}, errors.New("对局详情参数无效")
+		return core.MatchDetail{}, apperrors.New(apperrors.InvalidMatch)
 	}
 	localCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	raw, err := s.client.Get(localCtx, fmt.Sprintf("/lol-match-history/v1/games/%d", gameID))
@@ -369,7 +373,7 @@ func (s *TencentLCU) MatchDetail(ctx context.Context, gameID int64, target strin
 	}
 	raw, platform, err := s.sgpGameData(ctx, gameID, "SUMMARY", "/sgp-detail")
 	if err != nil {
-		return core.MatchDetail{}, fmt.Errorf("本场双方详情暂未取得：%w", err)
+		return core.MatchDetail{}, apperrors.Normalize(err, apperrors.DataUnavailable)
 	}
 	return core.ParseSGPMatchDetail(raw, gameID, target, platform)
 }

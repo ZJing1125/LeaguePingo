@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/postgame"
 	"leaguepingo/internal/readycheck"
 )
@@ -52,15 +53,15 @@ func Open(path string) (*Store, error) {
 		return s, nil
 	}
 	if err != nil {
-		return s, errors.New("无法读取本地设置，已使用默认值")
+		return s, apperrors.New(apperrors.SettingsReadFailed)
 	}
 	c := Default()
 	if json.Unmarshal(b, &c) != nil || c.Schema != 1 {
-		return s, errors.New("本地设置格式不兼容，已使用默认值")
+		return s, apperrors.New(apperrors.SettingsReadFailed)
 	}
 	key, err := NormalizeShortcut(c.Shortcut)
 	if err != nil {
-		return s, errors.New("本地快捷键无效，已使用默认值")
+		return s, apperrors.New(apperrors.SettingsReadFailed)
 	}
 	if !readycheck.ValidDelay(c.AutoAcceptDelay) {
 		c.AutoAcceptDelay = 1
@@ -113,14 +114,14 @@ func (s *Store) Save() error {
 	defer s.mu.Unlock()
 	b, err := json.MarshalIndent(s.config, "", "  ")
 	if err != nil {
-		return errors.New("无法编码本地设置")
+		return apperrors.New(apperrors.SettingsWriteFailed)
 	}
 	if os.MkdirAll(filepath.Dir(s.path), 0700) != nil {
-		return errors.New("无法创建本地设置目录")
+		return apperrors.New(apperrors.SettingsWriteFailed)
 	}
 	f, err := os.CreateTemp(filepath.Dir(s.path), "settings-*.tmp")
 	if err != nil {
-		return errors.New("无法创建设置临时文件")
+		return apperrors.New(apperrors.SettingsWriteFailed)
 	}
 	name := f.Name()
 	defer os.Remove(name)
@@ -129,17 +130,17 @@ func (s *Store) Save() error {
 	}
 	closeErr := f.Close()
 	if err != nil || closeErr != nil {
-		return errors.New("无法保存本地设置")
+		return apperrors.New(apperrors.SettingsWriteFailed)
 	}
 	if os.Rename(name, s.path) != nil {
-		return errors.New("无法替换本地设置文件")
+		return apperrors.New(apperrors.SettingsWriteFailed)
 	}
 	return nil
 }
 func NormalizeShortcut(key string) (string, error) {
 	key = strings.ToUpper(strings.TrimSpace(key))
 	if !regexp.MustCompile(`^CTRL\+SHIFT\+[A-Z]$`).MatchString(key) {
-		return "", errors.New("快捷键仅支持 Ctrl+Shift+A 到 Ctrl+Shift+Z")
+		return "", apperrors.New(apperrors.InvalidShortcut)
 	}
 	return "Ctrl+Shift+" + key[len(key)-1:], nil
 }

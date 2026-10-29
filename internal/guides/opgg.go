@@ -6,11 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	"leaguepingo/internal/apperrors"
 )
 
 const endpoint = "https://mcp-api.op.gg/mcp"
@@ -26,7 +27,8 @@ type OPgg struct {
 func NewOPgg() *OPgg {
 	return &OPgg{http: &http.Client{Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, endpoint: endpoint}
 }
-func (o *OPgg) rpc(ctx context.Context, headers http.Header, id int, method string, params any) (json.RawMessage, error) {
+func (o *OPgg) rpc(ctx context.Context, headers http.Header, id int, method string, params any) (result json.RawMessage, resultErr error) {
+	defer func() { apperrors.Failures.Record(apperrors.GuideService, resultErr) }()
 	body := map[string]any{"jsonrpc": "2.0", "method": method}
 	if id > 0 {
 		body["id"] = id
@@ -42,11 +44,11 @@ func (o *OPgg) rpc(ctx context.Context, headers http.Header, id int, method stri
 	req.Header = headers.Clone()
 	resp, err := o.http.Do(req)
 	if err != nil {
-		return nil, errors.New("OP.GG 连接失败或超时")
+		return nil, apperrors.Request(ctx, err, apperrors.GuideService)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 && resp.StatusCode != 202 && resp.StatusCode != 204 {
-		return nil, fmt.Errorf("OP.GG 服务暂不可用（HTTP %d）", resp.StatusCode)
+		return nil, apperrors.HTTP(apperrors.GuideService, resp.StatusCode)
 	}
 	if v := resp.Header.Get("Mcp-Session-Id"); v != "" && len(v) < 4096 {
 		headers.Set("Mcp-Session-Id", v)

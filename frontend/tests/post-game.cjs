@@ -1,4 +1,5 @@
 // Synthetic post-game bridge. Never connects to a real client or starts a queue.
+const messages = require('../../internal/apperrors/messages.json');
 const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');
 const path=require('node:path');
@@ -29,7 +30,7 @@ const {mockWindowRuntime}=require('./window-runtime.cjs');
  else if(method==='Info')result=info;
  else if(method==='OverlayStatus')result={revision:1,mode:'sidebar',visible:true,sidebarEnabled:true,sidebarWidth:320,holdEnabled:true};
  else if(method==='ConfigurePostGame'){
- if(failSave)return route.fulfill({status:400,json:{kind:'RuntimeError',message:'设置保存失败，原设置保留'}});
+ if(failSave)return route.fulfill({status:400,json:{kind:'RuntimeError',message:'LCU HTTP 500 private-player#TEST',cause:{code:'SettingsWriteFailed'}}});
  info={...info,autoReturnEnabled:args[0],autoQueueEnabled:args[1],autoQueueDelay:args[2]};state={...state,revision:state.revision+1,returnEnabled:args[0],queueEnabled:args[1],delaySeconds:args[2],status:args[0]||args[1]?'armed':'off'};result=info;
  }else if(method==='CancelPostGame'){assert(['return-countdown','queue-countdown'].includes(state.status));result=state={...state,revision:state.revision+1,status:'cancelled'};}
 
@@ -47,7 +48,7 @@ const {mockWindowRuntime}=require('./window-runtime.cjs');
  assert.equal(await ret.isChecked(),false);assert.equal(await queue.isChecked(),false);assert.equal(await delay.inputValue(),'10');
  await ret.check();await queue.check();await delay.selectOption('15');await page.getByRole('button',{name:'保存游戏辅助设置'}).click();await page.getByText('游戏辅助设置已保存。',{exact:true}).waitFor();await emit();
  assert.equal(calls.filter(c=>c==='ConfigurePostGame').length,1);assert.equal(info.autoQueueDelay,15);
- failSave=true;await delay.selectOption('20');await page.getByRole('button',{name:'保存游戏辅助设置'}).click();await page.getByText('设置保存失败，原设置保留',{exact:true}).waitFor();assert.equal(info.autoQueueDelay,15);failSave=false;
+ failSave=true;await delay.selectOption('20');await page.getByRole('button',{name:'保存游戏辅助设置'}).click();await page.getByText(messages.SettingsWriteFailed,{exact:true}).waitFor();assert.equal(info.autoQueueDelay,15);failSave=false;
  await ret.scrollIntoViewIfNeeded();if(process.env.UI_SCREENSHOT_PREFIX)await page.screenshot({path:process.env.UI_SCREENSHOT_PREFIX+'-settings.png'});
  await page.getByRole('button',{name:'关闭设置',exact:true}).click();await page.getByText('赛后自动返回与排队已开启',{exact:true}).waitFor();
  const side=await open('?view=companion',280);await side.locator('.client-sidebar').waitFor();await side.locator('.post-game-notice').waitFor();

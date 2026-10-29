@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"leaguepingo/internal/apperrors"
 )
 
 // Public, per-champion OP.GG pages. No player identifiers, cookies, scripts,
@@ -22,7 +24,8 @@ import (
 func guidePageURL(q Query, tab string) string {
 	return "https://op.gg/zh-cn/lol/modes/" + q.Mode + "/" + strings.ToLower(strings.ReplaceAll(champions[q.Champion], "_", "")) + "/" + tab
 }
-func (o *OPgg) publicPage(ctx context.Context, q Query, tab string) (*flightPage, error) {
+func (o *OPgg) publicPage(ctx context.Context, q Query, tab string) (result *flightPage, resultErr error) {
+	defer func() { apperrors.Failures.Record(apperrors.GuideService, resultErr) }()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, guidePageURL(q, tab), nil)
 	if err != nil {
 		return nil, errors.New("模式攻略请求无效")
@@ -31,11 +34,11 @@ func (o *OPgg) publicPage(ctx context.Context, q Query, tab string) (*flightPage
 	req.Header.Set("User-Agent", "LeaguePingo/1 (+https://github.com/ZJing1125/LeaguePingo)")
 	resp, err := o.http.Do(req)
 	if err != nil {
-		return nil, errors.New("OP.GG 模式攻略连接失败或超时")
+		return nil, apperrors.Request(ctx, err, apperrors.GuideService)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("OP.GG 模式攻略暂不可用（HTTP %d）", resp.StatusCode)
+		return nil, apperrors.HTTP(apperrors.GuideService, resp.StatusCode)
 	}
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, (3<<20)+1))
 	if err != nil || len(raw) > 3<<20 {
@@ -65,7 +68,7 @@ func (o *OPgg) fetchAugmentMode(ctx context.Context, q Query) (*Guide, error) {
 		}
 	}
 	if aerr != nil && berr != nil {
-		return nil, errors.New("模式攻略暂不可用，请稍后重试或查看原文")
+		return nil, apperrors.Normalize(aerr, apperrors.GuideUnavailable)
 	}
 	if aerr != nil {
 		g.Notice = "强化符文暂未读取成功，可重试或查看原文。"

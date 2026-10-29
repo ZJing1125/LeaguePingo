@@ -11,7 +11,7 @@ suggested_repo_path: docs/OPTIMIZATION_BACKLOG.md
 
 # 1. 使用规则（agent 先读）
 
-执行记录（实施起始基线4d57e0b，附件审阅基线cc229e7）：Q1已实施并通过dev推送实跑，见下方记录；F1本地度量已实施，口径与验证见PERFORMANCE.md及本提交CI，其余任务尚未实施。该清单是任务输入，原审阅统计与推断不能当作当前事实。其他任务仍按依赖逐项核实；未执行的Windows/国服检查保留未验证状态。
+执行记录（实施起始基线4d57e0b，附件审阅基线cc229e7）：Q1已实施并通过dev推送实跑，见下方记录；F1本地度量已实施，口径与验证见PERFORMANCE.md；U1错误码与中文提示已实施，协议与验证见ERRORS.md及本提交CI，其余任务尚未实施。该清单是任务输入，原审阅统计与推断不能当作当前事实。其他任务仍按依赖逐项核实；未执行的Windows/国服检查保留未验证状态。
 
 Q1首次运行：[40856437383](https://github.com/ZJing1125/LeaguePingo/actions/runs/40856437383)，Linux成功，Windows原生Go检查通过，侧栏720px五卡高度回归失败。已根据日志修复摘要内边距，保留原验收断言。修复提交dd33476的[40857941063](https://github.com/ZJing1125/LeaguePingo/actions/runs/40857941063)两个job全部成功：Windows全包test/vet、绑定生成/一致性、九项浏览器回归、EXE编译及产物审计均通过。EXE只存在runner，未上传、部署或登记为用户已验收；截图保留7天。PR事件配置已做语法检查，未专门新建PR测试。默认分支仍为main，手动触发入口需工作流进入默认分支后才能使用；本批未修改main或默认分支。
 
@@ -630,10 +630,13 @@ id: U1
 title: 错误码化，界面不再出现原始技术错误
 priority: P0
 area: ux
-status: todo
+status: implemented
 confidence: verified-static
 needs_human: false
-problem: 底层错误文本会直接显示给用户。
+problem: >-
+  底层HTTP与Go错误曾直接显示；现已使用固定错误码/共享中文目录，AppService出口
+  同时保护Wails顶层message与cause，前端只按已知码显示固定文案，异步警告同样归一。
+  本地诊断仅保留固定层/码/状态/计数，不保留原文；验证口径见ERRORS.md及本提交CI。
 evidence:
   - internal/lcu/client.go:177  # fmt.Errorf("LCU HTTP %d")
   - internal/source/sgp.go:196  # fmt.Errorf("数据服务 HTTP %d")

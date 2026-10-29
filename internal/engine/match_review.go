@@ -3,9 +3,9 @@ package engine
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"time"
 
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/core"
 	"leaguepingo/internal/source"
 )
@@ -158,7 +158,7 @@ func (e *Engine) RefreshReview(ctx context.Context, gameID int64) (core.Snapshot
 	if e.review == nil || e.review.GameID != gameID || e.client == nil || activeMatch(e.snapshot.Phase) ||
 		e.accountIdentity == "" || e.review.SelfKey != e.accountIdentity || e.review.Region != e.client.Region() {
 		e.mu.Unlock()
-		return core.Snapshot{}, errors.New("当前无法同步这一局的结算，可继续查看已保留资料")
+		return core.Snapshot{}, apperrors.New(apperrors.MatchNotReady)
 	}
 	e.stopReviewLocked()
 	token, version, client := e.reviewToken, e.clientVersion, e.client
@@ -183,7 +183,7 @@ func (e *Engine) fetchReview(ctx context.Context, gameID int64, version, token u
 	e.mu.RUnlock()
 	details, ok := client.(source.MatchDetailSource)
 	if !valid || !ok || !core.IsKnownPUUID(target) {
-		return errors.New("本局结算暂未返回")
+		return apperrors.New(apperrors.MatchNotReady)
 	}
 	req, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
@@ -204,22 +204,22 @@ func (e *Engine) fetchReview(ctx context.Context, gameID int64, version, token u
 	valid = e.reviewToken == token && e.clientVersion == version && e.client != nil && e.snapshot.Connected && !activeMatch(e.snapshot.Phase)
 	e.mu.RUnlock()
 	if !valid {
-		return errors.New("对局已切换")
+		return apperrors.New(apperrors.StaleData)
 	}
 	detail, err := details.MatchDetail(requestCtx, gameID, target)
 	if requestCtx.Err() != nil {
 		return requestCtx.Err()
 	}
 	if err != nil {
-		return errors.New("本局结算暂未返回，可稍后同步")
+		return apperrors.New(apperrors.MatchNotReady)
 	}
 	if detail.GameID != gameID || len(detail.Players) == 0 {
-		return errors.New("结算数据与本局不匹配")
+		return apperrors.New(apperrors.InvalidResponse)
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.reviewToken != token || e.clientVersion != version || e.client == nil || !e.snapshot.Connected || e.review == nil || e.review.GameID != gameID || activeMatch(e.snapshot.Phase) {
-		return errors.New("对局已切换")
+		return apperrors.New(apperrors.StaleData)
 	}
 	copy := *e.review
 	detail.ConnectionID = version

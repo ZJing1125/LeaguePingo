@@ -3,8 +3,9 @@
 package main
 
 import (
-	"errors"
 	"github.com/wailsapp/wails/v3/pkg/application"
+
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/settings"
 )
 
@@ -13,7 +14,7 @@ type nativeOverlay struct {
 	restore func()
 }
 
-func (w *nativeOverlay) showHold() error { return errors.New("局内按住快览仅支持 Windows") }
+func (w *nativeOverlay) showHold() error { return apperrors.New(apperrors.OverlayUnavailable) }
 func (w *nativeOverlay) endHold()        {}
 func (w *nativeOverlay) prepareManual() {
 	if w.restore != nil {
@@ -21,5 +22,5 @@ func (w *nativeOverlay) prepareManual() {
 	}
 }
 func (w *nativeOverlay) showSidebar(settings.Rect) error {
-	return errors.New("客户端侧栏仅支持 Windows")
+	return apperrors.New(apperrors.OverlayUnavailable)
 }

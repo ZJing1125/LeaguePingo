@@ -4,13 +4,14 @@ package lcu
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+
+	"leaguepingo/internal/apperrors"
 )
 
 func Discover() (*Client, error) {
@@ -24,7 +25,11 @@ func Discover() (*Client, error) {
 	}
 	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
 	if err != nil {
-		return nil, fmt.Errorf("%w：无法枚举客户端进程", ErrNotFound)
+		code := apperrors.ClientUnavailable
+		if errors.Is(err, windows.ERROR_ACCESS_DENIED) {
+			code = apperrors.ClientPermissionDenied
+		}
+		return nil, errors.Join(apperrors.New(code), ErrNotFound)
 	}
 	defer windows.CloseHandle(snapshot)
 	entry := windows.ProcessEntry32{Size: uint32(unsafe.Sizeof(windows.ProcessEntry32{}))}
@@ -42,22 +47,17 @@ func Discover() (*Client, error) {
 		}
 	}
 	if err != nil && !errors.Is(err, windows.ERROR_NO_MORE_FILES) {
-		failures = append(failures, errors.New("客户端进程枚举未完成"))
+		failures = append(failures, apperrors.New(apperrors.ClientConfigurationInvalid))
 	}
 	if !foundProcess {
-		failures = append(failures, errors.New("未发现 LeagueClient 或 LeagueClientUx 进程，请先启动客户端"))
+		failures = append(failures, apperrors.New(apperrors.ClientNotRunning))
 	}
-	// De-duplicate diagnostics from the two processes; never expose command lines.
-	var messages []string
-	seen := make(map[string]bool)
-	for _, failure := range failures {
-		message := failure.Error()
-		if !seen[message] {
-			seen[message] = true
-			messages = append(messages, message)
-		}
+	if !foundProcess && len(failures) == 1 {
+		return nil, ErrNotFound
 	}
-	return nil, fmt.Errorf("%w：%s", ErrNotFound, strings.Join(messages, "；"))
+	// Keep only classifications from process/lockfile discovery, never raw OS text.
+	failures = append(failures, ErrNotFound)
+	return nil, errors.Join(failures...)
 }
 
 func discoverProcess(pid uint32) (*Client, error) {
@@ -65,9 +65,9 @@ func discoverProcess(pid uint32) (*Client, error) {
 	handle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
 	if err != nil {
 		if errors.Is(err, windows.ERROR_ACCESS_DENIED) {
-			return nil, errors.New("已发现客户端，但无权查询连接信息；请检查助手与客户端的运行权限")
+			return nil, apperrors.New(apperrors.ClientPermissionDenied)
 		}
-		return nil, errors.New("客户端进程已退出或暂时无法访问")
+		return nil, apperrors.New(apperrors.ClientUnavailable)
 	}
 	defer windows.CloseHandle(handle)
 	var lockErr error
@@ -81,15 +81,15 @@ func discoverProcess(pid uint32) (*Client, error) {
 		}
 		lockErr = err
 	} else {
-		lockErr = errors.New("无法获取客户端安装路径")
+		lockErr = apperrors.New(apperrors.ClientConfigurationInvalid)
 	}
 	args, err := processCommandLineArgs(handle)
 	if err != nil {
-		return nil, errors.Join(lockErr, err)
+		return nil, errors.Join(err, lockErr)
 	}
 	cred, err := ParseConnectionArgs(args)
 	if err != nil {
-		return nil, errors.Join(lockErr, err)
+		return nil, errors.Join(err, lockErr)
 	}
 	return NewClient(cred), nil
 }
@@ -101,28 +101,28 @@ func processCommandLineArgs(handle windows.Handle) ([]string, error) {
 	var required uint32
 	err := windows.NtQueryInformationProcess(handle, windows.ProcessCommandLineInformation, nil, 0, &required)
 	if err != nil && !errors.Is(err, windows.STATUS_INFO_LENGTH_MISMATCH) && !errors.Is(err, windows.STATUS_BUFFER_TOO_SMALL) {
-		return nil, errors.New("无法查询客户端启动参数，请检查运行权限或客户端是否已退出")
+		return nil, apperrors.New(apperrors.ClientPermissionDenied)
 	}
 	headerSize := uint32(unsafe.Sizeof(windows.NTUnicodeString{}))
 	if required < headerSize || required > 128<<10 {
-		return nil, errors.New("客户端启动参数长度无效")
+		return nil, apperrors.New(apperrors.ClientConfigurationInvalid)
 	}
 	data := make([]byte, required)
 	err = windows.NtQueryInformationProcess(handle, windows.ProcessCommandLineInformation, unsafe.Pointer(&data[0]), required, &required)
 	if err != nil {
-		return nil, errors.New("无法读取客户端启动参数，请检查运行权限或稍后重试")
+		return nil, apperrors.New(apperrors.ClientPermissionDenied)
 	}
 	value := (*windows.NTUnicodeString)(unsafe.Pointer(&data[0]))
 	base := uintptr(unsafe.Pointer(&data[0]))
 	start := uintptr(unsafe.Pointer(value.Buffer))
 	length := uintptr(value.Length)
 	if length == 0 || length%2 != 0 || start < base || start-base < uintptr(headerSize) || start-base > uintptr(len(data)) || length > uintptr(len(data))-(start-base) || (start-base)%2 != 0 {
-		return nil, errors.New("客户端启动参数结构无效")
+		return nil, apperrors.New(apperrors.ClientConfigurationInvalid)
 	}
 	chars := unsafe.Slice((*uint16)(unsafe.Pointer(&data[start-base])), int(length/2))
 	args, err := windows.DecomposeCommandLine(windows.UTF16ToString(chars))
 	if err != nil {
-		return nil, errors.New("客户端启动参数无法解析")
+		return nil, apperrors.New(apperrors.ClientConfigurationInvalid)
 	}
 	return args, nil
 }

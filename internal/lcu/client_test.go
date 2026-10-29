@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"leaguepingo/internal/apperrors"
 )
 
 func TestParseLockfile(t *testing.T) {
@@ -29,7 +31,7 @@ func writeTestLockfile(t *testing.T, contents string) string {
 
 func TestEmptyLockfileExplainsDiscoveryFailure(t *testing.T) {
 	client, err := DiscoverFromPaths([]string{writeTestLockfile(t, "")})
-	if client != nil || !errors.Is(err, ErrNotFound) || !strings.Contains(err.Error(), "lockfile 为空") {
+	if client != nil || !errors.Is(err, ErrNotFound) || apperrors.CodeOf(err) != apperrors.ClientConfigurationInvalid {
 		t.Fatalf("expected explicit empty-lockfile error: %v", err)
 	}
 }

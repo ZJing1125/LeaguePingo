@@ -3,13 +3,14 @@
 package main
 
 import (
-	"errors"
-	"leaguepingo/internal/settings"
 	"syscall"
 	"unsafe"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"golang.org/x/sys/windows"
+
+	"leaguepingo/internal/apperrors"
+	"leaguepingo/internal/settings"
 )
 
 type nativeOverlay struct {
@@ -40,7 +41,7 @@ func (w *nativeOverlay) showHold() error {
 	w.Run()
 	h := uintptr(w.NativeWindow())
 	if h == 0 {
-		return errors.New("快览窗口尚未准备好，请松开后重试")
+		return apperrors.New(apperrors.OverlayUnavailable)
 	}
 	get := overlayUser.NewProc("GetWindowLongPtrW")
 	set := overlayUser.NewProc("SetWindowLongPtrW")
@@ -53,7 +54,7 @@ func (w *nativeOverlay) showHold() error {
 	if alpha == 0 || actual&0x08080020 != 0x08080020 {
 		w.holding = true
 		w.endHold()
-		return errors.New("无法启用临时窗口的输入保护，未显示快览")
+		return apperrors.New(apperrors.OverlayUnavailable)
 	}
 
 	// Wails Show makes the WebView controller visible. A thread-local CBT hook
@@ -63,7 +64,7 @@ func (w *nativeOverlay) showHold() error {
 	if hook == 0 {
 		w.holding = true
 		w.endHold()
-		return errors.New("无法保护游戏焦点，未显示临时快览；可用手动快览")
+		return apperrors.New(apperrors.OverlayUnavailable)
 	}
 	defer overlayUser.NewProc("UnhookWindowsHookEx").Call(hook)
 	w.holding = true
@@ -99,21 +100,21 @@ func (w *nativeOverlay) showHold() error {
 		if width > 0 && height > 0 {
 			if ok, _, _ := overlayUser.NewProc("SetWindowPos").Call(h, ^uintptr(0), uintptr(area.L+(area.R-area.L-width)/2), uintptr(area.T+(area.B-area.T-height)/2), uintptr(width), uintptr(height), 0x10); ok == 0 {
 				w.endHold()
-				return errors.New("无法定位游戏快览，未显示临时窗口")
+				return apperrors.New(apperrors.OverlayUnavailable)
 			}
 		} else {
 			w.endHold()
-			return errors.New("显示区域不足，未显示临时快览")
+			return apperrors.New(apperrors.OverlayUnavailable)
 		}
 	} else {
 		w.endHold()
-		return errors.New("无法读取游戏显示器，未显示临时窗口")
+		return apperrors.New(apperrors.OverlayUnavailable)
 	}
 	w.Show()
 	overlayUser.NewProc("ShowWindow").Call(h, 4)
 	if visible, _, _ := overlayUser.NewProc("IsWindowVisible").Call(h); visible == 0 {
 		w.endHold()
-		return errors.New("游戏快览窗口未能显示，可在设置中导出诊断")
+		return apperrors.New(apperrors.OverlayUnavailable)
 	}
 	return nil
 }
@@ -125,12 +126,12 @@ func (w *nativeOverlay) showSidebar(r settings.Rect) error {
 	w.endHold()
 	h := uintptr(w.NativeWindow())
 	if h == 0 {
-		return errors.New("侧栏窗口尚未准备好")
+		return apperrors.New(apperrors.OverlayUnavailable)
 	}
 	activationGuardTarget = h
 	hook, _, _ := overlayUser.NewProc("SetWindowsHookExW").Call(5, activationGuard, 0, uintptr(windows.GetCurrentThreadId()))
 	if hook == 0 {
-		return errors.New("侧栏无法保护客户端焦点")
+		return apperrors.New(apperrors.OverlayUnavailable)
 	}
 	defer overlayUser.NewProc("UnhookWindowsHookEx").Call(hook)
 	w.SetMinSize(28, 200)
@@ -140,7 +141,7 @@ func (w *nativeOverlay) showSidebar(r settings.Rect) error {
 	ok, _, _ := overlayUser.NewProc("SetWindowPos").Call(h, ^uintptr(0), uintptr(r.X), uintptr(r.Y), uintptr(r.Width), uintptr(r.Height), 0x10)
 	if ok == 0 {
 		w.Hide()
-		return errors.New("侧栏暂时无法定位")
+		return apperrors.New(apperrors.OverlayUnavailable)
 	}
 	w.Show()
 	return nil

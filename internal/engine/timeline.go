@@ -2,10 +2,10 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/core"
 	"leaguepingo/internal/source"
 )
@@ -14,7 +14,7 @@ import (
 // It never runs from roster preparation, render, scrolling or mode changes.
 func (e *Engine) MatchTimeline(ctx context.Context, key string, connectionID uint64, gameID int64) (core.MatchTimeline, error) {
 	if gameID <= 0 {
-		return core.MatchTimeline{}, errors.New("比赛编号无效")
+		return core.MatchTimeline{}, apperrors.New(apperrors.InvalidMatch)
 	}
 	ctx, done, err := e.beginLookup(ctx)
 	if err != nil {
@@ -26,11 +26,11 @@ func (e *Engine) MatchTimeline(ctx context.Context, key string, connectionID uin
 		return core.MatchTimeline{}, err
 	}
 	if player.IdentityState != core.IdentityKnown || !core.IsKnownPUUID(player.PUUID) {
-		return core.MatchTimeline{}, errors.New("玩家身份无法核验")
+		return core.MatchTimeline{}, apperrors.New(apperrors.PlayerIdentityUnavailable)
 	}
 	timelineSource, ok := client.(source.MatchTimelineSource)
 	if !ok {
-		return core.MatchTimeline{}, errors.New("当前数据源未提供时间线")
+		return core.MatchTimeline{}, apperrors.New(apperrors.Unsupported)
 	}
 	cacheKey := fmt.Sprintf("%d:%s", gameID, player.PUUID)
 	e.mu.RLock()
@@ -49,12 +49,12 @@ func (e *Engine) MatchTimeline(ctx context.Context, key string, connectionID uin
 	current := e.client != nil && e.clientVersion == connectionID
 	e.mu.RUnlock()
 	if !current {
-		return core.MatchTimeline{}, errors.New("连接已变化，请重新查询")
+		return core.MatchTimeline{}, apperrors.New(apperrors.StaleData)
 	}
 	if !hasDetail || detail.ConnectionID != connectionID || time.Since(detail.FetchedAt) >= 5*time.Minute {
 		loader, ok := client.(source.MatchDetailSource)
 		if !ok {
-			return core.MatchTimeline{}, errors.New("尚未取得可核验双方资料")
+			return core.MatchTimeline{}, apperrors.New(apperrors.DataUnavailable)
 		}
 		detail, err = loader.MatchDetail(ctx, gameID, player.PUUID)
 		if err != nil {
@@ -68,10 +68,10 @@ func (e *Engine) MatchTimeline(ctx context.Context, key string, connectionID uin
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if ctx.Err() != nil || e.client == nil || e.clientVersion != connectionID {
-		return core.MatchTimeline{}, errors.New("连接或请求已变化，时间线未应用")
+		return core.MatchTimeline{}, apperrors.New(apperrors.StaleData)
 	}
 	if timeline.GameID != gameID {
-		return core.MatchTimeline{}, errors.New("时间线比赛编号不匹配")
+		return core.MatchTimeline{}, apperrors.New(apperrors.InvalidResponse)
 	}
 	timeline.ConnectionID = connectionID
 	detail.ConnectionID = connectionID

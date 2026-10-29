@@ -127,14 +127,7 @@ export function normalizeRiotIDInput(value: string) {
     .join("#");
 }
 
-export function errorMessage(reason: unknown) {
-  const text = (
-    reason instanceof Error ? reason.message : String(reason)
-  ).replace(/^RuntimeError:\s*/, "");
-  if (/<!DOCTYPE|<html/i.test(text))
-    return "桌面服务暂时不可用，请重新打开应用。";
-  return text.slice(0, 220);
-}
+export { errorMessage } from './errors';
 export function preparationLabel(p: Participant, frozen = false) {
   if (p.identityState === "unavailable") return "身份未提供";
   if (p.stale) return "旧资料 · 可主动更新";

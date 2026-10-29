@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"leaguepingo/internal/apperrors"
 )
 
 type requestTransport func(*http.Request) (*http.Response, error)
@@ -81,14 +83,14 @@ func TestBodyAndConstructionErrorsAreRedacted(t *testing.T) {
 		return &http.Response{StatusCode: 200, Body: failingResponseBody{}}, nil
 	})
 	_, err := c.Get(context.Background(), "/private-body")
-	assertSafeRequestError(t, err, "读取失败")
+	assertSafeRequestError(t, err, apperrors.Message(apperrors.InvalidResponse))
 	_, err = c.Get(context.Background(), "/PrivatePlayer\n")
-	assertSafeRequestError(t, err, "构造失败")
+	assertSafeRequestError(t, err, apperrors.Message(apperrors.InvalidResponse))
 	c.HTTP.Transport = requestTransport(func(*http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: 503, Body: io.NopCloser(strings.NewReader("synthetic-private-body"))}, nil
 	})
 	_, err = c.Get(context.Background(), "/private-body")
-	assertSafeRequestError(t, err, "LCU HTTP 503")
+	assertSafeRequestError(t, err, apperrors.Message(apperrors.ServiceBusy))
 }
 
 func assertSafeRequestError(t *testing.T, err error, want string) {

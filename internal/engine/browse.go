@@ -2,10 +2,10 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/core"
 	"leaguepingo/internal/source"
 )
@@ -19,7 +19,7 @@ func (e *Engine) browsePlayer(key string, connectionID uint64) (Client, core.Par
 		return nil, core.Participant{}, source.ErrNotConnected
 	}
 	if connectionID != e.clientVersion {
-		return nil, core.Participant{}, errors.New("资料来自旧连接，请重新查询玩家")
+		return nil, core.Participant{}, apperrors.New(apperrors.StaleData)
 	}
 	if p, ok := e.cache[key]; ok && p.ConnectionID == connectionID {
 		return e.client, p, nil
@@ -29,7 +29,7 @@ func (e *Engine) browsePlayer(key string, connectionID uint64) (Client, core.Par
 			return e.client, p, nil
 		}
 	}
-	return nil, core.Participant{}, errors.New("玩家资料已失效，请重新查询")
+	return nil, core.Participant{}, apperrors.New(apperrors.StaleData)
 }
 
 func (e *Engine) LoadProfile(ctx context.Context, key string, connectionID uint64) (core.Participant, error) {
@@ -64,11 +64,11 @@ func (e *Engine) LoadRanks(ctx context.Context, key string, connectionID uint64)
 		return core.Participant{}, err
 	}
 	if player.IdentityState != core.IdentityKnown || !core.IsKnownPUUID(player.PUUID) {
-		return core.Participant{}, errors.New("客户端未提供有效身份，无法查询段位")
+		return core.Participant{}, apperrors.New(apperrors.PlayerIdentityUnavailable)
 	}
 	ranks, ok := client.(source.RankSource)
 	if !ok {
-		return core.Participant{}, errors.New("当前数据源不支持段位查询")
+		return core.Participant{}, apperrors.New(apperrors.Unsupported)
 	}
 	rankCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
@@ -81,7 +81,7 @@ func (e *Engine) LoadRanks(ctx context.Context, key string, connectionID uint64)
 	current := e.client != nil && e.clientVersion == connectionID
 	e.mu.RUnlock()
 	if !current {
-		return core.Participant{}, errors.New("连接已变化，请重新查询段位")
+		return core.Participant{}, apperrors.New(apperrors.StaleData)
 	}
 	profile := ranks.Ranks(rankCtx, player.PUUID)
 	return e.storeProfile(player, connectionID, profile, "rank")
@@ -145,7 +145,7 @@ func (e *Engine) loadProfileData(ctx context.Context, key string, connectionID u
 	}
 	profiles, ok := client.(source.ProfileSource)
 	if !ok {
-		return core.Participant{}, errors.New("当前数据源不支持玩家资料")
+		return core.Participant{}, apperrors.New(apperrors.Unsupported)
 	}
 	profileCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
@@ -158,12 +158,12 @@ func (e *Engine) loadProfileData(ctx context.Context, key string, connectionID u
 	currentConnection := e.client != nil && e.clientVersion == connectionID
 	e.mu.RUnlock()
 	if !currentConnection {
-		return core.Participant{}, errors.New("连接已变化，请重新查询玩家资料")
+		return core.Participant{}, apperrors.New(apperrors.StaleData)
 	}
 	e.markProfileAttempt(connectionID, key)
 	profile := profiles.Profile(profileCtx, player.PUUID)
 	if onlyMissing && !profileAvailable(profile) && (player.Profile == nil || !profileAvailable(*player.Profile)) {
-		return core.Participant{}, errors.New("当前客户端未提供可核验资料，保留上次结果")
+		return core.Participant{}, apperrors.New(apperrors.DataUnavailable)
 	}
 	return e.storeProfile(player, connectionID, profile)
 }
@@ -172,7 +172,7 @@ func (e *Engine) storeProfile(player core.Participant, connectionID uint64, prof
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.client == nil || e.clientVersion != connectionID {
-		return core.Participant{}, errors.New("连接已变化，请重新查询玩家资料")
+		return core.Participant{}, apperrors.New(apperrors.StaleData)
 	}
 	// A profile-only operation must never replace history that completed meanwhile.
 	if current, ok := e.cache[player.Key]; ok {
@@ -320,7 +320,7 @@ func profileAvailable(p core.Profile) bool {
 
 func (e *Engine) MatchDetail(ctx context.Context, key string, connectionID uint64, gameID int64) (core.MatchDetail, error) {
 	if gameID <= 0 {
-		return core.MatchDetail{}, errors.New("比赛编号无效")
+		return core.MatchDetail{}, apperrors.New(apperrors.InvalidMatch)
 	}
 	ctx, done, err := e.beginLookup(ctx)
 	if err != nil {
@@ -340,7 +340,7 @@ func (e *Engine) MatchDetail(ctx context.Context, key string, connectionID uint6
 	}
 	detailSource, ok := client.(source.MatchDetailSource)
 	if !ok {
-		return core.MatchDetail{}, errors.New("当前数据源不支持整场对局详情")
+		return core.MatchDetail{}, apperrors.New(apperrors.Unsupported)
 	}
 	release, err := e.scheduler.acquire(ctx, true)
 	if err != nil {
@@ -354,7 +354,7 @@ func (e *Engine) MatchDetail(ctx context.Context, key string, connectionID uint6
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.client == nil || e.clientVersion != connectionID {
-		return core.MatchDetail{}, errors.New("连接已变化，请重新查询详情")
+		return core.MatchDetail{}, apperrors.New(apperrors.StaleData)
 	}
 	detail.ConnectionID = connectionID
 	if e.details == nil || len(e.details) >= 32 {
@@ -366,7 +366,7 @@ func (e *Engine) MatchDetail(ctx context.Context, key string, connectionID uint6
 
 func (e *Engine) HistoryPage(ctx context.Context, key string, connectionID uint64, offset int) (core.HistoryPage, error) {
 	if offset < 0 || offset > 980 {
-		return core.HistoryPage{}, errors.New("分页超出范围")
+		return core.HistoryPage{}, apperrors.New(apperrors.InvalidPage)
 	}
 	client, player, err := e.browsePlayer(key, connectionID)
 	if err != nil {
@@ -385,7 +385,7 @@ func (e *Engine) HistoryPage(ctx context.Context, key string, connectionID uint6
 func (e *Engine) fetchHistoryPage(ctx context.Context, client Client, player core.Participant, connectionID uint64, offset int) (core.HistoryPage, error) {
 	pager, ok := client.(source.HistoryPager)
 	if !ok {
-		return core.HistoryPage{}, errors.New("当前数据源不支持历史分页")
+		return core.HistoryPage{}, apperrors.New(apperrors.Unsupported)
 	}
 	requestCtx, release, err := e.scheduler.acquireAutomatic(ctx)
 	if err != nil {
@@ -403,7 +403,7 @@ func (e *Engine) fetchHistoryPage(ctx context.Context, client Client, player cor
 	current := e.client != nil && e.clientVersion == connectionID
 	e.mu.RUnlock()
 	if !current {
-		return core.HistoryPage{}, errors.New("连接已变化，分页结果未应用，请重新查询")
+		return core.HistoryPage{}, apperrors.New(apperrors.StaleData)
 	}
 	e.historyStore.put(player.PUUID, page)
 	return page, nil

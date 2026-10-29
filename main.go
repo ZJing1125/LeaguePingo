@@ -13,6 +13,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/companion"
 	"leaguepingo/internal/core"
 	"leaguepingo/internal/diagnostics"
@@ -55,9 +56,9 @@ func main() {
 	}
 	store, settingsErr := settings.Open(filepath.Join(configDir, "settings.json"))
 	backend := &AppService{settings: store, configDir: configDir}
-	backend.configureShortcut = func(string) error { return fmt.Errorf("应用尚未准备好注册快捷键") }
+	backend.configureShortcut = func(string) error { return apperrors.New(apperrors.AppNotReady) }
 	if settingsErr != nil {
-		backend.settingsWarning = settingsErr.Error()
+		backend.settingsWarning = apperrors.UserMessage(settingsErr, apperrors.SettingsReadFailed)
 	}
 	showMain := func() {
 		mainWindow.Show()
@@ -75,7 +76,7 @@ func main() {
 		Name:           "LeaguePingo",
 		Icon:           appIcon,
 		Description:    "低干扰的英雄联盟战绩助手",
-		Services:       []application.Service{application.NewService(backend)},
+		Services:       []application.Service{application.NewServiceWithOptions(backend, application.ServiceOptions{MarshalError: apperrors.Marshal})},
 		Assets:         application.AssetOptions{Handler: application.AssetFileServerFS(assets)},
 		Mac:            application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
 		SingleInstance: instance,
@@ -301,7 +302,7 @@ func main() {
 		controller.update(func() {
 			controller.state.HoldAvailable = monitorErr == nil
 			if monitorErr != nil {
-				controller.state.HoldWarning = monitorErr.Error()
+				controller.state.HoldWarning = apperrors.UserMessage(monitorErr, apperrors.HoldUnavailable)
 			}
 		})
 		var holdConfigMu sync.Mutex
@@ -344,7 +345,7 @@ func main() {
 				return nil
 			}
 			if err := app.GlobalShortcut.Register(key, func() { controller.toggle() }); err != nil {
-				return fmt.Errorf("%s 注册失败，可能被占用；原设置保留，可用按钮或托盘控制", key)
+				return apperrors.New(apperrors.ShortcutUnavailable)
 			}
 			old := store.Snapshot().Shortcut
 			store.SetShortcut(key)
@@ -365,7 +366,7 @@ func main() {
 			return nil
 		}
 		if err := backend.configureShortcut(cfg.Shortcut); err != nil {
-			controller.update(func() { controller.state.Warning = err.Error() })
+			controller.update(func() { controller.state.Warning = apperrors.UserMessage(err, apperrors.ShortcutUnavailable) })
 		}
 	})
 	go backend.engine.Run(ctx)

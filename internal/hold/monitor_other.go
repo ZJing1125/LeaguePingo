@@ -2,10 +2,10 @@
 
 package hold
 
-import "errors"
+import "leaguepingo/internal/apperrors"
 
 type Monitor struct{ State *State }
 
-func Start(*State) (*Monitor, error) { return nil, errors.New("局内按住快览仅支持 Windows") }
+func Start(*State) (*Monitor, error) { return nil, apperrors.New(apperrors.HoldUnavailable) }
 func (m *Monitor) Stop()             {}
 func GameForeground() bool           { return false }

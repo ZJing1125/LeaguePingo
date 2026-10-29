@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/core"
 	"leaguepingo/internal/diagnostics"
 	"leaguepingo/internal/engine"
@@ -25,19 +26,23 @@ type AppService struct {
 
 func (s *AppService) Snapshot() core.Snapshot { return s.engine.Snapshot() }
 
-func (s *AppService) RefreshReview(ctx context.Context, gameID int64) (core.Snapshot, error) {
+func (s *AppService) RefreshReview(ctx context.Context, gameID int64) (serviceValue core.Snapshot, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	return s.engine.RefreshReview(ctx, gameID)
 }
 
-func (s *AppService) SetScoutQueue(queue int) (core.Snapshot, error) {
+func (s *AppService) SetScoutQueue(queue int) (serviceValue core.Snapshot, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	return s.engine.SetScoutQueue(queue)
 }
 
-func (s *AppService) CurrentPlayer(ctx context.Context, connectionID uint64) (core.Participant, error) {
+func (s *AppService) CurrentPlayer(ctx context.Context, connectionID uint64) (serviceValue core.Participant, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	return s.engine.CurrentPlayer(ctx, connectionID)
 }
 
-func (s *AppService) Lookup(ctx context.Context, riotID string) (core.Participant, error) {
+func (s *AppService) Lookup(ctx context.Context, riotID string) (serviceValue core.Participant, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	return s.engine.Lookup(ctx, riotID)
 }
 
@@ -51,7 +56,8 @@ func (s *AppService) SetSidebarCollapsed(collapsed bool) OverlayState {
 	return s.overlay.collapse(collapsed)
 }
 func (s *AppService) HideOverlay() OverlayState { return s.overlay.hide() }
-func (s *AppService) SetOverlayPinned(pinned bool) (OverlayState, error) {
+func (s *AppService) SetOverlayPinned(pinned bool) (serviceValue OverlayState, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	state := s.overlay.setPinned(pinned)
 	if s.settings != nil {
 		s.settings.SetPinned(pinned)
@@ -61,48 +67,60 @@ func (s *AppService) SetOverlayPinned(pinned bool) (OverlayState, error) {
 	}
 	return state, nil
 }
-func (s *AppService) LookupPlayer(ctx context.Context, key string) (core.Participant, error) {
+func (s *AppService) LookupPlayer(ctx context.Context, key string) (serviceValue core.Participant, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	return s.engine.LookupPlayer(ctx, key)
 }
-func (s *AppService) RefreshRoster(ctx context.Context) (core.Snapshot, error) {
+func (s *AppService) RefreshRoster(ctx context.Context) (serviceValue core.Snapshot, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	return s.engine.RefreshRoster(ctx)
 }
-func (s *AppService) RefreshLookup(ctx context.Context, riotID string) (core.Participant, error) {
+func (s *AppService) RefreshLookup(ctx context.Context, riotID string) (serviceValue core.Participant, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	return s.engine.RefreshLookup(ctx, riotID)
 }
-func (s *AppService) RefreshPlayer(ctx context.Context, key string) (core.Participant, error) {
+func (s *AppService) RefreshPlayer(ctx context.Context, key string) (serviceValue core.Participant, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	return s.engine.RefreshPlayer(ctx, key)
 }
-func (s *AppService) RefreshHistory(ctx context.Context, key string, connectionID uint64) (core.Participant, error) {
+func (s *AppService) RefreshHistory(ctx context.Context, key string, connectionID uint64) (serviceValue core.Participant, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	return s.engine.RefreshHistory(ctx, key, connectionID)
 }
 
-func (s *AppService) RefreshData(ctx context.Context, key string, connectionID uint64) (core.Participant, error) {
+func (s *AppService) RefreshData(ctx context.Context, key string, connectionID uint64) (serviceValue core.Participant, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	return s.engine.RefreshData(ctx, key, connectionID)
 }
 func (s *AppService) PrioritizePlayer(key string) { s.engine.PrioritizePlayer(key) }
 
-func (s *AppService) HistoryPage(ctx context.Context, key string, connectionID uint64, offset int) (core.HistoryPage, error) {
+func (s *AppService) HistoryPage(ctx context.Context, key string, connectionID uint64, offset int) (serviceValue core.HistoryPage, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	return s.engine.HistoryPage(ctx, key, connectionID, offset)
 }
 
-func (s *AppService) MatchDetail(ctx context.Context, key string, connectionID uint64, gameID int64) (core.MatchDetail, error) {
+func (s *AppService) MatchDetail(ctx context.Context, key string, connectionID uint64, gameID int64) (serviceValue core.MatchDetail, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	return s.engine.MatchDetail(ctx, key, connectionID, gameID)
 }
 
-func (s *AppService) MatchTimeline(ctx context.Context, key string, connectionID uint64, gameID int64) (core.MatchTimeline, error) {
+func (s *AppService) MatchTimeline(ctx context.Context, key string, connectionID uint64, gameID int64) (serviceValue core.MatchTimeline, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	return s.engine.MatchTimeline(ctx, key, connectionID, gameID)
 }
 
-func (s *AppService) LoadProfile(ctx context.Context, key string, connectionID uint64) (core.Participant, error) {
+func (s *AppService) LoadProfile(ctx context.Context, key string, connectionID uint64) (serviceValue core.Participant, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	return s.engine.LoadProfile(ctx, key, connectionID)
 }
 
-func (s *AppService) EnsureProfile(ctx context.Context, key string, connectionID uint64) (core.Participant, error) {
+func (s *AppService) EnsureProfile(ctx context.Context, key string, connectionID uint64) (serviceValue core.Participant, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	return s.engine.EnsureProfile(ctx, key, connectionID)
 }
 
-func (s *AppService) LoadRanks(ctx context.Context, key string, connectionID uint64) (core.Participant, error) {
+func (s *AppService) LoadRanks(ctx context.Context, key string, connectionID uint64) (serviceValue core.Participant, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	return s.engine.LoadRanks(ctx, key, connectionID)
 }
 
@@ -113,13 +131,15 @@ func (s *AppService) GuideStatus() guides.State {
 	return s.guides.Snapshot()
 }
 
-func (s *AppService) GuideCandidates(scope string, champion int, ids []int) (guides.State, error) {
+func (s *AppService) GuideCandidates(scope string, champion int, ids []int) (serviceValue guides.State, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	if s.guides == nil {
 		return guides.State{Status: "idle"}, nil
 	}
 	return s.guides.Candidates(scope, champion, ids)
 }
-func (s *AppService) SelectGuide(position string, opponent int, retry bool) (guides.State, error) {
+func (s *AppService) SelectGuide(position string, opponent int, retry bool) (serviceValue guides.State, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	if s.guides == nil {
 		return guides.State{Status: "idle"}, nil
 	}

@@ -2,6 +2,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch, type Ref } from "vue";
 import * as Service from "../bindings/leaguepingo/appservice";
 import type { Participant } from "../bindings/leaguepingo/internal/core/models";
 import { errorMessage, queueName, type PlayerViewState } from "./presentation";
+import { codedError } from './errors';
 
 export const HISTORY_PAGE_SIZE = 20;
 export const MAX_HISTORY_PAGES = 50;
@@ -265,7 +266,7 @@ export function useHistoryBrowser(
           result.nextOffset < offset ||
           (result.hasMore && result.nextOffset <= offset)
         ) {
-          throw new Error("战绩分页位置无效，已有记录保留，请刷新后重试。");
+          throw codedError('HistoryPageInvalid');
         }
         const existing = new Set(
           allMatchesFor(target, state).map((m) => m.gameId),
@@ -274,9 +275,7 @@ export function useHistoryBrowser(
           result.matches?.length &&
           result.matches.every((m) => existing.has(m.gameId))
         ) {
-          throw new Error(
-            "数据源重复返回已获取的战绩，已停止补取；未证明历史已查完，请稍后刷新重试。",
-          );
+          throw codedError('HistoryRepeated');
         }
         requests++;
         state.extra = [...(state.extra ?? []), ...(result.matches ?? [])];

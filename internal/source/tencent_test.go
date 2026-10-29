@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/lcu"
 )
 
@@ -116,29 +117,29 @@ func TestLookupTimeoutDoesNotBlamePlayerID(t *testing.T) {
 	client := lcu.NewClient(lcu.Credentials{Port: 12345})
 	client.HTTP.Transport = roundTripFunc(func(*http.Request) (*http.Response, error) { return nil, context.DeadlineExceeded })
 	_, err := (&TencentLCU{client: client}).FindByRiotID(context.Background(), "PrivatePlayer#TEST")
-	if err == nil || !strings.Contains(err.Error(), "玩家身份查询超时") || strings.Contains(err.Error(), "请确认完整") || strings.Contains(err.Error(), "PrivatePlayer") {
+	if err == nil || apperrors.CodeOf(err) != apperrors.RequestTimeout || !errors.Is(err, context.DeadlineExceeded) || strings.Contains(err.Error(), "请确认完整") || strings.Contains(err.Error(), "PrivatePlayer") {
 		t.Fatal("timeout should be explained separately and without the query URL")
 	}
 }
 
 func TestLookupRejectsWrongIdentityAndExplainsFailures(t *testing.T) {
 	for _, test := range []struct {
-		name    string
-		status  int
-		body    string
-		message string
+		name   string
+		status int
+		body   string
+		code   apperrors.Code
 	}{
-		{"wrong tag", 200, `[{"puuid":"p1","gameName":"Player","tagLine":"OTHER"}]`, "无法确认"},
-		{"wrong name", 200, `[{"puuid":"p1","gameName":"Other","tagLine":"CN1"}]`, "无法确认"},
-		{"missing identity", 200, `[{"gameName":"Player","tagLine":"CN1"}]`, "无法确认"},
-		{"empty result", 200, `[]`, "未找到"},
-		{"null result", 200, `null`, "返回格式异常"},
-		{"object instead of array", 200, `{}`, "返回格式异常"},
-		{"null profile", 200, `[null]`, "无法确认"},
-		{"ambiguous result", 200, `[{"puuid":"p1","gameName":"Player","tagLine":"CN1"},{"puuid":"p2","gameName":"Player","tagLine":"CN1"}]`, "无法确认"},
-		{"bad JSON", 200, `invalid`, "返回格式异常"},
-		{"bad request", 400, `sensitive response must not be logged`, "玩家身份查询失败"},
-		{"not found", 404, `not found`, "玩家身份查询失败"},
+		{"wrong tag", 200, `[{"puuid":"p1","gameName":"Player","tagLine":"OTHER"}]`, apperrors.PlayerIdentityUnavailable},
+		{"wrong name", 200, `[{"puuid":"p1","gameName":"Other","tagLine":"CN1"}]`, apperrors.PlayerIdentityUnavailable},
+		{"missing identity", 200, `[{"gameName":"Player","tagLine":"CN1"}]`, apperrors.PlayerIdentityUnavailable},
+		{"empty result", 200, `[]`, apperrors.PlayerNotFound},
+		{"null result", 200, `null`, apperrors.InvalidResponse},
+		{"object instead of array", 200, `{}`, apperrors.InvalidResponse},
+		{"null profile", 200, `[null]`, apperrors.PlayerIdentityUnavailable},
+		{"ambiguous result", 200, `[{"puuid":"p1","gameName":"Player","tagLine":"CN1"},{"puuid":"p2","gameName":"Player","tagLine":"CN1"}]`, apperrors.PlayerIdentityUnavailable},
+		{"bad JSON", 200, `invalid`, apperrors.InvalidResponse},
+		{"bad request", 400, `sensitive response must not be logged`, apperrors.DataUnavailable},
+		{"not found", 404, `not found`, apperrors.DataUnavailable},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			client := lcu.NewClient(lcu.Credentials{Port: 12345, Password: "synthetic"})
@@ -148,7 +149,7 @@ func TestLookupRejectsWrongIdentityAndExplainsFailures(t *testing.T) {
 				return &http.Response{StatusCode: test.status, Body: io.NopCloser(strings.NewReader(test.body))}, nil
 			})
 			_, err := (&TencentLCU{client: client}).FindByRiotID(context.Background(), "Player#CN1")
-			if err == nil || !strings.Contains(err.Error(), test.message) || strings.Contains(err.Error(), "sensitive") {
+			if err == nil || apperrors.CodeOf(err) != test.code || strings.Contains(err.Error(), "sensitive") {
 				t.Fatalf("missing or unsafe identity error: %v", err)
 			}
 			if calls != 1 {

@@ -1,4 +1,5 @@
 // Synthetic desktop bridge; no real client, accounts, or automatic acceptance.
+const messages = require('../../internal/apperrors/messages.json');
 const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');
 const path=require('node:path');
@@ -29,7 +30,7 @@ const {mockWindowRuntime}=require('./window-runtime.cjs');
  else if(method==='Info')result=info;
  else if(method==='OverlayStatus')result={revision:1,mode:'sidebar',visible:true,sidebarEnabled:true,sidebarWidth:320,holdEnabled:true};
  else if(method==='ConfigureAutoAccept'){
- if(failSave)return route.fulfill({status:400,json:{kind:'RuntimeError',message:'设置保存失败，原设置保留'}});
+ if(failSave)return route.fulfill({status:400,json:{kind:'RuntimeError',message:'LCU HTTP 500 private-player#TEST',cause:{code:'SettingsWriteFailed'}}});
  info={...info,autoAcceptEnabled:args[0],autoAcceptDelay:args[1]};state={...state,revision:state.revision+1,enabled:args[0],delaySeconds:args[1],status:args[0]?'armed':'off'};result=info;
  }else if(method==='SkipAutoAccept'){assert.equal(state.status,'countdown');result=state={...state,revision:state.revision+1,status:'skipped'};}
  else if(method!=='AuxiliaryReady')throw Error('unexpected service '+method);
@@ -46,7 +47,7 @@ const {mockWindowRuntime}=require('./window-runtime.cjs');
  assert.equal(await toggle.isChecked(),false);assert.equal(await delay.inputValue(),'1');
  await toggle.check();await delay.selectOption('3');await page.getByRole('button',{name:'保存游戏辅助设置'}).click();await page.getByText('游戏辅助设置已保存。',{exact:true}).waitFor();await emit();
  assert.equal(calls.filter(c=>c==='ConfigureAutoAccept').length,1);assert.equal(info.autoAcceptDelay,3);
- failSave=true;await delay.selectOption('5');await page.getByRole('button',{name:'保存游戏辅助设置'}).click();await page.getByText('设置保存失败，原设置保留',{exact:true}).waitFor();assert.equal(info.autoAcceptDelay,3);
+ failSave=true;await delay.selectOption('5');await page.getByRole('button',{name:'保存游戏辅助设置'}).click();await page.getByText(messages.SettingsWriteFailed,{exact:true}).waitFor();assert.equal(info.autoAcceptDelay,3);
  failSave=false;
  await toggle.scrollIntoViewIfNeeded();
  if(process.env.UI_SCREENSHOT_PREFIX)await page.screenshot({path:process.env.UI_SCREENSHOT_PREFIX+'-settings.png'});

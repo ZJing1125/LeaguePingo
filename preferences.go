@@ -2,12 +2,12 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"time"
 
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/diagnostics"
 	"leaguepingo/internal/postgame"
 	"leaguepingo/internal/readycheck"
@@ -47,9 +47,10 @@ func (s *AppService) Info() AppInfo {
 	return AppInfo{AutoReturnEnabled: cfg.AutoReturnEnabled, AutoQueueEnabled: cfg.AutoQueueEnabled, AutoQueueDelay: cfg.AutoQueueDelay, AutoAcceptEnabled: cfg.AutoAcceptEnabled, AutoAcceptDelay: cfg.AutoAcceptDelay, Version: Version, Commit: Commit, BuildTime: BuildTime, Shortcut: cfg.Shortcut, HoldEnabled: cfg.HoldEnabled, HoldKey: cfg.HoldKey, SidebarEnabled: cfg.SidebarEnabled, PreviewEnabled: cfg.PreviewEnabled, SidebarWidth: cfg.SidebarWidth, SettingsWarning: s.settingsWarning,
 		GoHeapBytes: mem.HeapAlloc, Goroutines: runtime.NumGoroutine(), Requests: diagnostics.Default.Snapshot(), PerformanceScope: "仅 Go 堆；不包含 WebView2，不代表总内存、游戏 FPS 或网络延迟"}
 }
-func (s *AppService) ConfigureCompanion(sidebar, preview bool, width int) (AppInfo, error) {
+func (s *AppService) ConfigureCompanion(sidebar, preview bool, width int) (serviceValue AppInfo, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	if width < 280 || width > 420 {
-		return AppInfo{}, errors.New("侧栏宽度应为 280–420")
+		return AppInfo{}, apperrors.New(apperrors.InvalidSidebarWidth)
 	}
 	old := s.settings.Snapshot()
 	s.settings.SetCompanion(sidebar, preview, width)
@@ -64,19 +65,21 @@ func (s *AppService) ConfigureCompanion(sidebar, preview bool, width int) (AppIn
 	})
 	return s.Info(), nil
 }
-func (s *AppService) ConfigureHold(enabled bool, key string) (AppInfo, error) {
+func (s *AppService) ConfigureHold(enabled bool, key string) (serviceValue AppInfo, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	if !settings.ValidHoldKey(key) {
-		return AppInfo{}, errors.New("按住键仅支持 ~、F8、F9、F10")
+		return AppInfo{}, apperrors.New(apperrors.InvalidHoldKey)
 	}
 	if s.configureHold == nil {
-		return AppInfo{}, errors.New("应用尚未准备好配置按住快览")
+		return AppInfo{}, apperrors.New(apperrors.AppNotReady)
 	}
 	if err := s.configureHold(enabled, key); err != nil {
 		return AppInfo{}, err
 	}
 	return s.Info(), nil
 }
-func (s *AppService) ConfigureShortcut(key string) (AppInfo, error) {
+func (s *AppService) ConfigureShortcut(key string) (serviceValue AppInfo, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	key, err := settings.NormalizeShortcut(key)
 	if err != nil {
 		return AppInfo{}, err
@@ -86,15 +89,18 @@ func (s *AppService) ConfigureShortcut(key string) (AppInfo, error) {
 	}
 	return s.Info(), nil
 }
-func (s *AppService) ExportDiagnostics() (string, error) {
+func (s *AppService) ExportDiagnostics() (serviceValue string, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	// Explicit local export: aggregate runtime state and static window warnings;
 	// no player snapshot, raw source errors, process paths or credentials.
 	report := struct {
-		Created     time.Time              `json:"created"`
-		Info        AppInfo                `json:"info"`
-		Companion   *companionDiagnostics  `json:"companion,omitempty"`
-		Performance performanceDiagnostics `json:"performance"`
+		Errors      []apperrors.FailureMetric `json:"errors"`
+		Created     time.Time                 `json:"created"`
+		Info        AppInfo                   `json:"info"`
+		Companion   *companionDiagnostics     `json:"companion,omitempty"`
+		Performance performanceDiagnostics    `json:"performance"`
 	}{Created: time.Now().UTC(), Info: s.Info()}
+	report.Errors = apperrors.Failures.Snapshot()
 	report.Performance = s.performanceDiagnostics()
 	if s.overlay != nil {
 		runtime := s.overlay.diagnostics()
@@ -102,29 +108,30 @@ func (s *AppService) ExportDiagnostics() (string, error) {
 	}
 	b, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
-		return "", errors.New("无法编码诊断摘要")
+		return "", apperrors.New(apperrors.DiagnosticWriteFailed)
 	}
 	dir := filepath.Join(s.configDir, "diagnostics")
 	if os.MkdirAll(dir, 0700) != nil {
-		return "", errors.New("无法创建诊断目录")
+		return "", apperrors.New(apperrors.DiagnosticWriteFailed)
 	}
 	f, err := os.CreateTemp(dir, "leaguepingo-*.json")
 	if err != nil {
-		return "", errors.New("无法创建诊断文件")
+		return "", apperrors.New(apperrors.DiagnosticWriteFailed)
 	}
 	name := f.Name()
 	_, err = f.Write(b)
 	closeErr := f.Close()
 	if err != nil || closeErr != nil {
 		_ = os.Remove(name)
-		return "", errors.New("无法保存诊断摘要")
+		return "", apperrors.New(apperrors.DiagnosticWriteFailed)
 	}
 	return name, nil
 }
 
-func (s *AppService) ConfigureAutoAccept(enabled bool, delay int) (AppInfo, error) {
+func (s *AppService) ConfigureAutoAccept(enabled bool, delay int) (serviceValue AppInfo, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	if !readycheck.ValidDelay(delay) {
-		return AppInfo{}, errors.New("接受延迟仅支持 0、1、3、5 秒")
+		return AppInfo{}, apperrors.New(apperrors.InvalidAcceptDelay)
 	}
 	old := s.settings.Snapshot()
 	s.settings.SetAutoAccept(enabled, delay)
@@ -135,12 +142,16 @@ func (s *AppService) ConfigureAutoAccept(enabled bool, delay int) (AppInfo, erro
 	_ = s.engine.ConfigureAutoAccept(enabled, delay)
 	return s.Info(), nil
 }
-func (s *AppService) AutoAcceptStatus() readycheck.State        { return s.engine.AutoAcceptStatus() }
-func (s *AppService) SkipAutoAccept() (readycheck.State, error) { return s.engine.SkipAutoAccept() }
+func (s *AppService) AutoAcceptStatus() readycheck.State { return s.engine.AutoAcceptStatus() }
+func (s *AppService) SkipAutoAccept() (serviceValue readycheck.State, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
+	return s.engine.SkipAutoAccept()
+}
 
-func (s *AppService) ConfigurePostGame(ret, queue bool, delay int) (AppInfo, error) {
+func (s *AppService) ConfigurePostGame(ret, queue bool, delay int) (serviceValue AppInfo, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
 	if !postgame.ValidDelay(delay) {
-		return AppInfo{}, errors.New("排队延迟仅支持 5、10、15、20 秒")
+		return AppInfo{}, apperrors.New(apperrors.InvalidQueueDelay)
 	}
 	old := s.settings.Snapshot()
 	s.settings.SetPostGame(ret, queue, delay)
@@ -151,5 +162,8 @@ func (s *AppService) ConfigurePostGame(ret, queue bool, delay int) (AppInfo, err
 	_ = s.engine.ConfigurePostGame(ret, queue, delay)
 	return s.Info(), nil
 }
-func (s *AppService) PostGameStatus() postgame.State          { return s.engine.PostGameStatus() }
-func (s *AppService) CancelPostGame() (postgame.State, error) { return s.engine.CancelPostGame() }
+func (s *AppService) PostGameStatus() postgame.State { return s.engine.PostGameStatus() }
+func (s *AppService) CancelPostGame() (serviceValue postgame.State, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
+	return s.engine.CancelPostGame()
+}

@@ -1,4 +1,5 @@
 // Explicit browsing regression with synthetic histories; no account or network access.
+const messages = require('../../internal/apperrors/messages.json');
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
@@ -145,6 +146,7 @@ async function main() {
               json: {
                 kind: "RuntimeError",
                 message: "synthetic pagination timeout",
+ cause: {code: "RequestTimeout"},
               },
             });
           }
@@ -456,7 +458,7 @@ async function main() {
     await page.getByRole("button", { name: "下一页", exact: true }).click();
     await idle();
     await page
-      .getByText("synthetic pagination timeout", { exact: false })
+      .getByText(messages.RequestTimeout, { exact: false })
       .waitFor();
     assert.equal(
       await page.locator(".players-workspace .match-card").count(),

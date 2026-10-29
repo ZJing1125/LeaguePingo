@@ -3,7 +3,6 @@
 package hold
 
 import (
-	"errors"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -13,6 +12,8 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/diagnostics"
 )
 
@@ -128,7 +129,7 @@ func Start(state *State) (*Monitor, error) {
 		})
 		h, _, _ := setHook.Call(13, keyboard, 0, 0)
 		if h == 0 {
-			ready <- errors.New("无法启用局内按住快览；仍可使用手动快览")
+			ready <- apperrors.New(apperrors.HoldUnavailable)
 			return
 		}
 		defer unhook.Call(h)
@@ -145,7 +146,7 @@ func Start(state *State) (*Monitor, error) {
 		})
 		f, _, _ := setEventHook.Call(3, 3, 0, foreground, 0, 0, 0)
 		if f == 0 {
-			ready <- errors.New("无法监听前台窗口；局内按住快览未启用")
+			ready <- apperrors.New(apperrors.HoldUnavailable)
 			return
 		}
 		defer unhookEvent.Call(f)

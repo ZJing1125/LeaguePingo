@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/diagnostics"
 	"leaguepingo/internal/engine"
 	"leaguepingo/internal/settings"
@@ -20,6 +21,7 @@ func TestExportDiagnosticsContainsNoPlayerData(t *testing.T) {
 	diagnostics.Default.Record("/lol-summoner/v1/summoners?name=secret-player", 0, 404, true)
 	diagnostics.Default.Record("/sgp-history", 0, 200, false)
 	diagnostics.KeyboardCallback.Record(250 * time.Microsecond)
+	apperrors.Failures.Record(apperrors.DataService, apperrors.HTTP(apperrors.DataService, 429))
 	file, err := s.ExportDiagnostics()
 	if err != nil {
 		t.Fatal(err)
@@ -32,11 +34,21 @@ func TestExportDiagnosticsContainsNoPlayerData(t *testing.T) {
 		t.Fatal("unsafe diagnostics export")
 	}
 	var report struct {
-		Performance performanceDiagnostics `json:"performance"`
-		Info        AppInfo                `json:"info"`
+		Errors      []apperrors.FailureMetric `json:"errors"`
+		Performance performanceDiagnostics    `json:"performance"`
+		Info        AppInfo                   `json:"info"`
 	}
 	if json.Unmarshal(b, &report) != nil || report.Performance.Keyboard.Calls == 0 || report.Performance.Resources.LastCPUPercentMachine != nil || report.Info.Requests["sgp-history"].P95MS == nil {
 		t.Fatal("performance metrics missing or unknown fabricated")
+	}
+	found := false
+	for _, metric := range report.Errors {
+		if metric.Service == apperrors.DataService && metric.Code == apperrors.RateLimited && metric.Status == 429 && metric.Count > 0 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("safe error classification missing from explicit diagnostics")
 	}
 	performanceJSON, _ := json.Marshal(report.Performance)
 	for _, forbidden := range []string{`"pid"`, `"created"`, `"processes"`, `"groupToken"`, `"cpuSeconds"`} {

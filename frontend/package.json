@@ -7,7 +7,7 @@
     "dev": "vite",
     "build:dev": "vue-tsc && vite build --minify false --mode development",
     "build": "vue-tsc && vite build --mode production",
-    "test:smoke": "node tests/scout-stats.cjs && node tests/overlay-smoke.cjs && node tests/history-browser.cjs && node tests/home-theme.cjs && node tests/companion-browser.cjs && node tests/player-analysis.cjs && node tests/auto-accept.cjs && node tests/post-game.cjs && node tests/guides.cjs",
+    "test:smoke": "node tests/errors.cjs && node tests/scout-stats.cjs && node tests/overlay-smoke.cjs && node tests/history-browser.cjs && node tests/home-theme.cjs && node tests/companion-browser.cjs && node tests/player-analysis.cjs && node tests/auto-accept.cjs && node tests/post-game.cjs && node tests/guides.cjs",
     "test:components": "node tests/component-preview.cjs",
     "preview:components": "npm --prefix preview run dev",
     "build:components": "npm --prefix preview run build",

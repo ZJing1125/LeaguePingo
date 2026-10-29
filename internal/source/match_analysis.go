@@ -2,11 +2,11 @@ package source
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/core"
 )
 
@@ -27,7 +27,7 @@ func (s *TencentLCU) sgpGameData(ctx context.Context, gameID int64, kind, catego
 
 func (s *TencentLCU) MatchTimeline(ctx context.Context, detail core.MatchDetail, target string) (core.MatchTimeline, error) {
 	if detail.GameID <= 0 || !core.IsKnownPUUID(target) {
-		return core.MatchTimeline{}, errors.New("时间线参数无效")
+		return core.MatchTimeline{}, apperrors.New(apperrors.InvalidMatch)
 	}
 	localCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	raw, err := s.client.Get(localCtx, fmt.Sprintf("/lol-match-history/v1/game-timelines/%d", detail.GameID))
@@ -40,7 +40,7 @@ func (s *TencentLCU) MatchTimeline(ctx context.Context, detail core.MatchDetail,
 	}
 	raw, platform, err := s.sgpGameData(ctx, detail.GameID, "DETAILS", "/sgp-timeline")
 	if err != nil {
-		return core.MatchTimeline{}, fmt.Errorf("本场时间线暂未取得：%w", err)
+		return core.MatchTimeline{}, apperrors.Normalize(err, apperrors.DataUnavailable)
 	}
 	return core.ParseSGPTimeline(raw, detail, target, platform)
 }

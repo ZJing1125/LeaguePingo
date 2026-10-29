@@ -11,9 +11,17 @@ import (
 func TestSelectionTimingStartsBeforeRosterAndCompletesOnlyOnData(t *testing.T) {
 	entered, release := make(chan struct{}), make(chan struct{})
 	f := &fakeClient{phase: "ChampSelect", gameID: 42, roster: []core.Participant{{Team: "ally", PUUID: "synthetic-self", Key: "synthetic-self", IdentityState: core.IdentityKnown}}, rosterFn: func() { close(entered); <-release }}
+	// Background preparation must not win the race against the names-only
+	// assertion. This test publishes the first effective result explicitly.
+	f.historyFn = func(ctx context.Context, _ string) (core.HistoryResult, error) {
+		<-ctx.Done()
+		return core.HistoryResult{}, ctx.Err()
+	}
 	e := New(func() (Client, error) { return f, nil }, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	done := make(chan struct{})
-	go func() { e.poll(context.Background()); close(done) }()
+	go func() { e.poll(ctx); close(done) }()
 	<-entered
 	if m := e.ReadinessMetrics(); m.Started != 1 || !m.Pending || m.Completed != 0 {
 		t.Fatal("timer waited for roster", m)
