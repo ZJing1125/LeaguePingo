@@ -90,10 +90,12 @@ func (s *AppService) ExportDiagnostics() (string, error) {
 	// Explicit local export: aggregate runtime state and static window warnings;
 	// no player snapshot, raw source errors, process paths or credentials.
 	report := struct {
-		Created   time.Time             `json:"created"`
-		Info      AppInfo               `json:"info"`
-		Companion *companionDiagnostics `json:"companion,omitempty"`
+		Created     time.Time              `json:"created"`
+		Info        AppInfo                `json:"info"`
+		Companion   *companionDiagnostics  `json:"companion,omitempty"`
+		Performance performanceDiagnostics `json:"performance"`
 	}{Created: time.Now().UTC(), Info: s.Info()}
+	report.Performance = s.performanceDiagnostics()
 	if s.overlay != nil {
 		runtime := s.overlay.diagnostics()
 		report.Companion = &runtime

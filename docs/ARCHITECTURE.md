@@ -1,5 +1,7 @@
 # 架构与技术选型
 
+F1：diagnostics包含固定窗口请求P95、引擎选人首结果计量、原子热键耗时和局内Resources采集器；processstats复用原perfprobe的Windows原生计数。main只在已确认InProgress启用采样；OS读取独立于引擎锁/调度，退出/阶段换代拒绝迟到结果。ExportDiagnostics单独追加聚合performance，不向前端推送资源流或导出原始进程/玩家数据。详见PERFORMANCE。
+
 BUG-0075：公共页源复用固定路径/受限Flight解析；rotating.go处理轮换符文及竞技场品质表/胜率/搭档，Guide.ReferenceNote明确页面版本，传统分路对位不跨模式复用；无新依赖或玩家取数通道。
 
 BUG-0073：guides增加固定OP.GG海克斯两公共页面适配，受限Flight JSON解析、3MiB/页，任务预算沿用原独立通道。GuideCandidates仅在scope/英雄核验后共享内存候选事件，不取数/落盘；source修复队列与顶层map元数据。详见HERO_GUIDES。

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"leaguepingo/internal/core"
+	"leaguepingo/internal/diagnostics"
 	"leaguepingo/internal/engine"
 	"leaguepingo/internal/guides"
 	"leaguepingo/internal/settings"
@@ -11,6 +12,7 @@ import (
 
 // AppService is the small UI boundary; all game data remains inside the Go engine.
 type AppService struct {
+	resources         *diagnostics.Resources
 	guides            *guides.Service
 	engine            *engine.Engine
 	overlay           *overlayController

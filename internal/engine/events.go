@@ -53,6 +53,7 @@ func (e *Engine) observePhase(version, sequence uint64, phase string) {
 	}
 	e.phaseEpoch++
 	e.phaseHint = phase
+	e.readiness.Phase(phase, time.Now())
 	e.observeAutoAcceptLocked(phase)
 	e.postGame.Hint(version, phase)
 	if !activeMatch(phase) && e.groupCancel != nil {

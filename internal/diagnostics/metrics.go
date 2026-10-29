@@ -1,21 +1,32 @@
 package diagnostics
 
 import (
+	"sort"
 	"strings"
 	"sync"
 	"time"
 )
 
 type Metric struct {
-	Calls      uint64 `json:"calls"`
-	Failed     uint64 `json:"failed"`
-	TotalMS    int64  `json:"totalMs"`
-	MaxMS      int64  `json:"maxMs"`
-	LastStatus int    `json:"lastStatus"`
+	Calls         uint64 `json:"calls"`
+	Failed        uint64 `json:"failed"`
+	TotalMS       int64  `json:"totalMs"`
+	MaxMS         int64  `json:"maxMs"`
+	LastStatus    int    `json:"lastStatus"`
+	RecentSamples int    `json:"recentSamples"`
+	P95MS         *int64 `json:"p95Ms"`
+}
+
+const latencyWindowSize = 256
+
+type latencyWindow struct {
+	values      [latencyWindowSize]int64
+	count, next int
 }
 type Collector struct {
 	mu     sync.Mutex
 	values map[string]Metric
+	recent map[string]*latencyWindow
 }
 
 var Default = &Collector{values: map[string]Metric{}}
@@ -43,6 +54,8 @@ func Category(path string) string {
 		return "sgp-detail"
 	case path == "/sgp-timeline":
 		return "sgp-timeline"
+	case path == "/sgp-group":
+		return "sgp-group"
 	case path == "/lol-league-session/v1/league-session-token":
 		return "rank-session"
 	case path == "/phase-events":
@@ -76,6 +89,17 @@ func (c *Collector) Record(path string, elapsed time.Duration, status int, faile
 		c.values = map[string]Metric{}
 	}
 	key := Category(path)
+	if c.recent == nil {
+		c.recent = map[string]*latencyWindow{}
+	}
+	w := c.recent[key]
+	if w == nil {
+		w = &latencyWindow{}
+		c.recent[key] = w
+	}
+	w.values[w.next] = max(0, elapsed.Milliseconds())
+	w.next = (w.next + 1) % latencyWindowSize
+	w.count = min(w.count+1, latencyWindowSize)
 	v := c.values[key]
 	v.Calls++
 	if failed {
@@ -88,9 +112,24 @@ func (c *Collector) Record(path string, elapsed time.Duration, status int, faile
 }
 func (c *Collector) Snapshot() map[string]Metric {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	out := map[string]Metric{}
+	windows := map[string][]int64{}
 	for k, v := range c.values {
+		out[k] = v
+		if w := c.recent[k]; w != nil {
+			windows[k] = append([]int64(nil), w.values[:w.count]...)
+		}
+	}
+	c.mu.Unlock()
+	// Sort only copied, bounded windows; request recording never sorts or waits on I/O.
+	for k, samples := range windows {
+		sort.Slice(samples, func(i, j int) bool { return samples[i] < samples[j] })
+		v := out[k]
+		v.RecentSamples = len(samples)
+		if len(samples) > 0 {
+			p95 := samples[(95*len(samples)+99)/100-1]
+			v.P95MS = &p95
+		}
 		out[k] = v
 	}
 	return out

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"leaguepingo/internal/core"
+	"leaguepingo/internal/diagnostics"
 	"leaguepingo/internal/postgame"
 	"leaguepingo/internal/readycheck"
 	"leaguepingo/internal/source"
@@ -22,6 +23,7 @@ type Discoverer func() (Client, error)
 const inGameRosterAttemptLimit = 3
 
 type Engine struct {
+	readiness           diagnostics.Readiness
 	groupLabels         map[string]string
 	groupScope          string
 	groupAttempted      bool
@@ -142,6 +144,7 @@ func (e *Engine) Run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			e.mu.Lock()
+			e.readiness.Reset()
 			e.stopReviewLocked()
 			e.stopScoutingLocked()
 			if e.homeCancel != nil {
@@ -241,6 +244,7 @@ func (e *Engine) poll(ctx context.Context) {
 		e.mu.Unlock()
 		return
 	}
+	phaseObserved := time.Now()
 	stage := stageForPhase(phase)
 	account := ""
 	if preparationStage(stage) || stage == "idle" {
@@ -271,6 +275,7 @@ func (e *Engine) poll(ctx context.Context) {
 		}
 		e.accountIdentity = account
 	}
+	e.readiness.Phase(phase, phaseObserved)
 	e.observeAutoAcceptLocked(phase, phaseStarted)
 	refresh := false
 	if activeMatch(phase) {
@@ -378,6 +383,7 @@ func (e *Engine) poll(ctx context.Context) {
 
 // Retained data can still be displayed, but can never become a new connection's cache.
 func (e *Engine) invalidateConnectionLocked() {
+	e.readiness.Reset()
 	if e.groupCancel != nil {
 		e.groupCancel()
 		e.groupCancel = nil
@@ -423,6 +429,7 @@ func (e *Engine) invalidateConnectionLocked() {
 
 // Keep the frozen match available while exposing why reconnection failed.
 func (e *Engine) disconnectLocked(message string) {
+	e.readiness.Reset()
 	if e.groupCancel != nil {
 		e.groupCancel()
 		e.groupCancel = nil
@@ -461,6 +468,7 @@ func (e *Engine) disconnectLocked(message string) {
 }
 
 func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.Participant, message string) {
+	e.readiness.Phase(phase, time.Now())
 	if stage != "idle" && e.homeCancel != nil {
 		e.homeCancel()
 	}
@@ -788,6 +796,7 @@ func (e *Engine) publishLocked() {
 	e.syncReviewLocked()
 	e.snapshot.Review = e.review
 	e.observePostGameLocked()
+	e.observeReadinessLocked()
 	if e.onChange == nil {
 		return
 	}

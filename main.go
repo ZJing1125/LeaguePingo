@@ -15,6 +15,7 @@ import (
 
 	"leaguepingo/internal/companion"
 	"leaguepingo/internal/core"
+	"leaguepingo/internal/diagnostics"
 	"leaguepingo/internal/engine"
 	"leaguepingo/internal/guides"
 	"leaguepingo/internal/hold"
@@ -92,6 +93,8 @@ func main() {
 		},
 	})
 	// New exits duplicate instances before any LCU worker or tray is created.
+	backend.resources = diagnostics.NewResources()
+	go backend.resources.Run(ctx)
 	discover := source.DiscoverTencent
 	if offlineSmoke {
 		discover = func() (source.Source, error) { return nil, source.ErrNotConnected }
@@ -108,6 +111,7 @@ func main() {
 		}
 	}()
 	backend.engine, err = engine.NewWithHistoryCache(discover, func(snapshot core.Snapshot) {
+		backend.resources.SetActive(snapshot.Connected && snapshot.Phase == "InProgress")
 		backend.guides.Observe(snapshot)
 		held.Allow(companion.InGame(snapshot))
 		app.Event.Emit("leaguepingo:snapshot", snapshot)

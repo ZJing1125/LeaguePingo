@@ -1,13 +1,16 @@
 package main
 
 import (
-	"leaguepingo/internal/diagnostics"
-	"leaguepingo/internal/engine"
-	"leaguepingo/internal/settings"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"leaguepingo/internal/diagnostics"
+	"leaguepingo/internal/engine"
+	"leaguepingo/internal/settings"
 )
 
 func TestExportDiagnosticsContainsNoPlayerData(t *testing.T) {
@@ -15,6 +18,8 @@ func TestExportDiagnosticsContainsNoPlayerData(t *testing.T) {
 	store, _ := settings.Open(filepath.Join(dir, "settings.json"))
 	s := &AppService{settings: store, configDir: dir}
 	diagnostics.Default.Record("/lol-summoner/v1/summoners?name=secret-player", 0, 404, true)
+	diagnostics.Default.Record("/sgp-history", 0, 200, false)
+	diagnostics.KeyboardCallback.Record(250 * time.Microsecond)
 	file, err := s.ExportDiagnostics()
 	if err != nil {
 		t.Fatal(err)
@@ -25,6 +30,19 @@ func TestExportDiagnosticsContainsNoPlayerData(t *testing.T) {
 	}
 	if !strings.HasPrefix(file, dir+string(os.PathSeparator)) || strings.Contains(string(b), "secret-player") || strings.Contains(string(b), "puuid") || !strings.Contains(string(b), "performanceScope") {
 		t.Fatal("unsafe diagnostics export")
+	}
+	var report struct {
+		Performance performanceDiagnostics `json:"performance"`
+		Info        AppInfo                `json:"info"`
+	}
+	if json.Unmarshal(b, &report) != nil || report.Performance.Keyboard.Calls == 0 || report.Performance.Resources.LastCPUPercentMachine != nil || report.Info.Requests["sgp-history"].P95MS == nil {
+		t.Fatal("performance metrics missing or unknown fabricated")
+	}
+	performanceJSON, _ := json.Marshal(report.Performance)
+	for _, forbidden := range []string{`"pid"`, `"created"`, `"processes"`, `"groupToken"`, `"cpuSeconds"`} {
+		if strings.Contains(string(performanceJSON), forbidden) {
+			t.Fatal("unsafe performance export", forbidden)
+		}
 	}
 }
 

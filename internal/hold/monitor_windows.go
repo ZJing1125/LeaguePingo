@@ -9,9 +9,11 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+	"leaguepingo/internal/diagnostics"
 )
 
 var user = windows.NewLazySystemDLL("user32.dll")
@@ -88,6 +90,7 @@ func Start(state *State) (*Monitor, error) {
 			}
 		}
 		keyboard := syscall.NewCallback(func(code int, w uintptr, l unsafe.Pointer) uintptr {
+			started := time.Now()
 			if code >= 0 {
 				e := (*keyEvent)(l)
 				down := w == 0x100 || w == 0x104
@@ -113,6 +116,8 @@ func Start(state *State) (*Monitor, error) {
 					}
 				}
 			}
+			// Own callback body only; exclude downstream hooks. Never retain keys.
+			diagnostics.KeyboardCallback.Record(time.Since(started))
 			r, _, _ := nextHook.Call(0, uintptr(code), w, uintptr(l))
 			return r
 		})

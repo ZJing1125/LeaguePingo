@@ -17,70 +17,21 @@ import (
 	"strconv"
 	"syscall"
 	"time"
-	"unsafe"
 
-	"golang.org/x/sys/windows"
+	"leaguepingo/internal/processstats"
 )
 
 type counters struct {
-	created uint64
-	cpu     float64
-	private uint64
-	working uint64
-}
-type memoryCounters struct {
-	Size                                                                                            uint32
-	PageFaults                                                                                      uint32
-	PeakWorking, Working, PeakPaged, Paged, PeakNonPaged, NonPaged, Pagefile, PeakPagefile, Private uintptr
+	created          uint64
+	cpu              float64
+	private, working uint64
 }
 
-var getMemory = windows.NewLazySystemDLL("psapi.dll").NewProc("GetProcessMemoryInfo")
-
-func filetime(f windows.Filetime) uint64 { return uint64(f.HighDateTime)<<32 | uint64(f.LowDateTime) }
 func readCounters(pid uint32) (counters, error) {
-	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION|windows.PROCESS_VM_READ, false, pid)
-	if err != nil {
-		return counters{}, err
-	}
-	defer windows.CloseHandle(h)
-	var created, exited, kernel, user windows.Filetime
-	if err = windows.GetProcessTimes(h, &created, &exited, &kernel, &user); err != nil {
-		return counters{}, err
-	}
-	mem := memoryCounters{}
-	mem.Size = uint32(unsafe.Sizeof(mem))
-	ok, _, err := getMemory.Call(uintptr(h), uintptr(unsafe.Pointer(&mem)), uintptr(mem.Size))
-	if ok == 0 {
-		return counters{}, err
-	}
-	return counters{created: filetime(created), cpu: float64(filetime(kernel)+filetime(user)) / 1e7, private: uint64(mem.Private), working: uint64(mem.Working)}, nil
+	c, err := processstats.Read(pid)
+	return counters{c.Created, c.CPUSeconds, c.PrivateBytes, c.WorkingSetBytes}, err
 }
-func descendants(root uint32) (map[uint32]bool, error) {
-	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
-	if err != nil {
-		return nil, err
-	}
-	defer windows.CloseHandle(snapshot)
-	entry := windows.ProcessEntry32{Size: uint32(unsafe.Sizeof(windows.ProcessEntry32{}))}
-	parents := map[uint32]uint32{}
-	for err = windows.Process32First(snapshot, &entry); err == nil; err = windows.Process32Next(snapshot, &entry) {
-		parents[entry.ProcessID] = entry.ParentProcessID
-	}
-	if !errors.Is(err, windows.ERROR_NO_MORE_FILES) {
-		return nil, err
-	}
-	members := map[uint32]bool{root: true}
-	for changed := true; changed; {
-		changed = false
-		for id, parent := range parents {
-			if members[parent] && !members[id] {
-				members[id] = true
-				changed = true
-			}
-		}
-	}
-	return members, nil
-}
+func descendants(root uint32) (map[uint32]bool, error) { return processstats.Descendants(root) }
 func run() error {
 	rootFlag := flag.Uint("pid", 0, "existing assistant PID; read-only sampling")
 	executable := flag.String("exe", "", "launch an isolated hidden offline instance instead")
