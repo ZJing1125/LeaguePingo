@@ -399,6 +399,9 @@ func (e *Engine) fetchHistoryPage(ctx context.Context, client Client, player cor
 	if err != nil {
 		return core.HistoryPage{}, err
 	}
+	if requestCtx.Err() != nil {
+		return core.HistoryPage{}, requestCtx.Err()
+	}
 	e.mu.RLock()
 	current := e.client != nil && e.clientVersion == connectionID
 	e.mu.RUnlock()

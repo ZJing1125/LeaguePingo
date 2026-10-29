@@ -111,7 +111,11 @@ func (e *Engine) RetryHistory(ctx context.Context, key string, connectionID uint
 		e.mu.Unlock()
 		return player, apperrors.New(apperrors.RecoveryExhausted)
 	}
-	request, cancel := context.WithTimeout(ctx, 6*time.Second)
+	deadline := time.Now().Add(6 * time.Second)
+	if end := v.started.Add(time.Minute); end.Before(deadline) {
+		deadline = end
+	}
+	request, cancel := context.WithDeadline(ctx, deadline)
 	v.attempts++
 	v.cancel = cancel
 	epoch := e.phaseEpoch

@@ -33,7 +33,7 @@ function arm(){
  if(!canAuto.value || running.value)return;
  if(!deadline)deadline=Date.now()+60_000;
  const delay=Math.max(500,due.value-Date.now());
- if(attempts>=2 || Date.now()+delay>deadline){exhausted.value=true;return;}
+ if(attempts>=2 || Date.now()+delay+6000>deadline){exhausted.value=true;return;}
  const token=revision,target=scope.value;
  scheduled.value=true;
  timer=setTimeout(async()=>{

@@ -189,3 +189,17 @@ func TestRecoveryCannotBypassWaitOrRetryPermanentFailure(t *testing.T) {
 		t.Fatal("permanent failure queried source")
 	}
 }
+
+func TestRecoveryReadUsesRemainingEpisodeDeadline(t *testing.T) {
+	e, f, p := recoveryEngine(t)
+	e.historyRecovery.entries = map[string]*historyRecoveryEntry{p.Key: {started: time.Now().Add(-time.Minute + 100*time.Millisecond)}}
+	f.historyFn = func(ctx context.Context, _ string) (core.HistoryResult, error) {
+		<-ctx.Done()
+		return core.HistoryResult{}, ctx.Err()
+	}
+	start := time.Now()
+	_, err := e.RetryHistory(context.Background(), p.Key, 1)
+	if err == nil || time.Since(start) > time.Second {
+		t.Fatal("last read extended the episode by a full request timeout")
+	}
+}

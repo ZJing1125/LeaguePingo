@@ -224,9 +224,14 @@ export function useHistoryBrowser(
     async function fetchPage(offset:number) {
       for(;;){
         if(!current() || state.stopRequested || !workspaceActive() || props.busy)throw codedError('RequestCanceled');
+        if(Date.now()-started>=budget)throw codedError('RequestTimeout');
         requests++;
-        try { return await Service.HistoryPage(target.key,target.connectionId,offset); }
+        const call=Service.HistoryPage(target.key,target.connectionId,offset);
+        let expired=false;
+        const timeout=setTimeout(()=>{expired=true;call.cancel();},Math.max(0,budget-(Date.now()-started)));
+        try { return await call; }
         catch(reason){
+          if(expired)throw codedError('RequestTimeout');
           const at=retryTime(reason),delay=Math.max(500,at-Date.now());
           if(background || !at || retries>=2 || requests>=pageBudget || Date.now()-started+delay>=budget)throw reason;
           retries++;
@@ -237,6 +242,7 @@ export function useHistoryBrowser(
             await new Promise(resolve=>setTimeout(resolve,Math.min(100,until-Date.now())));
           }
         }
+        finally{clearTimeout(timeout);}
       }
     }
     try {
