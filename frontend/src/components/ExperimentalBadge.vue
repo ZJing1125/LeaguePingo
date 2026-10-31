@@ -3,7 +3,7 @@ withDefaults(defineProps<{ feature: string; label?: string }>(), { label: '实�
 </script>
 
 <template>
-  <span class="experimental-badge" :title="`${feature}：国服实机验证未完成`" :aria-label="`${feature}：${label}，国服实机验证未完成`">{{ label }}</span>
+  <span class="experimental-badge" :title="`${feature}：${label}`" :aria-label="`${feature}：${label}`">{{ label }}</span>
 </template>
 
 <style scoped>

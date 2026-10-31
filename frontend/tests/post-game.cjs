@@ -25,15 +25,14 @@ const {mockWindowRuntime}=require('./window-runtime.cjs');
  const method=methods[request.args?.methodID],args=request.args?.args??[];calls.push(method);let result=null;
  if(method==='Snapshot')result=snapshot;
  else if (method === 'GuideStatus') result={revision:0,status:'idle',query:{},base:null,matchup:null};
-    else if (method === 'PostGameStatus') result=state;
-    else if(method==='AutoAcceptStatus')result={revision:0,enabled:false,delaySeconds:1,status:'off',dueAt:'0001-01-01T00:00:00Z'};
+ else if (method === 'PostGameStatus') result=state;
+ else if(method==='AutoAcceptStatus')result={revision:0,enabled:false,delaySeconds:1,status:'off',dueAt:'0001-01-01T00:00:00Z'};
  else if(method==='Info')result=info;
  else if(method==='OverlayStatus')result={revision:1,mode:'sidebar',visible:true,sidebarEnabled:true,sidebarWidth:320,holdEnabled:true};
  else if(method==='ConfigurePostGame'){
  if(failSave)return route.fulfill({status:400,json:{kind:'RuntimeError',message:'LCU HTTP 500 private-player#TEST',cause:{code:'SettingsWriteFailed'}}});
  info={...info,autoReturnEnabled:args[0],autoQueueEnabled:args[1],autoQueueDelay:args[2],autoSkipHonor:args[3]};state={...state,revision:state.revision+1,returnEnabled:args[0],queueEnabled:args[1],delaySeconds:args[2],skipHonor:args[3],status:args[0]||args[1]||args[3]?'armed':'off'};result=info;
  }else if(method==='CancelPostGame'){assert(['honor-countdown','return-countdown','queue-countdown'].includes(state.status));result=state={...state,revision:state.revision+1,status:'cancelled'};}
-
  else if(method!=='AuxiliaryReady')throw Error('unexpected service '+method);
  return route.fulfill({json:result});
  }
@@ -43,38 +42,45 @@ const {mockWindowRuntime}=require('./window-runtime.cjs');
  await page.goto('http://127.0.0.1:43401/'+url);return page;
  }
  async function emit(value=state){await Promise.all(pages.map(page=>page.evaluate(data=>window._wails.dispatchWailsEvent({name:'leaguepingo:post-game',data}),value)));}
- const page=await open('');await page.getByRole('button',{name:'设置与诊断',exact:true}).click();await page.getByRole('tab',{name:'游戏辅助'}).click();
+ const page=await open('');
+ await page.getByRole('button',{name:'游戏辅助',exact:true}).click();
+ await page.locator('.automation-workspace').waitFor();
  const skip=page.getByRole('checkbox',{name:'自动跳过点赞',exact:true});
  const ret=page.getByRole('checkbox',{name:'赛后自动返回房间',exact:true}),queue=page.getByRole('checkbox',{name:'返回后自动排队',exact:true}),delay=page.getByRole('combobox',{name:'自动排队倒计时'});
- assert.equal(await ret.isChecked(),false);assert.equal(await queue.isChecked(),false);assert.equal(await delay.inputValue(),'10');
- assert.equal(await skip.isChecked(),false);
- await skip.check();await page.getByRole('button',{name:'保存游戏辅助设置'}).click();await page.getByText('游戏辅助设置已保存。',{exact:true}).waitFor();await emit();
+ assert.equal(await ret.isChecked(),false);assert.equal(await queue.isChecked(),false);assert.equal(await delay.inputValue(),'10');assert.equal(await skip.isChecked(),false);
+ await skip.check();await page.getByRole('button',{name:'保存自动化设置'}).click();await page.getByText('自动化设置已保存。',{exact:true}).waitFor();await emit();
  assert(info.autoSkipHonor && !info.autoReturnEnabled && !info.autoQueueEnabled,'skip-only option enabled return/queue');
- await page.getByRole('button',{name:'关闭设置',exact:true}).click();await page.getByText('自动跳过点赞已开启',{exact:true}).waitFor();
- await page.getByRole('button',{name:'设置与诊断',exact:true}).click();await page.getByRole('tab',{name:'游戏辅助'}).click();assert.equal(await skip.isChecked(),true,'saved skip state not restored');
- await ret.check();await queue.check();await delay.selectOption('15');await page.getByRole('button',{name:'保存游戏辅助设置'}).click();await page.getByText('游戏辅助设置已保存。',{exact:true}).waitFor();await emit();
+ await page.locator('.automation-chip').getByText('自动 1 项',{exact:true}).waitFor();
+ assert.equal(await page.locator('.post-game-notice').count(),0,'armed state must not render a banner');
+ // Navigating away and back restores the saved switches from Info().
+ await page.getByRole('button',{name:'首页',exact:true}).click();await page.getByRole('button',{name:'游戏辅助',exact:true}).click();
+ await page.locator('.automation-workspace').waitFor();assert.equal(await skip.isChecked(),true,'saved skip state not restored');
+ await ret.check();await queue.check();await delay.selectOption('15');await page.getByRole('button',{name:'保存自动化设置'}).click();await page.getByText('自动化设置已保存。',{exact:true}).waitFor();await emit();
  assert.equal(calls.filter(c=>c==='ConfigurePostGame').length,2);assert.equal(info.autoQueueDelay,15);
- failSave=true;await skip.uncheck();await delay.selectOption('20');await page.getByRole('button',{name:'保存游戏辅助设置'}).click();await page.getByText(messages.SettingsWriteFailed,{exact:true}).waitFor();assert.equal(info.autoQueueDelay,15);assert.equal(info.autoSkipHonor,true,'failed save changed active skip');failSave=false;
- await ret.scrollIntoViewIfNeeded();if(process.env.UI_SCREENSHOT_PREFIX)await page.screenshot({path:process.env.UI_SCREENSHOT_PREFIX+'-settings.png'});
- await page.getByRole('button',{name:'关闭设置',exact:true}).click();await page.getByText('赛后自动返回与排队已开启',{exact:true}).waitFor();
- const side=await open('?view=companion',280);await side.locator('.client-sidebar').waitFor();await side.locator('.post-game-notice').waitFor();
+ failSave=true;await skip.uncheck();await delay.selectOption('20');await page.getByRole('button',{name:'保存自动化设置'}).click();
+ await page.getByText(messages.SettingsWriteFailed,{exact:true}).waitFor();assert.equal(info.autoQueueDelay,15);assert.equal(info.autoSkipHonor,true,'failed save changed active skip');failSave=false;
+ const side=await open('?view=companion',280);await side.locator('.client-sidebar').waitFor();
  for(const status of ['honor-countdown','return-countdown','queue-countdown']){
   state={...state,revision:state.revision+1,status,dueAt:new Date(Date.now()+10000).toISOString()};await emit();
-  await side.getByRole('button',{name:'取消本次',exact:true}).click();await emit();await page.getByText('本次赛后自动操作已取消',{exact:true}).waitFor();
+  await side.locator('.post-game-notice').getByRole('button',{name:'取消本次',exact:true}).click();await emit();
+  assert.equal(await side.locator('.post-game-notice').count(),0,'cancelled step must leave no banner');
  }
- await emit({...state,revision:state.revision-1,status:'queued'});assert.equal(await page.getByText('已开始排队',{exact:true}).count(),0);assert.equal(calls.filter(c=>c==='CancelPostGame').length,3);
+ assert.equal(calls.filter(c=>c==='CancelPostGame').length,3);
+ await emit({...state,revision:state.revision+1,status:'queued'});assert.equal(await page.locator('.post-game-notice').count(),0,'terminal success stays off the workspace');
  state={...state,revision:state.revision+1,status:'continuing-postgame'};await emit();
  await side.getByText('正在完成赛后继续步骤…',{exact:true}).waitFor();
  state={...state,revision:state.revision+1,status:'honor-unconfirmed'};await emit();
  await side.getByText('未确认点赞页已结束，请在客户端检查',{exact:true}).waitFor();
  assert(await side.locator('.post-game-notice').evaluate(el=>el.scrollWidth<=el.clientWidth));
- for(const width of [880,1280]){await page.setViewportSize({width,height:800});assert(await page.locator('.post-game-notice').evaluate(el=>el.scrollWidth<=el.clientWidth));}
+ for(const width of [880,1280]){await page.setViewportSize({width,height:800});assert(await page.locator('.automation-chip').evaluate(el=>el.scrollWidth<=el.clientWidth));}
  await page.getByRole('combobox',{name:'界面主题',exact:true}).selectOption('light');
+ // The settings game tab no longer duplicates automation switches.
  await page.getByRole('button',{name:'设置与诊断',exact:true}).click();await page.getByRole('tab',{name:'游戏辅助'}).click();
+ await page.getByRole('button',{name:'打开游戏辅助页',exact:true}).click();await page.locator('.automation-workspace').waitFor();
  await ret.uncheck();await page.getByText('手动返回房间后，才会开始排队倒计时。',{exact:true}).waitFor();
- await page.getByRole('button',{name:'恢复默认'}).click();assert.equal(await ret.isChecked(),false);assert.equal(await queue.isChecked(),false);assert.equal(await delay.inputValue(),'10');assert.equal(info.autoQueueEnabled,true,'defaults must remain a draft');assert.equal(await skip.isChecked(),false);assert.equal(info.autoSkipHonor,true,'skip defaults must remain a draft');
- await page.getByRole('button',{name:'保存游戏辅助设置'}).click();await page.getByText('游戏辅助设置已保存。',{exact:true}).waitFor();await emit();assert.equal(info.autoQueueEnabled,false);assert.equal(info.autoSkipHonor,false);
- if(process.env.UI_SCREENSHOT_PREFIX){await ret.scrollIntoViewIfNeeded();await page.screenshot({path:process.env.UI_SCREENSHOT_PREFIX+'-light.png'});}
- assert.deepEqual(errors,[]);console.log('PASS: independent skip-only/return/queue opt-ins, persisted state/default draft/save rollback, honor-countdown/unknown result, manual-return guidance, cross-window return/queue countdown cancellation, stale revision and 880/280 light/dark layouts (synthetic bridge).');
+ await skip.uncheck();await page.getByRole('button',{name:'保存自动化设置'}).click();await page.getByText('自动化设置已保存。',{exact:true}).waitFor();await emit();
+ assert.equal(info.autoSkipHonor,false);assert.equal(info.autoReturnEnabled,false);
+ if(process.env.UI_SCREENSHOT_PREFIX){await page.locator('.automation-workspace').scrollIntoViewIfNeeded();await page.screenshot({path:process.env.UI_SCREENSHOT_PREFIX+'-automation.png'});}
+ assert.deepEqual(errors,[]);console.log('PASS: automation page opt-ins, chip instead of banners, persisted switches, save rollback, cross-window countdown cancellation, stale revision, settings link and 880/280 layouts (synthetic bridge).');
  }finally{await browser.close();}
 })().catch(err=>{console.error(err);process.exitCode=1});

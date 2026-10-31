@@ -1,4 +1,4 @@
-// Synthetic bridge only; no live client, OP.GG traffic, or player identifiers.
+﻿// Synthetic bridge only; no live client, OP.GG traffic, or player identifiers.
 const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');const path=require('node:path');
 const {chromium}=require('playwright');const {mockWindowRuntime}=require('./window-runtime.cjs');
@@ -32,13 +32,13 @@ const {makePlayer,now}=require('./analysis-fixture.cjs');
  const rel=url.pathname==='/'?'index.html':url.pathname.slice(1);assert(!rel.includes('..'));return route.fulfill({body:await fs.readFile(path.join(__dirname,'../dist',rel)),contentType:rel.endsWith('.js')?'text/javascript':rel.endsWith('.css')?'text/css':rel.endsWith('.png')?'image/png':rel.endsWith('.jpg')?'image/jpeg':'text/html'});
  });await page.goto('http://127.0.0.1:43411/'+view);return page;}
  const main=await open('',1280);await main.getByRole('button',{name:'对局室',exact:true}).click();await main.locator('.guide-panel .guide-build-row').first().waitFor();
- await main.getByLabel('英雄攻略与模式适配：实验性，国服实机验证未完成',{exact:true}).waitFor();
- await main.getByLabel('双方同组标识：同组实验性，国服实机验证未完成',{exact:true}).first().waitFor();
+ await main.getByLabel('英雄攻略与模式适配：实验性',{exact:true}).waitFor();
+ await main.getByLabel('双方同组标识：同组实验性',{exact:true}).first().waitFor();
  assert.equal(await main.locator('.premade-badge[data-group="ally-aabbcc"]').count(),2);await main.getByRole('button',{name:'展开完整攻略',exact:true}).click();assert.equal(await main.locator('.guide-panel').getByText('52.5%',{exact:true}).count(),1);
  const side=await open('?view=companion',280);await side.getByRole('button',{name:'本局攻略',exact:true}).click();await side.locator('.guide-panel .guide-build-row').first().waitFor();
- await side.getByLabel('双方同组标识：同组实验性，国服实机验证未完成',{exact:true}).waitFor();
+ await side.getByLabel('双方同组标识：同组实验性',{exact:true}).waitFor();
  assert(await side.locator('.sidebar-heading').evaluate(e=>e.scrollWidth<=e.clientWidth),'group label overflow at 280px');
- await side.getByLabel('英雄攻略与模式适配：实验性，国服实机验证未完成',{exact:true}).waitFor();
+ await side.getByLabel('英雄攻略与模式适配：实验性',{exact:true}).waitFor();
  assert(await side.locator('.guide-panel').evaluate(e=>e.scrollWidth<=e.clientWidth));await side.getByRole('button',{name:'查看备选方案',exact:true}).click();await side.getByText('49.0%',{exact:true}).waitFor();
  const overlay=await open('?view=overlay',1100);await overlay.setViewportSize({width:1100,height:640});await overlay.getByRole('button',{name:'本局攻略',exact:true}).click();await overlay.locator('.guide-panel').waitFor();assert(await overlay.locator('.guide-switch').evaluate(e=>e.scrollWidth<=e.clientWidth));if(process.env.UI_SCREENSHOT_PREFIX)await overlay.screenshot({path:process.env.UI_SCREENSHOT_PREFIX+'-overlay.png'});assert.equal(await overlay.locator('.overlay-player').count(),0);await overlay.getByRole('button',{name:'双方资料',exact:true}).click();assert.equal(await overlay.locator('.guide-panel').count(),0);assert.equal(await overlay.locator('.overlay-player').count(),3);
  const before=calls.filter(c=>c.name==='SelectGuide').length;await side.getByRole('button',{name:'玩家资料',exact:true}).click();await side.getByRole('button',{name:'本局攻略',exact:true}).click();assert.equal(calls.filter(c=>c.name==='SelectGuide').length,before);
@@ -57,7 +57,7 @@ const {makePlayer,now}=require('./analysis-fixture.cjs');
  state={...state,revision:state.revision+1,status:'ready',message:'',query:{mode:'aram-mayhem',champion:3,position:'mid',opponent:0,patch:''},modeLabel:'海克斯大乱斗',base:{...guide,augments,runes:[],skills:['Q','W','E'],sourceUrl:'https://op.gg/zh-cn/lol/modes/aram-mayhem/galio/build'},matchup:null,candidates:[],stale:false};
  for(const p of pages)await p.evaluate(({snapshot,state})=>{window._wails.dispatchWailsEvent({name:'leaguepingo:snapshot',data:snapshot});window._wails.dispatchWailsEvent({name:'leaguepingo:guide',data:state});},{snapshot,state});
  await side.getByRole('checkbox',{name:'比较强化1',exact:true}).waitFor();
- await side.getByLabel('英雄攻略与模式适配：实验性，国服实机验证未完成',{exact:true}).waitFor();
+ await side.getByLabel('英雄攻略与模式适配：实验性',{exact:true}).waitFor();
  assert.equal(calls.filter(c=>c.name==='SelectGuide').length,1,'experimental labels must not fetch guides');
  assert.equal(await side.getByRole('combobox',{name:'攻略分路'}).count(),0,'Mayhem must not require lanes');
  const guideCalls=calls.filter(c=>c.name==='SelectGuide').length;

@@ -16,6 +16,8 @@ import BrandIcon from "./components/BrandIcon.vue";
 import DesktopTitleBar from "./components/DesktopTitleBar.vue";
 import HomeView from "./components/HomeView.vue";
 import MatchRoom from "./components/MatchRoom.vue";
+import AutomationView from "./components/AutomationView.vue";
+import { useAutomation } from "./composables/useAutomation";
 import { useTransientMessages } from "./transientMessages";
 import { errorMessage, normalizeRiotIDInput } from "./presentation";
 import { newestPlayer, operationKey, playerTabId } from "./playerState";
@@ -33,6 +35,7 @@ const { messages: playerErrors, setMessage } = useTransientMessages();
 const searchError = computed(() => playerErrors.search || "");
 const league = useLeagueSnapshot();
 useGuide(); // Subscribe once at startup; navigating to the guide is a memory-only view.
+const { activeCount: automationCount, warning: automationWarning } = useAutomation();
 const { snapshot, status } = league;
 const workspace = usePlayerWorkspace(snapshot, (player) => {
   delete playerErrors[operationKey(player)];
@@ -197,6 +200,14 @@ onUnmounted(() => {
             @click="view = 'players'"
           >
             玩家战绩
+          </button
+          ><button
+            :class="{ active: view === 'automation' }"
+            :aria-current="view === 'automation' ? 'page' : undefined"
+            aria-label="游戏辅助"
+            @click="view = 'automation'"
+          >
+            <span class="nav-full">游戏辅助</span><span class="nav-short">辅助</span>
           </button>
         </nav>
         <form class="global-search" @submit.prevent="submitSearch()" :aria-busy="searching || queuedSearch" :title="queuedSearch ? '等待首页资料完成后查询；点击取消等待' : manualBusy && !searching ? '正在完成当前操作，请稍候再查询' : '输入玩家名#标签，按 Enter 查询'">
@@ -220,6 +231,16 @@ onUnmounted(() => {
           ></span
           >{{ status.split(" · ")[0] }}</span
         >
+        <button
+          v-if="automationCount > 0"
+          class="automation-chip"
+          :class="{ warn: automationWarning }"
+          :aria-label="`游戏辅助：${automationCount} 项开启，打开游戏辅助页`"
+          :title="automationWarning ? '游戏辅助有需要处理的状态' : '游戏辅助已开启'"
+          @click="view = 'automation'"
+        >
+          <span class="dot" />自动 {{ automationCount }} 项
+        </button>
         <button
           class="icon-button settings-trigger"
           aria-label="设置与诊断"
@@ -312,6 +333,9 @@ onUnmounted(() => {
       <section v-show="view === 'match'" class="match-workspace review-host">
         <MatchRoom :snapshot="snapshot" :active="view === 'match'" @snapshot="acceptSnapshot" @query="queryReviewPlayer" @modal="reviewModalOpen = $event" @companion="showCompanion"/>
       </section>
+      <section v-if="view === 'automation'" class="automation-host">
+        <AutomationView @settings="settingsOpen = true" />
+      </section>
     </div>
     <SettingsPanel
       :overlay-state="overlay"
@@ -319,6 +343,7 @@ onUnmounted(() => {
       :resolved-theme="resolvedTheme"
       :theme-error="themeError"
       @theme="setTheme"
+      @automation="settingsOpen = false; view = 'automation'"
       v-if="settingsOpen"
       @close="settingsOpen = false"
     />

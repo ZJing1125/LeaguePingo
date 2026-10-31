@@ -1,4 +1,4 @@
-// Synthetic Wails bridge; no real account, service, process or game interaction.
+﻿// Synthetic Wails bridge; no real account, service, process or game interaction.
 const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');
 const path=require('node:path');
@@ -49,7 +49,7 @@ async function main(){
   await page.goto('http://127.0.0.1:43208/');
   await home.getByText('远端战绩暂不可用，已保留当前记录。',{exact:false}).waitFor();
   assert.equal(await home.locator('.home-match').count(),1,'outage erased local records');
-  await home.getByLabel('本地战绩缓存与恢复：实验性，国服实机验证未完成',{exact:true}).waitFor();
+  await home.getByLabel('本地战绩缓存与恢复：实验性',{exact:true}).waitFor();
   assert((await home.innerText()).includes('黄金 II'),'outage erased rank');
   await home.getByText('更新于 1 分钟前',{exact:true}).first().waitFor();
   await page.waitForFunction(()=>document.querySelector('.home-workspace .history-service-status.degraded')===null);
