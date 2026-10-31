@@ -3,15 +3,52 @@ package engine
 import (
 	"context"
 	"fmt"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/core"
+	"leaguepingo/internal/diagnostics"
 	"leaguepingo/internal/source"
 )
 
 const scoutRoundBudget = 180 * time.Second
 const scoutPageLimit = 500 // at most 10,000 source records across the whole round
+const scoutWorkers = 2     // two players read in parallel; the page cap still bounds the round
+
+// Fixed reason codes carried to the interface. They are not error text; the
+// front end maps known codes to static Chinese and falls back for the rest.
+const (
+	scoutReasonRangeLimited = "range_limited"
+	scoutReasonIncomplete   = "incomplete"
+)
+
+// scoutPageFloor/Ceiling bound the adaptive page timeout. The floor keeps the
+// historic four seconds for a healthy service; the ceiling stops one slow round
+// from consuming a whole worker for minutes.
+const (
+	scoutPageFloor   = 4 * time.Second
+	scoutPageCeiling = 8 * time.Second
+)
+
+// scoutPageTimeout follows the recent SGP page latency: twice the 95th
+// percentile, never below the floor and never above the ceiling. A slower link
+// therefore gets a longer page budget instead of failing every page.
+func scoutPageTimeout(collector *diagnostics.Collector) time.Duration {
+	timeout := scoutPageFloor
+	if collector != nil {
+		if p95, ok := collector.Percentile("sgp-history", 95); ok {
+			if doubled := time.Duration(p95) * 2 * time.Millisecond; doubled > timeout {
+				timeout = doubled
+			}
+		}
+	}
+	if timeout > scoutPageCeiling {
+		timeout = scoutPageCeiling
+	}
+	return timeout
+}
 
 type scoutPreparation struct {
 	cancel      context.CancelFunc
@@ -19,6 +56,7 @@ type scoutPreparation struct {
 	scope       string
 	attempted   map[string]bool
 	cache       map[string]*core.ScoutReport
+	progress    map[string]*scoutProgress
 	queue       int
 	manual      bool
 	deadline    time.Time
@@ -60,6 +98,12 @@ func (e *Engine) stopScoutingLocked() {
 
 func (e *Engine) syncScoutingLocked() {
 	s := &e.scouting
+	// A finished match changes what the range contains: do not resume a cursor
+	// that was read before this result. Freshness still bounds every other case.
+	switch e.snapshot.Phase {
+	case "WaitingForStats", "PreEndOfGame", "EndOfGame":
+		s.progress = nil
+	}
 	if e.client == nil || !e.snapshot.Connected {
 		if s.cancel != nil {
 			e.stopScoutingLocked()
@@ -217,9 +261,75 @@ type scoutCursor struct {
 	matches                                []core.Match
 	seen                                   map[int64]bool
 	offset                                 int
+	pages                                  int
+	pageFails                              int
+	reason                                 string
+	retryAt                                *time.Time
 	done, complete, twelve, month, invalid bool
 	oldest                                 time.Time
 	message                                string
+}
+
+// scoutProgress is a bounded, memory-only read cursor kept for one connection.
+// It lets a stage change continue an unfinished range instead of starting at the
+// first page again; it expires with the same five-minute window as a report and
+// is never written to disk.
+type scoutProgress struct {
+	matches                 []core.Match
+	seen                    map[int64]bool
+	offset                  int
+	oldest                  time.Time
+	complete, twelve, month bool
+	at                      time.Time
+}
+
+func (p *scoutProgress) fresh(now time.Time) bool {
+	return p != nil && now.Sub(p.at) < 5*time.Minute && p.offset > 0 && len(p.matches) <= 1000
+}
+
+func (e *Engine) resumeScoutCursor(p core.Participant) scoutCursor {
+	c := scoutCursor{player: p, seen: map[int64]bool{}}
+	e.mu.RLock()
+	progress := e.scouting.progress[p.PUUID]
+	e.mu.RUnlock()
+	if !progress.fresh(time.Now()) {
+		return c
+	}
+	c.matches = append([]core.Match(nil), progress.matches...)
+	for id := range progress.seen {
+		c.seen[id] = true
+	}
+	c.offset, c.oldest = progress.offset, progress.oldest
+	c.complete, c.twelve, c.month = progress.complete, progress.twelve, progress.month
+	return c
+}
+
+func (e *Engine) rememberScoutProgress(c *scoutCursor) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.scouting.progress == nil || len(e.scouting.progress) >= 16 {
+		next := map[string]*scoutProgress{}
+		for id, p := range e.scouting.progress {
+			if p.fresh(time.Now()) {
+				next[id] = p
+			}
+		}
+		e.scouting.progress = next
+	}
+	seen := make(map[int64]bool, len(c.seen))
+	for id := range c.seen {
+		seen[id] = true
+	}
+	e.scouting.progress[c.player.PUUID] = &scoutProgress{
+		matches:  append([]core.Match(nil), c.matches...),
+		seen:     seen,
+		offset:   c.offset,
+		oldest:   c.oldest,
+		complete: c.complete,
+		twelve:   c.twelve,
+		month:    c.month,
+		at:       time.Now(),
+	}
 }
 
 func (e *Engine) prepareScouting(ctx context.Context, version uint64, scope string, token uint64, src source.ScoutSource, targets []core.Participant) {
@@ -257,7 +367,7 @@ func (e *Engine) prepareScouting(ctx context.Context, version uint64, scope stri
 	e.mu.Unlock()
 	cursors := make([]scoutCursor, len(targets))
 	for i, p := range targets {
-		cursors[i] = scoutCursor{player: p, seen: map[int64]bool{}}
+		cursors[i] = e.resumeScoutCursor(p)
 	}
 	boundary := cutoff.Add(-30 * 24 * time.Hour)
 	if season != nil && season.Start.Before(boundary) {
@@ -266,150 +376,213 @@ func (e *Engine) prepareScouting(ctx context.Context, version uint64, scope stri
 	e.mu.RLock()
 	count := e.scouting.pages
 	e.mu.RUnlock()
-	for count < scoutPageLimit && ctx.Err() == nil {
-		remaining := false
-		for i := range cursors {
-			c := &cursors[i]
-			if c.done {
-				continue
-			}
-			remaining = true
-			e.mu.RLock()
-			valid := e.scoutValidLocked(version, scope, token)
-			present := false
-			for _, p := range e.snapshot.Participants {
-				if p.PUUID == c.player.PUUID {
-					present = true
-				}
-			}
-			e.mu.RUnlock()
-			if !valid {
-				return
-			}
-			if !present {
-				c.done = true
-				continue
-			}
-			// Deliver each player's first page before spending up to twenty
-			// seconds on everybody else's mastery. No champion-lock dependency
-			// and no extra requests: the same bounded round fills all heroes.
-			if c.offset == 0 {
-				if automaticCtx, release, err := e.scheduler.acquireAutomatic(ctx); err == nil {
-					request, cancel := context.WithTimeout(automaticCtx, 2*time.Second)
-					c.masteries, _ = src.ChampionMasteries(request, c.player.PUUID)
-					cancel()
-					interrupted := automaticCtx.Err() != nil && ctx.Err() == nil
-					release()
-					if interrupted {
-						continue
-					}
-				}
-				initial := core.BuildScoutReport(nil, c.masteries, season, cutoff, false, false, false)
-				initial.State = "loading"
-				if !e.saveScout(version, scope, token, c.player.PUUID, initial) {
-					c.done = true
-					continue
-				}
-			}
-			automaticCtx, release, err := e.scheduler.acquireAutomatic(ctx)
-			if err != nil {
-				break
-			}
-			request, cancel := context.WithTimeout(automaticCtx, 4*time.Second)
-			page, err := src.ScoutPage(request, c.player.PUUID, c.offset)
-			cancel()
-			interrupted := automaticCtx.Err() != nil && ctx.Err() == nil
-			release()
-			if interrupted {
-				continue
-			}
-			count++
-			e.mu.Lock()
-			if e.scoutValidLocked(version, scope, token) {
-				e.scouting.pages = count
-			}
-			e.mu.Unlock()
-			if err != nil {
-				c.done = true
-				c.message = apperrors.UserMessage(err, apperrors.DataUnavailable)
-			} else {
-				if page.Offset != c.offset || page.Meta.Returned < 0 || page.Meta.Returned > 20 || page.NextOffset != c.offset+page.Meta.Returned || page.LimitReason != "" {
-					c.done = true
-					c.invalid = true
-					c.message = "当前记录范围受限"
-				}
-				added := 0
-				for _, m := range page.Matches {
-					if c.seen[m.GameID] || m.GameID <= 0 {
-						continue
-					}
-					c.seen[m.GameID] = true
-					added++
-					if m.PlayedAt == nil || m.PlayedAt.After(cutoff) {
-						c.invalid = true
-						continue
-					}
-					if !c.oldest.IsZero() && m.PlayedAt.After(c.oldest) {
-						c.invalid = true
-					}
-					c.oldest = *m.PlayedAt
-					c.matches = append(c.matches, m)
-				}
-				if page.Meta.Excluded > 0 {
-					c.invalid = true
-				}
-				if page.Meta.Returned > 0 && added == 0 {
-					c.done = true
-					c.invalid = true
-					c.message = "当前记录范围受限"
-				}
-				if !c.invalid {
-					// Service exhaustion can be a retention boundary. A full
-					// time range requires an actual record reaching its start.
-					c.twelve = !c.oldest.IsZero() && !c.oldest.After(cutoff.Add(-12*time.Hour))
-					c.month = !c.oldest.IsZero() && !c.oldest.After(cutoff.Add(-30*24*time.Hour))
-					c.complete = season != nil && !c.oldest.IsZero() && !c.oldest.After(season.Start)
-				}
-				if !page.HasMore || !c.oldest.IsZero() && !c.oldest.After(boundary) || page.NextOffset >= 20000 {
-					c.done = true
-				}
-				c.offset = page.NextOffset
-			}
-			if c.invalid {
-				c.complete, c.twelve, c.month = false, false, false
-				c.done = true
-			}
-			r := core.BuildScoutReport(c.matches, c.masteries, season, cutoff, c.complete, c.twelve, c.month)
-			if !c.done {
-				r.State = "loading"
-			} else if !r.Complete || !r.Complete30 {
-				r.State = "partial"
-			}
-			r.Message = c.message
-			if !e.saveScout(version, scope, token, c.player.PUUID, r) {
-				c.done = true
-			}
-			timer := time.NewTimer(150 * time.Millisecond)
-			select {
-			case <-ctx.Done():
-				timer.Stop()
-			case <-timer.C:
-			}
-			if count >= scoutPageLimit || ctx.Err() != nil {
-				break
-			}
-		}
-		if !remaining {
-			break
-		}
+	var pages atomic.Int64
+	if count < scoutPageLimit {
+		pages.Store(int64(count))
+	} else {
+		pages.Store(int64(scoutPageLimit))
 	}
+	workers := scoutWorkers
+	if len(cursors) < workers {
+		workers = len(cursors)
+	}
+	work := make(chan int)
+	var wg sync.WaitGroup
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range work {
+				e.runScoutCursor(ctx, version, scope, token, src, &cursors[i], season, cutoff, boundary, &pages)
+			}
+		}()
+	}
+	for i := range cursors {
+		work <- i
+	}
+	close(work)
+	wg.Wait()
 	for i := range cursors {
 		c := &cursors[i]
 		if !c.done {
 			r := core.BuildScoutReport(c.matches, c.masteries, season, cutoff, c.complete, c.twelve, c.month)
 			r.State = "partial"
 			r.Message = "已保留读取结果"
+			r.Reason = scoutReasonIncomplete
+			r.PagesRead = c.pages
+			if !c.oldest.IsZero() {
+				covered := c.oldest
+				r.CoverageEndsAt = &covered
+			}
 			e.saveScout(version, scope, token, c.player.PUUID, r)
+		}
+	}
+}
+
+// waitScoutPace keeps the historic 150 ms spacing between remote pages.
+func waitScoutPace(ctx context.Context) bool {
+	timer := time.NewTimer(150 * time.Millisecond)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+
+// runScoutCursor fills one player's range. Workers share the round deadline and
+// page budget but never touch another player's cursor.
+func (e *Engine) runScoutCursor(ctx context.Context, version uint64, scope string, token uint64, src source.ScoutSource, c *scoutCursor, season *core.ScoutSeason, cutoff, boundary time.Time, pages *atomic.Int64) {
+	for ctx.Err() == nil {
+		if pages.Load() >= int64(scoutPageLimit) {
+			return
+		}
+		e.mu.RLock()
+		valid := e.scoutValidLocked(version, scope, token)
+		present := false
+		for _, p := range e.snapshot.Participants {
+			if p.PUUID == c.player.PUUID {
+				present = true
+			}
+		}
+		e.mu.RUnlock()
+		if !valid {
+			return
+		}
+		if !present {
+			c.done = true
+			return
+		}
+		// Deliver each player's first page before spending up to twenty seconds
+		// on everybody else's mastery. No champion-lock dependency and no extra
+		// requests: the same bounded round fills all heroes.
+		if c.offset == 0 || len(c.masteries) == 0 {
+			// Mastery is a short local read; it must not sit behind another
+			// player's page scan or another worker's mastery.
+			request, cancel := context.WithTimeout(ctx, 2*time.Second)
+			c.masteries, _ = src.ChampionMasteries(request, c.player.PUUID)
+			cancel()
+			if ctx.Err() != nil {
+				return
+			}
+			if c.offset == 0 {
+				initial := core.BuildScoutReport(nil, c.masteries, season, cutoff, false, false, false)
+				initial.State = "loading"
+				if !e.saveScout(version, scope, token, c.player.PUUID, initial) {
+					c.done = true
+					return
+				}
+			}
+		}
+		// Reserve the page before the request so two workers cannot overshoot
+		// the shared cap.
+		if pages.Add(1) > int64(scoutPageLimit) {
+			pages.Add(-1)
+			return
+		}
+		request, cancel := context.WithTimeout(ctx, scoutPageTimeout(diagnostics.Default))
+		page, err := src.ScoutPage(request, c.player.PUUID, c.offset)
+		cancel()
+		n := pages.Load()
+		e.mu.Lock()
+		if e.scoutValidLocked(version, scope, token) {
+			e.scouting.pages = int(n)
+		}
+		e.mu.Unlock()
+		if ctx.Err() != nil {
+			return
+		}
+		if err != nil {
+			// One bounded retry per page. A single slow page must not freeze
+			// this player for the whole stage; the retry is a new request, so
+			// the page budget above still counts it.
+			if c.pageFails < 1 {
+				c.pageFails++
+				if !waitScoutPace(ctx) {
+					return
+				}
+				continue
+			}
+			c.done = true
+			c.reason = string(apperrors.CodeOf(err))
+			c.retryAt = apperrors.RetryAt(err)
+			c.message = apperrors.UserMessage(err, apperrors.DataUnavailable)
+		} else {
+			c.pageFails = 0
+			c.pages++
+			if page.Offset != c.offset || page.Meta.Returned < 0 || page.Meta.Returned > 20 || page.NextOffset != c.offset+page.Meta.Returned || page.LimitReason != "" {
+				c.done = true
+				c.invalid = true
+				c.message = "当前记录范围受限"
+			}
+			added := 0
+			for _, m := range page.Matches {
+				if c.seen[m.GameID] || m.GameID <= 0 {
+					continue
+				}
+				c.seen[m.GameID] = true
+				added++
+				if m.PlayedAt == nil || m.PlayedAt.After(cutoff) {
+					c.invalid = true
+					continue
+				}
+				if !c.oldest.IsZero() && m.PlayedAt.After(c.oldest) {
+					c.invalid = true
+				}
+				c.oldest = *m.PlayedAt
+				c.matches = append(c.matches, m)
+			}
+			if page.Meta.Excluded > 0 {
+				c.invalid = true
+			}
+			if page.Meta.Returned > 0 && added == 0 {
+				c.done = true
+				c.invalid = true
+				c.message = "当前记录范围受限"
+			}
+			if !c.invalid {
+				// Service exhaustion can be a retention boundary. A full time
+				// range requires an actual record reaching its start.
+				c.twelve = !c.oldest.IsZero() && !c.oldest.After(cutoff.Add(-12*time.Hour))
+				c.month = !c.oldest.IsZero() && !c.oldest.After(cutoff.Add(-30*24*time.Hour))
+				c.complete = season != nil && !c.oldest.IsZero() && !c.oldest.After(season.Start)
+			}
+			if !page.HasMore || !c.oldest.IsZero() && !c.oldest.After(boundary) || page.NextOffset >= 20000 {
+				c.done = true
+			}
+			c.offset = page.NextOffset
+		}
+		if c.invalid {
+			c.complete, c.twelve, c.month = false, false, false
+			c.done = true
+			if c.reason == "" {
+				c.reason = scoutReasonRangeLimited
+			}
+		}
+		r := core.BuildScoutReport(c.matches, c.masteries, season, cutoff, c.complete, c.twelve, c.month)
+		if !c.done {
+			r.State = "loading"
+		} else if !r.Complete || !r.Complete30 {
+			r.State = "partial"
+		}
+		r.Message = c.message
+		r.Reason = c.reason
+		r.RetryAt = c.retryAt
+		r.PagesRead = c.pages
+		if !c.oldest.IsZero() {
+			covered := c.oldest
+			r.CoverageEndsAt = &covered
+		}
+		if !e.saveScout(version, scope, token, c.player.PUUID, r) {
+			c.done = true
+		}
+		e.rememberScoutProgress(c)
+		if c.done {
+			return
+		}
+		if !waitScoutPace(ctx) {
+			return
 		}
 	}
 }

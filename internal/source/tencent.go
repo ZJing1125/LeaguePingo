@@ -22,6 +22,7 @@ type TencentLCU struct {
 	selfPUUID string
 	sgpMu     sync.Mutex
 	sgp       *sgpHistory
+	channels  sgpChannels
 	queueID   atomic.Int32
 	metaMu    sync.Mutex
 	meta      SessionMetadata
@@ -40,7 +41,6 @@ func (s *TencentLCU) ResetIdentity() {
 	s.selfMu.Unlock()
 	s.sgpMu.Lock()
 	if s.sgp != nil {
-		s.sgp.cooldown = serviceCooldown{}
 		s.sgp.token, s.sgp.origin, s.sgp.platform = "", "", ""
 		s.sgp.leagueToken = ""
 		s.sgp.expires, s.sgp.leagueExpires = time.Time{}, time.Time{}
@@ -48,6 +48,10 @@ func (s *TencentLCU) ResetIdentity() {
 		s.sgp.heads = nil
 	}
 	s.sgpMu.Unlock()
+	s.channels.history.clear()
+	s.channels.rank.clear()
+	s.channels.detail.clear()
+	s.channels.group.clear()
 	s.masteryMu.Lock()
 	s.masteries = nil
 	s.masteryMu.Unlock()
@@ -246,10 +250,32 @@ func (s *TencentLCU) Name(ctx context.Context, puuid string) (string, error) {
 	return profile.Name(), nil
 }
 
+// sgpAttemptCap bounds one regional summary attempt. The caller budget (12s for
+// a manual read, 6s during preparation) must keep enough time for the verified
+// LCU fallback, whose own round trip was measured near a second on CN clients.
+const sgpAttemptCap = 4 * time.Second
+
+// sgpAttemptWindow never takes more than half of the remaining caller budget
+// and never exceeds sgpAttemptCap, so a slow service can only fail itself.
+func sgpAttemptWindow(ctx context.Context) time.Duration {
+	window := sgpAttemptCap
+	if deadline, ok := ctx.Deadline(); ok {
+		if half := time.Until(deadline) / 2; half < window {
+			window = half
+		}
+	}
+	if window < time.Millisecond {
+		return time.Millisecond
+	}
+	return window
+}
+
 func (s *TencentLCU) History(ctx context.Context, puuid string) (core.HistoryResult, error) {
 	// Use the same verified SUMMARY contract for the first and later pages so
 	// participation and both line-ups do not disappear only on page one.
-	page, err := s.sgpHistoryPage(ctx, puuid, 0)
+	sgpCtx, cancel := context.WithTimeout(ctx, sgpAttemptWindow(ctx))
+	page, err := s.sgpHistoryPage(sgpCtx, puuid, 0)
+	cancel()
 	if err == nil {
 		return core.HistoryResult{Matches: page.Matches, Meta: page.Meta}, nil
 	}
@@ -274,7 +300,11 @@ func (s *TencentLCU) HistoryPage(ctx context.Context, puuid string, offset int) 
 	if !core.IsKnownPUUID(puuid) || offset < 0 || offset > 980 {
 		return core.HistoryPage{}, errors.New("战绩分页参数无效（最多浏览 1000 条）")
 	}
-	page, err := s.sgpHistoryPage(ctx, puuid, offset)
+	// Same split as History: the remote page cannot spend the whole manual
+	// budget before the local prefix fallback is attempted.
+	sgpCtx, cancel := context.WithTimeout(ctx, sgpAttemptWindow(ctx))
+	page, err := s.sgpHistoryPage(sgpCtx, puuid, offset)
+	cancel()
 	if err == nil {
 		return page, nil
 	}

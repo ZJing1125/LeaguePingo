@@ -228,11 +228,21 @@ func TestUnlockedChampionFirstPageArrivesBeforeOtherPlayersMastery(t *testing.T)
 	select {
 	case <-f.secondStarted:
 	case <-time.After(2 * time.Second):
-		t.Fatal("first player blocked on another mastery")
+		t.Fatal("second player mastery never started")
+	}
+	// The first player must not be blocked behind another player's slow
+	// mastery: the workers are independent.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		s := e.Snapshot()
+		if len(s.Participants) > 0 && s.Participants[0].Scout != nil && s.Participants[0].Scout.Read == 20 && s.Participants[0].ChampionState == "intent" {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 	s := e.Snapshot()
 	if s.Participants[0].Scout == nil || s.Participants[0].Scout.Read != 20 || s.Participants[0].ChampionState != "intent" {
-		t.Fatal("first-page statistics not available before lock")
+		t.Fatal("first-page statistics blocked by another player's mastery")
 	}
 	before := f.pages.Load()
 	// A pure lock/hero update reuses the same report and preparation budget.

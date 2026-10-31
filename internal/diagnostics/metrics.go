@@ -120,6 +120,27 @@ func (c *Collector) Record(path string, elapsed time.Duration, status int, faile
 	v.LastStatus = status
 	c.values[key] = v
 }
+
+// Percentile returns the p-th percentile (1..100) of the recent latency window
+// for one fixed category. It copies only that window, so a hot path can ask
+// without materialising every category.
+func (c *Collector) Percentile(category string, p int) (int64, bool) {
+	if p <= 0 || p > 100 {
+		return 0, false
+	}
+	c.mu.Lock()
+	samples := []int64{}
+	if w := c.recent[category]; w != nil && w.count > 0 {
+		samples = append(samples, w.values[:w.count]...)
+	}
+	c.mu.Unlock()
+	if len(samples) == 0 {
+		return 0, false
+	}
+	sort.Slice(samples, func(i, j int) bool { return samples[i] < samples[j] })
+	return samples[(p*len(samples)+99)/100-1], true
+}
+
 func (c *Collector) Snapshot() map[string]Metric {
 	c.mu.Lock()
 	out := map[string]Metric{}

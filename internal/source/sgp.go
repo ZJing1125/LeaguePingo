@@ -20,7 +20,6 @@ import (
 // Session credentials never cross the Go boundary or leave memory. Only this
 // client's current Tencent platform is supported, not arbitrary/cross-region URLs.
 type sgpHistory struct {
-	cooldown                serviceCooldown
 	http                    *http.Client
 	origin, platform, token string
 	expires                 time.Time
@@ -28,6 +27,12 @@ type sgpHistory struct {
 	leagueExpires           time.Time
 	pages                   map[string]cachedSGPPage
 	heads                   map[string]int64
+}
+
+// One gate per SGP feature: a stalled history scan no longer shares a lock or a
+// cooldown with rank, match detail or grouping.
+type sgpChannels struct {
+	history, rank, detail, group serviceGate
 }
 
 type cachedSGPPage struct {
@@ -44,7 +49,9 @@ func (s *TencentLCU) sgpClientLocked() *sgpHistory {
 	r := s.sgp
 	if r.http == nil {
 		r.http = &http.Client{
-			Timeout:       5 * time.Second,
+			// The safety net sits above the adaptive page ceiling (8s); every
+			// caller still passes its own shorter budget.
+			Timeout:       9 * time.Second,
 			Transport:     &http.Transport{Proxy: nil},
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		}
@@ -108,27 +115,38 @@ func (s *TencentLCU) sgpHistoryPage(ctx context.Context, puuid string, offset in
 }
 
 func (s *TencentLCU) sgpSummaryPage(ctx context.Context, puuid string, offset int) (core.HistoryPage, error) {
-	s.sgpMu.Lock()
-	defer s.sgpMu.Unlock()
-	r := s.sgpClientLocked()
-	if err := r.cooldown.blocked(time.Now()); err != nil {
+	gate := &s.channels.history
+	if err := gate.blocked(time.Now()); err != nil {
 		return core.HistoryPage{}, err
 	}
-	if err := s.ensureHistorySession(ctx, r); err != nil {
-		return core.HistoryPage{}, r.cooldown.failed(err, "", time.Now())
-	}
 	path := "/match-history-query/v1/products/lol/player/" + url.PathEscape(puuid) + "/SUMMARY?" + url.Values{"startIndex": {fmt.Sprint(offset)}, "count": {"20"}}.Encode()
+	s.sgpMu.Lock()
+	r := s.sgpClientLocked()
+	if err := s.ensureHistorySession(ctx, r); err != nil {
+		s.sgpMu.Unlock()
+		return core.HistoryPage{}, gate.failed(err, "", time.Now())
+	}
 	if cached, ok := r.pages[path]; offset > 0 && ok && time.Now().Before(cached.expires) {
+		s.sgpMu.Unlock()
 		return cached.page, nil
 	}
-	raw, status, err := r.get(ctx, path)
+	origin, token, platform := r.origin, r.token, r.platform
+	s.sgpMu.Unlock()
+
+	// The request itself runs outside sgpMu: a slow history page must not block
+	// the rank, detail or grouping channels.
+	raw, status, err := r.getAuthorized(ctx, origin, path, token, "/sgp-history", gate)
 	if status == http.StatusUnauthorized || status == http.StatusForbidden {
-		r.token = ""
+		s.sgpMu.Lock()
+		if r.token == token {
+			r.token = ""
+		}
+		s.sgpMu.Unlock()
 	}
 	if err != nil {
 		return core.HistoryPage{}, err
 	}
-	result, err := core.ParseSGPHistory(raw, puuid, r.platform)
+	result, err := core.ParseSGPHistory(raw, puuid, platform)
 	if err != nil {
 		return core.HistoryPage{}, err
 	}
@@ -136,6 +154,8 @@ func (s *TencentLCU) sgpSummaryPage(ctx context.Context, puuid string, offset in
 		return core.HistoryPage{}, errors.New("战绩服务返回超出请求的页范围")
 	}
 	page := core.HistoryPage{Matches: result.Matches, Meta: result.Meta, Offset: offset, NextOffset: offset + result.Meta.Returned, HasMore: result.Meta.Returned == 20}
+	s.sgpMu.Lock()
+	defer s.sgpMu.Unlock()
 	if offset == 0 {
 		var head int64
 		if len(result.Matches) > 0 {
@@ -186,12 +206,8 @@ func (r *sgpHistory) rememberHead(puuid string, head int64) {
 	r.heads[puuid] = head
 }
 
-func (r *sgpHistory) get(ctx context.Context, path string) (raw []byte, status int, resultErr error) {
-	return r.getAuthorized(ctx, path, r.token, "/sgp-history")
-}
-
-func (r *sgpHistory) getAuthorized(ctx context.Context, path, token, category string) (raw []byte, status int, resultErr error) {
-	if err := r.cooldown.blocked(time.Now()); err != nil {
+func (r *sgpHistory) getAuthorized(ctx context.Context, origin, path, token, category string, gate *serviceGate) (raw []byte, status int, resultErr error) {
+	if err := gate.blocked(time.Now()); err != nil {
 		return nil, apperrors.Status(err), err
 	}
 	started := time.Now()
@@ -199,29 +215,29 @@ func (r *sgpHistory) getAuthorized(ctx context.Context, path, token, category st
 		diagnostics.Default.Record(category, time.Since(started), status, resultErr != nil)
 		apperrors.Failures.Record(apperrors.DataService, resultErr)
 	}()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, r.origin+path, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, origin+path, nil)
 	if err != nil {
 		return nil, 0, apperrors.New(apperrors.InvalidResponse)
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	response, err := r.http.Do(req)
 	if err != nil {
-		return nil, 0, r.cooldown.failed(apperrors.Request(ctx, err, apperrors.DataService), "", time.Now())
+		return nil, 0, gate.failed(apperrors.Request(ctx, err, apperrors.DataService), "", time.Now())
 	}
 	defer response.Body.Close()
 	if response.StatusCode != 200 {
-		return nil, response.StatusCode, r.cooldown.failed(apperrors.HTTP(apperrors.DataService, response.StatusCode), response.Header.Get("Retry-After"), time.Now())
+		return nil, response.StatusCode, gate.failed(apperrors.HTTP(apperrors.DataService, response.StatusCode), response.Header.Get("Retry-After"), time.Now())
 	}
 	raw, err = io.ReadAll(io.LimitReader(response.Body, (8<<20)+1))
 	if err != nil || len(raw) > 8<<20 {
 		if ctx.Err() != nil {
-			return nil, response.StatusCode, r.cooldown.failed(apperrors.Normalize(ctx.Err(), apperrors.InvalidResponse), "", time.Now())
+			return nil, response.StatusCode, gate.failed(apperrors.Normalize(ctx.Err(), apperrors.InvalidResponse), "", time.Now())
 		}
 		if err != nil {
-			return nil, response.StatusCode, r.cooldown.failed(apperrors.Normalize(err, apperrors.InvalidResponse), "", time.Now())
+			return nil, response.StatusCode, gate.failed(apperrors.Normalize(err, apperrors.InvalidResponse), "", time.Now())
 		}
 		return nil, response.StatusCode, apperrors.New(apperrors.InvalidResponse)
 	}
-	r.cooldown = serviceCooldown{}
+	gate.clear()
 	return raw, response.StatusCode, nil
 }

@@ -32,7 +32,7 @@ func TestSGPBodyReadFailureRetainsCancellationPrecedence(t *testing.T) {
 		calls++
 		return &http.Response{StatusCode: 200, Body: cancelingSGPBody{cancel}}, nil
 	})}}
-	_, status, err := r.getAuthorized(ctx, "/synthetic", "synthetic-token", "/sgp-history")
+	_, status, err := r.getAuthorized(ctx, "https://synthetic.invalid", "/synthetic", "synthetic-token", "/sgp-history", &serviceGate{})
 	if status != 200 || calls != 1 || apperrors.CodeOf(err) != apperrors.RequestCanceled || !errors.Is(err, context.Canceled) {
 		t.Fatalf("lost cancellation or changed attempts: %v", err)
 	}
@@ -218,13 +218,14 @@ func TestSGPRejectsRedirectsAndRedactsErrors(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, target.URL, http.StatusFound) }))
 	defer server.Close()
 	r := &sgpHistory{http: &http.Client{Timeout: time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, origin: server.URL, token: "synthetic-secret"}
-	_, status, err := r.get(context.Background(), "/test?puuid=sensitive")
+	gate := &serviceGate{}
+	_, status, err := r.getAuthorized(context.Background(), r.origin, "/test?puuid=sensitive", r.token, "/sgp-history", gate)
 	if err == nil || status != 302 || requests != 0 || strings.Contains(err.Error(), "sensitive") || strings.Contains(err.Error(), "secret") || strings.Contains(err.Error(), server.URL) {
 		t.Fatal("redirect followed or sensitive error exposed")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, _, err = r.get(ctx, "/test"); err == nil {
+	if _, _, err = r.getAuthorized(ctx, r.origin, "/test", r.token, "/sgp-history", gate); err == nil {
 		t.Fatal("cancel ignored")
 	}
 }

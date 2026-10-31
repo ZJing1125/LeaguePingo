@@ -111,14 +111,15 @@ func (s *TencentLCU) lcuRanks(ctx context.Context, puuid string) ([]core.Rank, e
 }
 
 func (s *TencentLCU) sgpRanks(ctx context.Context, puuid string) ([]core.Rank, error) {
-	s.sgpMu.Lock()
-	defer s.sgpMu.Unlock()
-	r := s.sgpClientLocked()
-	if err := r.cooldown.blocked(time.Now()); err != nil {
+	gate := &s.channels.rank
+	if err := gate.blocked(time.Now()); err != nil {
 		return nil, err
 	}
+	s.sgpMu.Lock()
+	r := s.sgpClientLocked()
 	if r.leagueToken == "" || !time.Now().Before(r.leagueExpires) {
 		if err := s.ensureSGPOrigin(ctx, r); err != nil {
+			s.sgpMu.Unlock()
 			return nil, err
 		}
 		// The ranked service needs league-session, not the entitlements token
@@ -126,16 +127,26 @@ func (s *TencentLCU) sgpRanks(ctx context.Context, puuid string) ([]core.Rank, e
 		var token string
 		raw, err := s.client.Get(ctx, "/lol-league-session/v1/league-session-token")
 		if err != nil {
+			s.sgpMu.Unlock()
 			return nil, err
 		}
 		if json.Unmarshal(raw, &token) != nil || strings.TrimSpace(token) == "" || len(token) > 32768 || strings.ContainsAny(token, "\r\n") {
+			s.sgpMu.Unlock()
 			return nil, apperrors.New(apperrors.NotLoggedIn)
 		}
 		r.leagueToken, r.leagueExpires = token, time.Now().Add(2*time.Minute)
 	}
-	raw, status, err := r.getAuthorized(ctx, "/leagues-ledge/v2/rankedStats/puuid/"+url.PathEscape(puuid), r.leagueToken, "/sgp-rank")
+	origin, token := r.origin, r.leagueToken
+	s.sgpMu.Unlock()
+	// Rank reads its own gate and transport slot: a stalled history page no
+	// longer holds this request behind the shared lock.
+	raw, status, err := r.getAuthorized(ctx, origin, "/leagues-ledge/v2/rankedStats/puuid/"+url.PathEscape(puuid), token, "/sgp-rank", gate)
 	if status == http.StatusUnauthorized || status == http.StatusForbidden {
-		r.leagueToken = ""
+		s.sgpMu.Lock()
+		if r.leagueToken == token {
+			r.leagueToken = ""
+		}
+		s.sgpMu.Unlock()
 	}
 	if err != nil {
 		return nil, err

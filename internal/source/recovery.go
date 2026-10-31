@@ -3,23 +3,54 @@ package source
 import (
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/core"
 )
 
-// Accessed only under sgpMu. Waiting is done by callers outside the scheduler;
-// this gate never sleeps, creates workers or retries a request by itself.
+// serviceGate gives one SGP feature its own cooldown and serialises only its own
+// requests. History, rank and match detail must not share a gate: a slow page
+// used to hold the single global mutex and the shared cooldown, so an unrelated
+// rank or detail read failed with it.
+type serviceGate struct {
+	mu       sync.Mutex
+	cooldown serviceCooldown
+}
+
+func (g *serviceGate) blocked(now time.Time) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.cooldown.blocked(now)
+}
+
+func (g *serviceGate) failed(err error, retryAfter string, now time.Time) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.cooldown.failed(err, retryAfter, now)
+}
+
+func (g *serviceGate) clear() {
+	g.mu.Lock()
+	g.cooldown = serviceCooldown{}
+	g.mu.Unlock()
+}
+
+// Access is guarded by the caller's gate.
 type serviceCooldown struct {
 	failures int
 	err      error
 	until    time.Time
 }
 
+// Only a service that answered with a rejection opens the shared gate. A slow
+// or interrupted request is not evidence that the regional service is refusing
+// this client: gating the whole batch on one timeout made every participant
+// collapse to zero games. The round budget and per-page retry remain the brake.
 func transientServiceError(err error) bool {
 	switch apperrors.CodeOf(err) {
-	case apperrors.NotLoggedIn, apperrors.RateLimited, apperrors.ServiceBusy, apperrors.NetworkUnavailable, apperrors.RequestTimeout:
+	case apperrors.NotLoggedIn, apperrors.RateLimited, apperrors.ServiceBusy:
 		return true
 	}
 	return false

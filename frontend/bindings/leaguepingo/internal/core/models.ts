@@ -276,6 +276,16 @@ export interface ScoutReport {
     "complete30": boolean;
     "read": number;
     "message"?: string;
+
+    /**
+     * Coverage fields let the interface describe what was actually read instead
+     * of collapsing every shortfall into one generic notice. Reason is a fixed
+     * code, never an error string.
+     */
+    "reason"?: string;
+    "retryAt"?: string | null;
+    "pagesRead"?: number;
+    "coverageEndsAt"?: string | null;
     "champions": ScoutChampion[] | null;
     "queues": ScoutQueue[] | null;
 }

@@ -40,17 +40,24 @@ type ScoutQueue struct {
 	Positions []ScoutPosition `json:"positions"`
 }
 type ScoutReport struct {
-	State      string          `json:"state"`
-	Retained   bool            `json:"retained,omitempty"`
-	FetchedAt  time.Time       `json:"fetchedAt"`
-	Season     *ScoutSeason    `json:"season,omitempty"`
-	Complete   bool            `json:"complete"`
-	Complete12 bool            `json:"complete12"`
-	Complete30 bool            `json:"complete30"`
-	Read       int             `json:"read"`
-	Message    string          `json:"message,omitempty"`
-	Champions  []ScoutChampion `json:"champions"`
-	Queues     []ScoutQueue    `json:"queues"`
+	State      string       `json:"state"`
+	Retained   bool         `json:"retained,omitempty"`
+	FetchedAt  time.Time    `json:"fetchedAt"`
+	Season     *ScoutSeason `json:"season,omitempty"`
+	Complete   bool         `json:"complete"`
+	Complete12 bool         `json:"complete12"`
+	Complete30 bool         `json:"complete30"`
+	Read       int          `json:"read"`
+	Message    string       `json:"message,omitempty"`
+	// Coverage fields let the interface describe what was actually read instead
+	// of collapsing every shortfall into one generic notice. Reason is a fixed
+	// code, never an error string.
+	Reason         string          `json:"reason,omitempty"`
+	RetryAt        *time.Time      `json:"retryAt,omitempty"`
+	PagesRead      int             `json:"pagesRead,omitempty"`
+	CoverageEndsAt *time.Time      `json:"coverageEndsAt,omitempty"`
+	Champions      []ScoutChampion `json:"champions"`
+	Queues         []ScoutQueue    `json:"queues"`
 }
 
 func BuildScoutReport(matches []Match, masteries []ChampionMastery, season *ScoutSeason, cutoff time.Time, complete, complete12, complete30 bool) ScoutReport {

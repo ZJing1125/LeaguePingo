@@ -4,6 +4,28 @@
 
 历史条目描述当时行为；如后续需求调整，以较新条目为准。当前局内请求边界见 BUG-0043；BUG-0045 仅为临时按住快览恢复鼠标穿透，手动模式保持可交互。
 
+## BUG-0084 / 统计“尚未读全”的取数与预算根因（P0）
+
+2026-11-01。用户反馈产品在选人侧栏、局内和首页都取不到完整玩家数据，侧栏提示“统计尚未读全，可在主程序刷新数据”，并怀疑与网络延迟有关。用户机器不在本机，未取得其实机导出，因此本批先按代码与现有诊断截图定位，不宣称已复现其环境。
+
+现象与根因：用户诊断中 `mastery 33/1`（该接口只被独立统计调用）而 `sgp-history` 完全不存在，`history`（LCU）52/0、平均 954 ms、最慢 2244 ms；后续反馈截图显示 20 场列表本身也是失败态。排查确认不是单一接口故障，而是取数管线的结构问题：①SGP 尝试与 LCU 回退共用一次调用预算（准备 6 秒、手动 12 秒），而 SGP 单次 HTTP 超时 5 秒，慢服务会挤掉本可成功的本地回退；②任一页失败即冻结该玩家整阶段；③一次超时触发 5/15/45/60 秒共享冷却，让其余玩家瞬间归零；④阶段切换销毁在途进度，部分结果不复用。
+
+修复（P0）：`internal/source/tencent.go` 为 SGP 单次尝试设独立窗口（不超过剩余调用预算的一半，且不超过 4 秒），保证 LCU 回退有剩余时间；`internal/source/recovery.go` 仅 401/403、429、5xx 打开共享冷却，本机超时与连接失败只让本次请求失败；`internal/engine/scouting.go` 每页允许一次有界重试（仍是新请求，计入页数与整轮预算），第二次失败才冻结；侧栏 `read=0` 时展示报告内的失败原因，不再只提示去刷新。180 秒/500 页/10 人/4 秒每页与“不拿 LCU 前缀冒充完整统计”的边界不变。
+
+验证证据：新增 `TestHistoryKeepsLocalFallbackWhenSummaryIsSlow`、`TestRequestTimeoutDoesNotOpenTheSharedServiceGate`、`TestServiceRejectionStillOpensTheSharedServiceGate`、`TestScoutingRetriesOneFailedPage`、`TestScoutingStopsAfterRepeatedPageFailures`；`go test ./internal/source/... ./internal/engine/...` 通过。竞态、前端构建与 smoke 见本批执行记录。真实国服复测与用户机器 `audit-player-data.sh history` 尚未执行，不把本机合成结果当作其实机通过。
+
+尚未覆盖：P1（可恢复作业、SGP 分通道、增量报告、预算自适应）与 P2（范围化展示、自动重试状态）按 docs/SCOUT_PIPELINE.md 另行实施；本次不改变“慢网络下 30 天全量仍可能不完整”的物理事实。
+
+补充（同日 P1-S1）：选人阶段读到一半的进度不再随阶段切换清零。`scouting.progress` 以 PUUID 保存已读比赛、offset、时间边界与完整标记（内存、每人 ≤1000 条、整表 ≤16 人、5 分钟过期），新阶段从上次 offset 续读；换连接/换号、进入 WaitingForStats/PreEndOfGame/EndOfGame 时清空，过期按新范围重读。恢复时补取熟练度但不把已有报告覆盖成 0 场。新增 `TestScoutingResumesProgressAcrossStageChange`（首个请求 offset=20、最终 120 场完整）、`TestStaleScoutProgressIsIgnored`、`TestFinishedMatchDropsScoutProgress`。SGP 分通道/并发与增量报告字段仍未实施。
+
+补充（同日 P1-S2）：历史、排位、单场、组队改为各自独立的 `serviceGate`（独立冷却 + 只串行本通道），SGP 共享状态仅在短临界区加锁，HTTP 不再持全局锁；慢分页不再挡住段位/单场，单一通道 429 也不再拖累其他通道。新增 `TestRankReadIsNotBlockedBySlowHistory`，并调整 `TestOutageRetainsLocalHistoryAndGateCoversOtherPlayers` 为“同通道仍被冷却覆盖”。本机实机 `audit-player-data.sh all`：rank_sgp/history×3/detail_sgp/timeline_sgp 均 verified，唯一 `different` 为既有的 LCU↔SGP `position`、`rune_shards` 字段差异，与本次改动无关。跨玩家并发取页、增量报告字段与自适应页超时仍未实施。
+
+补充（同日 P1-S3）：独立统计改成 2 个 worker 并行取页，每人独立游标与重试，共享原子页计数并在发请求前预占额度，避免越过 500 页上限；SGP 分页不再占用本地串行调度器，熟练度改为直接短读（2 秒上限）。取舍是手动操作不再取消在途分页，分页只在阶段/连接变化或 180 秒截止时停止。新增 `TestScoutingReadsTwoPlayersInParallel`；`TestUnlockedChampionFirstPageArrivesBeforeOtherPlayersMastery` 改为验证“一名玩家不被另一名玩家的慢熟练度挡住”。`go test ./internal/...`、`go vet`、实机 `audit-player-data.sh history` 均通过。增量报告字段、自适应页超时与 P2 展示层仍未实施。
+
+补充（同日 P1-S4）：`ScoutReport` 增加 `reason`（固定码）、`retryAt`、`pagesRead`、`coverageEndsAt`，引擎在每页保存时发布；范围受限与整轮未读完分别用 `range_limited`/`incomplete`。前端新增 `scoutCoverage.ts`，只按已知码映射静态中文并给出自动重试秒数，不再渲染后端 message；未知码统一提示。绑定由固定 CLI 重新生成（`wails3 generate bindings -clean=true -ts -i`，39 方法/39 模型），未手改 bindings。新增 `frontend/tests/scout-coverage.cjs` 并接入 smoke；引擎测试补充页数/覆盖边界/失败码断言。`npm run build`、11→12 组 smoke、`go test ./internal/...` 通过。自适应页超时与 P2 完整范围语义仍未实施。
+
+补充（同日 P1-S5 + P2）：页预算改为 `max(4s, 2×P95(sgp-history))`、上限 8 秒，诊断新增只复制单分类窗口的 `Percentile`，SGP HTTP 安全网提到 9 秒但各调用方仍传更短预算；新增 `TestPercentileReadsRecentWindowPerCategory` 与 `TestScoutPageTimeoutFollowsRecentLatency`。展示层把无报告时的破折号改为“待读取”，展开卡范围显示 `30天已读 N 场`/`30天待读取`，圆环副标题保留已读场次。`go test ./internal/...`、`go vet`、`npm run build`、12 组 smoke、实机 `audit-player-data.sh history` 与 `portable` 均通过。本批仅余用户机器复测与 Windows 完整验证未执行。
+
 ## BUG-0083 / 跳过后“继续→再来一局→排队”衔接失败
 
 2026-10-30用户确认可跳过点赞，但进度页“继续”、记分板“再来一局”和排队仍需手动；用户不确定是否海克斯所致。核对无420/440白名单；复现旧ballot在提交后保留导致honor-unconfirmed，以及提交后旧ballot接口不可读导致honor-unavailable，两个分支都未执行返回。旧实现也未完成missions-celebration进度展示，且误将EndOfGame作为进入后续流程的先决条件。合成回归先失败后修复，不将模拟输入当作用户客户端实测字段。

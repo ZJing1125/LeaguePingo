@@ -23,13 +23,20 @@ const heroStatus = computed(() => {
   if (data.value.champion.games) return "KDA 暂缺";
   return report.complete ? "本季暂无记录" : "本季记录未完整";
 });
-const range = computed(() => data.value.report?.retained ? "上次统计" : data.value.report?.state === "loading" || !data.value.report ? props.captured ? '统计未保留完整' : "统计准备中" : data.value.report?.complete30 ? "近30天" : "30天已读");
+const range = computed(() => {
+  const report = data.value.report;
+  if (!report) return props.captured ? "统计未保留完整" : "统计准备中";
+  if (report.retained) return "上次统计";
+  if (report.state === "loading") return "统计准备中";
+  if (report.complete30) return "近30天";
+  return report.read ? `30天已读 ${report.read} 场` : "30天待读取";
+});
 const roleCaption = computed(() => ({ '位置未记录': '暂无记录', '位置记录较少': '记录较少', '位置较分散': '位置分散' }[data.value.role.label] || data.value.role.label));
 const shortRank = computed(() => rank.value.rank ? rank.value.label : rank.value.label.includes('失败') ? '查询失败' : rank.value.label.includes('超时') ? '查询超时' : '段位待确认');
 const roleTitle = computed(() => `近30天 · ${data.value.queueLabel}；有效位置 ${data.value.role.known}/${data.value.overall.games} 场。${data.value.role.positions.map(p => `${roleNames[p.position]} ${p.games} 场`).join('，')}；不代表本局分路。`);
 function periodCaption(p: ReturnType<typeof scoutStats>["periods"][number]) {
   if (!data.value.report || !p.games && data.value.report.state === "loading") return props.captured ? "未保留" : "准备中";
-  return p.outcomeGames ? `有效 ${p.outcomeGames} 场` : p.games ? `已读 ${p.games} 场` : p.complete ? '0 场' : '—';
+  return p.outcomeGames ? `有效 ${p.outcomeGames} 场` : p.games ? `已读 ${p.games} 场` : p.complete ? '0 场' : '待读取';
 }
 function periodDetail(p: ReturnType<typeof scoutStats>["periods"][number]) {
   if (!p.games) return p.complete ? "无排位记录" : data.value.report?.state === "loading" || !data.value.report ? "—" : "范围未完整";

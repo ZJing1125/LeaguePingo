@@ -35,7 +35,7 @@ func (s *TencentLCU) requestGrouping(ctx context.Context, self string, gameID in
 		return nil, errors.New("当前对局授权不可用")
 	}
 	local.token = token
-	raw, _, err := local.getAuthorized(ctx, "/gsm/v1/ledge/region/"+url.PathEscape(local.platform)+"/puuid/"+url.PathEscape(self), token, "/sgp-group")
+	raw, _, err := local.getAuthorized(ctx, local.origin, "/gsm/v1/ledge/region/"+url.PathEscape(local.platform)+"/puuid/"+url.PathEscape(self), token, "/sgp-group", &s.channels.group)
 	if err != nil {
 		return nil, err
 	}

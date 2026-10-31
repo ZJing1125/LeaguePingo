@@ -401,6 +401,7 @@ func (e *Engine) invalidateConnectionLocked() {
 	e.stopScoutingLocked()
 	e.scouting.scope = ""
 	e.scouting.cache = nil
+	e.scouting.progress = nil
 	e.scouting.attempted = nil
 	if e.homeCancel != nil {
 		e.homeCancel()

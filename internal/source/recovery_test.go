@@ -74,17 +74,19 @@ func TestOutageRetainsLocalHistoryAndGateCoversOtherPlayers(t *testing.T) {
 		t.Fatal("local fallback or auth invalidation lost")
 	}
 	_, _ = s.History(context.Background(), "target")
-	_, _, _ = r.getAuthorized(context.Background(), "/different-player", "different-token", "/sgp-rank")
+	_, _, _ = r.getAuthorized(context.Background(), r.origin, "/different-player", "different-token", "/sgp-history", &s.channels.history)
 	if remoteCalls != 1 || tokenReads != 0 || localHistory != 2 {
-		t.Fatal("cooldown bypassed through another request")
+		t.Fatal("cooldown bypassed through another request in the same channel")
 	}
-	r.cooldown.until = time.Now().Add(-time.Second) // Advance only the synthetic source gate.
+	s.channels.history.mu.Lock()
+	s.channels.history.cooldown.until = time.Now().Add(-time.Second) // Advance only the synthetic source gate.
+	s.channels.history.mu.Unlock()
 	restored, err := s.History(context.Background(), "target")
-	if err != nil || len(restored.Matches) != 1 || restored.Matches[0].GameID != 8 || restored.Meta.Service != nil || tokenReads != 1 || remoteCalls != 2 || r.cooldown.err != nil {
+	if err != nil || len(restored.Matches) != 1 || restored.Matches[0].GameID != 8 || restored.Meta.Service != nil || tokenReads != 1 || remoteCalls != 2 || s.channels.history.cooldown.err != nil {
 		t.Fatal("session refresh/remote recovery did not clear degradation")
 	}
 	s.ResetIdentity()
-	if r.cooldown.err != nil || r.token != "" {
+	if s.channels.history.cooldown.err != nil || r.token != "" {
 		t.Fatal("new session inherited old failure")
 	}
 }
