@@ -22,12 +22,18 @@ import (
 	"leaguepingo/internal/hold"
 	"leaguepingo/internal/settings"
 	"leaguepingo/internal/source"
+	"leaguepingo/internal/updatecheck"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
 
 func main() {
+	// Wails cannot render a recovery page without WebView2. Check before any
+	// WebView is created so a clean Windows installation gets a native guide.
+	if !ensureWebView2Runtime() {
+		return
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	holdWake := make(chan struct{}, 1)
@@ -161,6 +167,14 @@ func main() {
 	menu.Add("打开 LeaguePingo").OnClick(func(*application.Context) {
 		showMain()
 	})
+	updates := updatecheck.New(Version, UpdateManifestURL, nil)
+	updateItem := menu.Add("发现新版本").SetHidden(true)
+	updateItem.OnClick(func(*application.Context) {
+		state := updates.Snapshot()
+		if state.Status == "available" {
+			_ = app.Browser.OpenURL(state.URL)
+		}
+	})
 	tray.SetMenu(menu)
 	tray.OnClick(showMain)
 	controller := &overlayController{
@@ -247,6 +261,21 @@ func main() {
 			go func() { time.Sleep(35 * time.Second); app.Quit() }()
 			return
 		}
+		go func() {
+			state := updates.Check(ctx)
+			if state.Status != "available" || ctx.Err() != nil {
+				return
+			}
+			application.InvokeSync(func() {
+				if ctx.Err() != nil {
+					return
+				}
+				updateItem.SetLabel("发现新版本 " + state.LatestVersion + "（打开下载页）").SetHidden(false)
+			})
+			if ctx.Err() == nil {
+				tray.SetTooltip("LeaguePingo · 有新版本 " + state.LatestVersion)
+			}
+		}()
 		clientMonitor = startClientWindowMonitor()
 		go func() {
 			timer := time.NewTimer(0)

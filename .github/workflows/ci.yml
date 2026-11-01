@@ -114,10 +114,18 @@ jobs:
           echo "Using browser: $browser"
           echo "BROWSER_EXECUTABLE=$browser" >> "$GITHUB_ENV"
 
+      - name: Install pinned NSIS packaging tool
+        run: choco install nsis --version=3.13.0 --no-progress --yes --limit-output
+
       # build.sh 内含：environment/check/audit → verify.sh（生成绑定、前端构建、syso、
       # go test ./...、go vet ./...、Playwright 烟测）→ 编译 → sha256 → 登记产物。
       - name: Verify and build (scripts/build.sh)
         run: bash scripts/build.sh bin/leaguepingo-ci.exe
+
+      - name: Package and verify NSIS installer
+        run: |
+          bash scripts/package-windows.sh --binary bin/leaguepingo-ci.exe --output artifacts/installer-check/leaguepingo-ci-installer.exe
+          bash scripts/verify-installer.sh artifacts/installer-check/leaguepingo-ci-installer.exe
 
       # 提交的 TS 绑定必须与 Go 接口一致（包含未跟踪的新文件）。
       - name: Check generated bindings are committed

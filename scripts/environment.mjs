@@ -36,11 +36,31 @@ export function findBrowser(env = process.env, platform = process.platform, exis
   throw new Error('No local browser found; configure BROWSER_EXECUTABLE (no automatic download)');
 }
 
+export function findNSIS(env = process.env, platform = process.platform, exists = fs.existsSync) {
+  const configured = env.LEAGUEPINGO_MAKENSIS;
+  if (configured) {
+    if (!exists(configured)) throw new Error('Configured LEAGUEPINGO_MAKENSIS does not exist');
+    return configured;
+  }
+  const found = findTool('makensis', env, platform, exists);
+  if (found) return found;
+  if (platform === 'win32') {
+    for (const folder of [env['ProgramFiles(x86)'], env.ProgramFiles].filter(Boolean)) {
+      const candidate = path.join(folder, 'NSIS', 'makensis.exe');
+      if (exists(candidate)) return candidate;
+    }
+  }
+  throw new Error('NSIS not found; install NSIS or configure LEAGUEPINGO_MAKENSIS');
+}
+
 export function describeEnvironment(env = process.env, platform = process.platform, arch = process.arch) {
   const tools = Object.fromEntries(['bash', 'go', 'node', 'npm', 'wails3'].map(n => [n, Boolean(findTool(n, env, platform))]));
   let browser = false;
   try { browser = Boolean(findBrowser(env, platform)); } catch { /* Report unavailable, not successful verification. */ }
+  let nsis = false;
+  try { nsis = Boolean(findNSIS(env, platform)); } catch { /* Optional packaging dependency. */ }
   return { hostPlatform: platform, hostArchitecture: arch, tools, browserAvailable: browser,
+    nsisAvailable: nsis,
     portableToolsPresent: tools.bash && tools.go && tools.node && tools.npm,
     windowsDeliveryHost: platform === 'win32' && arch === 'x64',
     note: 'Discovery only; dependencies, tool versions and tests have not been validated. No remote machine was inspected.' };
@@ -49,7 +69,8 @@ export function describeEnvironment(env = process.env, platform = process.platfo
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     if (process.argv[2] === 'browser') console.log(findBrowser());
+    else if (process.argv[2] === 'nsis') console.log(findNSIS());
     else if (!process.argv[2] || process.argv[2] === 'doctor') console.log(JSON.stringify(describeEnvironment(), null, 2));
-    else throw new Error('Usage: node scripts/environment.mjs [doctor|browser]');
+    else throw new Error('Usage: node scripts/environment.mjs [doctor|browser|nsis]');
   } catch (e) { console.error(e.message); process.exitCode = 1; }
 }

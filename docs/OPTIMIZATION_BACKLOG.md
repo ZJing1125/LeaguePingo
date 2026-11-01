@@ -11,7 +11,7 @@ suggested_repo_path: docs/OPTIMIZATION_BACKLOG.md
 
 # 1. 使用规则（agent 先读）
 
-执行记录（实施起始基线4d57e0b，附件审阅基线cc229e7）：Q1已实施并通过dev推送实跑，见下方记录；F1本地度量已实施，口径与验证见PERFORMANCE.md；U1错误码与中文提示、U2降级与有界恢复已实施，协议与验证分别见ERRORS.md、DATA_RECOVERY.md及本提交CI，R1实验性标注与分轮记录已准备；用户已反馈A1/A2/P1/P2没有问题，后续确认跳过可用但继续/返回/开排链条失败，修复版与版本信息及其他项目待补，整体R1未完成；S1回调瘦身/备用入口核验/设置说明已实施，国服反作弊专项待实机；其余任务尚未实施。该清单是任务输入，原审阅统计与推断不能当作当前事实。其他任务仍按依赖逐项核实；未执行的Windows/国服检查保留未验证状态。
+执行记录（实施起始基线4d57e0b，附件审阅基线cc229e7）：Q1已实施并通过dev推送实跑，见下方记录；F1本地度量已实施，口径与验证见PERFORMANCE.md；U1错误码与中文提示、U2降级与有界恢复已实施，协议与验证分别见ERRORS.md、DATA_RECOVERY.md及本提交CI，R1实验性标注与分轮记录已准备；用户已反馈A1/A2/P1/P2没有问题，后续确认跳过可用但继续/返回/开排链条失败，修复版与版本信息及其他项目待补，整体R1未完成；S1回调瘦身/备用入口核验/设置说明已实施，国服反作弊专项待实机；U3启动前依赖检查、静态版本检查、NSIS与证书存储签名代码链已实施，发布证书与干净Win10的I1–I6仍待人工；其余任务尚未实施。该清单是任务输入，原审阅统计与推断不能当作当前事实。其他任务仍按依赖逐项核实；未执行的Windows/国服检查保留未验证状态。
 
 Q1首次运行：[40856437383](https://github.com/ZJing1125/LeaguePingo/actions/runs/40856437383)，Linux成功，Windows原生Go检查通过，侧栏720px五卡高度回归失败。已根据日志修复摘要内边距，保留原验收断言。修复提交dd33476的[40857941063](https://github.com/ZJing1125/LeaguePingo/actions/runs/40857941063)两个job全部成功：Windows全包test/vet、绑定生成/一致性、九项浏览器回归、EXE编译及产物审计均通过。EXE只存在runner，未上传、部署或登记为用户已验收；截图保留7天。PR事件配置已做语法检查，未专门新建PR测试。默认分支仍为main，手动触发入口需工作流进入默认分支后才能使用；本批未修改main或默认分支。
 
@@ -84,7 +84,7 @@ constraints:
     rule: 构建环境变量 GOFLAGS、GARBLE_ARGS、EXTRA_TAGS 等必须为空，GOOS/GOARCH 只能是 windows/amd64
     source: scripts/workflow.mjs checkEnvironment
   - id: C5
-    rule: 打包、签名、NSIS、MSIX 任务当前被策略标为 unsupported；要启用必须同步修改 workflow.mjs 的策略与 workflow.test.mjs
+    rule: NSIS打包和证书存储签名仅走受管脚本并受workflow策略/测试保护；MSIX、跨平台打包仍为unsupported
     source: scripts/workflow.mjs（expected 映射）
   - id: C6
     rule: 键盘钩子不得吞键，必须始终调用 CallNextHookEx，且只处理已配置的按键
@@ -694,18 +694,21 @@ id: U3
 title: 安装、依赖检测、签名与版本检查
 priority: P0
 area: ux
-status: todo
+status: awaiting-live-validation
 confidence: verified-static
 needs_human: true
-problem: 目前只有裸 exe；没有 WebView2 检测引导、代码签名、更新机制；打包类任务被策略标为 unsupported。
+problem: >-
+  WebView2启动引导、固定静态版本检查、受管NSIS和证书存储签名入口已实施；
+  实际发布证书、干净Win10安装/缺运行库/发布者信任及覆盖安装仍待I1-I6人工验收。
 evidence:
-  - build/windows/nsis/（模板存在）
-  - "scripts/workflow.mjs expected 映射把 package、create:nsis:installer、sign 等标为 unsupported"
+  - docs/INSTALLATION.md
+  - scripts/package-windows.sh
+  - scripts/sign-windows.sh
 actions:
-  - 启动时检测 WebView2，缺失时给出下载引导而不是闪退
-  - 版本检查：读取一个静态 JSON，有新版时在托盘提示
-  - 代码签名（需要证书，由人提供）
-  - 完成并验证 NSIS 安装包；同步修改 workflow.mjs 策略和 workflow.test.mjs（C5）
+  - 已完成：启动前WebView2检测与下载引导
+  - 已完成：受限静态JSON版本检查与新版托盘入口
+  - 已完成：NSIS受管构建及CI隔离安装/卸载验证入口
+  - 待人工：提供发布证书并完成签名、干净Win10与覆盖安装验收
 acceptance:
   - 干净的 Win10 机器上可安装并运行
 depends_on: [Q1]

@@ -4,6 +4,16 @@
 
 历史条目描述当时行为；如后续需求调整，以较新条目为准。当前局内请求边界见 BUG-0043；BUG-0045 仅为临时按住快览恢复鼠标穿透，手动模式保持可交互。
 
+## BUG-0087 / U3安装、依赖、版本与签名链
+
+2026-11-01。用户要求开始优化清单下一项U3。旧状态只有受管裸EXE：Wails创建窗口前没有产品级WebView2缺失引导；NSIS模板引用未入库bootstrapper且所有package/sign入口被策略拒绝；应用、Windows资源和安装模板版本分散；没有更新清单读取；签名也没有安全入口。
+
+本批在创建Wails应用前检查WebView2官方注册表项，缺失时用原生对话框说明并只在确认后打开微软地址，随后正常退出而非进入不可渲染窗口。新增固定GitHub静态JSON版本检查，限制HTTPS来源、32KiB、schema、SemVer和本仓库Releases地址；每次启动一次，失败静默，只有新版才在托盘显示可点击入口，不自动下载或替换。
+
+根`VERSION`统一Go、Windows资源和NSIS版本，策略测试拒绝漂移。NSIS改为当前用户中文安装，不需要管理员权限，不打包远程bootstrapper；安装器同样提示WebView2并保留用户配置。package/create:nsis与签名入口经workflow策略和测试显式启用，MSIX/跨平台仍禁用。打包只接受当前审计EXE、拒绝覆盖并输出到artifacts；CI固定NSIS 3.13.0并在临时目录静默安装/卸载。签名只接受Windows证书存储thumbprint，SHA-256+HTTPS时间戳后立即verify，已登记EXE拒绝修改；未提供证书时生成的仍是测试用未签名包。
+
+Linux可执行版本/策略/更新解析、竞态与portable检查；Windows回调、真实NSIS编译和安装周期以本提交CI为准。实际发布证书未提供，干净Windows 10、WebView2缺失交互、发布者信任和覆盖安装仍未执行；U3保持awaiting-live-validation，I1–I6见INSTALLATION.md，不将runner或无签名安装包记为人工验收。
+
 ## BUG-0085 / 自动化入口与提示噪音
 
 2026-11-01。用户反馈自动化功能藏在设置里，玩家无法第一时间知道产品具备该能力；开启后又有多处“已开启”提示影响体验；并明确不需要保留“国服实机验证未完成”的提示。

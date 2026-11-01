@@ -26,6 +26,9 @@ test('policy regression mutations are rejected', () => {
     ['scripts/build.sh', 'node scripts/artifacts.mjs audit\n', 'echo no audit\n'],
     ['scripts/dev.sh', '-o artifacts/hot-reload/leaguepingo-hot-reload.exe', '-o bin/leaguepingo.exe'],
     ['scripts/verify.sh', 'scripts/workflow.test.mjs', ''],
+    ['scripts/verify.sh', 'scripts/version.test.mjs', ''],
+    ['scripts/package-windows.sh', 'node scripts/artifacts.mjs current', 'echo unverified'],
+    ['scripts/sign-windows.sh', '"$task_signtool" verify', 'echo trusted'],
     ['scripts/audit-player-data.sh', 'LEAGUEPINGO_LIVE_DATA_AUDIT=1', ''],
     ['scripts/audit-player-data.sh', 'go env GOHOSTOS', 'go env GOOS'],
     ['scripts/verify.sh', 'wails3 generate syso -arch amd64', 'echo skipped Windows resources'],
@@ -76,15 +79,17 @@ test('component preview routes cannot become product or desktop delivery entry p
     ? files[f].replace('../../artifacts/component-preview', '../dist') : files[f]));
 });
 
-test('real Wails dry task expansion uses managed delivery or isolated dev; disabled tasks have no compiler deps', nativeOnly, () => {
+test('real Wails dry task expansion uses reviewed scripts; disabled tasks have no compiler deps', nativeOnly, () => {
   for (const [name, expected] of [
     ['build', 'bash scripts/build.sh'], ['windows:build', 'bash scripts/build.sh'],
     ['run', 'bash scripts/run.sh'], ['windows:run', 'bash scripts/run.sh'],
     ['windows:dev:build', 'bash scripts/dev.sh build'], ['windows:dev:run', 'bash scripts/dev.sh run'],
     ['dev', 'wails3 dev -config ./build/config.yml'],
-    ...['package', 'windows:package', 'windows:build:native', 'windows:build:docker',
-      'windows:create:nsis:installer', 'windows:create:msix:package', 'windows:sign',
-      'windows:sign:installer', 'install:msix:tools', 'setup:docker', 'common:setup:docker']
+    ['package', 'bash scripts/package-windows.sh'], ['windows:package', 'bash scripts/package-windows.sh'],
+    ['windows:create:nsis:installer', 'bash scripts/package-windows.sh'],
+    ['windows:sign', 'bash scripts/sign-windows.sh'], ['windows:sign:installer', 'bash scripts/sign-windows.sh'],
+    ...['windows:build:native', 'windows:build:docker', 'windows:create:msix:package',
+      'install:msix:tools', 'setup:docker', 'common:setup:docker']
       .map(n => [n, 'node scripts/workflow.mjs unsupported']),
   ]) {
     const result = spawnSync('wails3', ['task', '-dry', name], { cwd: root, encoding: 'utf8', timeout: 15000 });
@@ -94,10 +99,12 @@ test('real Wails dry task expansion uses managed delivery or isolated dev; disab
     assert.doesNotMatch(output, /\bgo build\b|\bgarble\b|\bdocker (?:run|build)\b|\bmakensis\b|go mod tidy|npm install/);
   }
 });
-test('disabled package command fails before any build/dependency writes', nativeOnly, () => {
-  const result = spawnSync('wails3', ['task', 'package'], { cwd: root, encoding: 'utf8', timeout: 15000 });
-  assert.notEqual(result.status, 0);
-  assert.match(result.stdout + result.stderr, /entry disabled/);
+test('package and sign commands fail closed when explicit inputs are missing', nativeOnly, () => {
+  const packageResult = spawnSync('wails3', ['task', 'package'], { cwd: root, encoding: 'utf8', timeout: 15000,
+    env: { ...process.env, LEAGUEPINGO_MAKENSIS: 'Z:/definitely-missing/makensis.exe' } });
+  assert.notEqual(packageResult.status, 0);
+  const signResult = spawnSync('wails3', ['task', 'windows:sign', 'FILE=missing.exe'], { cwd: root, encoding: 'utf8', timeout: 15000 });
+  assert.notEqual(signResult.status, 0);
 });
 test('Wails alias and flags route correctly in an isolated mock workspace', nativeOnly, t => {
   const { folder } = fixture(t);

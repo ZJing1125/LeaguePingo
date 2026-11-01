@@ -17,6 +17,7 @@ import (
 var Version = "0.2.0-dev"
 var Commit = "source-build"
 var BuildTime = "unrecorded"
+var UpdateManifestURL = "https://raw.githubusercontent.com/ZJing1125/LeaguePingo/main/update.json"
 
 type AppInfo struct {
 	AutoSkipHonor     bool                          `json:"autoSkipHonor"`

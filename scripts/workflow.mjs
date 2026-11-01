@@ -7,6 +7,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const policyFiles = ['AGENTS.md', 'Taskfile.yml', 'build/windows/Taskfile.yml',
   'build/Taskfile.yml', 'build/config.yml', 'scripts/build.sh', 'scripts/run.sh',
   'scripts/dev.sh', 'scripts/verify.sh', 'scripts/audit-player-data.sh', 'docs/ci/verify.yml.example',
+  'scripts/package-windows.sh', 'scripts/sign-windows.sh', 'scripts/verify-installer.sh', 'scripts/version.mjs',
   'frontend/package.json', 'frontend/preview/package.json', 'frontend/preview/histoire.config.ts',
   '.github/workflows/ci.yml'];
 
@@ -40,8 +41,12 @@ export function checkWorkflow(read) {
       build: 'bash scripts/build.sh', run: 'bash scripts/run.sh',
       'dev:build': 'bash scripts/dev.sh build', 'dev:run': 'bash scripts/dev.sh run',
       unsupported: 'node scripts/workflow.mjs unsupported',
-      ...Object.fromEntries(['build:native', 'build:docker', 'package', 'create:nsis:installer',
-        'create:msix:package', 'install:msix:tools', 'sign', 'sign:installer'].map(k => [k, 'task: unsupported'])),
+      ...Object.fromEntries(['build:native', 'build:docker', 'create:msix:package',
+        'install:msix:tools'].map(k => [k, 'task: unsupported'])),
+      package: 'bash scripts/package-windows.sh',
+      'create:nsis:installer': 'bash scripts/package-windows.sh',
+      sign: 'bash scripts/sign-windows.sh "{{.FILE}}"',
+      'sign:installer': 'bash scripts/sign-windows.sh "{{.FILE}}"',
     },
   };
   for (const [file, mappings] of Object.entries(expected)) {
@@ -69,6 +74,8 @@ export function checkWorkflow(read) {
     'node scripts/artifacts.mjs audit --allow-empty', 'bash scripts/verify.sh',
     'node scripts/artifacts.mjs register', 'node scripts/artifacts.mjs clean --apply',
     'node scripts/artifacts.mjs audit\n']) requireText('scripts/build.sh', text);
+  requireText('scripts/build.sh', 'node scripts/version.mjs check');
+  requireText('scripts/build.sh', 'bash scripts/sign-windows.sh "$output"');
   const build = contents['scripts/build.sh'];
   const order = ['audit --allow-empty', 'bash scripts/verify.sh', '\ngo build ', 'artifacts.mjs register', 'artifacts.mjs clean --apply', 'artifacts.mjs audit\n'];
   const indices = order.map(s => build.indexOf(s));
@@ -80,6 +87,7 @@ export function checkWorkflow(read) {
   requireText('scripts/verify.sh', 'node scripts/workflow.mjs check');
   requireText('scripts/verify.sh', 'scripts/workflow.test.mjs');
   requireText('scripts/verify.sh', 'scripts/app-icons.test.mjs');
+  requireText('scripts/verify.sh', 'scripts/version.test.mjs');
   for (const text of ['source "$task_root/scripts/env.sh"', 'go env GOHOSTOS', 'go env GOHOSTARCH',
     'LEAGUEPINGO_LIVE_DATA_AUDIT=1', "-run '^TestLivePlayerDataAudit$' -count=1 -v"]) requireText('scripts/audit-player-data.sh', text);
   if (/\bgo\s+build\b|scripts\/build\.sh|artifacts\.mjs (register|accept|clean)/.test(contents['scripts/audit-player-data.sh'])) throw new Error('Live audit cannot build/promote delivery artifacts');
@@ -93,6 +101,16 @@ export function checkWorkflow(read) {
   for (const file of ['scripts/build.sh', 'scripts/verify.sh', 'scripts/dev.sh', 'scripts/run.sh']) {
     requireText(file, 'source "$task_root/scripts/env.sh"');
   }
+  for (const file of ['scripts/package-windows.sh', 'scripts/sign-windows.sh', 'scripts/verify-installer.sh']) {
+    requireText(file, 'source "$task_root/scripts/env.sh"');
+    requireText(file, 'node scripts/workflow.mjs environment');
+  }
+  requireText('scripts/package-windows.sh', 'bash scripts/build.sh "$task_binary"');
+  requireText('scripts/package-windows.sh', 'node scripts/artifacts.mjs current');
+  requireText('scripts/package-windows.sh', 'node scripts/environment.mjs nsis');
+  requireText('scripts/package-windows.sh', 'bash scripts/sign-windows.sh "$task_output"');
+  requireText('scripts/sign-windows.sh', '"$task_signtool" verify');
+  requireText('scripts/verify-installer.sh', 'NOT RUN: clean Windows 10');
   requireText('docs/ci/verify.yml.example', 'bash scripts/build.sh bin/leaguepingo-ci.exe');
   // Fixed CI entry points. The Windows job delegates verification to build.sh
   // exactly once; a green portable job is never desktop verification.
@@ -100,6 +118,8 @@ export function checkWorkflow(read) {
   for (const text of ['branches: [dev]', 'branches: [dev, main]', 'contents: read',
     'needs: portable', 'runs-on: ubuntu-latest', 'runs-on: windows-latest',
     'run: bash scripts/verify.sh portable', 'git status --porcelain -- frontend/bindings',
+    'choco install nsis --version=3.13.0', 'bash scripts/package-windows.sh --binary bin/leaguepingo-ci.exe',
+    'bash scripts/verify-installer.sh artifacts/installer-check/leaguepingo-ci-installer.exe',
     "github.event_name == 'workflow_dispatch' && inputs.upload_exe"])
     requireText('.github/workflows/ci.yml', text);
   if ((ci.match(/run: bash scripts\/build\.sh bin\/leaguepingo-ci\.exe/g) || []).length !== 1 ||
@@ -142,7 +162,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const command = process.argv[2] ?? 'check';
     if (command === 'check') console.log(JSON.stringify(checkWorkflow(f => fs.readFileSync(path.join(root, f), 'utf8'))));
     else if (command === 'environment') checkEnvironment();
-    else if (command === 'unsupported') throw new Error('Packaging/signing/cross-platform template entry disabled; use bash scripts/build.sh for Windows delivery');
+    else if (command === 'unsupported') throw new Error('This cross-platform or MSIX entry is disabled; use documented native Windows entry points');
     else if (command === 'dev-check') {
       const m = manager(root);
       m.safe('bin/.build-lock');

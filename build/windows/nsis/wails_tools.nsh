@@ -8,16 +8,19 @@
     !define INFO_PROJECTNAME "LeaguePingo"
 !endif
 !ifndef INFO_COMPANYNAME
-    !define INFO_COMPANYNAME "My Company"
+    !define INFO_COMPANYNAME "LeaguePingo Contributors"
 !endif
 !ifndef INFO_PRODUCTNAME
     !define INFO_PRODUCTNAME "LeaguePingo"
 !endif
 !ifndef INFO_PRODUCTVERSION
-    !define INFO_PRODUCTVERSION "0.1.0"
+    !define INFO_PRODUCTVERSION "0.2.0-dev"
+!endif
+!ifndef INFO_NUMERICVERSION
+    !define INFO_NUMERICVERSION "0.2.0.0"
 !endif
 !ifndef INFO_COPYRIGHT
-    !define INFO_COPYRIGHT "© 2026, My Company"
+    !define INFO_COPYRIGHT "© 2026 LeaguePingo contributors"
 !endif
 !ifndef PRODUCT_EXECUTABLE
     !define PRODUCT_EXECUTABLE "${INFO_PROJECTNAME}.exe"
@@ -128,23 +131,31 @@ RequestExecutionLevel "${REQUEST_EXECUTION_LEVEL}"
         WriteRegStr HKCU "${UNINST_KEY}" "DisplayName" "${INFO_PRODUCTNAME}"
         WriteRegStr HKCU "${UNINST_KEY}" "DisplayVersion" "${INFO_PRODUCTVERSION}"
         WriteRegStr HKCU "${UNINST_KEY}" "DisplayIcon" "$INSTDIR\${PRODUCT_EXECUTABLE}"
+        WriteRegStr HKCU "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
+        WriteRegStr HKCU "${UNINST_KEY}" "URLInfoAbout" "https://github.com/ZJing1125/LeaguePingo"
         WriteRegStr HKCU "${UNINST_KEY}" "UninstallString" "$\"$INSTDIR\uninstall.exe$\""
         WriteRegStr HKCU "${UNINST_KEY}" "QuietUninstallString" "$\"$INSTDIR\uninstall.exe$\" /S"
 
         ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
         IntFmt $0 "0x%08X" $0
         WriteRegDWORD HKCU "${UNINST_KEY}" "EstimatedSize" "$0"
+        WriteRegDWORD HKCU "${UNINST_KEY}" "NoModify" 1
+        WriteRegDWORD HKCU "${UNINST_KEY}" "NoRepair" 1
     !else
         WriteRegStr HKLM "${UNINST_KEY}" "Publisher" "${INFO_COMPANYNAME}"
         WriteRegStr HKLM "${UNINST_KEY}" "DisplayName" "${INFO_PRODUCTNAME}"
         WriteRegStr HKLM "${UNINST_KEY}" "DisplayVersion" "${INFO_PRODUCTVERSION}"
         WriteRegStr HKLM "${UNINST_KEY}" "DisplayIcon" "$INSTDIR\${PRODUCT_EXECUTABLE}"
+        WriteRegStr HKLM "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
+        WriteRegStr HKLM "${UNINST_KEY}" "URLInfoAbout" "https://github.com/ZJing1125/LeaguePingo"
         WriteRegStr HKLM "${UNINST_KEY}" "UninstallString" "$\"$INSTDIR\uninstall.exe$\""
         WriteRegStr HKLM "${UNINST_KEY}" "QuietUninstallString" "$\"$INSTDIR\uninstall.exe$\" /S"
 
         ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
         IntFmt $0 "0x%08X" $0
         WriteRegDWORD HKLM "${UNINST_KEY}" "EstimatedSize" "$0"
+        WriteRegDWORD HKLM "${UNINST_KEY}" "NoModify" 1
+        WriteRegDWORD HKLM "${UNINST_KEY}" "NoRepair" 1
     !endif
 !macroend
 

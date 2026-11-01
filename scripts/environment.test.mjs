@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { findBrowser, findTool, describeEnvironment } from './environment.mjs';
+import { findBrowser, findTool, findNSIS, describeEnvironment } from './environment.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 test('tool lookup respects host PATH separators rather than machine-specific drives', () => {
@@ -21,6 +21,12 @@ test('browser discovery honors explicit configuration and fails closed when miss
   const expected = path.join('Q:/Applications', 'Microsoft/Edge/Application/msedge.exe');
   assert.equal(findBrowser({ ProgramFiles: 'Q:/Applications' }, 'win32', p => p === expected), expected);
   assert.throws(() => findBrowser({}, 'linux', () => false), /No local browser/);
+});
+test('NSIS discovery is explicit and does not install packaging tools', () => {
+  assert.equal(findNSIS({ LEAGUEPINGO_MAKENSIS: '/tools/makensis' }, 'linux', p => p === '/tools/makensis'), '/tools/makensis');
+  const expected = path.join('Q:/Programs', 'NSIS', 'makensis.exe');
+  assert.equal(findNSIS({ ProgramFiles: 'Q:/Programs', PATH: '' }, 'win32', p => p === expected), expected);
+  assert.throws(() => findNSIS({ PATH: '' }, 'linux', () => false), /NSIS not found/);
 });
 test('capability report distinguishes host from product and does not reveal secrets', () => {
   const report = describeEnvironment({ PATH: '', PRIVATE_TOKEN: 'do-not-print' }, 'linux', 'arm64');

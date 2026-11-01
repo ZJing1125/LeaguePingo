@@ -5,10 +5,12 @@ cd "$task_root"
 source "$task_root/scripts/env.sh"
 node scripts/workflow.mjs environment
 node scripts/workflow.mjs check
+node scripts/version.mjs check
 node scripts/artifacts.mjs audit --allow-empty
 task_commit=$(git rev-parse --short HEAD)
 if [[ -n "$(git status --porcelain)" ]]; then task_commit+=-dirty; fi
 task_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+task_version=$(node scripts/version.mjs value)
 output=${1:-bin/leaguepingo-dev-$(date -u +%Y%m%d-%H%M%S)-$task_commit.exe}
 # The manager validates the path and refuses overwrite before verification/build.
 # All normal builds share a lock; stale locks require inspection, not force removal.
@@ -34,7 +36,10 @@ export UI_SCREENSHOT_PREFIX="$task_root/artifacts/$task_id/ui"
 export WORKSPACE_SCREENSHOT="$task_root/artifacts/$task_id/workspace.png"
 export OVERLAY_SCREENSHOT="$task_root/artifacts/$task_id/overlay.png"
 bash scripts/verify.sh
-go build -tags production -trimpath -buildvcs=false -ldflags="-H windowsgui -X main.Commit=$task_commit -X main.BuildTime=$task_time" -o "$output" .
+go build -tags production -trimpath -buildvcs=false -ldflags="-H windowsgui -X main.Version=$task_version -X main.Commit=$task_commit -X main.BuildTime=$task_time" -o "$output" .
+if [[ -n "${LEAGUEPINGO_SIGN_CERT_SHA1:-}" ]]; then
+  bash scripts/sign-windows.sh "$output"
+fi
 sha256sum "$output"
 node scripts/artifacts.mjs register --file "$output" --commit "$task_commit" --apply
 task_registered=1

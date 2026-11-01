@@ -1,0 +1,7 @@
+case,status,tested_at,assistant_commit,installer_sha256,windows_build,webview2_version,signature_subject,observed,evidence
+I1,NOT_RUN,,,,,,,,
+I2,NOT_RUN,,,,,,,,
+I3,NOT_RUN,,,,,,,,
+I4,NOT_RUN,,,,,,,,
+I5,BLOCKED,,,,,,,等待发布证书,
+I6,NOT_RUN,,,,,,,,

@@ -42,6 +42,8 @@ BUG-0041–0043 的退选/姓名同步、超过 20 场持续筛选、查询与�
 
 ## 运行与构建
 
+Windows 启动会在创建界面前检查 WebView2，缺失时提供微软下载引导。应用只读取固定静态版本清单；发现新版时在托盘显示 Releases 入口，不自动下载或替换程序。NSIS 安装、卸载、可选证书存储签名及干净 Windows 10 验收边界见 [Windows 安装说明](docs/INSTALLATION.md)。
+
 在项目目录使用 Bash（Windows 上使用 Git Bash）。Windows 完整验证/交付需要 Go 1.25+、Node.js 22+、Wails 3 CLI beta.29 和锁定的前端依赖；其他开发主机可显式运行通用验证子集。工具通过 PATH/环境变量或不提交的本机配置提供，见 [多主机环境说明](docs/ENVIRONMENTS.md)。
 
 ```bash
@@ -49,11 +51,14 @@ BUG-0041–0043 的退选/姓名同步、超过 20 场持续筛选、查询与�
 # 入口会加载经检查的 .leaguepingo/environment.sh（若存在）
 bash scripts/build.sh
 
+# 生成当前用户使用的 NSIS 安装器（需 NSIS 3.13.0）
+bash scripts/package-windows.sh
+
 # 远程或非 Windows 开发主机的显式子集，不等于交付验证
 bash scripts/verify.sh portable
 ```
 
-开发运行可用 `wails3 dev`。首次运行需已安装 Microsoft Edge WebView2。启动国服 League 客户端后，LeaguePingo 会发现 `LeagueClient.exe` / `LeagueClientUx.exe`，先尝试同目录的 `lockfile`，文件为空或不可用时改用 Windows 提供的客户端启动参数。也可设置 `LEAGUEPINGO_LOCKFILE` 指向测试用 lockfile。切勿提交、发送或记录 lockfile 内容或完整客户端启动参数，其中包含本地客户端密码。
+开发运行可用 `wails3 dev`。缺少 Microsoft Edge WebView2 时，程序会在创建窗口前显示下载引导并退出；安装后重新启动即可。启动国服 League 客户端后，LeaguePingo 会发现 `LeagueClient.exe` / `LeagueClientUx.exe`，先尝试同目录的 `lockfile`，文件为空或不可用时改用 Windows 提供的客户端启动参数。也可设置 `LEAGUEPINGO_LOCKFILE` 指向测试用 lockfile。切勿提交、发送或记录 lockfile 内容或完整客户端启动参数，其中包含本地客户端密码。
 
 历史 Windows 主机曾生成账号头像及提示动画修复测试版 `bin/leaguepingo-dev-20261018-v9.exe`，从干净工作区构建，内嵌功能提交 `c3b7849`，修复打开成员及命中战绩缓存时缺失基础资料的问题，增加错误提示渐入/渐出，并保留 v8 的选人同步与此前身份查询、SGP 分页功能。旧 v8 不包含本轮修复。仅本地交付，不创建 GitHub release；后续校验记录提交只更新文档，不更换该文件。使用前请从托盘菜单退出当前运行的旧版助手，包括 v8 和 `leaguepingo-dev.exe`；不需要退出游戏。新版采用固定应用标识的单实例策略：如果旧版未退出，启动新版只会唤起旧实例，不能热替换旧进程。更早的 `leaguepingo.exe`、`leaguepingo-fixed.exe` 没有该约束，也需手动退出。实际版本/提交号见“设置与诊断”。已进入对局时，新版会有限刷新本地名单，不会自动补查战绩；缺少战绩时在主窗口主动查询。
 
@@ -65,7 +70,7 @@ Windows 完整验证：`bash scripts/verify.sh`。推荐上述 `build.sh`，运�
 
 `wails3 build`、`wails3 task build` 与 `wails3 task windows:build` 均调用统一交付脚本。`wails3 task run` 只读审计后运行清单中的当前程序，不再运行固定名称的旧文件。`node scripts/artifacts.mjs audit` 检查文件校验值、证据完整性、未知二进制和超额留存；未知文件只报错，不擅自删除。交付流程不支持 `DEV=true`、非 Windows/amd64 或额外编译标签；Wails 架构参数使用 `GOARCH`，不要使用会被其包装器覆盖的 `ARCH`。
 
-热重载使用 `wails3 task dev` 或 `wails3 dev -config ./build/config.yml`，固定临时输出 `artifacts/hot-reload/leaguepingo-hot-reload.exe`，不登记或清理交付版本，与交付构建共享编译锁。该文件不可作为验收版。安装器/签名/Docker 和未适配平台入口当前明确拒绝，macOS 资源仍保留。工作流回归通过不代表热重载桌面或安装器已经实测；本批没有启动新助手。
+热重载使用 `wails3 task dev` 或 `wails3 dev -config ./build/config.yml`，固定临时输出 `artifacts/hot-reload/leaguepingo-hot-reload.exe`，不登记或清理交付版本，与交付构建共享编译锁。该文件不可作为验收版。NSIS 与证书存储签名已有受管入口；MSIX、Docker 和未适配平台入口仍明确拒绝。工作流回归不代表干净 Windows 10、缺 WebView2 或发布证书信任已经实测。
 
 关闭主窗口后助手会留在系统托盘；点击托盘图标可重新打开，托盘菜单提供“退出”。
 

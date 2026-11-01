@@ -1,5 +1,9 @@
 # 国服实机验收
 
+## U3 安装与版本
+
+启动前WebView2引导、静态版本清单、NSIS打包及证书存储签名链已经实施；CI会在Windows runner生成安装器并做临时目录安装/卸载，但不上传安装器。发布证书、干净Windows 10、缺WebView2引导、新版托盘入口和覆盖安装仍需人工执行I1–I6，见[INSTALLATION.md](INSTALLATION.md)及空白`acceptance/U3-results.csv`。未签名CI包和Windows Server runner不能登记正式通过。
+
 ## S1 回调瘦身专项
 
 代码已把前台/进程/按键读取与定时器移出两个原生回调，配置变化和松键拒绝迟到显示，主窗/托盘备用入口不依赖全局热键。状态/竞态和合成ABI验证不能证明反作弊兼容；实际K1–K6步骤及空白结果表见[HOLD_INPUT.md](HOLD_INPUT.md)。当前全部未获得真机结果，不复用R1自动接受/排队反馈作本专项通过记录。

@@ -20,10 +20,10 @@ Unicode true
 ## The following information is taken from the wails_tools.nsh file, but they can be overwritten here.
 ####
 ## !define INFO_PROJECTNAME    "my-project" # Default "LeaguePingo"
-## !define INFO_COMPANYNAME    "My Company" # Default "My Company"
+## !define INFO_COMPANYNAME    "LeaguePingo Contributors" # Default "LeaguePingo Contributors"
 ## !define INFO_PRODUCTNAME    "My Product Name" # Default "LeaguePingo"
-## !define INFO_PRODUCTVERSION "1.0.0"     # Default "0.1.0"
-## !define INFO_COPYRIGHT      "(c) Now, My Company" # Default "© 2026, My Company"
+## !define INFO_PRODUCTVERSION "0.2.0-dev" # Default "0.2.0-dev"
+## !define INFO_COPYRIGHT      "© 2026, LeaguePingo Contributors" # Default "© 2026, LeaguePingo Contributors"
 ###
 ## !define PRODUCT_EXECUTABLE  "Application.exe"      # Default "${INFO_PROJECTNAME}.exe"
 ## !define UNINST_KEY_NAME     "UninstKeyInRegistry"  # Default "${INFO_COMPANYNAME}${INFO_PRODUCTNAME}"
@@ -31,13 +31,16 @@ Unicode true
 ## !define REQUEST_EXECUTION_LEVEL "admin"            # Default "admin"  see also https://nsis.sourceforge.io/Docs/Chapter4.html
 ## !define WAILS_INSTALL_SCOPE     "user"             # Default "machine" - set to "user" for per-user install ($LOCALAPPDATA) without UAC prompt
 ####
-## Include the wails tools
+## Per-user installation avoids an unnecessary elevation prompt. Code signing
+## remains an explicit build step and never embeds certificate material here.
 ####
+!define INFO_COMPANYNAME "LeaguePingo Contributors"
+!define WAILS_INSTALL_SCOPE "user"
 !include "wails_tools.nsh"
 
 # The version information for this two must consist of 4 parts
-VIProductVersion "${INFO_PRODUCTVERSION}.0"
-VIFileVersion    "${INFO_PRODUCTVERSION}.0"
+VIProductVersion "${INFO_NUMERICVERSION}"
+VIFileVersion    "${INFO_NUMERICVERSION}"
 
 VIAddVersionKey "CompanyName"     "${INFO_COMPANYNAME}"
 VIAddVersionKey "FileDescription" "${INFO_PRODUCTNAME} Installer"
@@ -65,14 +68,17 @@ ManifestDPIAware true
 
 !insertmacro MUI_UNPAGE_INSTFILES # Uninstalling page
 
-!insertmacro MUI_LANGUAGE "English" # Set the Language of the installer
+!insertmacro MUI_LANGUAGE "SimpChinese"
 
 ## The following two statements can be used to sign the installer and the uninstaller. The path to the binaries are provided in %1
 #!uninstfinalize 'signtool --file "%1"'
 #!finalize 'signtool --file "%1"'
 
 Name "${INFO_PRODUCTNAME}"
-OutFile "..\..\..\bin\${INFO_PROJECTNAME}-${ARCH}-installer.exe" # Name of the installer's file.
+!ifndef ARG_INSTALLER_OUTPUT
+    !define ARG_INSTALLER_OUTPUT "..\..\..\artifacts\installers\${INFO_PROJECTNAME}-${INFO_PRODUCTVERSION}-${ARCH}-installer.exe"
+!endif
+OutFile "${ARG_INSTALLER_OUTPUT}"
 !if "${WAILS_INSTALL_SCOPE}" == "user"
     InstallDir "$LOCALAPPDATA\Programs\${INFO_PRODUCTNAME}"
 !else
@@ -84,10 +90,27 @@ Function .onInit
    !insertmacro wails.checkArchitecture
 FunctionEnd
 
+Function CheckWebView2
+    SetRegView 64
+    ReadRegStr $0 HKLM "SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" "pv"
+    ${If} $0 == ""
+        ReadRegStr $0 HKCU "Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" "pv"
+    ${EndIf}
+    ${If} $0 == "0.0.0.0"
+        StrCpy $0 ""
+    ${EndIf}
+    ${If} $0 == ""
+        IfSilent done
+        MessageBox MB_YESNO|MB_ICONEXCLAMATION "LeaguePingo 需要 Microsoft Edge WebView2 Runtime。是否打开微软官方下载页？安装后即可启动 LeaguePingo。" IDNO done
+        ExecShell "open" "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
+    ${EndIf}
+    done:
+FunctionEnd
+
 Section
     !insertmacro wails.setShellContext
 
-    !insertmacro wails.webview2runtime
+    Call CheckWebView2
 
     SetOutPath $INSTDIR
 
@@ -104,8 +127,6 @@ SectionEnd
 
 Section "uninstall"
     !insertmacro wails.setShellContext
-
-    RMDir /r "$AppData\${PRODUCT_EXECUTABLE}" # Remove the WebView2 DataPath
 
     RMDir /r $INSTDIR
 
