@@ -53,6 +53,76 @@ jobs:
       - name: Portable verification
         run: bash scripts/verify.sh portable
 
+  # 建议性质量门：先持续暴露存量问题，待告警清零后再改为阻断。
+  # 目标仍按 Windows 构建解析；工具固定在兼容 go.mod Go 1.25 的版本，
+  # GOTOOLCHAIN=local 防止分析器静默下载另一套 Go。
+  advisory:
+    name: Advisory static analysis
+    needs: portable
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install pinned analyzers
+        run: |
+          tool_bin="$RUNNER_TEMP/advisory-bin"
+          GOBIN="$tool_bin" go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
+          GOBIN="$tool_bin" go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+          echo "$tool_bin" >> "$GITHUB_PATH"
+
+      - name: Staticcheck (advisory)
+        id: staticcheck
+        continue-on-error: true
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: "0"
+        run: staticcheck ./...
+
+      - name: Govulncheck (advisory)
+        id: govulncheck
+        continue-on-error: true
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: "0"
+        run: govulncheck ./...
+
+      - name: npm audit (advisory)
+        id: npm_audit
+        continue-on-error: true
+        run: npm --prefix frontend audit --audit-level=high
+
+      - name: Publish advisory summary
+        if: always()
+        run: |
+          {
+            echo "### Advisory static analysis"
+            echo "| Check | Outcome |"
+            echo "| --- | --- |"
+            echo "| staticcheck | ${{ steps.staticcheck.outcome }} |"
+            echo "| govulncheck | ${{ steps.govulncheck.outcome }} |"
+            echo "| npm audit | ${{ steps.npm_audit.outcome }} |"
+            echo
+            echo "These checks are visible but do not block CI until the recorded findings are resolved."
+          } >> "$GITHUB_STEP_SUMMARY"
+
   # 第二关：Windows 完整验证 + 编译。只验证自动化部分，不等于真实国服客户端验收。
   windows:
     name: Windows verify and build

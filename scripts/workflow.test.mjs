@@ -57,6 +57,11 @@ test('CI preserves managed build, binding verification and opt-in executable upl
     ['run: bash scripts/build.sh bin/leaguepingo-ci.exe', 'run: bash scripts/verify.sh windows\n      - run: bash scripts/build.sh bin/leaguepingo-ci.exe'],
     ['needs: portable', 'needs: []'],
     ['git status --porcelain -- frontend/bindings', 'git diff -- frontend/bindings'],
+    ['go install honnef.co/go/tools/cmd/staticcheck@v0.7.0', 'go install honnef.co/go/tools/cmd/staticcheck@latest'],
+    ['go install golang.org/x/vuln/cmd/govulncheck@v1.7.0', 'go install golang.org/x/vuln/cmd/govulncheck@latest'],
+    ['run: govulncheck ./...', 'run: true'],
+    ['continue-on-error: true', 'continue-on-error: false'],
+    ['GOTOOLCHAIN: local', 'GOTOOLCHAIN: auto'],
     ["github.event_name == 'workflow_dispatch' && inputs.upload_exe", 'success()'],
     ['  pull_request:', '  pull_request_target:'],
   ]) {

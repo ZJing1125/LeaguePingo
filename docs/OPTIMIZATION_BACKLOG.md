@@ -11,7 +11,7 @@ suggested_repo_path: docs/OPTIMIZATION_BACKLOG.md
 
 # 1. 使用规则（agent 先读）
 
-执行记录（实施起始基线4d57e0b，附件审阅基线cc229e7）：Q1已实施并通过dev推送实跑，见下方记录；F1本地度量已实施，口径与验证见PERFORMANCE.md；U1错误码与中文提示、U2降级与有界恢复已实施，协议与验证分别见ERRORS.md、DATA_RECOVERY.md及本提交CI，R1实验性标注与分轮记录已准备；用户已反馈A1/A2/P1/P2没有问题，后续确认跳过可用但继续/返回/开排链条失败，修复版与版本信息及其他项目待补，整体R1未完成；S1回调瘦身/备用入口核验/设置说明已实施，国服反作弊专项待实机；U3启动前依赖检查、静态版本检查、NSIS与证书存储签名代码链已实施，发布证书与干净Win10的I1–I6仍待人工；U4实验性说明、行为边界和一键停用已实施并由前端合成回归覆盖；其余任务尚未实施。该清单是任务输入，原审阅统计与推断不能当作当前事实。其他任务仍按依赖逐项核实；未执行的Windows/国服检查保留未验证状态。
+执行记录（实施起始基线4d57e0b，附件审阅基线cc229e7）：Q1已实施并通过dev推送实跑，见下方记录；Q4建议性staticcheck、govulncheck与npm audit已实施，强制门禁等待Go标准库漏洞随依赖治理清零；F1本地度量已实施，口径与验证见PERFORMANCE.md；U1错误码与中文提示、U2降级与有界恢复已实施，协议与验证分别见ERRORS.md、DATA_RECOVERY.md及本提交CI，R1实验性标注与分轮记录已准备；用户已反馈A1/A2/P1/P2没有问题，后续确认跳过可用但继续/返回/开排链条失败，修复版与版本信息及其他项目待补，整体R1未完成；S1回调瘦身/备用入口核验/设置说明已实施，国服反作弊专项待实机；U3启动前依赖检查、静态版本检查、NSIS与证书存储签名代码链已实施，发布证书与干净Win10的I1–I6仍待人工；U4实验性说明、行为边界和一键停用已实施并由前端合成回归覆盖；其余任务尚未实施。该清单是任务输入，原审阅统计与推断不能当作当前事实。其他任务仍按依赖逐项核实；未执行的Windows/国服检查保留未验证状态。
 
 Q1首次运行：[40856437383](https://github.com/ZJing1125/LeaguePingo/actions/runs/40856437383)，Linux成功，Windows原生Go检查通过，侧栏720px五卡高度回归失败。已根据日志修复摘要内边距，保留原验收断言。修复提交dd33476的[40857941063](https://github.com/ZJing1125/LeaguePingo/actions/runs/40857941063)两个job全部成功：Windows全包test/vet、绑定生成/一致性、九项浏览器回归、EXE编译及产物审计均通过。EXE只存在runner，未上传、部署或登记为用户已验收；截图保留7天。PR事件配置已做语法检查，未专门新建PR测试。默认分支仍为main，手动触发入口需工作流进入默认分支后才能使用；本批未修改main或默认分支。
 
@@ -505,15 +505,17 @@ id: Q4
 title: 静态分析（staticcheck、govulncheck、npm audit）
 priority: P1
 area: quality
-status: drafted
+status: implemented
 confidence: verified-static
 needs_human: false
-problem: 目前只有 go vet。
+problem: 已在CI增加建议性staticcheck、govulncheck与npm audit；当前Go标准库漏洞未清零，因此尚未改为阻断。
 evidence:
-  - "ci.yml 的 advisory 任务（建议性，失败不拦截）"
+  - .github/workflows/ci.yml 的 advisory 任务（建议性，失败不拦截）
+  - docs/STATIC_ANALYSIS.md
 actions:
-  - 先建议性运行，修完存量问题后改成必须通过
-  - 稳定后固定工具版本，不再使用 @latest
+  - 已完成：建议性运行，三项分别显示结果且失败不拦截Windows构建
+  - 已完成：固定与Go 1.25兼容的staticcheck v0.7.0和govulncheck v1.7.0，禁止自动切换工具链
+  - 待依赖治理：Go升级到修复版并清零govulncheck后改成必须通过
 acceptance:
   - CI 中有结果；存量告警清零后改为强制
 depends_on: [Q1]

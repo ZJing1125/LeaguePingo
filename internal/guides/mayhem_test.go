@@ -3,7 +3,6 @@ package guides
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -105,7 +104,7 @@ func TestLiveMayhem(t *testing.T) {
 		}
 		t.Logf("champion=%d augments=%d tiers=%v builds=%d skills=%d pageVersion=%s notice=%s", id, len(g.Augments), tiers, len(g.Builds), len(g.Skills), g.Version, g.Notice)
 		if len(g.Augments) < 20 || tiers[0]+tiers[1]+tiers[2] == 0 || len(g.Builds) < 3 || len(g.Skills) < 10 || g.Notice != "" {
-			t.Fatal(fmt.Sprintf("incomplete guide for %d", id))
+			t.Fatalf("incomplete guide for %d", id)
 		}
 	}
 }

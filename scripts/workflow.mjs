@@ -118,11 +118,17 @@ export function checkWorkflow(read) {
   for (const text of ['branches: [dev]', 'branches: [dev, main]', 'contents: read',
     'needs: portable', 'runs-on: ubuntu-latest', 'runs-on: windows-latest',
     'run: bash scripts/verify.sh portable', 'git status --porcelain -- frontend/bindings',
+    'go install honnef.co/go/tools/cmd/staticcheck@v0.7.0',
+    'go install golang.org/x/vuln/cmd/govulncheck@v1.7.0',
+    'run: staticcheck ./...', 'run: govulncheck ./...',
+    'run: npm --prefix frontend audit --audit-level=high', 'GOTOOLCHAIN: local',
     'choco install nsis --version=3.13.0', 'bash scripts/package-windows.sh --binary bin/leaguepingo-ci.exe',
     'bash scripts/verify-installer.sh artifacts/installer-check/leaguepingo-ci-installer.exe',
     "github.event_name == 'workflow_dispatch' && inputs.upload_exe"])
     requireText('.github/workflows/ci.yml', text);
   if ((ci.match(/run: bash scripts\/build\.sh bin\/leaguepingo-ci\.exe/g) || []).length !== 1 ||
+      (ci.match(/^\s*needs: portable$/gm) || []).length !== 2 ||
+      (ci.match(/continue-on-error: true/g) || []).length < 3 ||
       /^\s*(?:run: |.*&&\s*)(?:go|garble)\s+build\b/m.test(ci) ||
       /run: bash scripts\/verify\.sh(?:\s*\n|\s+windows)/.test(ci) ||
       /^\s*pull_request_target:/m.test(ci)) {
