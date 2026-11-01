@@ -187,8 +187,13 @@ test('build shell: test/compiler failure preserves old builds; success registers
   // This fixture isolates build/retention control flow; policy routing itself is
   // covered by workflow.test.mjs with the real repository files and Wails runner.
   fs.writeFileSync(path.join(root, 'scripts/workflow.mjs'), 'process.exit(0);\n');
+  fs.writeFileSync(path.join(root, 'scripts/version.mjs'), `
+    if (process.argv[2] === 'value') console.log('0.2.0-dev');
+  `);
   fs.writeFileSync(path.join(root, 'test-tools/git'), '#!/bin/bash\nif [[ "$1" == rev-parse ]]; then echo abcdef1; fi\n');
   fs.writeFileSync(path.join(root, 'test-tools/go'), '#!/bin/bash\nnode scripts/fake-compiler.mjs "$@"\n');
+  fs.chmodSync(path.join(root, 'test-tools/git'), 0o700);
+  fs.chmodSync(path.join(root, 'test-tools/go'), 0o700);
   fs.writeFileSync(path.join(root, 'scripts/fake-compiler.mjs'), `
     import fs from 'node:fs';
     const file = process.argv[process.argv.indexOf('-o') + 1];
@@ -202,12 +207,14 @@ test('build shell: test/compiler failure preserves old builds; success registers
   const run = () => spawnSync(bash, ['-c', `export PATH="$PWD/test-tools:${nodeFolder}:$PATH"; bash scripts/build.sh ${binary}`],
     { cwd: root, encoding: 'utf8', timeout: 30000 });
   fs.writeFileSync(path.join(root, 'scripts/verify.sh'), 'exit 5\n');
-  assert.equal(run().status, 5);
+  const verifyFailure = run();
+  assert.equal(verifyFailure.status, 5, verifyFailure.stderr + verifyFailure.stdout);
   assert.ok(!exists(binary) && !exists('bin/.build-lock'));
   assert.equal(m.read().builds.length, 2);
   fs.writeFileSync(path.join(root, 'scripts/verify.sh'), 'exit 0\n');
   fs.writeFileSync(path.join(root, 'fail-compiler'), 'yes');
-  assert.equal(run().status, 7);
+  const compilerFailure = run();
+  assert.equal(compilerFailure.status, 7, compilerFailure.stderr + compilerFailure.stdout);
   assert.ok(!exists(binary) && exists('bin/leaguepingo-v1.exe'));
   fs.unlinkSync(path.join(root, 'fail-compiler'));
   const success = run();
