@@ -4,6 +4,14 @@
 
 历史条目描述当时行为；如后续需求调整，以较新条目为准。当前局内请求边界见 BUG-0043；BUG-0045 仅为临时按住快览恢复鼠标穿透，手动模式保持可交互。
 
+## BUG-0090 / F2逐个玩家渐进渲染
+
+2026-11-01。核验确认现有赛前战绩循环在每名玩家完成后即发布快照，独立统计已有双worker、首批数据即时发布和慢玩家不阻塞快玩家的回归；无需重写请求管线。缺口位于展示层：尚无统计的玩家卡仍堆叠“待读取/—”文字，加载状态不够清楚。
+
+当前对局中，身份已知且独立统计尚无任何可用记录的卡片改为稳定骨架；英雄与段位头部继续显示已到数据，首批或部分统计到达后立即替换该卡的统计区。冻结复盘不显示运行中骨架，渲染切换不增加轮询或玩家请求。新增开局战绩发布时序测试及双待加载卡逐个替换的浏览器回归。
+
+验证证据：`go test ./internal/engine -run 'TestInitialMatchPublishesEachPlayerBeforeBatchCompletes|TestUnlockedChampionFirstPageArrivesBeforeOtherPlayersMastery' -count=1` 与 `node frontend/tests/companion-browser.cjs` 通过；完整 smoke 与 portable 见本批执行记录。
+
 ## BUG-0089 / Q4建议性静态分析
 
 2026-11-01。CI在portable成功后新增独立advisory任务，按Windows amd64目标运行固定版本的staticcheck v0.7.0、govulncheck v1.7.0及`npm audit --audit-level=high`。三项分别允许失败并始终写入任务摘要，存量问题未清零前不阻断后续Windows构建；`GOTOOLCHAIN=local`防止分析器静默换用未核验Go版本，工作流策略测试锁定版本、命令和建议性边界。

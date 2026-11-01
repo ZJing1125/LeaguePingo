@@ -84,6 +84,48 @@ func TestInitialMatchRunFillsNamesAndHistoryOnce(t *testing.T) {
 	}
 }
 
+func TestInitialMatchPublishesEachPlayerBeforeBatchCompletes(t *testing.T) {
+	secondStarted, releaseSecond := make(chan struct{}), make(chan struct{})
+	f := &fakeClient{phase: "InProgress", gameID: 42, roster: fullTestRoster()}
+	f.historyFn = func(ctx context.Context, puuid string) (core.HistoryResult, error) {
+		if puuid == f.roster[1].PUUID {
+			close(secondStarted)
+			select {
+			case <-releaseSecond:
+			case <-ctx.Done():
+				return core.HistoryResult{}, ctx.Err()
+			}
+		}
+		return core.HistoryResult{}, nil
+	}
+	published := make(chan core.Snapshot, 64)
+	e := New(func() (Client, error) { return f, nil }, func(snapshot core.Snapshot) { published <- snapshot })
+	e.initialMatch.parent = context.Background()
+	e.poll(context.Background())
+	select {
+	case <-secondStarted:
+	case <-time.After(2 * time.Second):
+		close(releaseSecond)
+		t.Fatal("second player request never started")
+	}
+	if snapshot := e.Snapshot(); snapshot.Participants[0].HistoryState != core.HistoryEmpty || snapshot.Participants[1].HistoryState != core.HistoryLoading {
+		close(releaseSecond)
+		t.Fatalf("first result waited for the batch: first=%s second=%s", snapshot.Participants[0].HistoryState, snapshot.Participants[1].HistoryState)
+	}
+	found := false
+	for !found {
+		select {
+		case snapshot := <-published:
+			found = snapshot.Participants[0].HistoryState == core.HistoryEmpty && snapshot.Participants[1].HistoryState == core.HistoryLoading
+		case <-time.After(2 * time.Second):
+			close(releaseSecond)
+			t.Fatal("first player result was not published to the UI")
+		}
+	}
+	close(releaseSecond)
+	waitInitialMatch(t, e)
+}
+
 func TestInitialMatchUsesPartialRosterAfterIdentityBudgetEnds(t *testing.T) {
 	f := &fakeClient{phase: "InProgress", gameID: 42, roster: fullTestRoster()[:9]}
 	e := New(func() (Client, error) { return f, nil }, nil)

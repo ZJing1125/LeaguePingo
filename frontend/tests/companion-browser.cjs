@@ -143,10 +143,16 @@ async function main(){
   await side.getByText(/开局快览 · 6 秒后收起/).waitFor();
 
   const readOnlyCalls=calls.length;
-  snapshot.participants[9]={...snapshot.participants[9],displayName:'玩家名称暂不可用',historyState:'loading',scout:{...snapshot.participants[9].scout,state:'loading',complete:false,complete12:false,complete30:false}};await publish();
+  for(const index of [8,9])snapshot.participants[index]={...snapshot.participants[index],displayName:'玩家名称暂不可用',historyState:'loading',history:[],scout:{...snapshot.participants[index].scout,state:'loading',read:0,complete:false,complete12:false,complete30:false,champions:[],queues:[]}};await publish();
+  await side.getByText('正在补齐 2 人统计',{exact:true}).waitFor();
+  assert.equal(await side.locator('.overlay-player .scout-stat-skeleton').count(),2,'pending players did not render stable skeletons');
+  snapshot.participants[8]=structuredClone(players[8]);await publish();
   await side.getByText('正在补齐 1 人统计',{exact:true}).waitFor();
+  assert.equal(await side.locator('.overlay-player').nth(8).locator('.scout-stat-skeleton').count(),0,'completed player remained a skeleton');
+  assert.equal(await side.locator('.overlay-player').nth(9).locator('.scout-stat-skeleton').count(),1,'slow player lost its skeleton before data arrived');
   assert((await side.locator('.overlay-player').nth(9).innerText()).includes('正在获取'));
   snapshot.participants[9]=structuredClone(players[9]);await publish();
+  await side.locator('.overlay-player .scout-stat-skeleton').waitFor({state:'detached'});
   assert.equal(calls.length,readOnlyCalls,'initial-match progress/name update triggered a player query');
   assert.equal(await side.locator('.overlay-controls').count(),0);
   assert((await side.locator('.overlay-footer').innerText()).includes('6 秒后收起'));

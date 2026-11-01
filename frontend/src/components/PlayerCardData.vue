@@ -13,6 +13,8 @@ const props = defineProps<{ player: Participant; frozen?: boolean; party?: boole
 const data = computed(() => scoutStats(props.player, props.queue ?? 420));
 const rank = computed(() => rankPresentation(props.player, props.queue === 440 ? "RANKED_FLEX_SR" : "RANKED_SOLO_5x5"));
 const season = computed(() => rank.value.record);
+const statisticsPending = computed(() => props.player.identityState === "known" && !props.captured &&
+  data.value.report?.state === "loading" && !data.value.report.read);
 const hero = computed(() => props.player.championId ? championName(props.player.championId).split("·").at(-1) : props.party || props.player.championState === "unselected" ? "尚未选择英雄" : "英雄待确认");
 const heroScope = computed(() => props.player.championState === "intent" ? "预选英雄" : props.player.championId ? data.value.report?.season ? data.value.report.complete ? '本季排位' : '本季已读' : '英雄表现'  : props.party ? "房间成员" : "等待选择");
 const heroStatus = computed(() => {
@@ -59,17 +61,37 @@ function periodDetail(p: ReturnType<typeof scoutStats>["periods"][number]) {
       </span>
     </span>
     <template v-if="player.identityState === 'known'">
-      <span class="overview-metrics scout-rings" :title="`${data.queueLabel} · 独立时间范围统计，获取于 ${date(data.report?.fetchedAt)}；与战绩列表场数无关`">
-        <ScoutRing :value="data.periods[0]!.winRate" short="12h" label="12小时内" :caption="periodCaption(data.periods[0]!)" :detail="periodDetail(data.periods[0]!)" :title="`${data.queueLabel} · 最近12小时，胜负有效 ${data.periods[0]!.outcomeGames}/${data.periods[0]!.games} 场${data.periods[0]!.complete ? '' : '；仅已读范围'}`" />
-        <span class="scout-position-cell">
-          <ScoutRing :value="data.role.share" :role="data.role.key" short="" label="30天位置" :caption="roleCaption" :detail="data.role.known ? `${data.role.known} 场记录` : '—'" :title="roleTitle" />
-          <span v-if="data.role.known" class="role-distribution" :title="roleTitle"><i v-for="p in data.role.positions" :key="p.position" :class="p.position.toLowerCase()" :style="{ flexGrow: p.games }" :title="`${roleNames[p.position]} ${p.games} 场`" /></span>
-        </span>
-        <ScoutRing :value="data.periods[1]!.winRate" short="30d" label="30天内" :caption="periodCaption(data.periods[1]!)" :detail="periodDetail(data.periods[1]!)" :title="`${data.queueLabel} · 最近30天，胜负有效 ${data.periods[1]!.outcomeGames}/${data.periods[1]!.games} 场${data.periods[1]!.complete ? '' : '；仅已读范围'}`" />
+      <span v-if="statisticsPending" class="scout-stat-skeleton" role="status" aria-label="正在获取玩家统计">
+        <span class="scout-skeleton-rings" aria-hidden="true"><i v-for="slot in 3" :key="slot" /></span>
+        <i class="scout-skeleton-line wide" aria-hidden="true" />
+        <i class="scout-skeleton-line" aria-hidden="true" />
+        <small>统计准备中</small>
       </span>
-      <span class="scout-scope" :title="`${data.queueLabel} · ${range}，${data.overall.games} 场；KDA 有效 ${data.overall.kdaGames ?? 0} 场；统计截至 ${date(data.report?.fetchedAt)}；${data.report?.season?.name || '赛季范围尚未取得'}`"><small class="sample-size">{{ range }}</small><span>KDA <b>{{ decimal(data.overall.kda) }}</b></span><span v-if="data.report && !data.report.complete30" class="scout-coverage-mark">范围未完整</span></span>
-      <span class="scout-tags recent-block"><span v-for="tag in data.tags" :key="tag.label" class="scout-tag" :class="tag.tone" :title="tag.title">{{ tag.label }}</span><small v-if="!data.tags.length" class="scout-empty-tags">{{ data.report?.state === 'loading' || !data.report ? captured ? '本局未保留排位统计' : '正在准备排位统计' : '本季英雄记录' }}</small></span>
+      <template v-else>
+        <span class="overview-metrics scout-rings" :title="`${data.queueLabel} · 独立时间范围统计，获取于 ${date(data.report?.fetchedAt)}；与战绩列表场数无关`">
+          <ScoutRing :value="data.periods[0]!.winRate" short="12h" label="12小时内" :caption="periodCaption(data.periods[0]!)" :detail="periodDetail(data.periods[0]!)" :title="`${data.queueLabel} · 最近12小时，胜负有效 ${data.periods[0]!.outcomeGames}/${data.periods[0]!.games} 场${data.periods[0]!.complete ? '' : '；仅已读范围'}`" />
+          <span class="scout-position-cell">
+            <ScoutRing :value="data.role.share" :role="data.role.key" short="" label="30天位置" :caption="roleCaption" :detail="data.role.known ? `${data.role.known} 场记录` : '—'" :title="roleTitle" />
+            <span v-if="data.role.known" class="role-distribution" :title="roleTitle"><i v-for="p in data.role.positions" :key="p.position" :class="p.position.toLowerCase()" :style="{ flexGrow: p.games }" :title="`${roleNames[p.position]} ${p.games} 场`" /></span>
+          </span>
+          <ScoutRing :value="data.periods[1]!.winRate" short="30d" label="30天内" :caption="periodCaption(data.periods[1]!)" :detail="periodDetail(data.periods[1]!)" :title="`${data.queueLabel} · 最近30天，胜负有效 ${data.periods[1]!.outcomeGames}/${data.periods[1]!.games} 场${data.periods[1]!.complete ? '' : '；仅已读范围'}`" />
+        </span>
+        <span class="scout-scope" :title="`${data.queueLabel} · ${range}，${data.overall.games} 场；KDA 有效 ${data.overall.kdaGames ?? 0} 场；统计截至 ${date(data.report?.fetchedAt)}；${data.report?.season?.name || '赛季范围尚未取得'}`"><small class="sample-size">{{ range }}</small><span>KDA <b>{{ decimal(data.overall.kda) }}</b></span><span v-if="data.report && !data.report.complete30" class="scout-coverage-mark">范围未完整</span></span>
+        <span class="scout-tags recent-block"><span v-for="tag in data.tags" :key="tag.label" class="scout-tag" :class="tag.tone" :title="tag.title">{{ tag.label }}</span><small v-if="!data.tags.length" class="scout-empty-tags">{{ data.report?.state === 'loading' || !data.report ? captured ? '本局未保留排位统计' : '正在准备排位统计' : '本季英雄记录' }}</small></span>
+      </template>
     </template>
     <span v-else class="rich-state scout-state"><AppIcon name="history" :size="24" /><b>身份未提供</b><small>等待玩家身份</small></span>
   </span>
 </template>
+<style scoped>
+.scout-stat-skeleton { display: flex; flex: 1; min-height: 0; flex-direction: column; align-items: center; justify-content: center; gap: 9px; padding: 8px 12px; color: var(--scout-muted); }
+.scout-skeleton-rings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; place-items: center; }
+.scout-skeleton-rings i { display: block; width: 42px; height: 42px; border: 6px solid var(--scout-track); border-radius: 50%; animation: scout-skeleton-pulse 1.4s ease-in-out infinite alternate; }
+.scout-skeleton-rings i:nth-child(2) { animation-delay: .15s; }
+.scout-skeleton-rings i:nth-child(3) { animation-delay: .3s; }
+.scout-skeleton-line { display: block; width: 56%; height: 7px; border-radius: 4px; background: var(--scout-track); animation: scout-skeleton-pulse 1.4s ease-in-out infinite alternate; }
+.scout-skeleton-line.wide { width: 82%; }
+.scout-stat-skeleton small { font-size: 11px; line-height: 14px; }
+@keyframes scout-skeleton-pulse { from { opacity: .45; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .scout-stat-skeleton i { animation: none; } }
+</style>
