@@ -174,6 +174,7 @@ async function main() {
         } else if (method === "ExportDiagnostics")
           result = "C:/synthetic/diagnostics/summary.json";
         else if (method === "OverlayStatus") result = state;
+        else if (method === "ToggleOverlay") { state = {...state, visible: !state.visible, revision: state.revision + 1}; result = state.visible; }
         else if (method === "SetOverlayPinned")
           result = state = {
             ...state,
@@ -1012,6 +1013,7 @@ async function main() {
     await page.getByRole("tab", { name: "诊断与关于" }).click();
     await page.getByText(/0.2.0-dev · synthetic/).waitFor();
     await page.getByRole("tab", { name: "游戏辅助" }).click();
+    await page.getByText('只监听已配置的按键，不记录其他输入。不可用时，可使用主窗口或托盘的“显示／收起游戏助手”。', { exact: true }).waitFor();
     await page
       .getByLabel("快览快捷键", { exact: true })
       .selectOption("Ctrl+Shift+X");
@@ -1058,6 +1060,16 @@ async function main() {
         !document.querySelector('[role="dialog"]') &&
         document.activeElement?.getAttribute("aria-label") === "设置与诊断",
     );
+    // The manual entry must remain usable after disabling the physical hook.
+    const toggleCalls = calls.filter(method => method === 'ToggleOverlay').length;
+    const toggled = page.waitForResponse(response => {
+      const request = response.request();
+      if (!request.url().endsWith('/wails/runtime') || request.method() !== 'POST') return false;
+      return methods[request.postDataJSON()?.args?.methodID] === 'ToggleOverlay';
+    });
+    await page.getByRole('button', { name: '显示／收起游戏助手', exact: true }).click();
+    await toggled;
+    assert.equal(calls.filter(method => method === 'ToggleOverlay').length, toggleCalls + 1);
     snapshot = {
       ...snapshot,
       knownCount: 10,

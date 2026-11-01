@@ -35,7 +35,13 @@
 补充（同日 P1-S4）：`ScoutReport` 增加 `reason`（固定码）、`retryAt`、`pagesRead`、`coverageEndsAt`，引擎在每页保存时发布；范围受限与整轮未读完分别用 `range_limited`/`incomplete`。前端新增 `scoutCoverage.ts`，只按已知码映射静态中文并给出自动重试秒数，不再渲染后端 message；未知码统一提示。绑定由固定 CLI 重新生成（`wails3 generate bindings -clean=true -ts -i`，39 方法/39 模型），未手改 bindings。新增 `frontend/tests/scout-coverage.cjs` 并接入 smoke；引擎测试补充页数/覆盖边界/失败码断言。`npm run build`、11→12 组 smoke、`go test ./internal/...` 通过。自适应页超时与 P2 完整范围语义仍未实施。
 
 补充（同日 P1-S5 + P2）：页预算改为 `max(4s, 2×P95(sgp-history))`、上限 8 秒，诊断新增只复制单分类窗口的 `Percentile`，SGP HTTP 安全网提到 9 秒但各调用方仍传更短预算；新增 `TestPercentileReadsRecentWindowPerCategory` 与 `TestScoutPageTimeoutFollowsRecentLatency`。展示层把无报告时的破折号改为“待读取”，展开卡范围显示 `30天已读 N 场`/`30天待读取`，圆环副标题保留已读场次。`go test ./internal/...`、`go vet`、`npm run build`、12 组 smoke、实机 `audit-player-data.sh history` 与 `portable` 均通过。本批仅余用户机器复测与 Windows 完整验证未执行。
+## BUG-0086 / S1键盘回调瘦身与国服兼容专项
 
+2026-10-30用户要求开始S1。改动前hold竞态测试通过，Windows完整入口在Linux按规则拒绝；新增回调契约先复现GameForeground、锁式State访问及定时器仍处于键盘回调。现两个回调只保留当前配置键原子更新/前台失效与单槽通知，前台/进程/按键读取、应用锁/显示通知和150毫秒兜底全部移到独立工作任务；不在钩子消息线程执行这些读取。CallNextHookEx保留原参数及下游结果，注入/无关/异常消息也转发，禁用不处理输入；无输入流/按键历史。
+
+单个原子字协调配置/阶段/物理状态及版本，重复按下不入队、快速松键不迟到显示，切前台/改键/禁用/离局/停止拒绝在途读结果；焦点恢复及新绑定已按住时须松开再按。只有允许阶段并正在按住才有兜底进程读取，空闲不轮询。物理反引号在工作任务按前台键盘布局映射扫描码采样，保持不同布局下的松键恢复。按Microsoft时序说明，新捕获按下不立即采样尚未更新的GetAsyncKeyState；旧定时通知也不能误清新按下，补充首按回归。
+
+核对已有主窗口和托盘“显示／收起游戏助手”可作无全局热键的备用入口，不重复新增按钮；设置明确监听范围与入口。新增无锁/无分配/单槽合并、快速重按/迟到读、缺事件恢复、并发配置与退出、手动入口独立及Windows合成回调ABI/原样转发回归。Linux逻辑/竞态、portable及浏览器与目标测试编译分别核验；Windows执行/受管构建以本提交CI为准。真实反作弊与国服体验没有结果，S1保持awaiting-live-validation，K1–K6及空白结果表见HOLD_INPUT.md；不把旧R1四项或CI当作本专项通过。
 ## BUG-0083 / 跳过后“继续→再来一局→排队”衔接失败
 
 2026-10-30用户确认可跳过点赞，但进度页“继续”、记分板“再来一局”和排队仍需手动；用户不确定是否海克斯所致。核对无420/440白名单；复现旧ballot在提交后保留导致honor-unconfirmed，以及提交后旧ballot接口不可读导致honor-unavailable，两个分支都未执行返回。旧实现也未完成missions-celebration进度展示，且误将EndOfGame作为进入后续流程的先决条件。合成回归先失败后修复，不将模拟输入当作用户客户端实测字段。

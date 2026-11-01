@@ -1,0 +1,7 @@
+case,status,tested_at,assistant_commit,exe_sha256,windows_build,client_version,queue_id,window_mode,dpi,observed,evidence
+K1,NOT_RUN,,,,,,,,,,
+K2,NOT_RUN,,,,,,,,,,
+K3,NOT_RUN,,,,,,,,,,
+K4,NOT_RUN,,,,,,,,,,
+K5,NOT_RUN,,,,,,,,,,
+K6,NOT_RUN,,,,,,,,,,

@@ -1,18 +1,35 @@
-// Package hold owns the physical-key state independently of any WebView.
+// Package hold owns the configured physical-key state independently of WebViews.
 package hold
 
-import "sync"
+import (
+	"sync"
+	"sync/atomic"
+)
+
+const (
+	inputKeyMask uint64 = 0xff
+	inputEnabled uint64 = 1 << 8
+	inputAllowed uint64 = 1 << 9
+	inputDown    uint64 = 1 << 10
+	inputBlocked uint64 = 1 << 11
+	inputVersion uint64 = 1 << 16
+	inputFlags   uint64 = inputVersion - 1
+)
 
 type State struct {
-	mu                        sync.Mutex
-	enabled, allowed, visible bool
-	pressed                   map[uint32]bool
-	key                       uint32
-	notify                    func()
+	// Native callbacks only touch input and wake. One word contains the binding,
+	// physical level and revision, so coalescing cannot replay an obsolete press.
+	input  atomic.Uint64
+	wake   chan struct{}
+	mu     sync.Mutex
+	shown  uint64
+	notify func()
 }
 
 func New(notify func()) *State {
-	return &State{key: 0xC0, notify: notify, pressed: make(map[uint32]bool)}
+	s := &State{notify: notify, wake: make(chan struct{}, 1)}
+	s.input.Store(uint64(Key("Backquote")) | inputBlocked)
+	return s
 }
 func Key(name string) uint32 {
 	switch name {
@@ -40,57 +57,115 @@ func PhysicalKey(vk, scan uint32, extended bool) uint32 {
 	return vk
 }
 
+func revise(old, flags uint64) uint64 { return (old &^ inputFlags) + inputVersion | flags }
+func (s *State) signal() {
+	select {
+	case s.wake <- struct{}{}:
+	default:
+	}
+}
 func (s *State) Configure(enabled bool, key uint32) {
 	s.mu.Lock()
-	s.enabled, s.key, s.visible = enabled, key, false
+	for old := s.input.Load(); ; old = s.input.Load() {
+		flags := old & inputAllowed
+		if key != 0 && (key == Key("Backquote") || key >= Key("F8") && key <= Key("F10")) {
+			flags |= uint64(key)
+			if enabled {
+				flags |= inputEnabled
+			}
+		}
+		// A binding change never turns an already held key into a fresh press.
+		if old&inputKeyMask == flags&inputKeyMask {
+			flags |= old & inputDown
+		}
+		if s.input.CompareAndSwap(old, revise(old, flags|inputBlocked)) {
+			break
+		}
+	}
+	s.shown = 0
 	s.mu.Unlock()
 	s.notify()
+	s.signal()
 }
 func (s *State) Allow(allowed bool) {
 	s.mu.Lock()
-	changed := s.allowed != allowed
-	s.allowed = allowed
-	if !allowed {
-		s.visible = false
+	for old := s.input.Load(); ; old = s.input.Load() {
+		if (old&inputAllowed != 0) == allowed {
+			s.mu.Unlock()
+			return
+		}
+		flags := old & inputFlags &^ inputAllowed
+		if allowed {
+			flags |= inputAllowed
+		}
+		if s.input.CompareAndSwap(old, revise(old, flags|inputBlocked)) {
+			break
+		}
 	}
+	s.shown = 0
 	s.mu.Unlock()
-	if changed {
-		s.notify()
+	s.notify()
+	s.signal()
+}
+
+// capture is called on the hook thread. It retains only the enabled configured
+// key's current level, never an input stream. Auto-repeat does not queue work.
+func (s *State) capture(key uint32, down bool) bool {
+	for old := s.input.Load(); ; old = s.input.Load() {
+		if old&inputEnabled == 0 || uint32(old&inputKeyMask) != key {
+			return false
+		}
+		if (old&inputDown != 0) == down {
+			return true
+		}
+		flags := old & inputFlags &^ inputDown
+		if down {
+			flags |= inputDown
+		} else {
+			flags &^= inputBlocked
+		}
+		if s.input.CompareAndSwap(old, revise(old, flags)) {
+			s.signal()
+			return true
+		}
 	}
 }
-func (s *State) Input(key uint32, down, gameForeground bool) {
+
+// interrupt is also callback-safe. Losing foreground invalidates an in-flight
+// read even if focus returns before the worker finishes. Release is required.
+func (s *State) interrupt() {
+	for old := s.input.Load(); ; old = s.input.Load() {
+		if old&inputDown == 0 {
+			return
+		}
+		if s.input.CompareAndSwap(old, revise(old, old&inputFlags|inputBlocked)) {
+			s.signal()
+			return
+		}
+	}
+}
+func (s *State) Desired() bool {
 	s.mu.Lock()
-	if key != 0xC0 && (key < 0x77 || key > 0x79) {
+	defer s.mu.Unlock()
+	return s.shown != 0 && s.input.Load() == s.shown
+}
+
+// publish runs only on the worker, after native reads. Configuration, release,
+// focus and shutdown all change the revision and reject a delayed show.
+func (s *State) publish(expected uint64, visible bool) {
+	s.mu.Lock()
+	if s.input.Load() != expected {
 		s.mu.Unlock()
 		return
 	}
-	wasDown := s.pressed[key]
-	s.pressed[key] = down
-	if key != s.key || (down && wasDown) {
-		s.mu.Unlock()
-		return
+	before := s.shown
+	s.shown = 0
+	if visible {
+		s.shown = expected
 	}
-	before := s.visible
-	if !down {
-		s.visible = false
-	} else {
-		s.visible = s.enabled && s.allowed && gameForeground
-	}
-	changed := before != s.visible
+	changed := before != s.shown
 	s.mu.Unlock()
 	if changed {
 		s.notify()
 	}
 }
-func (s *State) Release() {
-	s.mu.Lock()
-	changed := s.visible
-	s.visible = false
-	s.mu.Unlock()
-	if changed {
-		s.notify()
-	}
-}
-func (s *State) Desired() bool           { s.mu.Lock(); defer s.mu.Unlock(); return s.visible }
-func (s *State) CurrentKey() uint32      { s.mu.Lock(); defer s.mu.Unlock(); return s.key }
-func (s *State) Pressed(key uint32) bool { s.mu.Lock(); defer s.mu.Unlock(); return s.pressed[key] }

@@ -1,5 +1,7 @@
 # 前端迭代与组件预览
 
+S1：游戏辅助设置补充“只监听已配置的按键，不记录其他输入”与主窗/托盘手动入口说明，不增桥接或设置字段；overlay-smoke核对说明与禁用按住后手动按钮仍调用ToggleOverlay，原设置保存失败/焦点回归保留。见HOLD_INPUT.md。
+
 BUG-0083：PostGameNotice新增等待进度/正在继续/未确认等固定状态，继续核验时可取消后续动作。SettingsPanel说明自动返回包含已识别进度页；前端不调用序列接口、不抢焦点。结果以客户端“继续→再来一局→房间→开排”的真实完成为准，不要求用户读取诊断状态。
 
 BUG-0082：SettingsPanel的autoSkipHonor为独立默认关闭草稿，与返回/排队/延迟用一次ConfigurePostGame四参数调用保存；Info与postgame.State分别返回autoSkipHonor/skipHonor。PostGameNotice新增荣誉等候/3秒倒计时/提交确认与手动处理状态，主窗/侧栏同revision同步，纯前端不读取ballot。恢复默认只改草稿，失败不改变当前生效值；post-game.cjs覆盖独立使用与保存失败。见SKIP_HONOR。

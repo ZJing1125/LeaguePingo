@@ -43,6 +43,26 @@ func TestOverlayControlsAndRecovery(t *testing.T) {
 	}
 }
 
+func TestManualOverlayWorksWithoutHoldMonitor(t *testing.T) {
+	w := &fakeOverlay{}
+	o := &overlayController{
+		window: w, dispatch: func(fn func()) { fn() }, managed: true,
+		state:           OverlayState{HoldEnabled: false, HoldAvailable: false},
+		currentSnapshot: func() core.Snapshot { return core.Snapshot{Connected: true, Phase: "InProgress"} },
+		holdDesired:     func() bool { return false },
+	}
+	if state := o.toggle(); !state.Visible || state.Mode != "persistent" || !w.visible {
+		t.Fatal("manual entry depends on physical hook availability")
+	}
+	o.reconcileHold()
+	if !w.visible {
+		t.Fatal("released/disabled hold closed manual overlay")
+	}
+	if o.toggle().Visible || w.visible {
+		t.Fatal("manual hide unavailable")
+	}
+}
+
 type fakeCompanionOverlay struct {
 	fakeHoldOverlay
 	bounds settings.Rect
