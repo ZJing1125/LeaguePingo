@@ -17,6 +17,15 @@ const skipHonor = ref(false), returnEnabled = ref(false), queueEnabled = ref(fal
 const live = useAutomation();
 const { acceptText, postText, acceptVisible, postVisible, accept, post, skipAccept, cancelPost, error: liveError, activeCount, warning } = live;
 
+type AutomationDraft = {
+  acceptEnabled: boolean;
+  acceptDelay: number;
+  skipHonor: boolean;
+  returnEnabled: boolean;
+  queueEnabled: boolean;
+  queueDelay: number;
+};
+
 function apply(next: AppInfo) {
   info.value = next;
   acceptEnabled.value = next.autoAcceptEnabled ?? false;
@@ -26,6 +35,26 @@ function apply(next: AppInfo) {
   queueEnabled.value = next.autoQueueEnabled ?? false;
   queueDelay.value = next.autoQueueDelay ?? 10;
 }
+function currentDraft(): AutomationDraft {
+  return {
+    acceptEnabled: acceptEnabled.value,
+    acceptDelay: acceptDelay.value,
+    skipHonor: skipHonor.value,
+    returnEnabled: returnEnabled.value,
+    queueEnabled: queueEnabled.value,
+    queueDelay: queueDelay.value,
+  };
+}
+function acceptChanged(target: AutomationDraft, current: AppInfo) {
+  return target.acceptEnabled !== (current.autoAcceptEnabled ?? false) ||
+    target.acceptDelay !== (current.autoAcceptDelay ?? 1);
+}
+function postChanged(target: AutomationDraft, current: AppInfo) {
+  return target.skipHonor !== (current.autoSkipHonor ?? false) ||
+    target.returnEnabled !== (current.autoReturnEnabled ?? false) ||
+    target.queueEnabled !== (current.autoQueueEnabled ?? false) ||
+    target.queueDelay !== (current.autoQueueDelay ?? 10);
+}
 const dirty = computed(() => !!info.value && (
   acceptEnabled.value !== (info.value.autoAcceptEnabled ?? false) ||
   acceptDelay.value !== (info.value.autoAcceptDelay ?? 1) ||
@@ -34,28 +63,52 @@ const dirty = computed(() => !!info.value && (
   queueEnabled.value !== (info.value.autoQueueEnabled ?? false) ||
   queueDelay.value !== (info.value.autoQueueDelay ?? 10)
 ));
+const anyEnabled = computed(() => !!info.value && (
+  acceptEnabled.value || skipHonor.value || returnEnabled.value || queueEnabled.value ||
+  (info.value.autoAcceptEnabled ?? false) || (info.value.autoSkipHonor ?? false) ||
+  (info.value.autoReturnEnabled ?? false) || (info.value.autoQueueEnabled ?? false)
+));
 async function load() {
   try { apply(await Service.Info()); }
   catch (reason) { error.value = errorMessage(reason); }
 }
-async function save() {
-  if (busy.value || !info.value || !dirty.value) return;
+async function persist(target: AutomationDraft, successMessage: string) {
+  if (busy.value || !info.value) return;
   busy.value = true; error.value = ""; message.value = "";
   let applied = false;
+  let latest = info.value;
   try {
-    if (acceptEnabled.value !== (info.value.autoAcceptEnabled ?? false) || acceptDelay.value !== (info.value.autoAcceptDelay ?? 1)) {
-      apply(await Service.ConfigureAutoAccept(acceptEnabled.value, acceptDelay.value));
+    // Keep the requested values stable across both calls. Applying the first
+    // response here would otherwise erase unsaved values from the other card.
+    if (acceptChanged(target, latest)) {
+      latest = await Service.ConfigureAutoAccept(target.acceptEnabled, target.acceptDelay);
       applied = true;
     }
-    if (skipHonor.value !== (info.value.autoSkipHonor ?? false) || returnEnabled.value !== (info.value.autoReturnEnabled ?? false) || queueEnabled.value !== (info.value.autoQueueEnabled ?? false) || queueDelay.value !== (info.value.autoQueueDelay ?? 10)) {
-      apply(await Service.ConfigurePostGame(returnEnabled.value, queueEnabled.value, queueDelay.value, skipHonor.value));
+    if (postChanged(target, latest)) {
+      latest = await Service.ConfigurePostGame(target.returnEnabled, target.queueEnabled, target.queueDelay, target.skipHonor);
       applied = true;
     }
-    message.value = "自动化设置已保存。";
+    apply(latest);
+    message.value = successMessage;
     await live.refresh();
   } catch (reason) {
+    // Reflect any first call that succeeded instead of restoring stale drafts.
+    if (applied) apply(latest);
     error.value = `${applied ? "部分设置已生效；" : ""}${errorMessage(reason)}`;
+    await live.refresh();
   } finally { busy.value = false; }
+}
+async function save() {
+  if (!dirty.value) return;
+  await persist(currentDraft(), "自动化设置已保存。");
+}
+async function disableAll() {
+  const target = currentDraft();
+  target.acceptEnabled = false;
+  target.skipHonor = false;
+  target.returnEnabled = false;
+  target.queueEnabled = false;
+  await persist(target, "全部自动化已停用。");
 }
 onMounted(() => { void load(); });
 </script>
@@ -65,6 +118,7 @@ onMounted(() => { void load(); });
       <div>
         <h1>游戏辅助</h1>
         <p class="muted">自动接受、赛后点赞与返回排队。开关默认关闭，保存成功后才会生效。</p>
+        <p class="automation-boundary">所有功能均为实验性；不会发送拒绝、不模拟鼠标或键盘，也不会替你选择英雄、点赞对象或奖励。</p>
       </div>
       <span class="automation-state" :class="{ busy: activeCount > 0, warn: warning }">
         <span class="dot" />{{ activeCount ? `${activeCount} 项开启` : '全部关闭' }}
@@ -112,6 +166,7 @@ onMounted(() => { void load(); });
 
     <footer class="automation-actions">
       <button class="secondary" type="button" @click="emit('settings')"><AppIcon name="settings" :size="14" /> 其他设置</button>
+      <button class="secondary stop-all" type="button" :disabled="busy || !anyEnabled" @click="disableAll">停用全部自动化</button>
       <span class="muted">{{ dirty ? '有未保存修改' : '设置已同步' }}</span>
       <button class="primary" type="button" :disabled="busy || !dirty" @click="save">{{ busy ? '保存中…' : '保存自动化设置' }}</button>
     </footer>
@@ -124,6 +179,7 @@ onMounted(() => { void load(); });
 .automation-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
 .automation-head h1 { font-size: 20px; margin: 0 0 6px; }
 .automation-head p { margin: 0; }
+.automation-boundary { max-width: 760px; margin-top: 7px !important; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .automation-state { display: inline-flex; align-items: center; gap: 7px; flex: none; font-size: 12px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 5px 11px; }
 .automation-state .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
 .automation-state.busy { color: var(--text); }
@@ -143,5 +199,6 @@ onMounted(() => { void load(); });
 .automation-live { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 12px 0 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text); }
 .automation-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
 .automation-actions .muted { margin-left: auto; font-size: 12px; }
+.automation-actions .stop-all:not(:disabled) { color: var(--danger, #e06c6c); border-color: currentColor; }
 @media (max-width: 880px) { .automation-workspace { padding: 16px; } .automation-head { flex-direction: column; gap: 10px; } }
 </style>

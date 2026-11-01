@@ -13,6 +13,7 @@ const {mockWindowRuntime}=require('./window-runtime.cjs');
  const methods=Object.fromEntries([...binding.matchAll(/export function (\w+)\([^]*?\$Call.ByID\((\d+)/g)].map(m=>[m[2],m[1]]));
  let info={version:'synthetic',commit:'auto-accept-test',requests:{},shortcut:'Ctrl+Shift+P',holdEnabled:true,holdKey:'Backquote',sidebarEnabled:true,previewEnabled:true,sidebarWidth:320,autoAcceptEnabled:false,autoAcceptDelay:1,autoSkipHonor:false,autoReturnEnabled:false,autoQueueEnabled:false,autoQueueDelay:10};
  let state={revision:0,enabled:false,delaySeconds:1,status:'off',dueAt:'0001-01-01T00:00:00Z'};
+ let postState={revision:0,returnEnabled:false,queueEnabled:false,skipHonor:false,delaySeconds:10,status:'off',dueAt:'0001-01-01T00:00:00Z'};
  const snapshot={connected:true,connectionId:1,generation:1,phase:'Matchmaking',stage:'party',participants:[],updatedAt:new Date().toISOString()};
  const calls=[],errors=[],pages=[];let failSave=false;
  async function open(url,width=1280){
@@ -25,13 +26,15 @@ const {mockWindowRuntime}=require('./window-runtime.cjs');
  const method=methods[request.args?.methodID],args=request.args?.args??[];calls.push(method);let result=null;
  if(method==='Snapshot')result=snapshot;
  else if (method === 'GuideStatus') result={revision:0,status:'idle',query:{},base:null,matchup:null};
- else if (method === 'PostGameStatus') result={revision:0,returnEnabled:false,queueEnabled:false,delaySeconds:10,status:'off',dueAt:'0001-01-01T00:00:00Z'};
+ else if (method === 'PostGameStatus') result=postState;
  else if(method==='AutoAcceptStatus')result=state;
  else if(method==='Info')result=info;
  else if(method==='OverlayStatus')result={revision:1,mode:'sidebar',visible:true,sidebarEnabled:true,sidebarWidth:320,holdEnabled:true};
  else if(method==='ConfigureAutoAccept'){
  if(failSave)return route.fulfill({status:400,json:{kind:'RuntimeError',message:'LCU HTTP 500 private-player#TEST',cause:{code:'SettingsWriteFailed'}}});
  info={...info,autoAcceptEnabled:args[0],autoAcceptDelay:args[1]};state={...state,revision:state.revision+1,enabled:args[0],delaySeconds:args[1],status:args[0]?'armed':'off'};result=info;
+ }else if(method==='ConfigurePostGame'){
+ info={...info,autoReturnEnabled:args[0],autoQueueEnabled:args[1],autoQueueDelay:args[2],autoSkipHonor:args[3]};postState={...postState,revision:postState.revision+1,returnEnabled:args[0],queueEnabled:args[1],delaySeconds:args[2],skipHonor:args[3],status:(args[0]||args[1]||args[3])?'armed':'off'};result=info;
  }else if(method==='SkipAutoAccept'){assert.equal(state.status,'countdown');result=state={...state,revision:state.revision+1,status:'skipped'};}
  else if(method!=='AuxiliaryReady')throw Error('unexpected service '+method);
  return route.fulfill({json:result});
@@ -47,6 +50,7 @@ const {mockWindowRuntime}=require('./window-runtime.cjs');
  await page.locator('.automation-workspace').waitFor();
  const toggle=page.getByRole('checkbox',{name:'启用自动接受对局',exact:true}),delay=page.getByRole('combobox',{name:'自动接受延迟'});
  assert.equal(await toggle.isChecked(),false);assert.equal(await delay.inputValue(),'1');
+ await page.getByText(/不会发送拒绝、不模拟鼠标或键盘/).waitFor();
  assert.equal(await page.getByText('国服实机验证未完成').count(),0,'validation note removed from the page');
  assert.equal(calls.filter(c=>c.startsWith('Configure')).length,0,'viewing automation must not enable it');
  await toggle.check();await delay.selectOption('3');await page.getByRole('button',{name:'保存自动化设置'}).click();
@@ -74,9 +78,22 @@ const {mockWindowRuntime}=require('./window-runtime.cjs');
  await page.getByRole('button',{name:'打开游戏辅助页',exact:true}).click();
  await page.locator('.automation-workspace').waitFor();
  assert.equal(await page.getByRole('checkbox',{name:'启用自动接受对局',exact:true}).count(),1,'automation switches live on one page only');
- await toggle.uncheck();await page.getByRole('button',{name:'保存自动化设置'}).click();await page.getByText('自动化设置已保存。',{exact:true}).waitFor();await emit();assert.equal(info.autoAcceptEnabled,false);
+ const skipHonor=page.getByRole('checkbox',{name:'自动跳过点赞',exact:true});
+ const returnEnabled=page.getByRole('checkbox',{name:'赛后自动返回房间',exact:true});
+ const queueEnabled=page.getByRole('checkbox',{name:'返回后自动排队',exact:true});
+ await skipHonor.check();await returnEnabled.check();await queueEnabled.check();
+ await page.getByRole('button',{name:'保存自动化设置'}).click();await page.getByText('自动化设置已保存。',{exact:true}).waitFor();
+ assert.equal(info.autoSkipHonor,true);assert.equal(info.autoReturnEnabled,true);assert.equal(info.autoQueueEnabled,true);
+ const acceptCalls=calls.filter(c=>c==='ConfigureAutoAccept').length,postCalls=calls.filter(c=>c==='ConfigurePostGame').length;
+ await page.getByRole('button',{name:'停用全部自动化',exact:true}).click();
+ await page.getByText('全部自动化已停用。',{exact:true}).waitFor();
+ assert.equal(calls.filter(c=>c==='ConfigureAutoAccept').length,acceptCalls+1,'stop-all disables ready check');
+ assert.equal(calls.filter(c=>c==='ConfigurePostGame').length,postCalls+1,'stop-all disables post-game automation');
+ assert.equal(info.autoAcceptEnabled,false);assert.equal(info.autoSkipHonor,false);assert.equal(info.autoReturnEnabled,false);assert.equal(info.autoQueueEnabled,false);
+ assert.equal(await toggle.isChecked(),false);assert.equal(await skipHonor.isChecked(),false);assert.equal(await returnEnabled.isChecked(),false);assert.equal(await queueEnabled.isChecked(),false);
+ await emit();
  await page.locator('.automation-chip').waitFor({state:'detached'});
  if(process.env.UI_SCREENSHOT_PREFIX)await page.screenshot({path:process.env.UI_SCREENSHOT_PREFIX+'-automation.png'});
- assert.deepEqual(errors,[]);console.log('PASS: automation page opt-in, chip instead of banners, failure rollback/default draft, cross-window countdown/skip, settings link and 880/280 geometry (synthetic bridge).');
+ assert.deepEqual(errors,[]);console.log('PASS: automation page opt-in/boundaries, atomic two-card save, one-click stop-all, chip instead of banners, failure rollback, cross-window countdown/skip, settings link and 880/280 geometry (synthetic bridge).');
  }finally{await browser.close();}
 })().catch(err=>{console.error(err);process.exitCode=1});

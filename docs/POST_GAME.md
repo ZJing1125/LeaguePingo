@@ -24,7 +24,7 @@ Engine在publishLocked中先执行syncReviewLocked，再将标量状态传给pos
 
 ## UI与验证
 
-PostGameNotice复用于主界面和展开侧栏，通过独立leaguepingo:post-game事件及revision择新，初始化只读内存状态；前端倒计时不查客户端。设置、主题、侧栏显隐及页面切换不启动任务或抢焦点。两种主题、880主窗和280侧栏沿用产品tokens与字号。
+PostGameNotice复用于主界面和展开侧栏，通过独立leaguepingo:post-game事件及revision择新，初始化只读内存状态；前端倒计时不查客户端。设置、主题、侧栏显隐及页面切换不启动任务或抢焦点。游戏辅助页明确说明实验性边界，并提供同时关闭自动接受和全部赛后动作的一键停用；关闭只能阻止后续动作，不能撤销客户端已处理的请求。两种主题、880主窗和280侧栏沿用产品tokens与字号。
 
 合成Source覆盖返回/开排超时但真实成功、未知结果不重复、单人/队长/队员、等待队友、只返回/只排队、普通房间/缺复盘无动作、结算等待、取消/禁用/模式/房间/成员变更、换号/断线/迟到结果、就绪超时及跨比赛重新启用。Engine集成验证PlayAgain执行前review已冻结、回房不丢review。LCU HTTPS测试校验固定端点、204及严格房间字段；settings验证默认与持久化。post-game.cjs接入test:smoke，合成桥接验证独立开关/默认/失败保存、手动返回说明、跨窗倒计时/取消、旧revision和深浅窄布局。
 
