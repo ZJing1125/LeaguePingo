@@ -11,7 +11,7 @@ suggested_repo_path: docs/OPTIMIZATION_BACKLOG.md
 
 # 1. 使用规则（agent 先读）
 
-执行记录（实施起始基线4d57e0b，附件审阅基线cc229e7）：Q1已实施并通过dev推送实跑，见下方记录；Q4建议性staticcheck、govulncheck与npm audit已实施，强制门禁等待Go标准库漏洞随依赖治理清零；F1本地度量已实施，口径与验证见PERFORMANCE.md；F2已核实后端逐人发布链路并补齐前端骨架和逐卡替换回归；U1错误码与中文提示、U2降级与有界恢复已实施，协议与验证分别见ERRORS.md、DATA_RECOVERY.md及本提交CI，R1实验性标注与分轮记录已准备；用户已反馈A1/A2/P1/P2没有问题，后续确认跳过可用但继续/返回/开排链条失败，修复版与版本信息及其他项目待补，整体R1未完成；S1回调瘦身/备用入口核验/设置说明已实施，国服反作弊专项待实机；U3启动前依赖检查、静态版本检查、NSIS与证书存储签名代码链已实施，发布证书与干净Win10的I1–I6仍待人工；U4实验性说明、行为边界和一键停用已实施并由前端合成回归覆盖；其余任务尚未实施。该清单是任务输入，原审阅统计与推断不能当作当前事实。其他任务仍按依赖逐项核实；未执行的Windows/国服检查保留未验证状态。
+执行记录（实施起始基线4d57e0b，附件审阅基线cc229e7）：Q1已实施并通过dev推送实跑，见下方记录；Q4建议性staticcheck、govulncheck与npm audit已实施，强制门禁等待Go标准库漏洞随依赖治理清零；F1本地度量已实施，口径与验证见PERFORMANCE.md；F2已核实后端逐人发布链路并补齐前端骨架和逐卡替换回归；S3共享动作执行器已实施并接入自动接受/赛后流程，两个编排循环均小于60行；U1错误码与中文提示、U2降级与有界恢复已实施，协议与验证分别见ERRORS.md、DATA_RECOVERY.md及本提交CI，R1实验性标注与分轮记录已准备；用户已反馈A1/A2/P1/P2没有问题，后续确认跳过可用但继续/返回/开排链条失败，修复版与版本信息及其他项目待补，整体R1未完成；S1回调瘦身/备用入口核验/设置说明已实施，国服反作弊专项待实机；U3启动前依赖检查、静态版本检查、NSIS与证书存储签名代码链已实施，发布证书与干净Win10的I1–I6仍待人工；U4实验性说明、行为边界和一键停用已实施并由前端合成回归覆盖；其余任务尚未实施。该清单是任务输入，原审阅统计与推断不能当作当前事实。其他任务仍按依赖逐项核实；未执行的Windows/国服检查保留未验证状态。
 
 Q1首次运行：[40856437383](https://github.com/ZJing1125/LeaguePingo/actions/runs/40856437383)，Linux成功，Windows原生Go检查通过，侧栏720px五卡高度回归失败。已根据日志修复摘要内边距，保留原验收断言。修复提交dd33476的[40857941063](https://github.com/ZJing1125/LeaguePingo/actions/runs/40857941063)两个job全部成功：Windows全包test/vet、绑定生成/一致性、九项浏览器回归、EXE编译及产物审计均通过。EXE只存在runner，未上传、部署或登记为用户已验收；截图保留7天。PR事件配置已做语法检查，未专门新建PR测试。默认分支仍为main，手动触发入口需工作流进入默认分支后才能使用；本批未修改main或默认分支。
 
@@ -207,22 +207,22 @@ id: S3
 title: 抽出共享的"单次动作执行器"
 priority: P1
 area: design
-status: todo
+status: implemented
 confidence: verified-static
 needs_human: false
-problem: >-
-  readycheck 与 postgame 重复实现 epoch、取消、跳过、计时和手动加解锁；
-  runSession 中有多条手动 Unlock 的 return/continue 路径，容易漏配平。
+problem: readycheck与postgame现已复用会话换代、取消、跳过、超时和动作许可，业务状态机仍保持独立。
 evidence:
-  - internal/readycheck/controller.go:183 runSession 186 行
-  - internal/postgame/controller.go:280 runTask 179 行
+  - internal/actionlane/executor.go
+  - internal/actionlane/executor_test.go
+  - internal/readycheck/controller.go
+  - internal/postgame/controller.go
 actions:
-  - 抽出共享组件，统一 epoch 校验、取消、计时、跳过和"不对过期阶段动作"的保护
-  - 用 withLock 之类的辅助函数收敛加锁，避免手写多处 Unlock
-  - 保持现有行为：默认关闭、动作前重读状态、单次最多 3 次尝试、15 秒动作窗口、跳过不发拒绝
+  - 已完成：共享Executor统一换代、取消、跳过/重置、总超时及动作窗口/次数许可
+  - 已完成：控制器状态读取与阶段步骤收敛锁边界，写入前仍由业务层复核客户端状态
+  - 已保持：默认关闭、自动接受最多3次/15秒、跳过不发拒绝、赛后未知结果不重发
 acceptance:
-  - runSession 与 runTask 各缩到 60 行以内
-  - 现有 readycheck、postgame 测试全部保持通过，新增共享组件的单元测试
+  - runSession为21行，runTask为34行
+  - 现有readycheck、postgame测试及共享组件单元测试通过竞态检测
 depends_on: []
 verify:
   - go test -race ./internal/readycheck/... ./internal/postgame/...

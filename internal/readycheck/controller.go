@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"leaguepingo/internal/actionlane"
+	"leaguepingo/internal/core"
 	"leaguepingo/internal/source"
 )
 
@@ -25,9 +27,7 @@ type Controller struct {
 	version          uint64
 	phase            string
 	observedAt       time.Time
-	epoch            uint64
-	skipped          bool
-	cancel           context.CancelFunc
+	lane             actionlane.Executor
 	wake             chan struct{}
 	terminalResponse string
 	changes          chan State
@@ -48,11 +48,11 @@ func (c *Controller) signal() {
 	}
 }
 func (c *Controller) stopLocked() {
-	c.epoch++
-	if c.cancel != nil {
-		c.cancel()
-		c.cancel = nil
-	}
+	c.lane.Stop()
+	c.signal()
+}
+func (c *Controller) resetLocked() {
+	c.lane.Reset()
 	c.signal()
 }
 func (c *Controller) publishLocked(status string, due time.Time) {
@@ -72,7 +72,7 @@ func (c *Controller) idleLocked() {
 		status = "waiting"
 	} else if c.client == nil {
 		status = "unsupported"
-	} else if c.skipped {
+	} else if c.lane.Blocked() {
 		status = "skipped"
 	}
 	c.publishLocked(status, time.Time{})
@@ -88,7 +88,7 @@ func (c *Controller) Configure(enabled bool, seconds int) error {
 	}
 	// Disabling during an invitation also disarms it for a later re-enable.
 	if !enabled && c.phase == "ReadyCheck" {
-		c.skipped = true
+		c.lane.Block()
 	}
 	c.state.Enabled, c.state.DelaySeconds = enabled, seconds
 	c.stopLocked()
@@ -101,7 +101,7 @@ func (c *Controller) Skip() (State, error) {
 	if c.state.Status != "countdown" {
 		return c.state, errors.New("当前没有可跳过的自动接受任务")
 	}
-	c.skipped = true
+	c.lane.Block()
 	c.stopLocked()
 	c.idleLocked()
 	return c.state, nil
@@ -131,9 +131,8 @@ func (c *Controller) observeLocked(client source.ReadyCheckSource, version uint6
 		return
 	}
 	c.client, c.version, c.phase = client, version, phase
-	c.skipped = false
 	c.terminalResponse = ""
-	c.stopLocked()
+	c.resetLocked()
 	c.idleLocked()
 }
 func active(phase string) bool { return phase == "Matchmaking" || phase == "ReadyCheck" }
@@ -145,22 +144,20 @@ func (c *Controller) Run(ctx context.Context) {
 			return
 		}
 		c.mu.Lock()
-		client, epoch, phase := c.client, c.epoch, c.phase
+		client, phase := c.client, c.phase
 		enabled := c.state.Enabled && client != nil && active(phase)
 		var runCtx context.Context
+		var session actionlane.Session
 		if enabled {
-			var cancel context.CancelFunc
-			runCtx, cancel = context.WithCancel(ctx)
-			c.cancel = cancel
+			var started bool
+			runCtx, session, started = c.lane.Start(ctx, 0)
+			enabled = started
 		}
 		c.mu.Unlock()
 		if enabled {
-			c.runSession(runCtx, client, epoch)
+			c.runSession(runCtx, client, session)
 			c.mu.Lock()
-			if c.epoch == epoch && c.cancel != nil {
-				c.cancel()
-				c.cancel = nil
-			}
+			c.lane.Finish(session)
 			c.mu.Unlock()
 		}
 		select {
@@ -170,17 +167,19 @@ func (c *Controller) Run(ctx context.Context) {
 		}
 	}
 }
-func (c *Controller) current(epoch uint64) bool { return c.epoch == epoch && c.state.Enabled }
-func (c *Controller) status(epoch uint64, status string, due time.Time) bool {
+func (c *Controller) current(session actionlane.Session) bool {
+	return c.lane.Current(session) && c.state.Enabled
+}
+func (c *Controller) status(session actionlane.Session, status string, due time.Time) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if !c.current(epoch) {
+	if !c.current(session) {
 		return false
 	}
 	c.publishLocked(status, due)
 	return true
 }
-func (c *Controller) runSession(ctx context.Context, client source.ReadyCheckSource, epoch uint64) {
+func (c *Controller) runSession(ctx context.Context, client source.ReadyCheckSource, session actionlane.Session) {
 	eventWake := make(chan struct{}, 1)
 	notify := func() {
 		select {
@@ -197,172 +196,221 @@ func (c *Controller) runSession(ctx context.Context, client source.ReadyCheckSou
 	}
 	timer := time.NewTimer(0)
 	defer timer.Stop()
-	var due, started, nextProbe time.Time
-	attempts := 0
-	finished := false
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-timer.C:
-		case <-eventWake:
-		}
-		if remaining := time.Until(nextProbe); remaining > 0 {
-			timer.Reset(remaining)
-			continue
-		}
-		nextProbe = time.Now().Add(250 * time.Millisecond)
-		if !finished && !started.IsZero() && time.Since(started) > 15*time.Second {
-			c.status(epoch, "failed", time.Time{})
-			finished = true
-		}
-		c.mu.Lock()
-		valid := c.current(epoch)
-		skipped, delay := c.skipped, c.state.DelaySeconds
-		c.mu.Unlock()
-		if !valid {
-			return
-		}
-		reqCtx, cancel := context.WithTimeout(ctx, 800*time.Millisecond)
-		phaseStarted := time.Now()
-		phase, err := client.Phase(reqCtx)
-		cancel()
-		if ctx.Err() != nil {
-			return
-		}
-		if err != nil { // Never act on a stale phase. Queue fallback continues.
-			timer.Reset(time.Second)
-			continue
-		}
-		c.mu.Lock()
-		if !c.current(epoch) {
-			c.mu.Unlock()
-			return
-		}
-		if phase != c.phase {
-			previous := c.epoch
-			c.observeLocked(client, c.version, phase, phaseStarted)
-			changed := previous != c.epoch
-			c.mu.Unlock()
-			if changed {
-				return
-			}
-			timer.Reset(250 * time.Millisecond)
-			continue
-		}
-		if phaseStarted.After(c.observedAt) {
-			c.observedAt = phaseStarted
-		}
-		c.mu.Unlock()
-		if phase != "ReadyCheck" {
-			timer.Reset(time.Second)
-			continue
-		}
-		reqCtx, cancel = context.WithTimeout(ctx, 800*time.Millisecond)
-		ready, err := client.ReadyCheck(reqCtx)
-		cancel()
-		if ctx.Err() != nil {
-			return
-		}
-		if err != nil {
-			timer.Reset(500 * time.Millisecond)
-			continue
-		}
-		c.mu.Lock()
-		if !c.current(epoch) {
-			c.mu.Unlock()
-			return
-		}
-		// Some clients can enter another pop between phase polls. A verified
-		// terminal response followed by a pending response is a new invitation.
-		if ready.Pending() && c.terminalResponse != "" {
-			c.terminalResponse = ""
-			c.skipped = false
-			c.stopLocked()
-			c.idleLocked()
-			c.mu.Unlock()
-			return
-		}
-		if ready.PlayerResponse == "Accepted" || ready.PlayerResponse == "Declined" {
-			c.terminalResponse = ready.PlayerResponse
-		}
-		c.mu.Unlock()
-		if ready.PlayerResponse == "Accepted" {
-			if !finished {
-				c.status(epoch, "accepted", time.Time{})
-			}
-			finished = true
-			timer.Reset(time.Second)
-			continue
-		}
+	run := readyRun{controller: c, ctx: ctx, client: client, session: session, eventWake: eventWake, timer: timer}
+	for run.wait() && run.step() {
+	}
+}
+
+type readyRun struct {
+	controller              *Controller
+	ctx                     context.Context
+	client                  source.ReadyCheckSource
+	session                 actionlane.Session
+	eventWake               <-chan struct{}
+	timer                   *time.Timer
+	due, started, nextProbe time.Time
+	finished                bool
+}
+
+func (r *readyRun) wait() bool {
+	select {
+	case <-r.ctx.Done():
+		return false
+	case <-r.timer.C:
+		return true
+	case <-r.eventWake:
+		return true
+	}
+}
+
+func (r *readyRun) schedule(delay time.Duration) { r.timer.Reset(delay) }
+
+func (r *readyRun) step() bool {
+	if remaining := time.Until(r.nextProbe); remaining > 0 {
+		r.schedule(remaining)
+		return true
+	}
+	r.nextProbe = time.Now().Add(250 * time.Millisecond)
+	if !r.finished && !r.started.IsZero() && time.Since(r.started) > 15*time.Second {
+		r.controller.status(r.session, "failed", time.Time{})
+		r.finished = true
+	}
+	valid, skipped, delay := r.controller.sessionState(r.session)
+	if !valid {
+		return false
+	}
+	phase, proceed, keep := r.readPhase()
+	if !keep || !proceed {
+		return keep
+	}
+	if phase != "ReadyCheck" {
+		r.schedule(time.Second)
+		return true
+	}
+	ready, proceed, keep := r.readReady()
+	if !keep || !proceed {
+		return keep
+	}
+	return r.handleReady(ready, skipped, delay)
+}
+
+func (c *Controller) sessionState(session actionlane.Session) (bool, bool, int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.current(session), c.lane.Blocked(), c.state.DelaySeconds
+}
+
+func (r *readyRun) readPhase() (string, bool, bool) {
+	reqCtx, cancel := context.WithTimeout(r.ctx, 800*time.Millisecond)
+	started := time.Now()
+	phase, err := r.client.Phase(reqCtx)
+	cancel()
+	if r.ctx.Err() != nil {
+		return "", false, false
+	}
+	if err != nil {
+		r.schedule(time.Second)
+		return "", false, true
+	}
+	if !r.controller.syncPhase(r.session, r.client, phase, started) {
+		return "", false, false
+	}
+	return phase, true, true
+}
+
+func (c *Controller) syncPhase(session actionlane.Session, client source.ReadyCheckSource, phase string, observedAt time.Time) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.current(session) {
+		return false
+	}
+	if phase != c.phase {
+		c.observeLocked(client, c.version, phase, observedAt)
+		return false
+	}
+	if observedAt.After(c.observedAt) {
+		c.observedAt = observedAt
+	}
+	return true
+}
+
+func (r *readyRun) readReady() (core.ReadyCheck, bool, bool) {
+	reqCtx, cancel := context.WithTimeout(r.ctx, 800*time.Millisecond)
+	ready, err := r.client.ReadyCheck(reqCtx)
+	cancel()
+	if r.ctx.Err() != nil {
+		return core.ReadyCheck{}, false, false
+	}
+	if err != nil {
+		r.schedule(500 * time.Millisecond)
+		return core.ReadyCheck{}, false, true
+	}
+	return ready, r.controller.recordResponse(r.session, ready), true
+}
+
+func (c *Controller) recordResponse(session actionlane.Session, ready core.ReadyCheck) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.current(session) {
+		return false
+	}
+	if ready.Pending() && c.terminalResponse != "" {
+		c.terminalResponse = ""
+		c.resetLocked()
+		c.idleLocked()
+		return false
+	}
+	if ready.PlayerResponse == "Accepted" || ready.PlayerResponse == "Declined" {
+		c.terminalResponse = ready.PlayerResponse
+	}
+	return true
+}
+
+func (r *readyRun) handleReady(ready core.ReadyCheck, skipped bool, delay int) bool {
+	if ready.PlayerResponse == "Accepted" || ready.PlayerResponse == "Declined" {
+		status := "accepted"
 		if ready.PlayerResponse == "Declined" {
-			if !finished {
-				c.status(epoch, "manual", time.Time{})
-			}
-			finished = true
-			timer.Reset(time.Second)
-			continue
+			status = "manual"
 		}
-		if skipped || finished {
-			timer.Reset(time.Second)
-			continue
+		if !r.finished {
+			r.controller.status(r.session, status, time.Time{})
 		}
-		if !ready.Pending() {
-			timer.Reset(500 * time.Millisecond)
-			continue
-		}
-		if started.IsZero() {
-			started = time.Now()
-			due = started.Add(time.Duration(delay) * time.Second)
-			c.status(epoch, "countdown", due)
-		}
-		if time.Now().Before(due) {
-			timer.Reset(min(250*time.Millisecond, time.Until(due)))
-			continue
-		}
-		// Linearize skip/disable against dispatch; only one POST can be in flight.
-		c.mu.Lock()
-		if !c.current(epoch) || c.skipped {
-			c.mu.Unlock()
-			return
-		}
-		c.publishLocked("accepting", time.Time{})
-		c.mu.Unlock()
-		reqCtx, cancel = context.WithTimeout(ctx, 800*time.Millisecond)
-		_ = client.AcceptReadyCheck(reqCtx)
-		cancel()
-		attempts++
-		if ctx.Err() != nil {
-			return
-		}
-		// A successful HTTP response alone is not a confirmed acceptance. On timeout
-		// this GET is also the only way to decide whether another POST is permitted.
-		reqCtx, cancel = context.WithTimeout(ctx, 800*time.Millisecond)
-		confirmed, verifyErr := client.ReadyCheck(reqCtx)
-		cancel()
-		if ctx.Err() != nil {
-			return
-		}
-		if verifyErr == nil && (confirmed.PlayerResponse == "Accepted" || confirmed.PlayerResponse == "Declined") {
-			c.mu.Lock()
-			if c.current(epoch) {
-				c.terminalResponse = confirmed.PlayerResponse
-			}
-			c.mu.Unlock()
-		}
-		switch {
-		case verifyErr == nil && confirmed.PlayerResponse == "Accepted":
-			c.status(epoch, "accepted", time.Time{})
-			finished = true
-		case verifyErr == nil && confirmed.PlayerResponse == "Declined":
-			c.status(epoch, "manual", time.Time{})
-			finished = true
-		case verifyErr == nil && confirmed.Pending() && attempts < 3:
-			// The next attempt rechecks phase and pending response after bounded backoff.
-		default:
-			c.status(epoch, "failed", time.Time{})
-			finished = true
-		}
-		timer.Reset(500 * time.Millisecond)
+		r.finished = true
+		r.schedule(time.Second)
+		return true
+	}
+	if skipped || r.finished {
+		r.schedule(time.Second)
+		return true
+	}
+	if !ready.Pending() {
+		r.schedule(500 * time.Millisecond)
+		return true
+	}
+	if r.started.IsZero() {
+		r.started = time.Now()
+		r.due = r.started.Add(time.Duration(delay) * time.Second)
+		r.controller.status(r.session, "countdown", r.due)
+	}
+	if time.Now().Before(r.due) {
+		r.schedule(min(250*time.Millisecond, time.Until(r.due)))
+		return true
+	}
+	return r.dispatch()
+}
+
+func (r *readyRun) dispatch() bool {
+	attempt, ok := r.controller.beginAccept(r.session, r.started)
+	if !ok {
+		return false
+	}
+	reqCtx, cancel := context.WithTimeout(r.ctx, 800*time.Millisecond)
+	_ = r.client.AcceptReadyCheck(reqCtx)
+	cancel()
+	if r.ctx.Err() != nil {
+		return false
+	}
+	reqCtx, cancel = context.WithTimeout(r.ctx, 800*time.Millisecond)
+	confirmed, err := r.client.ReadyCheck(reqCtx)
+	cancel()
+	if r.ctx.Err() != nil {
+		return false
+	}
+	r.controller.recordConfirmed(r.session, confirmed, err)
+	switch {
+	case err == nil && confirmed.PlayerResponse == "Accepted":
+		r.controller.status(r.session, "accepted", time.Time{})
+		r.finished = true
+	case err == nil && confirmed.PlayerResponse == "Declined":
+		r.controller.status(r.session, "manual", time.Time{})
+		r.finished = true
+	case err == nil && confirmed.Pending() && attempt < 3:
+	default:
+		r.controller.status(r.session, "failed", time.Time{})
+		r.finished = true
+	}
+	r.schedule(500 * time.Millisecond)
+	return true
+}
+
+func (c *Controller) beginAccept(session actionlane.Session, started time.Time) (int, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	attempt, permitted := c.lane.Permit(session, started, 15*time.Second, 3)
+	if !c.current(session) || !permitted {
+		return attempt, false
+	}
+	c.publishLocked("accepting", time.Time{})
+	return attempt, true
+}
+
+func (c *Controller) recordConfirmed(session actionlane.Session, ready core.ReadyCheck, err error) {
+	if err != nil || (ready.PlayerResponse != "Accepted" && ready.PlayerResponse != "Declined") {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.current(session) {
+		c.terminalResponse = ready.PlayerResponse
 	}
 }

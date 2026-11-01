@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"leaguepingo/internal/actionlane"
 	"leaguepingo/internal/source"
 )
 
@@ -40,6 +41,7 @@ type task struct {
 	game
 	client  source.PostGameSource
 	started time.Time
+	session actionlane.Session
 }
 type timings struct{ probe, request, total, settlement, honor, returnDelay, lobbyWait, verify time.Duration }
 
@@ -56,7 +58,7 @@ type Controller struct {
 	attempted int64
 	job       *task
 	settled   bool
-	cancel    context.CancelFunc
+	lane      actionlane.Executor
 	wake      chan struct{}
 	changes   chan State
 	timing    timings
@@ -94,10 +96,7 @@ func (c *Controller) idleLocked() {
 	c.publishLocked(s, time.Time{})
 }
 func (c *Controller) stopLocked(status string) {
-	if c.cancel != nil {
-		c.cancel()
-		c.cancel = nil
-	}
+	c.lane.Stop()
 	c.job = nil
 	c.publishLocked(status, time.Time{})
 	c.signal()
@@ -197,7 +196,7 @@ func (c *Controller) Observe(client source.PostGameSource, o Observation) {
 		return
 	}
 	c.attempted = c.candidate.id
-	c.job = &task{*c.candidate, client, time.Now()}
+	c.job = &task{game: *c.candidate, client: client, started: time.Now()}
 	c.settled = o.ReviewState == "ready" || o.ReviewState == "unavailable"
 	c.publishLocked("waiting-result", time.Time{})
 	c.signal()
@@ -232,10 +231,15 @@ func (c *Controller) Run(ctx context.Context) {
 		c.mu.Lock()
 		job := c.job
 		var runCtx context.Context
+		var session actionlane.Session
 		if job != nil {
-			var cancel context.CancelFunc
-			runCtx, cancel = context.WithTimeout(ctx, c.timing.total)
-			c.cancel = cancel
+			var started bool
+			runCtx, session, started = c.lane.Start(ctx, c.timing.total)
+			if !started {
+				job = nil
+			} else {
+				job.session = session
+			}
 		}
 		c.mu.Unlock()
 		if ctx.Err() != nil {
@@ -248,10 +252,7 @@ func (c *Controller) Run(ctx context.Context) {
 				if runCtx.Err() != nil {
 					c.publishLocked("timeout", time.Time{})
 				}
-				if c.cancel != nil {
-					c.cancel()
-					c.cancel = nil
-				}
+				c.lane.Finish(session)
 				c.job = nil
 			}
 			c.mu.Unlock()
@@ -266,7 +267,7 @@ func (c *Controller) Run(ctx context.Context) {
 func (c *Controller) status(job *task, status string, due time.Time) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.job != job {
+	if c.job != job || !c.lane.Current(job.session) {
 		return false
 	}
 	c.publishLocked(status, due)
@@ -294,257 +295,303 @@ func (c *Controller) sameAccount(ctx context.Context, job *task) bool {
 	return err == nil && id == job.account && id != "" && ctx.Err() == nil && req.Err() == nil
 }
 func (c *Controller) runTask(ctx context.Context, job *task) {
-	var preAt, returnDue, returnSent, lobbyAt, queueDue time.Time
-	honor := honorProgress{}
-	sequence := sequenceProgress{}
-	party, members := "", ""
-	for {
-		if ctx.Err() != nil {
-			return
-		}
-		c.mu.Lock()
-		valid := c.job == job
-		ret, queue, delay, settled := c.state.ReturnEnabled, c.state.QueueEnabled, c.state.DelaySeconds, c.settled
-		skip := c.state.SkipHonor
-		c.mu.Unlock()
-		if !valid {
+	run := postGameRun{controller: c, ctx: ctx, job: job}
+	for ctx.Err() == nil {
+		config, ok := c.taskState(job)
+		if !ok {
 			return
 		}
 		phase, err := c.phase(ctx, job)
 		if ctx.Err() != nil {
 			return
 		}
-		if err != nil {
-			c.status(job, "failed", time.Time{})
+		if err != nil || !completion(phase) {
+			run.finishPhaseError(phase, err)
 			return
 		}
-		if !completion(phase) {
-			s := "cancelled"
-			if searching(phase) {
-				s = "queued"
+		result := run.advancePreamble(phase, time.Now(), config)
+		if result == stepProceed {
+			if phase == "Lobby" {
+				result = run.advanceLobby(time.Now(), config)
+			} else {
+				result = run.advanceReturn(phase, time.Now(), config)
 			}
-			c.status(job, s, time.Time{})
+		}
+		if result == stepStop {
 			return
 		}
-		now := time.Now()
-		if skip && !honor.done {
-			if phase == "WaitingForStats" || (phase != "Lobby" && !settled && now.Sub(job.started) < c.timing.settlement) {
-				c.status(job, "waiting-result", time.Time{})
-				if !pause(ctx, c.timing.probe) {
-					return
-				}
-				continue
-			}
-			ready, stop := c.advanceHonor(ctx, job, phase, &honor, &sequence)
-			if stop {
-				return
-			}
-			if !ready {
-				if !pause(ctx, c.timing.probe) {
-					return
-				}
-				continue
-			}
-			// The ceremony request/verification may consume time or change phase.
+		if result == stepRepeat {
 			continue
-		}
-		if !sequence.sent.IsZero() && !sequence.done {
-			ready, stop := c.advanceContinue(ctx, job, phase, &sequence)
-			if stop {
-				return
-			}
-			if !ready {
-				if !pause(ctx, c.timing.probe) {
-					return
-				}
-				continue
-			}
-		}
-		if skip && honor.done && !ret && !queue {
-			status := "honor-not-needed"
-			if !honor.sent.IsZero() {
-				status = "honor-skipped"
-			}
-			c.status(job, status, time.Time{})
-			return
-		}
-		if phase != "Lobby" {
-			if !returnSent.IsZero() {
-				if now.Sub(returnSent) > c.timing.verify {
-					c.status(job, "failed", time.Time{})
-					return
-				}
-			} else if !ret {
-				c.status(job, "waiting-return", time.Time{})
-			} else if phase == "WaitingForStats" || (!settled && now.Sub(job.started) < c.timing.settlement) {
-				c.status(job, "waiting-result", time.Time{})
-			} else {
-				if phase == "PreEndOfGame" && !skip {
-					if preAt.IsZero() {
-						preAt = now
-					}
-					if now.Sub(preAt) < c.timing.honor {
-						c.status(job, "waiting-result", time.Time{})
-						if !pause(ctx, c.timing.probe) {
-							return
-						}
-						continue
-					}
-				}
-				if returnDue.IsZero() {
-					returnDue = now.Add(c.timing.returnDelay)
-				}
-				c.status(job, "return-countdown", returnDue)
-				if !now.Before(returnDue) {
-					if !c.sameAccount(ctx, job) {
-						c.status(job, "cancelled", time.Time{})
-						return
-					}
-					fresh, err := c.phase(ctx, job)
-					if err != nil {
-						c.status(job, "failed", time.Time{})
-						return
-					}
-					if fresh == "Lobby" {
-						continue
-					}
-					if fresh != "PreEndOfGame" && fresh != "EndOfGame" {
-						c.status(job, "cancelled", time.Time{})
-						return
-					}
-					if (fresh == "PreEndOfGame" || fresh == "EndOfGame") && !sequence.done {
-						ready, stop := c.advanceContinue(ctx, job, fresh, &sequence)
-						if stop {
-							return
-						}
-						if !ready {
-							if !pause(ctx, c.timing.probe) {
-								return
-							}
-							continue
-						}
-						// Recheck the phase/account after any presentation work.
-						if !sequence.sent.IsZero() {
-							continue
-						}
-						if !c.sameAccount(ctx, job) {
-							c.status(job, "cancelled", time.Time{})
-							return
-						}
-						fresh, err = c.phase(ctx, job)
-						if err != nil {
-							c.status(job, "failed", time.Time{})
-							return
-						}
-						if fresh == "Lobby" {
-							continue
-						}
-						if fresh != "PreEndOfGame" && fresh != "EndOfGame" {
-							c.status(job, "cancelled", time.Time{})
-							return
-						}
-					}
-					if ctx.Err() != nil {
-						return
-					}
-					if !c.status(job, "returning", time.Time{}) {
-						return
-					}
-					req, cancel := context.WithTimeout(ctx, c.timing.request)
-					_ = job.client.PlayAgain(req)
-					cancel()
-					returnSent = time.Now()
-					// Never repeat a mutation on an unknown response; observe the actual phase.
-					continue
-				}
-			}
-		} else {
-			if !queue {
-				c.status(job, "returned", time.Time{})
-				return
-			}
-			if lobbyAt.IsZero() {
-				lobbyAt = now
-			}
-			req, cancel := context.WithTimeout(ctx, c.timing.request)
-			lobby, err := job.client.LobbyControl(req)
-			cancel()
-			if ctx.Err() != nil {
-				return
-			}
-			if err != nil {
-				c.status(job, "failed", time.Time{})
-				return
-			}
-			if lobby.QueueID != job.queue || lobby.PartyKey == "" || lobby.MembersKey == "" || (party != "" && party != lobby.PartyKey) || (members != "" && members != lobby.MembersKey) {
-				c.status(job, "changed", time.Time{})
-				return
-			}
-			party = lobby.PartyKey
-			if !lobby.Leader {
-				c.status(job, "not-leader", time.Time{})
-				return
-			}
-			if !lobby.Ready {
-				queueDue = time.Time{}
-				c.status(job, "waiting-ready", time.Time{})
-				if now.Sub(lobbyAt) > c.timing.lobbyWait {
-					c.status(job, "timeout", time.Time{})
-					return
-				}
-			} else {
-				if queueDue.IsZero() {
-					members = lobby.MembersKey
-					queueDue = now.Add(time.Duration(delay) * time.Second)
-				}
-				c.status(job, "queue-countdown", queueDue)
-				if !now.Before(queueDue) {
-					if !c.sameAccount(ctx, job) {
-						c.status(job, "cancelled", time.Time{})
-						return
-					}
-					fresh, err := c.phase(ctx, job)
-					if err != nil || fresh != "Lobby" {
-						c.status(job, "cancelled", time.Time{})
-						return
-					}
-					req, cancel := context.WithTimeout(ctx, c.timing.request)
-					latest, err := job.client.LobbyControl(req)
-					cancel()
-					if err != nil || !latest.Leader || !latest.Ready || latest.QueueID != job.queue || latest.PartyKey != party || latest.MembersKey != members {
-						c.status(job, "changed", time.Time{})
-						return
-					}
-					if ctx.Err() != nil {
-						return
-					}
-					if !c.status(job, "queueing", time.Time{}) {
-						return
-					}
-					req, cancel = context.WithTimeout(ctx, c.timing.request)
-					_ = job.client.StartSearch(req)
-					cancel()
-					deadline := time.Now().Add(c.timing.verify)
-					for ctx.Err() == nil {
-						actual, err := c.phase(ctx, job)
-						if err == nil && searching(actual) {
-							c.status(job, "queued", time.Time{})
-							return
-						}
-						if err != nil || actual != "Lobby" || time.Now().After(deadline) {
-							c.status(job, "failed", time.Time{})
-							return
-						}
-						if !pause(ctx, c.timing.probe) {
-							return
-						}
-					}
-					return
-				}
-			}
 		}
 		if !pause(ctx, c.timing.probe) {
 			return
 		}
 	}
+}
+
+type taskConfig struct {
+	ret, queue, skip bool
+	delay            int
+	settled          bool
+}
+
+type stepResult uint8
+
+const (
+	stepProceed stepResult = iota
+	stepRepeat
+	stepStop
+)
+
+type postGameRun struct {
+	controller                                      *Controller
+	ctx                                             context.Context
+	job                                             *task
+	preAt, returnDue, returnSent, lobbyAt, queueDue time.Time
+	honor                                           honorProgress
+	sequence                                        sequenceProgress
+	party, members                                  string
+}
+
+func (c *Controller) taskState(job *task) (taskConfig, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	config := taskConfig{c.state.ReturnEnabled, c.state.QueueEnabled, c.state.SkipHonor, c.state.DelaySeconds, c.settled}
+	return config, c.job == job && c.lane.Current(job.session)
+}
+
+func (r *postGameRun) finishPhaseError(phase string, err error) {
+	status := "failed"
+	if err == nil {
+		status = "cancelled"
+		if searching(phase) {
+			status = "queued"
+		}
+	}
+	r.controller.status(r.job, status, time.Time{})
+}
+
+func (r *postGameRun) advancePreamble(phase string, now time.Time, config taskConfig) stepResult {
+	if config.skip && !r.honor.done {
+		if phase == "WaitingForStats" || (phase != "Lobby" && !config.settled && now.Sub(r.job.started) < r.controller.timing.settlement) {
+			r.controller.status(r.job, "waiting-result", time.Time{})
+			if !pause(r.ctx, r.controller.timing.probe) {
+				return stepStop
+			}
+			return stepRepeat
+		}
+		ready, stop := r.controller.advanceHonor(r.ctx, r.job, phase, &r.honor, &r.sequence)
+		if stop {
+			return stepStop
+		}
+		if !ready && !pause(r.ctx, r.controller.timing.probe) {
+			return stepStop
+		}
+		return stepRepeat
+	}
+	if !r.sequence.sent.IsZero() && !r.sequence.done {
+		ready, stop := r.controller.advanceContinue(r.ctx, r.job, phase, &r.sequence)
+		if stop {
+			return stepStop
+		}
+		if !ready {
+			if !pause(r.ctx, r.controller.timing.probe) {
+				return stepStop
+			}
+			return stepRepeat
+		}
+	}
+	if config.skip && r.honor.done && !config.ret && !config.queue {
+		status := "honor-not-needed"
+		if !r.honor.sent.IsZero() {
+			status = "honor-skipped"
+		}
+		r.controller.status(r.job, status, time.Time{})
+		return stepStop
+	}
+	return stepProceed
+}
+
+func (r *postGameRun) advanceReturn(phase string, now time.Time, config taskConfig) stepResult {
+	if !r.returnSent.IsZero() {
+		if now.Sub(r.returnSent) > r.controller.timing.verify {
+			r.controller.status(r.job, "failed", time.Time{})
+			return stepStop
+		}
+		return stepProceed
+	}
+	if !config.ret {
+		r.controller.status(r.job, "waiting-return", time.Time{})
+		return stepProceed
+	}
+	if phase == "WaitingForStats" || (!config.settled && now.Sub(r.job.started) < r.controller.timing.settlement) {
+		r.controller.status(r.job, "waiting-result", time.Time{})
+		return stepProceed
+	}
+	if phase == "PreEndOfGame" && !config.skip {
+		if r.preAt.IsZero() {
+			r.preAt = now
+		}
+		if now.Sub(r.preAt) < r.controller.timing.honor {
+			r.controller.status(r.job, "waiting-result", time.Time{})
+			if !pause(r.ctx, r.controller.timing.probe) {
+				return stepStop
+			}
+			return stepRepeat
+		}
+	}
+	if r.returnDue.IsZero() {
+		r.returnDue = now.Add(r.controller.timing.returnDelay)
+	}
+	r.controller.status(r.job, "return-countdown", r.returnDue)
+	if now.Before(r.returnDue) {
+		return stepProceed
+	}
+	return r.sendReturn()
+}
+
+func (r *postGameRun) sendReturn() stepResult {
+	phase, result := r.freshReturnPhase()
+	if result != stepProceed || phase == "Lobby" {
+		return result
+	}
+	if !r.sequence.done {
+		ready, stop := r.controller.advanceContinue(r.ctx, r.job, phase, &r.sequence)
+		if stop {
+			return stepStop
+		}
+		if !ready {
+			if !pause(r.ctx, r.controller.timing.probe) {
+				return stepStop
+			}
+			return stepRepeat
+		}
+		if !r.sequence.sent.IsZero() {
+			return stepRepeat
+		}
+		phase, result = r.freshReturnPhase()
+		if result != stepProceed || phase == "Lobby" {
+			return result
+		}
+	}
+	if r.ctx.Err() != nil || !r.controller.status(r.job, "returning", time.Time{}) {
+		return stepStop
+	}
+	req, cancel := context.WithTimeout(r.ctx, r.controller.timing.request)
+	_ = r.job.client.PlayAgain(req)
+	cancel()
+	r.returnSent = time.Now()
+	return stepRepeat
+}
+
+func (r *postGameRun) freshReturnPhase() (string, stepResult) {
+	if !r.controller.sameAccount(r.ctx, r.job) {
+		r.controller.status(r.job, "cancelled", time.Time{})
+		return "", stepStop
+	}
+	phase, err := r.controller.phase(r.ctx, r.job)
+	if err != nil {
+		r.controller.status(r.job, "failed", time.Time{})
+		return "", stepStop
+	}
+	if phase == "Lobby" {
+		return phase, stepRepeat
+	}
+	if phase != "PreEndOfGame" && phase != "EndOfGame" {
+		r.controller.status(r.job, "cancelled", time.Time{})
+		return "", stepStop
+	}
+	return phase, stepProceed
+}
+
+func (r *postGameRun) advanceLobby(now time.Time, config taskConfig) stepResult {
+	if !config.queue {
+		r.controller.status(r.job, "returned", time.Time{})
+		return stepStop
+	}
+	if r.lobbyAt.IsZero() {
+		r.lobbyAt = now
+	}
+	req, cancel := context.WithTimeout(r.ctx, r.controller.timing.request)
+	lobby, err := r.job.client.LobbyControl(req)
+	cancel()
+	if r.ctx.Err() != nil {
+		return stepStop
+	}
+	if err != nil {
+		r.controller.status(r.job, "failed", time.Time{})
+		return stepStop
+	}
+	if lobby.QueueID != r.job.queue || lobby.PartyKey == "" || lobby.MembersKey == "" || (r.party != "" && r.party != lobby.PartyKey) || (r.members != "" && r.members != lobby.MembersKey) {
+		r.controller.status(r.job, "changed", time.Time{})
+		return stepStop
+	}
+	r.party = lobby.PartyKey
+	if !lobby.Leader {
+		r.controller.status(r.job, "not-leader", time.Time{})
+		return stepStop
+	}
+	if !lobby.Ready {
+		r.queueDue = time.Time{}
+		r.controller.status(r.job, "waiting-ready", time.Time{})
+		if now.Sub(r.lobbyAt) > r.controller.timing.lobbyWait {
+			r.controller.status(r.job, "timeout", time.Time{})
+			return stepStop
+		}
+		return stepProceed
+	}
+	if r.queueDue.IsZero() {
+		r.members = lobby.MembersKey
+		r.queueDue = now.Add(time.Duration(config.delay) * time.Second)
+	}
+	r.controller.status(r.job, "queue-countdown", r.queueDue)
+	if now.Before(r.queueDue) {
+		return stepProceed
+	}
+	return r.sendQueue()
+}
+
+func (r *postGameRun) sendQueue() stepResult {
+	if !r.controller.sameAccount(r.ctx, r.job) {
+		r.controller.status(r.job, "cancelled", time.Time{})
+		return stepStop
+	}
+	phase, err := r.controller.phase(r.ctx, r.job)
+	if err != nil || phase != "Lobby" {
+		r.controller.status(r.job, "cancelled", time.Time{})
+		return stepStop
+	}
+	req, cancel := context.WithTimeout(r.ctx, r.controller.timing.request)
+	latest, err := r.job.client.LobbyControl(req)
+	cancel()
+	if err != nil || !latest.Leader || !latest.Ready || latest.QueueID != r.job.queue || latest.PartyKey != r.party || latest.MembersKey != r.members {
+		r.controller.status(r.job, "changed", time.Time{})
+		return stepStop
+	}
+	if r.ctx.Err() != nil || !r.controller.status(r.job, "queueing", time.Time{}) {
+		return stepStop
+	}
+	req, cancel = context.WithTimeout(r.ctx, r.controller.timing.request)
+	_ = r.job.client.StartSearch(req)
+	cancel()
+	return r.verifyQueue()
+}
+
+func (r *postGameRun) verifyQueue() stepResult {
+	deadline := time.Now().Add(r.controller.timing.verify)
+	for r.ctx.Err() == nil {
+		phase, err := r.controller.phase(r.ctx, r.job)
+		if err == nil && searching(phase) {
+			r.controller.status(r.job, "queued", time.Time{})
+			return stepStop
+		}
+		if err != nil || phase != "Lobby" || time.Now().After(deadline) {
+			r.controller.status(r.job, "failed", time.Time{})
+			return stepStop
+		}
+		if !pause(r.ctx, r.controller.timing.probe) {
+			return stepStop
+		}
+	}
+	return stepStop
 }
