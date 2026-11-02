@@ -11,7 +11,7 @@ suggested_repo_path: docs/OPTIMIZATION_BACKLOG.md
 
 # 1. 使用规则（agent 先读）
 
-执行记录（实施起始基线4d57e0b，附件审阅基线cc229e7）：Q1已实施并通过dev推送实跑，见下方记录；Q4建议性staticcheck、govulncheck与npm audit已实施，强制门禁等待Go标准库漏洞随依赖治理清零；F1本地度量已实施，口径与验证见PERFORMANCE.md；F2已核实后端逐人发布链路并补齐前端骨架和逐卡替换回归；S3共享动作执行器已实施并接入自动接受/赛后流程，两个编排循环均小于60行；S4引擎Stage/Phase强类型与集中行为表已实施，对外快照字符串未变且远程Windows验证通过；S5攻略会话复用、功能开关、超时/缓存/原文降级已实施并由单测覆盖；U1错误码与中文提示、U2降级与有界恢复已实施，协议与验证分别见ERRORS.md、DATA_RECOVERY.md及本提交CI，R1实验性标注与分轮记录已准备；用户已反馈A1/A2/P1/P2没有问题，后续确认跳过可用但继续/返回/开排链条失败，修复版与版本信息及其他项目待补，整体R1未完成；S1回调瘦身/备用入口核验/设置说明已实施，国服反作弊专项待实机；U3启动前依赖检查、静态版本检查、NSIS与证书存储签名代码链已实施，发布证书与干净Win10的I1–I6仍待人工；U4实验性说明、行为边界和一键停用已实施并由前端合成回归覆盖；其余任务尚未实施。该清单是任务输入，原审阅统计与推断不能当作当前事实。其他任务仍按依赖逐项核实；未执行的Windows/国服检查保留未验证状态。
+执行记录（实施起始基线4d57e0b，附件审阅基线cc229e7）：Q1已实施并通过dev推送实跑，见下方记录；Q4建议性staticcheck、govulncheck与npm audit已实施，强制门禁等待Go标准库漏洞随依赖治理清零；F1本地度量已实施，口径与验证见PERFORMANCE.md；F2已核实后端逐人发布链路并补齐前端骨架和逐卡替换回归；S3共享动作执行器已实施并接入自动接受/赛后流程，两个编排循环均小于60行；S4引擎Stage/Phase强类型与集中行为表已实施，对外快照字符串未变且远程Windows验证通过；S5攻略会话复用、功能开关、超时/缓存/原文降级已实施且远程Windows验证通过；S6战绩缓存字节上限、锁外编码、HMAC键、同轮重建、Rename重试与失败诊断已实施；U1错误码与中文提示、U2降级与有界恢复已实施，协议与验证分别见ERRORS.md、DATA_RECOVERY.md及本提交CI，R1实验性标注与分轮记录已准备；用户已反馈A1/A2/P1/P2没有问题，后续确认跳过可用但继续/返回/开排链条失败，修复版与版本信息及其他项目待补，整体R1未完成；S1回调瘦身/备用入口核验/设置说明已实施，国服反作弊专项待实机；U3启动前依赖检查、静态版本检查、NSIS与证书存储签名代码链已实施，发布证书与干净Win10的I1–I6仍待人工；U4实验性说明、行为边界和一键停用已实施并由前端合成回归覆盖；其余任务尚未实施。该清单是任务输入，原审阅统计与推断不能当作当前事实。其他任务仍按依赖逐项核实；未执行的Windows/国服检查保留未验证状态。
 
 Q1首次运行：[40856437383](https://github.com/ZJing1125/LeaguePingo/actions/runs/40856437383)，Linux成功，Windows原生Go检查通过，侧栏720px五卡高度回归失败。已根据日志修复摘要内边距，保留原验收断言。修复提交dd33476的[40857941063](https://github.com/ZJing1125/LeaguePingo/actions/runs/40857941063)两个job全部成功：Windows全包test/vet、绑定生成/一致性、九项浏览器回归、EXE编译及产物审计均通过。EXE只存在runner，未上传、部署或登记为用户已验收；截图保留7天。PR事件配置已做语法检查，未专门新建PR测试。默认分支仍为main，手动触发入口需工作流进入默认分支后才能使用；本批未修改main或默认分支。
 
@@ -293,26 +293,25 @@ id: S6
 title: history_store 的容量、容错与脱敏强化
 priority: P1
 area: design
-status: todo
+status: implemented
 confidence: verified-static
 needs_human: false
 problem: >-
-  每次变更把整个缓存序列化后整文件重写（500 ms 防抖），序列化时持锁；
-  容量按玩家数（64）和每人页数限制，不是按字节；写入和 Rename 失败被静默忽略；
-  PUUID 用未加盐 SHA-256 做键，属于假名化而非匿名。
+  原schema 2整文件写入只限制身份/页数，序列化持锁、无字节上限；写入失败静默，
+  PUUID使用无密钥SHA-256。现已升级schema 3并丢弃旧索引。
 evidence:
   - internal/engine/history_store.go:215 json.Marshal
   - internal/engine/history_store.go:232 os.Rename
   - internal/engine/history_store.go:91,99 sha256
 actions:
-  - 增加按字节的总容量上限和淘汰
-  - 序列化放到锁外（先拷贝快照）
-  - 写入失败记入诊断计数；Windows 上 Rename 失败时重试几次
-  - 键改用带本机随机密钥的 HMAC
-  - 调用方在缓存文件损坏时禁用缓存并重建，不影响启动（先核实现状）
+  - 已完成：8MiB总上限，按更新时间保留最新身份，继续限制64身份/每人50页
+  - 已完成：锁内深拷贝和版本戳，锁外编码，版本未变化才回写淘汰结果
+  - 已完成：固定脱敏诊断计数；Rename最多3次
+  - 已完成：独立0600本机随机32字节密钥的HMAC-SHA256索引
+  - 已完成：schema 1/2、密钥丢失、坏格式或超限文件同轮清空重建，程序继续启动
 acceptance:
-  - 缓存文件有明确大小上限，并有测试
-  - 写入失败在诊断导出里可见
+  - 已完成：8MiB上限和按新旧淘汰有单元测试
+  - 已完成：写入失败在AppInfo/诊断导出的`history-cache-write`聚合可见
 depends_on: []
 verify:
   - go test ./internal/engine/...

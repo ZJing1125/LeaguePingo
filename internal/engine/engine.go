@@ -92,7 +92,7 @@ func New(discover Discoverer, onChange func(core.Snapshot)) *Engine {
 func NewWithHistoryCache(discover Discoverer, onChange func(core.Snapshot), path string) (*Engine, error) {
 	e := newEngine(discover, onChange)
 	store, err := openHistoryStore(path)
-	if err == nil {
+	if store != nil {
 		e.historyStore = store
 	}
 	return e, err

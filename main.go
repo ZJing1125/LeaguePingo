@@ -129,7 +129,7 @@ func main() {
 		}
 	}, filepath.Join(configDir, "history-cache.json"))
 	if err != nil {
-		log.Print("无法读取本地战绩缓存，将使用本次运行内存缓存")
+		log.Print("本地战绩缓存不可用或已重建，将按需重新获取战绩")
 	}
 	_ = backend.engine.ConfigurePostGame(store.Snapshot().AutoReturnEnabled, store.Snapshot().AutoQueueEnabled, store.Snapshot().AutoQueueDelay, store.Snapshot().AutoSkipHonor)
 	_ = backend.engine.ConfigureAutoAccept(store.Snapshot().AutoAcceptEnabled, store.Snapshot().AutoAcceptDelay)

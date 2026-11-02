@@ -66,6 +66,8 @@ func Category(path string) string {
 		return "sgp-timeline"
 	case path == "/sgp-group":
 		return "sgp-group"
+	case path == "/history-cache/write":
+		return "history-cache-write"
 	case path == "/lol-league-session/v1/league-session-token":
 		return "rank-session"
 	case path == "/phase-events":

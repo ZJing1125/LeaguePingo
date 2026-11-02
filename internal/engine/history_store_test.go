@@ -1,14 +1,19 @@
 package engine
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"leaguepingo/internal/core"
+	"leaguepingo/internal/diagnostics"
 )
 
 func TestHistoryStorePersistsDeidentifiedPages(t *testing.T) {
@@ -32,6 +37,21 @@ func TestHistoryStorePersistsDeidentifiedPages(t *testing.T) {
 	if strings.Contains(string(raw), "real-player-puuid") || strings.Contains(string(raw), "PrivateName") {
 		t.Fatal("persistent cache retained a player identifier or roster name")
 	}
+	var stored historyStoreFile
+	if json.Unmarshal(raw, &stored) != nil {
+		t.Fatal("persistent cache is not valid JSON")
+	}
+	legacy := sha256.Sum256([]byte("real-player-puuid"))
+	if _, ok := stored.Entries[hex.EncodeToString(legacy[:])]; ok {
+		t.Fatal("persistent cache still uses an unkeyed identity hash")
+	}
+	if _, ok := stored.Entries[store.keyFor("real-player-puuid")]; !ok {
+		t.Fatal("persistent cache did not use the local keyed identity")
+	}
+	secret, err := os.ReadFile(path + ".key")
+	if err != nil || len(secret) != historyStoreSecretBytes {
+		t.Fatal("local cache key was not persisted safely")
+	}
 	reopened, err := openHistoryStore(path)
 	if err != nil {
 		t.Fatal(err)
@@ -51,14 +71,25 @@ func TestHistoryStoreRejectsIncompatibleFile(t *testing.T) {
 	if err := os.WriteFile(path, []byte(`{"schema":99,"entries":{}}`), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := openHistoryStore(path); err == nil {
-		t.Fatal("incompatible persistent cache was accepted")
+	e, err := NewWithHistoryCache(func() (Client, error) { return nil, nil }, nil, path)
+	if err == nil || e.historyStore == nil {
+		t.Fatal("incompatible persistent cache was not reported and rebuilt")
+	}
+	e.historyStore.close()
+	raw, readErr := os.ReadFile(path)
+	var rebuilt historyStoreFile
+	if readErr != nil || json.Unmarshal(raw, &rebuilt) != nil || rebuilt.Schema != historyStoreSchema || len(rebuilt.Entries) != 0 {
+		t.Fatalf("incompatible persistent cache was not replaced safely: %s", raw)
 	}
 }
 
 func TestHistoryStoreMigratesSchemaOneWithoutServingIncompleteRosters(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "history-cache.json")
-	key := historyStoreKey("player")
+	secret, _, err := loadHistoryStoreSecret(path + ".key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := historyStoreKey(secret, "player")
 	old := `{"schema":1,"entries":{"` + key + `":{"updatedAt":"2026-10-28T00:00:00Z","pages":{"0":{"matches":[{"gameId":42,"queueId":420}],"meta":{"returned":1,"parsed":1},"offset":0,"nextOffset":1}}}}}`
 	if err := os.WriteFile(path, []byte(old), 0600); err != nil {
 		t.Fatal(err)
@@ -79,6 +110,132 @@ func TestHistoryStoreMigratesSchemaOneWithoutServingIncompleteRosters(t *testing
 	if json.Unmarshal(raw, &file) != nil || file.Schema != historyStoreSchema || len(file.Entries) != 0 {
 		t.Fatalf("schema-one cache was not replaced safely: %s", raw)
 	}
+}
+
+func TestHistoryStoreMigratesUnkeyedSchemaTwo(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "history-cache.json")
+	legacy := sha256.Sum256([]byte("player"))
+	old := `{"schema":2,"entries":{"` + hex.EncodeToString(legacy[:]) + `":{"updatedAt":"2026-10-28T00:00:00Z","pages":{"0":{"matches":[{"gameId":42,"queueId":420}],"meta":{"returned":1,"parsed":1},"offset":0,"nextOffset":1}}}}}`
+	if err := os.WriteFile(path, []byte(old), 0600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := openHistoryStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := store.get("player", 0, 0); ok {
+		t.Fatal("unkeyed schema-two identity was served after upgrade")
+	}
+	store.close()
+	raw, _ := os.ReadFile(path)
+	var file historyStoreFile
+	if json.Unmarshal(raw, &file) != nil || file.Schema != historyStoreSchema || len(file.Entries) != 0 {
+		t.Fatalf("schema-two cache was not replaced safely: %s", raw)
+	}
+}
+
+func TestHistoryStoreMissingLocalKeyRebuildsExistingCache(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "history-cache.json")
+	store, err := openHistoryStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	store.put("player", core.HistoryPage{Offset: 0, NextOffset: 1, Matches: []core.Match{{GameID: 42}}, Meta: core.HistoryMeta{FetchedAt: &now, Returned: 1, Parsed: 1}})
+	store.close()
+	if err := os.Remove(path + ".key"); err != nil {
+		t.Fatal(err)
+	}
+	rebuilt, err := openHistoryStore(path)
+	if err == nil || rebuilt == nil {
+		t.Fatal("cache without its local key was not reported and rebuilt")
+	}
+	if _, ok := rebuilt.get("player", 0, 0); ok {
+		t.Fatal("cache was served under a newly generated unrelated key")
+	}
+	rebuilt.close()
+}
+
+func TestHistoryStoreHasByteCapAndEvictsOldest(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "history-cache.json")
+	store, err := openHistoryStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	for i := 0; i < 6; i++ {
+		player := "player-" + strconv.Itoa(i)
+		store.put(player, core.HistoryPage{Offset: 0, NextOffset: 1, Matches: []core.Match{{GameID: int64(i + 1), QueueID: 420}}, Meta: core.HistoryMeta{FetchedAt: &now, Returned: 1, Parsed: 1}})
+		store.mu.Lock()
+		entry := store.entries[store.keyFor(player)]
+		entry.UpdatedAt = time.Unix(int64(i+1), 0).UTC()
+		store.entries[store.keyFor(player)] = entry
+		store.mu.Unlock()
+	}
+	store.mu.Lock()
+	one := map[string]historyStoreEntry{store.keyFor("player-5"): store.entries[store.keyFor("player-5")]}
+	store.mu.Unlock()
+	oneRaw, _, err := marshalHistoryStore(one, historyStoreMaxBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	capBytes := len(oneRaw) + 16
+	store.mu.Lock()
+	store.maxBytes = capBytes
+	store.mu.Unlock()
+	store.close()
+	info, err := os.Stat(path)
+	if err != nil || info.Size() > int64(capBytes) {
+		t.Fatalf("history cache exceeded byte cap: %d > %d", info.Size(), capBytes)
+	}
+	raw, _ := os.ReadFile(path)
+	var file historyStoreFile
+	if json.Unmarshal(raw, &file) != nil || len(file.Entries) != 1 {
+		t.Fatalf("bounded cache retained wrong entry count: %s", raw)
+	}
+	if _, ok := file.Entries[store.keyFor("player-5")]; !ok {
+		t.Fatal("byte eviction did not retain the newest entry")
+	}
+}
+
+func TestHistoryStoreRetriesRenameAndReportsWriteFailure(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "history-cache.json")
+	store, err := openHistoryStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.mu.Lock()
+	store.entries[store.keyFor("player")] = historyStoreEntry{UpdatedAt: time.Now().UTC(), Pages: map[string]core.HistoryPage{}}
+	store.generation++
+	store.mu.Unlock()
+	attempts := 0
+	store.retryPause = 0
+	store.rename = func(source, target string) error {
+		attempts++
+		if attempts < 3 {
+			return errors.New("synthetic rename failure")
+		}
+		return os.Rename(source, target)
+	}
+	store.write()
+	if attempts != 3 {
+		t.Fatalf("rename attempts = %d", attempts)
+	}
+	before := diagnostics.Default.Snapshot()["history-cache-write"].Failed
+	blocker := filepath.Join(dir, "blocker")
+	if err := os.WriteFile(blocker, []byte("file"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	store.path = filepath.Join(blocker, "history-cache.json")
+	store.write()
+	after := diagnostics.Default.Snapshot()["history-cache-write"]
+	if after.Failed != before+1 || after.LastStatus != 500 {
+		t.Fatalf("cache write failure missing from diagnostics: %+v", after)
+	}
+	store.path = path
+	store.rename = os.Rename
+	store.close()
 }
 
 func TestHistoryStoreFreshnessIsPerPage(t *testing.T) {
