@@ -34,13 +34,15 @@ type Service struct {
 	cache            map[string]*Guide
 	failures         map[string]time.Time
 	slots            chan struct{}
+	enabled          bool
+	fetchTimeout     time.Duration
 }
 
 func New(ctx context.Context, dir string, provider Provider) *Service {
 	if provider == nil {
 		provider = NewOPgg()
 	}
-	return &Service{parent: ctx, provider: provider, dir: dir, changes: make(chan State, 1), cache: map[string]*Guide{}, failures: map[string]time.Time{}, slots: make(chan struct{}, 2), state: State{Status: "idle", Message: "选择英雄后准备攻略"}}
+	return &Service{parent: ctx, provider: provider, dir: dir, changes: make(chan State, 1), cache: map[string]*Guide{}, failures: map[string]time.Time{}, slots: make(chan struct{}, 2), enabled: true, fetchTimeout: 8 * time.Second, state: State{Status: "idle", Message: "选择英雄后准备攻略"}}
 }
 func (s *Service) Changes() <-chan State { return s.changes }
 func (s *Service) Snapshot() State       { s.mu.Lock(); defer s.mu.Unlock(); return s.state }
@@ -67,6 +69,17 @@ func (s *Service) Observe(snapshot core.Snapshot) {
 		s.overrideOpponent = 0
 	}
 	s.update(false)
+}
+func (s *Service) SetEnabled(enabled bool) State {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.enabled == enabled {
+		return s.state
+	}
+	s.enabled = enabled
+	s.current = ""
+	s.update(false)
+	return s.state
 }
 func (s *Service) Select(position string, opponent int, retry bool) (State, error) {
 	s.mu.Lock()
@@ -168,7 +181,10 @@ func (s *Service) update(force bool) {
 		q.Position = ""
 	}
 	status, message := "loading", "正在准备 OP.GG 攻略"
-	if !enabled || self.ChampionID == 0 || self.ChampionState == "intent" {
+	if !s.enabled {
+		status = "disabled"
+		message = "英雄攻略已关闭"
+	} else if !enabled || self.ChampionID == 0 || self.ChampionState == "intent" {
 		status = "idle"
 		message = "确认英雄后准备攻略"
 	} else if modeName == "" {
@@ -198,8 +214,8 @@ func (s *Service) update(force bool) {
 	}
 	s.state = State{Revision: s.state.Revision, Scope: s.scope, Status: status, Message: message, Query: q, ModeLabel: label, Reference: reference, PositionExplicit: explicit}
 	s.state.Candidates = candidates
-	if pageMode(modeName) && champions[q.Champion] != "" {
-		s.state.SourceURL = guidePageURL(q, "build")
+	if modeName != "" && champions[q.Champion] != "" {
+		s.state.SourceURL = sourceURL(q)
 	}
 	if status != "loading" {
 		s.publish()
@@ -264,7 +280,7 @@ func (s *Service) load(ctx context.Context, token uint64, base, q Query, force b
 			return
 		case s.slots <- struct{}{}:
 		}
-		req, cancel := context.WithTimeout(ctx, 8*time.Second)
+		req, cancel := context.WithTimeout(ctx, s.fetchTimeout)
 		g, err := s.provider.Fetch(req, query)
 		cancel()
 		<-s.slots

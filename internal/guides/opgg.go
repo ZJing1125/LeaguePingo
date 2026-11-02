@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"leaguepingo/internal/apperrors"
@@ -20,9 +21,14 @@ type Provider interface {
 	Fetch(context.Context, Query) (*Guide, error)
 }
 type OPgg struct {
-	http     *http.Client
-	endpoint string
+	http          *http.Client
+	endpoint      string
+	sessionMu     sync.Mutex
+	session       http.Header
+	sessionExpiry time.Time
 }
+
+const mcpSessionLifetime = 15 * time.Minute
 
 func NewOPgg() *OPgg {
 	return &OPgg{http: &http.Client{Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, endpoint: endpoint}
@@ -97,6 +103,31 @@ func (o *OPgg) Fetch(ctx context.Context, q Query) (*Guide, error) {
 	if q.Mode == "urf" || q.Mode == "nexus-blitz" {
 		return o.fetchRotatingMode(ctx, q)
 	}
+	o.sessionMu.Lock()
+	defer o.sessionMu.Unlock()
+	headers, err := o.sessionHeaders(ctx)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := o.callTool(ctx, headers, q)
+	if sessionExpired(err) {
+		o.session = nil
+		headers, err = o.sessionHeaders(ctx)
+		if err == nil {
+			raw, err = o.callTool(ctx, headers, q)
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	return normalizeToolResult(q, raw)
+}
+
+func (o *OPgg) sessionHeaders(ctx context.Context) (http.Header, error) {
+	if o.session != nil && time.Now().Before(o.sessionExpiry) {
+		return o.session, nil
+	}
+	o.session = nil
 	headers := http.Header{"Content-Type": {"application/json"}, "Accept": {"application/json, text/event-stream"}}
 	init, err := o.rpc(ctx, headers, 1, "initialize", map[string]any{"protocolVersion": "2024-11-05", "capabilities": map[string]any{}, "clientInfo": map[string]string{"name": "LeaguePingo", "version": "1"}})
 	if err != nil {
@@ -112,16 +143,31 @@ func (o *OPgg) Fetch(ctx context.Context, q Query) (*Guide, error) {
 	if _, err = o.rpc(ctx, headers, 0, "notifications/initialized", nil); err != nil {
 		return nil, err
 	}
+	o.session = headers
+	o.sessionExpiry = time.Now().Add(mcpSessionLifetime)
+	return o.session, nil
+}
+
+func sessionExpired(err error) bool {
+	switch apperrors.Status(err) {
+	case http.StatusBadRequest, http.StatusNotFound, http.StatusGone:
+		return true
+	default:
+		return false
+	}
+}
+
+func (o *OPgg) callTool(ctx context.Context, headers http.Header, q Query) (json.RawMessage, error) {
 	name := "lol_get_champion_analysis"
 	args := map[string]any{"game_mode": q.Mode, "champion": champions[q.Champion], "position": q.Position, "lang": "zh_CN", "desired_output_fields": []string{"champion", "data.starter_items.{ids[],ids_names[],play,win}", "data.core_items.{ids[],ids_names[],play,win}", "data.boots.{ids[],ids_names[],play,win}", "data.summoner_spells.{ids[],ids_names[],play,win}", "data.runes.{primary_rune_ids[],primary_rune_names[],secondary_rune_ids[],secondary_rune_names[],stat_mod_ids[],stat_mod_names[]}", "data.skills.{order[]}", "data.trends.win.{version}"}}
 	if q.Opponent > 0 {
 		name = "lol_get_lane_matchup_guide"
 		args = map[string]any{"position": q.Position, "my_champion": champions[q.Champion], "opponent_champion": champions[q.Opponent], "lang": "zh_CN"}
 	}
-	raw, err := o.rpc(ctx, headers, 2, "tools/call", map[string]any{"name": name, "arguments": args})
-	if err != nil {
-		return nil, err
-	}
+	return o.rpc(ctx, headers, 2, "tools/call", map[string]any{"name": name, "arguments": args})
+}
+
+func normalizeToolResult(q Query, raw json.RawMessage) (*Guide, error) {
 	var result struct {
 		IsError    bool            `json:"isError"`
 		Structured json.RawMessage `json:"structuredContent"`
@@ -143,9 +189,13 @@ func (o *OPgg) Fetch(ctx context.Context, q Query) (*Guide, error) {
 				continue
 			}
 			if json.Unmarshal([]byte(c.Text), &value) != nil {
-				value, err = decodeCompact(c.Text)
+				decoded, err := decodeCompact(c.Text)
+				if err != nil {
+					continue
+				}
+				value = decoded
 			}
-			if err == nil && value != nil {
+			if value != nil {
 				break
 			}
 		}
@@ -192,13 +242,7 @@ func normalize(q Query, root map[string]any) (*Guide, error) {
 	if data == nil {
 		return nil, errors.New("暂无攻略数据")
 	}
-	g := &Guide{Query: q, FetchedAt: time.Now().UTC(), SourceURL: "https://op.gg/zh-cn/lol/champions/" + strings.ToLower(strings.ReplaceAll(champions[q.Champion], "_", "")) + "/build", Builds: []BuildSection{}, Runes: []int{}, RuneNames: []string{}, Skills: []string{}, Tips: []Tip{}}
-	slug := strings.ToLower(strings.ReplaceAll(champions[q.Champion], "_", ""))
-	if q.Mode == "aram" {
-		g.SourceURL = "https://op.gg/zh-cn/lol/modes/aram/" + slug + "/build"
-	} else {
-		g.SourceURL = "https://op.gg/zh-cn/lol/champions/" + slug + "/build/" + q.Position + "?type=" + q.Mode + "&tier=all&region=global"
-	}
+	g := &Guide{Query: q, FetchedAt: time.Now().UTC(), SourceURL: sourceURL(q), Builds: []BuildSection{}, Runes: []int{}, RuneNames: []string{}, Skills: []string{}, Tips: []Tip{}}
 	for _, entry := range []struct{ key, label string }{{"starter_items", "出门装"}, {"core_items", "核心装备"}, {"boots", "鞋子"}, {"summoner_spells", "召唤师技能"}} {
 		section := BuildSection{Label: entry.label, Options: []Build{}}
 		for _, v := range list(data[entry.key]) {

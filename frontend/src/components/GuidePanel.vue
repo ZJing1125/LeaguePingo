@@ -19,7 +19,7 @@ const guide=computed(()=>current.value?.matchup??current.value?.base);
 const enemies=computed(()=>props.snapshot?.participants?.filter(p=>p.team==='enemy'&&p.championId)||[]);
 const sections=computed(()=>guide.value?.builds?.filter(s=>!condensed.value||s.label==='核心装备')||[]);
 const tips=computed(()=>guide.value?.tips?.slice(0,condensed.value?2:undefined)||[]);
-const shown=computed(()=>(!props.summary||!!guide.value)&&!!self.value?.championId&&['ChampSelect','GameStart','InProgress','Reconnect'].includes(props.snapshot?.phase||''));
+const shown=computed(()=>current.value?.status!=='disabled'&&(!props.summary||!!guide.value)&&!!self.value?.championId&&['ChampSelect','GameStart','InProgress','Reconnect'].includes(props.snapshot?.phase||''));
 async function select(position:string,opponent:number,retry=false){if(busy.value)return;error.value='';busy.value=true;try{acceptGuide(await Service.SelectGuide(position,opponent,retry));}catch(e){error.value=errorMessage(e);}finally{busy.value=false;}}
 function missingBuildIcon(ids:number[]|null,section:string){return (ids||[]).some(id=>!gameAsset(section==='召唤师技能'?'spells':'items',id));}
 function changePosition(event:Event){void select((event.target as HTMLSelectElement).value,0);}

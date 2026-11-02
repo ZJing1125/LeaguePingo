@@ -36,7 +36,7 @@ async function main(){
   players[1].scout.queues[1].season={games:50,wins:20,losses:30,outcomeGames:50,kdaGames:50,winRate:40,kda:4};
   let snapshot={connectionId:1,generation:1,connected:true,selfKey:players[0].key,region:'SYNTHETIC',phase:'Lobby',stage:'party',gameId:0,queueId:420,scoutQueue:420,updatedAt:time,participants:[{...players[0],championId:0,championState:'unselected'}]};
   let state={revision:1,visible:true,mode:'sidebar',sidebarSide:'left',sidebarWidth:320,sidebarEnabled:true,previewEnabled:true,holdEnabled:true,holdAvailable:true,holdKey:'Backquote',pinned:true,shortcut:'Ctrl+Shift+P'};
-  let info={version:'synthetic',commit:'fixture',buildTime:time,shortcut:'Ctrl+Shift+P',holdKey:'Backquote',holdEnabled:true,sidebarEnabled:true,previewEnabled:true,sidebarWidth:320,goHeapBytes:0,goroutines:0,requests:{}};
+  let info={version:'synthetic',commit:'fixture',buildTime:time,shortcut:'Ctrl+Shift+P',holdKey:'Backquote',holdEnabled:true,sidebarEnabled:true,previewEnabled:true,sidebarWidth:320,guidesEnabled:true,goHeapBytes:0,goroutines:0,requests:{}};
   async function emit(name,data){await Promise.all(pages.filter(p=>!p.isClosed()).map(p=>p.evaluate(({name,data})=>window._wails?.dispatchWailsEvent({name,data}),{name,data})));}
   async function publish(){snapshot={...snapshot,generation:snapshot.generation+1,updatedAt:new Date().toISOString()};await emit('leaguepingo:snapshot',snapshot);}
   async function overlay(mode){state={...state,mode,revision:state.revision+1};await emit('leaguepingo:overlay',state);}
@@ -59,6 +59,7 @@ async function main(){
     else if(method==='HideOverlay'){state={...state,visible:false,mode:'hidden',revision:state.revision+1};result=state;}
     else if(method==='Info')result=info;
     else if(method==='ConfigureCompanion'){info={...info,sidebarEnabled:args[0],previewEnabled:args[1],sidebarWidth:args[2]};result=info;}
+    else if(method==='ConfigureGuides'){info={...info,guidesEnabled:args[0]};result=info;}
     else if(method==='RefreshReview'){
      assert.equal(args[0],42);
      const resultPlayers=players.map((p,i)=>({participantId:i+1,displayName:p.displayName,teamId:i<5?100:200,target:i===0,summary:{...p.history[0],gameId:42,kills:17+i,win:i<5}}));
@@ -260,9 +261,9 @@ async function main(){
   await review.getByRole('button',{name:'本局结果',exact:true}).click();
   assert(await review.getByRole('button',{name:'同步结算',exact:true}).isDisabled(),'in-game review requested settlement');
   await main.getByRole('button',{name:'设置与诊断',exact:true}).click();await main.getByRole('tab',{name:'游戏辅助',exact:true}).click();
-  await main.getByLabel('开局自动展示快览',{exact:true}).uncheck();await main.getByLabel('侧栏宽度',{exact:true}).selectOption('360');
+  await main.getByLabel('开局自动展示快览',{exact:true}).uncheck();await main.getByLabel('侧栏宽度',{exact:true}).selectOption('360');await main.getByLabel('启用 OP.GG 英雄攻略',{exact:true}).uncheck();
   await main.getByRole('button',{name:'保存游戏辅助设置',exact:true}).click();await main.getByText('游戏辅助设置已保存。').waitFor();
-  assert.equal(info.previewEnabled,false);assert.equal(info.sidebarWidth,360);
+  assert.equal(info.previewEnabled,false);assert.equal(info.sidebarWidth,360);assert.equal(info.guidesEnabled,false);
   await shot(main,'settings-companion');
   await main.keyboard.press('Escape');
   snapshot={...snapshot,connectionId:2,selfKey:'new-synthetic-account',phase:'Lobby',stage:'party',gameId:0,participants:[],review:null};await publish();

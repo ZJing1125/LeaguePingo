@@ -88,8 +88,57 @@ func TestOPGGProtocolSSEAndPrivacy(t *testing.T) {
 	if err != nil || g == nil || calls != 3 {
 		t.Fatalf("%v calls %d", err, calls)
 	}
-	if _, err = o.Fetch(context.Background(), Query{Mode: "aram", Champion: 3, Position: "mid", Opponent: 103}); err == nil || calls != 3 {
+	if _, err = o.Fetch(context.Background(), Query{Mode: "aram", Champion: 3, Position: "mid"}); err != nil || calls != 4 {
+		t.Fatalf("session not reused: %v calls %d", err, calls)
+	}
+	o.sessionExpiry = time.Now().Add(-time.Second)
+	if _, err = o.Fetch(context.Background(), Query{Mode: "aram", Champion: 3, Position: "mid"}); err != nil || calls != 7 {
+		t.Fatalf("expired session not renewed: %v calls %d", err, calls)
+	}
+	if _, err = o.Fetch(context.Background(), Query{Mode: "aram", Champion: 3, Position: "mid", Opponent: 103}); err == nil || calls != 7 {
 		t.Fatal("ARAM queried lane matchup")
+	}
+}
+
+func TestOPGGExpiredSessionReinitializesOnce(t *testing.T) {
+	initializes, notifications, tools := 0, 0, 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Method string `json:"method"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		switch req.Method {
+		case "initialize":
+			initializes++
+			w.Header().Set("Mcp-Session-Id", fmt.Sprintf("session-%d", initializes))
+			fmt.Fprint(w, `{"result":{"protocolVersion":"2025-06-18"}}`)
+		case "notifications/initialized":
+			notifications++
+			w.WriteHeader(http.StatusAccepted)
+		case "tools/call":
+			tools++
+			if tools == 2 && r.Header.Get("Mcp-Session-Id") == "session-1" {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			response, _ := json.Marshal(map[string]any{"result": map[string]any{"content": []map[string]string{{"type": "text", "text": compactFixture}}}})
+			_, _ = w.Write(response)
+		default:
+			t.Errorf("unexpected method %q", req.Method)
+			w.WriteHeader(http.StatusBadRequest)
+		}
+	}))
+	defer srv.Close()
+	o := &OPgg{http: srv.Client(), endpoint: srv.URL}
+	query := Query{Mode: "ranked", Champion: 3, Position: "mid"}
+	if _, err := o.Fetch(context.Background(), query); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.Fetch(context.Background(), query); err != nil {
+		t.Fatal(err)
+	}
+	if initializes != 2 || notifications != 2 || tools != 3 {
+		t.Fatalf("unexpected session recovery: init=%d notifications=%d tools=%d", initializes, notifications, tools)
 	}
 }
 func TestLiveOPGG(t *testing.T) {

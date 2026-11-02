@@ -47,6 +47,10 @@ export function ConfigureCompanion(sidebar: boolean, preview: boolean, width: nu
     return $Call.ByID(2131107364, sidebar, preview, width);
 }
 
+export function ConfigureGuides(enabled: boolean): $CancellablePromise<$models.AppInfo> {
+    return $Call.ByID(4137631395, enabled);
+}
+
 export function ConfigureHold(enabled: boolean, key: string): $CancellablePromise<$models.AppInfo> {
     return $Call.ByID(3168600939, enabled, key);
 }

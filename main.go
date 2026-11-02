@@ -107,6 +107,7 @@ func main() {
 		discover = func() (source.Source, error) { return nil, source.ErrNotConnected }
 	}
 	backend.guides = guides.New(ctx, filepath.Join(configDir, "guide-cache"), nil)
+	backend.guides.SetEnabled(store.Snapshot().GuidesEnabled)
 	go func() {
 		for {
 			select {

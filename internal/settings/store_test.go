@@ -16,7 +16,7 @@ func TestLegacySettingsKeepKeysAndGainCompanionDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := s.Snapshot()
-	if c.Shortcut != "Ctrl+Shift+Q" || c.HoldEnabled || c.HoldKey != "F9" || !c.SidebarEnabled || !c.PreviewEnabled || c.SidebarWidth != 320 {
+	if c.Shortcut != "Ctrl+Shift+Q" || c.HoldEnabled || c.HoldKey != "F9" || !c.SidebarEnabled || !c.PreviewEnabled || c.SidebarWidth != 320 || !c.GuidesEnabled {
 		t.Fatal("legacy preferences/default migration failed")
 	}
 	s.SetCompanion(false, false, 360)
@@ -30,6 +30,14 @@ func TestLegacySettingsKeepKeysAndGainCompanionDefaults(t *testing.T) {
 	c = s.Snapshot()
 	if c.SidebarEnabled || c.PreviewEnabled || c.SidebarWidth != 360 || c.HoldKey != "F9" {
 		t.Fatal("companion save replaced old shortcut preferences")
+	}
+	s.SetGuides(false)
+	if err := s.Save(); err != nil {
+		t.Fatal(err)
+	}
+	s, err = Open(path)
+	if err != nil || s.Snapshot().GuidesEnabled {
+		t.Fatal("guide preference not persisted")
 	}
 }
 

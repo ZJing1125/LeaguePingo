@@ -20,6 +20,13 @@ type fakeProvider struct {
 	block chan struct{}
 }
 
+type timeoutProvider struct{}
+
+func (timeoutProvider) Fetch(ctx context.Context, _ Query) (*Guide, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
 func (f *fakeProvider) Fetch(ctx context.Context, q Query) (*Guide, error) {
 	f.mu.Lock()
 	f.calls++
@@ -124,6 +131,32 @@ func TestCancelledLateGuideAndUnknownPosition(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	if s.Snapshot().Status != "idle" || s.Snapshot().Base != nil {
 		t.Fatal("late guide leaked across connection")
+	}
+}
+
+func TestGuideToggleAndTotalTimeoutFallback(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s := New(ctx, t.TempDir(), timeoutProvider{})
+	s.fetchTimeout = 25 * time.Millisecond
+	snap := guideSnapshot()
+	snap.QueueID = 450
+	snap.MapID = 12
+	snap.GameMode = "ARAM"
+	snap.Participants[0].Position = ""
+	s.Observe(snap)
+	waitGuide(t, s, "failed")
+	state := s.Snapshot()
+	if state.Message == "" || state.SourceURL != "https://op.gg/zh-cn/lol/modes/aram/galio/build" {
+		t.Fatalf("timeout did not expose a bounded fallback: %+v", state)
+	}
+	state = s.SetEnabled(false)
+	if state.Status != "disabled" || state.Base != nil || state.Matchup != nil {
+		t.Fatalf("disabled guide retained an entry: %+v", state)
+	}
+	state = s.SetEnabled(true)
+	if state.Status != "loading" {
+		t.Fatalf("re-enabled guide did not resume: %+v", state)
 	}
 }
 

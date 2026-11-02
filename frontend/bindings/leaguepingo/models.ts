@@ -21,6 +21,7 @@ export interface AppInfo {
     "sidebarEnabled": boolean;
     "previewEnabled": boolean;
     "sidebarWidth": number;
+    "guidesEnabled": boolean;
     "settingsWarning": string;
     "goHeapBytes": number;
     "goroutines": number;

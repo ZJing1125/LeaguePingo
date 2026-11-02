@@ -37,6 +37,7 @@ type Config struct {
 	SidebarEnabled    bool   `json:"sidebarEnabled"`
 	PreviewEnabled    bool   `json:"previewEnabled"`
 	SidebarWidth      int    `json:"sidebarWidth"`
+	GuidesEnabled     bool   `json:"guidesEnabled"`
 }
 type Store struct {
 	mu     sync.Mutex
@@ -45,7 +46,7 @@ type Store struct {
 }
 
 func Default() Config {
-	return Config{Schema: 1, AutoQueueDelay: 10, AutoAcceptDelay: 1, Shortcut: "Ctrl+Shift+P", Pinned: true, HoldEnabled: true, HoldKey: "Backquote", SidebarEnabled: true, PreviewEnabled: true, SidebarWidth: 320, Main: Rect{Width: 1280, Height: 800}, Overlay: Rect{Width: 1100, Height: 640}}
+	return Config{Schema: 1, AutoQueueDelay: 10, AutoAcceptDelay: 1, Shortcut: "Ctrl+Shift+P", Pinned: true, HoldEnabled: true, HoldKey: "Backquote", SidebarEnabled: true, PreviewEnabled: true, SidebarWidth: 320, GuidesEnabled: true, Main: Rect{Width: 1280, Height: 800}, Overlay: Rect{Width: 1100, Height: 640}}
 }
 func Open(path string) (*Store, error) {
 	s := &Store{path: path, config: Default()}
@@ -110,6 +111,7 @@ func (s *Store) SetCompanion(sidebar, preview bool, width int) {
 	defer s.mu.Unlock()
 	s.config.SidebarEnabled, s.config.PreviewEnabled, s.config.SidebarWidth = sidebar, preview, max(280, min(width, 420))
 }
+func (s *Store) SetGuides(enabled bool) { s.mu.Lock(); s.config.GuidesEnabled = enabled; s.mu.Unlock() }
 func (s *Store) Save() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

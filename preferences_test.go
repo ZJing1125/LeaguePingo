@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -11,8 +12,33 @@ import (
 	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/diagnostics"
 	"leaguepingo/internal/engine"
+	"leaguepingo/internal/guides"
 	"leaguepingo/internal/settings"
 )
+
+func TestGuidePreferenceSaveAndApply(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := settings.Open(filepath.Join(dir, "settings.json"))
+	guideService := guides.New(context.Background(), "", nil)
+	s := &AppService{settings: store, guides: guideService}
+	info, err := s.ConfigureGuides(false)
+	if err != nil || info.GuidesEnabled || store.Snapshot().GuidesEnabled || guideService.Snapshot().Status != "disabled" {
+		t.Fatal("guide preference was not saved and applied", err)
+	}
+	guideService.SetEnabled(true)
+	blocker := filepath.Join(dir, "file")
+	if err := os.WriteFile(blocker, []byte("file"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	broken, _ := settings.Open(filepath.Join(blocker, "settings.json"))
+	s.settings = broken
+	if _, err := s.ConfigureGuides(false); err == nil {
+		t.Fatal("save failure was hidden")
+	}
+	if !broken.Snapshot().GuidesEnabled || guideService.Snapshot().Status == "disabled" {
+		t.Fatal("failed save changed the running guide preference")
+	}
+}
 
 func TestExportDiagnosticsContainsNoPlayerData(t *testing.T) {
 	dir := t.TempDir()

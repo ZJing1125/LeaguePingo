@@ -24,6 +24,21 @@ import (
 func guidePageURL(q Query, tab string) string {
 	return "https://op.gg/zh-cn/lol/modes/" + q.Mode + "/" + strings.ToLower(strings.ReplaceAll(champions[q.Champion], "_", "")) + "/" + tab
 }
+
+func sourceURL(q Query) string {
+	slug := strings.ToLower(strings.ReplaceAll(champions[q.Champion], "_", ""))
+	if pageMode(q.Mode) {
+		return guidePageURL(q, "build")
+	}
+	if q.Mode == "aram" {
+		return "https://op.gg/zh-cn/lol/modes/aram/" + slug + "/build"
+	}
+	url := "https://op.gg/zh-cn/lol/champions/" + slug + "/build"
+	if validPosition(q.Position) {
+		url += "/" + q.Position + "?type=" + q.Mode + "&tier=all&region=global"
+	}
+	return url
+}
 func (o *OPgg) publicPage(ctx context.Context, q Query, tab string) (result *flightPage, resultErr error) {
 	defer func() { apperrors.Failures.Record(apperrors.GuideService, resultErr) }()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, guidePageURL(q, tab), nil)

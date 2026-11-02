@@ -12,8 +12,9 @@ const areas = [{ id: 'appearance', label: '外观' }, { id: 'game', label: '游�
 const area = ref('appearance');
 const holdEnabled = ref(true), holdKey = ref('Backquote'), shortcut = ref('Ctrl+Shift+P');
 const sidebarEnabled = ref(true), previewEnabled = ref(true), sidebarWidth = ref(320);
+const guidesEnabled = ref(true);
 const info = ref<AppInfo | null>(null), busy = ref(false), message = ref(''), error = ref('');
-const dirty = computed(() => !!info.value && (shortcut.value !== info.value.shortcut || holdEnabled.value !== (info.value.holdEnabled ?? true) || holdKey.value !== (info.value.holdKey || 'Backquote') || sidebarEnabled.value !== (info.value.sidebarEnabled ?? true) || previewEnabled.value !== (info.value.previewEnabled ?? true) || sidebarWidth.value !== (info.value.sidebarWidth || 320)));
+const dirty = computed(() => !!info.value && (shortcut.value !== info.value.shortcut || holdEnabled.value !== (info.value.holdEnabled ?? true) || holdKey.value !== (info.value.holdKey || 'Backquote') || sidebarEnabled.value !== (info.value.sidebarEnabled ?? true) || previewEnabled.value !== (info.value.previewEnabled ?? true) || sidebarWidth.value !== (info.value.sidebarWidth || 320) || guidesEnabled.value !== (info.value.guidesEnabled ?? true)));
 const metrics = computed(() => Object.entries(info.value?.requests ?? {}).flatMap(([category, metric]) => metric ? [{ category, ...metric }] : []));
 const panel = ref<HTMLElement | null>(null);
 const opener = document.activeElement;
@@ -39,6 +40,7 @@ async function load() {
     info.value = result; shortcut.value = result.shortcut;
     holdEnabled.value = result.holdEnabled ?? true; holdKey.value = result.holdKey || 'Backquote';
     sidebarEnabled.value=result.sidebarEnabled ?? true;previewEnabled.value=result.previewEnabled ?? true;sidebarWidth.value=result.sidebarWidth || 320;
+    guidesEnabled.value=result.guidesEnabled ?? true;
   } catch (reason) { if (alive) error.value = errorMessage(reason); }
   finally { busy.value = false; }
 }
@@ -54,11 +56,12 @@ async function saveGame() {
     if(sidebarEnabled.value !== (info.value.sidebarEnabled ?? true) || previewEnabled.value !== (info.value.previewEnabled ?? true) || sidebarWidth.value !== (info.value.sidebarWidth || 320)){
       info.value=await Service.ConfigureCompanion(sidebarEnabled.value,previewEnabled.value,sidebarWidth.value);applied=true;
     }
+    if(guidesEnabled.value !== (info.value.guidesEnabled ?? true)){info.value=await Service.ConfigureGuides(guidesEnabled.value);applied=true;}
     message.value = '游戏辅助设置已保存。';
   } catch (reason) { error.value = `${applied ? '部分设置已生效；' : ''}${errorMessage(reason)}`; }
   finally { busy.value = false; }
 }
-function defaults() { shortcut.value = 'Ctrl+Shift+P'; holdEnabled.value = true; holdKey.value = 'Backquote'; sidebarEnabled.value=true;previewEnabled.value=true;sidebarWidth.value=320; message.value = '已恢复默认选项，保存后生效。'; }
+function defaults() { shortcut.value = 'Ctrl+Shift+P'; holdEnabled.value = true; holdKey.value = 'Backquote'; sidebarEnabled.value=true;previewEnabled.value=true;sidebarWidth.value=320;guidesEnabled.value=true; message.value = '已恢复默认选项，保存后生效。'; }
 async function exportReport() {
   busy.value = true; error.value = ''; message.value = '';
   try { message.value = `已保存本地诊断：${await Service.ExportDiagnostics()}`; }
@@ -91,6 +94,7 @@ onUnmounted(() => { alive = false; void nextTick(() => { if (opener instanceof H
         <form v-else-if="area === 'game'" class="settings-game" @submit.prevent="saveGame">
           <section class="settings-group"><h2>自动化</h2><p class="muted">自动接受、赛后跳过点赞、返回与排队已集中在左侧导航的「游戏辅助」页，开关与实时状态都在那里；此处只保留侧栏、快览与快捷键。</p><div class="settings-actions"><button type="button" class="secondary" @click="$emit('automation')">打开游戏辅助页</button></div></section>
           <section class="settings-group"><h2>客户端侧栏与开局快览</h2><p class="muted">侧栏优先靠左，空间不足时换右侧或折叠。加载游戏时自动展示一次，6 秒后收起。</p><div class="settings-companion"><label><input v-model="sidebarEnabled" type="checkbox" :disabled="busy"/>启用客户端侧栏</label><label><input v-model="previewEnabled" type="checkbox" :disabled="busy"/>开局自动展示快览</label><label>侧栏宽度<select v-model.number="sidebarWidth" :disabled="busy" aria-label="侧栏宽度"><option v-for="width in [280,300,320,340,360,380,400,420]" :key="width" :value="width">{{ width }} px</option></select></label></div></section>
+          <section class="settings-group"><h2>英雄攻略</h2><p class="muted">从公开 OP.GG 服务读取当前模式、英雄、位置与对位英雄的攻略；不会发送玩家名称或玩家标识。关闭后不再请求并隐藏攻略入口。</p><div class="settings-companion"><label><input v-model="guidesEnabled" type="checkbox" :disabled="busy"/>启用 OP.GG 英雄攻略</label></div></section>
           <section class="settings-group"><h2>局内按住快览</h2><p class="muted">加载和对局中，游戏前台按住显示，松开隐藏。鼠标和按键继续交给游戏。</p>
             <p class="muted">只监听已配置的按键，不记录其他输入。不可用时，可使用主窗口或托盘的“显示／收起游戏助手”。</p>
             <div class="settings-hold"><label><input v-model="holdEnabled" type="checkbox" aria-label="启用局内按住快览" :disabled="busy" />启用按住快览</label><select v-model="holdKey" aria-label="局内按住键" :disabled="busy"><option value="Backquote">~ / 反引号（无需 Shift）</option><option v-for="key in ['F8', 'F9', 'F10']" :key="key" :value="key">{{ key }}</option></select></div>

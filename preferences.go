@@ -35,6 +35,7 @@ type AppInfo struct {
 	SidebarEnabled    bool                          `json:"sidebarEnabled"`
 	PreviewEnabled    bool                          `json:"previewEnabled"`
 	SidebarWidth      int                           `json:"sidebarWidth"`
+	GuidesEnabled     bool                          `json:"guidesEnabled"`
 	SettingsWarning   string                        `json:"settingsWarning"`
 	GoHeapBytes       uint64                        `json:"goHeapBytes"`
 	Goroutines        int                           `json:"goroutines"`
@@ -46,8 +47,21 @@ func (s *AppService) Info() AppInfo {
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
 	cfg := s.settings.Snapshot()
-	return AppInfo{AutoSkipHonor: cfg.AutoSkipHonor, AutoReturnEnabled: cfg.AutoReturnEnabled, AutoQueueEnabled: cfg.AutoQueueEnabled, AutoQueueDelay: cfg.AutoQueueDelay, AutoAcceptEnabled: cfg.AutoAcceptEnabled, AutoAcceptDelay: cfg.AutoAcceptDelay, Version: Version, Commit: Commit, BuildTime: BuildTime, Shortcut: cfg.Shortcut, HoldEnabled: cfg.HoldEnabled, HoldKey: cfg.HoldKey, SidebarEnabled: cfg.SidebarEnabled, PreviewEnabled: cfg.PreviewEnabled, SidebarWidth: cfg.SidebarWidth, SettingsWarning: s.settingsWarning,
+	return AppInfo{AutoSkipHonor: cfg.AutoSkipHonor, AutoReturnEnabled: cfg.AutoReturnEnabled, AutoQueueEnabled: cfg.AutoQueueEnabled, AutoQueueDelay: cfg.AutoQueueDelay, AutoAcceptEnabled: cfg.AutoAcceptEnabled, AutoAcceptDelay: cfg.AutoAcceptDelay, Version: Version, Commit: Commit, BuildTime: BuildTime, Shortcut: cfg.Shortcut, HoldEnabled: cfg.HoldEnabled, HoldKey: cfg.HoldKey, SidebarEnabled: cfg.SidebarEnabled, PreviewEnabled: cfg.PreviewEnabled, SidebarWidth: cfg.SidebarWidth, GuidesEnabled: cfg.GuidesEnabled, SettingsWarning: s.settingsWarning,
 		GoHeapBytes: mem.HeapAlloc, Goroutines: runtime.NumGoroutine(), Requests: diagnostics.Default.Snapshot(), PerformanceScope: "仅 Go 堆；不包含 WebView2，不代表总内存、游戏 FPS 或网络延迟"}
+}
+func (s *AppService) ConfigureGuides(enabled bool) (serviceValue AppInfo, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
+	old := s.settings.Snapshot()
+	s.settings.SetGuides(enabled)
+	if err := s.settings.Save(); err != nil {
+		s.settings.SetGuides(old.GuidesEnabled)
+		return AppInfo{}, err
+	}
+	if s.guides != nil {
+		s.guides.SetEnabled(enabled)
+	}
+	return s.Info(), nil
 }
 func (s *AppService) ConfigureCompanion(sidebar, preview bool, width int) (serviceValue AppInfo, serviceErr error) {
 	defer apperrors.Present(&serviceErr)
