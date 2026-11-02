@@ -13,7 +13,7 @@ func (e *Engine) ReadinessMetrics() diagnostics.ReadinessMetric {
 	return e.readiness.Snapshot()
 }
 func (e *Engine) observeReadinessLocked() {
-	if !e.snapshot.Connected || e.snapshot.Phase != "ChampSelect" || e.phaseHint != "" && e.phaseHint != "ChampSelect" {
+	if !e.snapshot.Connected || snapshotPhase(e.snapshot.Phase) != PhaseChampSelect || e.phaseHint != PhaseUnknown && e.phaseHint != PhaseChampSelect {
 		return
 	}
 	now := time.Now()

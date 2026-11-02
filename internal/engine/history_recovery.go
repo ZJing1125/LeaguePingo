@@ -69,7 +69,7 @@ func (e *Engine) RetryHistory(ctx context.Context, key string, connectionID uint
 		return core.Participant{}, err
 	}
 	e.mu.Lock()
-	if e.snapshot.Stage != "idle" || (e.phaseHint != "" && stageForPhase(e.phaseHint) != "idle") {
+	if snapshotStage(e.snapshot.Stage) != StageIdle || (e.phaseHint != PhaseUnknown && stageForPhase(e.phaseHint) != StageIdle) {
 		e.mu.Unlock()
 		return player, apperrors.New(apperrors.RecoveryExhausted)
 	}
@@ -137,7 +137,7 @@ func (e *Engine) RetryHistory(ctx context.Context, key string, connectionID uint
 	}
 	defer release()
 	e.mu.RLock()
-	valid := e.client != nil && e.clientVersion == connectionID && e.phaseEpoch == epoch && e.snapshot.Stage == "idle" && (e.phaseHint == "" || stageForPhase(e.phaseHint) == "idle")
+	valid := e.client != nil && e.clientVersion == connectionID && e.phaseEpoch == epoch && snapshotStage(e.snapshot.Stage) == StageIdle && (e.phaseHint == PhaseUnknown || stageForPhase(e.phaseHint) == StageIdle)
 	e.mu.RUnlock()
 	if !valid {
 		return player, apperrors.New(apperrors.StaleData)
@@ -149,7 +149,7 @@ func (e *Engine) RetryHistory(ctx context.Context, key string, connectionID uint
 		refund = request.Err() == context.Canceled
 		return player, request.Err()
 	}
-	if e.client == nil || e.clientVersion != connectionID || e.phaseEpoch != epoch || e.snapshot.Stage != "idle" || (e.phaseHint != "" && stageForPhase(e.phaseHint) != "idle") {
+	if e.client == nil || e.clientVersion != connectionID || e.phaseEpoch != epoch || snapshotStage(e.snapshot.Stage) != StageIdle || (e.phaseHint != PhaseUnknown && stageForPhase(e.phaseHint) != StageIdle) {
 		return player, apperrors.New(apperrors.StaleData)
 	}
 	// Preserve profile, name and any newer manual history completed meanwhile.

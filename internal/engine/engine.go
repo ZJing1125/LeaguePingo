@@ -53,7 +53,7 @@ type Engine struct {
 	accountIdentity     string
 	homeCancel          context.CancelFunc
 	phaseEpoch          uint64
-	phaseHint           string
+	phaseHint           Phase
 	phaseWake           chan struct{}
 	phaseWatchCancel    context.CancelFunc
 	phaseWatchVersion   uint64
@@ -99,7 +99,7 @@ func NewWithHistoryCache(discover Discoverer, onChange func(core.Snapshot), path
 }
 
 func newEngine(discover Discoverer, onChange func(core.Snapshot)) *Engine {
-	e := &Engine{discover: discover, onChange: onChange, lookupGate: make(chan struct{}, 1), phaseWake: make(chan struct{}, 1), champWake: make(chan struct{}, 1), scheduler: newScheduler(), cache: map[string]core.Participant{}, aliases: map[string]string{}, snapshot: core.Snapshot{Stage: "disconnected", UpdatedAt: time.Now(), Participants: []core.Participant{}}}
+	e := &Engine{discover: discover, onChange: onChange, lookupGate: make(chan struct{}, 1), phaseWake: make(chan struct{}, 1), champWake: make(chan struct{}, 1), scheduler: newScheduler(), cache: map[string]core.Participant{}, aliases: map[string]string{}, snapshot: core.Snapshot{Stage: string(StageDisconnected), UpdatedAt: time.Now(), Participants: []core.Participant{}}}
 	e.autoAccept = readycheck.New()
 	e.historyRecovery.updates = make(chan core.Participant, 64)
 	e.postGame = postgame.New()
@@ -188,24 +188,16 @@ func (e *Engine) Run(ctx context.Context) {
 func (e *Engine) pollInterval() time.Duration {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	switch e.snapshot.Stage {
-	case "preparing":
-		return 3 * time.Second
-	case "party":
-		return 6 * time.Second
-	case "in-game":
-		if e.client != nil && activeMatch(e.snapshot.Phase) && !e.matchRosterComplete && e.matchRosterAttempts < inGameRosterAttemptLimit {
+	stage := snapshotStage(e.snapshot.Stage)
+	if stage == StageInGame {
+		if e.client != nil && activeMatch(snapshotPhase(e.snapshot.Phase)) && !e.matchRosterComplete && e.matchRosterAttempts < inGameRosterAttemptLimit {
 			return 2 * time.Second
 		}
-		if e.client != nil && e.snapshot.Phase == "GameStart" && !e.matchRosterComplete {
+		if e.client != nil && snapshotPhase(e.snapshot.Phase) == PhaseGameStart && !e.matchRosterComplete {
 			return 5 * time.Second // Phase only after the loading-screen roster budget ends.
 		}
-		return 20 * time.Second
-	case "idle":
-		return 6 * time.Second
-	default:
-		return 10 * time.Second
 	}
+	return behaviorForStage(stage).poll
 }
 
 func (e *Engine) poll(ctx context.Context) {
@@ -240,7 +232,7 @@ func (e *Engine) poll(ctx context.Context) {
 	requestCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	phaseStarted := time.Now()
-	phase, err := client.Phase(requestCtx)
+	phaseValue, err := client.Phase(requestCtx)
 	if err != nil {
 		e.mu.Lock()
 		if e.snapshot.Generation == generation && e.clientVersion == version && e.phaseEpoch == epoch {
@@ -249,10 +241,11 @@ func (e *Engine) poll(ctx context.Context) {
 		e.mu.Unlock()
 		return
 	}
+	phase := Phase(phaseValue)
 	phaseObserved := time.Now()
 	stage := stageForPhase(phase)
 	account := ""
-	if preparationStage(stage) || stage == "idle" {
+	if preparationStage(stage) || stage == StageIdle {
 		if accounts, ok := client.(source.AccountSource); ok {
 			// Piggyback on low-frequency pregame polls; no account or history
 			// polling is added to active gameplay.
@@ -266,7 +259,7 @@ func (e *Engine) poll(ctx context.Context) {
 		e.mu.Unlock()
 		return
 	}
-	e.phaseHint = "" // This phase response postdates the last observed notification.
+	e.phaseHint = PhaseUnknown // This phase response postdates the last observed notification.
 	// None is also the normal postgame home screen. It is not a new
 	// connection: invalidating here cancels settlement before it is available.
 	// The current-account response above still isolates actual account changes.
@@ -280,11 +273,11 @@ func (e *Engine) poll(ctx context.Context) {
 		}
 		e.accountIdentity = account
 	}
-	e.readiness.Phase(phase, phaseObserved)
+	e.readiness.Phase(string(phase), phaseObserved)
 	e.observeAutoAcceptLocked(phase, phaseStarted)
 	refresh := false
 	if activeMatch(phase) {
-		entering := !activeMatch(e.snapshot.Phase) || (phase == "GameStart" && e.snapshot.Phase != "GameStart")
+		entering := !activeMatch(snapshotPhase(e.snapshot.Phase)) || (phase == PhaseGameStart && snapshotPhase(e.snapshot.Phase) != PhaseGameStart)
 		if entering {
 			e.matchRosterAttempts = 0
 			e.matchRosterComplete = false
@@ -292,7 +285,7 @@ func (e *Engine) poll(ctx context.Context) {
 		// GameStart and InProgress are distinct client readiness windows. If
 		// loading ended before gameflow exposed the full roster, grant one new
 		// bounded local-identity refresh budget at the transition.
-		if phase == "InProgress" && e.snapshot.Phase == "GameStart" && !e.matchRosterComplete {
+		if phase == PhaseInProgress && snapshotPhase(e.snapshot.Phase) == PhaseGameStart && !e.matchRosterComplete {
 			e.matchRosterAttempts = 0
 			e.matchRosterComplete = false
 		}
@@ -303,14 +296,14 @@ func (e *Engine) poll(ctx context.Context) {
 		if refresh {
 			e.matchRosterAttempts++
 		}
-	} else if stage != "in-game" {
+	} else if stage != StageInGame {
 		e.matchRosterAttempts = 0
 		e.matchRosterComplete = false
 	}
 	e.mu.Unlock()
 	var rosterErr error
 	if preparationStage(stage) || refresh {
-		if stage == "party" {
+		if stage == StageParty {
 			if lobby, ok := client.(source.LobbySource); ok {
 				roster, rosterErr = lobby.Lobby(requestCtx)
 			}
@@ -321,7 +314,7 @@ func (e *Engine) poll(ctx context.Context) {
 			roster[i].ConnectionID = version
 		}
 	}
-	if stage == "in-game" {
+	if stage == StageInGame {
 		if cached, ok := client.(source.CachedAccountSource); ok {
 			account = cached.CachedAccountIdentity()
 		}
@@ -334,13 +327,13 @@ func (e *Engine) poll(ctx context.Context) {
 	if e.accountIdentity == "" && core.IsKnownPUUID(account) {
 		e.accountIdentity = account
 	}
-	if stage == "preparing" && e.champEpoch != champEpoch {
+	if stage == StagePreparing && e.champEpoch != champEpoch {
 		return
 	}
-	if stage == "preparing" && e.snapshot.Stage == stage && e.snapshot.ConnectionID == version && gameID == 0 {
+	if stage == StagePreparing && snapshotStage(e.snapshot.Stage) == stage && e.snapshot.ConnectionID == version && gameID == 0 {
 		gameID = e.snapshot.GameID
 	}
-	if stage == "in-game" {
+	if stage == StageInGame {
 		// Refresh only local identities at match entry (three attempts per
 		// readiness phase; GameStart -> InProgress can renew once).
 		// Run may fill missing names/first histories once after entry discovery.
@@ -357,18 +350,18 @@ func (e *Engine) poll(ctx context.Context) {
 			gameID = e.snapshot.GameID
 		}
 	}
-	if preparationStage(stage) && len(roster) == 0 && e.snapshot.Stage == stage && e.snapshot.ConnectionID == version {
+	if preparationStage(stage) && len(roster) == 0 && snapshotStage(e.snapshot.Stage) == stage && e.snapshot.ConnectionID == version {
 		// A transient empty session must not discard prepared data.
 		roster = clone(e.snapshot).Participants
 		if gameID == 0 {
 			gameID = e.snapshot.GameID
 		}
 	}
-	if e.snapshot.ConnectionID != version || e.snapshot.Phase != phase || e.snapshot.GameID != gameID || !e.snapshot.Connected || e.snapshot.SelfKey != e.accountIdentity {
+	if e.snapshot.ConnectionID != version || snapshotPhase(e.snapshot.Phase) != phase || e.snapshot.GameID != gameID || !e.snapshot.Connected || e.snapshot.SelfKey != e.accountIdentity {
 		e.replaceLocked(stage, phase, gameID, roster, "")
-	} else if (preparationStage(stage) || stage == "in-game") && rosterChanged(e.snapshot.Participants, roster) {
+	} else if (preparationStage(stage) || stage == StageInGame) && rosterChanged(e.snapshot.Participants, roster) {
 		e.replaceLocked(stage, phase, gameID, roster, "")
-	} else if e.snapshot.Stage == "disconnected" {
+	} else if snapshotStage(e.snapshot.Stage) == StageDisconnected {
 		e.replaceLocked(stage, phase, gameID, roster, "")
 	}
 	if preparationStage(stage) || refresh {
@@ -471,26 +464,26 @@ func (e *Engine) disconnectLocked(message string) {
 		e.snapshot.UpdatedAt = time.Now()
 		e.publishLocked()
 	} else {
-		e.replaceLocked("disconnected", "", 0, nil, message)
+		e.replaceLocked(StageDisconnected, PhaseUnknown, 0, nil, message)
 	}
 }
 
-func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.Participant, message string) {
-	if phase != e.snapshot.Phase {
+func (e *Engine) replaceLocked(stage Stage, phase Phase, gameID int64, roster []core.Participant, message string) {
+	if phase != snapshotPhase(e.snapshot.Phase) {
 		e.historyRecovery.stop()
 	}
-	e.readiness.Phase(phase, time.Now())
-	if stage != "idle" && e.homeCancel != nil {
+	e.readiness.Phase(string(phase), time.Now())
+	if stage != StageIdle && e.homeCancel != nil {
 		e.homeCancel()
 	}
 	if e.initialMatch.gameID != 0 && (!activeMatch(phase) || (gameID != 0 && e.initialMatch.gameID != gameID)) {
 		e.stopInitialMatchLocked()
 	}
-	if stage != "preparing" {
+	if stage != StagePreparing {
 		e.stopChampSelectEventsLocked()
 	}
 	sameConnection := e.snapshot.ConnectionID == e.clientVersion
-	samePreparation := sameConnection && preparationStage(stage) && e.snapshot.Stage == stage && (gameID == 0 || e.snapshot.GameID == 0 || gameID == e.snapshot.GameID)
+	samePreparation := sameConnection && preparationStage(stage) && snapshotStage(e.snapshot.Stage) == stage && (gameID == 0 || e.snapshot.GameID == 0 || gameID == e.snapshot.GameID)
 	if !samePreparation {
 		if e.cancel != nil {
 			e.cancel()
@@ -502,7 +495,7 @@ func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.
 		e.prepareAttempts = map[string]int{}
 		e.prepareProfiles = map[string]bool{}
 	}
-	if samePreparation && stage == "party" {
+	if samePreparation && stage == StageParty {
 		for _, p := range roster {
 			found := false
 			for _, old := range e.snapshot.Participants {
@@ -527,7 +520,7 @@ func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.
 			e.cache[roster[i].PUUID] = roster[i]
 		}
 	}
-	if stage == "in-game" && message == "" {
+	if stage == StageInGame && message == "" {
 		if len(roster) == 0 {
 			message = "客户端已连接，当前尚未取得对局名单；可刷新名单或输入完整 ID 手动查询。局内暂停自动战绩预取。"
 		} else if !completeRoster(roster) {
@@ -539,7 +532,7 @@ func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.
 			message = initialMatchMessage
 		}
 	}
-	if sameConnection && (preparationStage(stage) || stage == "in-game") && (gameID == 0 || e.snapshot.GameID == 0 || gameID == e.snapshot.GameID) {
+	if sameConnection && (preparationStage(stage) || stage == StageInGame) && (gameID == 0 || e.snapshot.GameID == 0 || gameID == e.snapshot.GameID) {
 		for i := range roster {
 			for _, old := range e.snapshot.Participants {
 				if old.ConnectionID == e.clientVersion && old.PUUID != "" && old.PUUID == roster[i].PUUID {
@@ -573,7 +566,7 @@ func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.
 			}
 		}
 	}
-	if (stage == "in-game" && e.initialMatch.cancel == nil) || (stage != "in-game" && !samePreparation) {
+	if (stage == StageInGame && e.initialMatch.cancel == nil) || (stage != StageInGame && !samePreparation) {
 		for i := range roster {
 			if roster[i].HistoryState == core.HistoryLoading {
 				roster[i].HistoryState = core.HistoryPending
@@ -585,8 +578,9 @@ func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.
 	if e.client != nil {
 		region = e.client.Region()
 	}
-	e.snapshot = core.Snapshot{ConnectionID: e.clientVersion, SelfKey: e.accountIdentity, Generation: e.snapshot.Generation, Phase: phase, Stage: stage,
-		Connected: stage != "disconnected", Region: region, GameID: gameID, Frozen: stage == "in-game",
+	behavior := behaviorForStage(stage)
+	e.snapshot = core.Snapshot{ConnectionID: e.clientVersion, SelfKey: e.accountIdentity, Generation: e.snapshot.Generation, Phase: string(phase), Stage: string(stage),
+		Connected: behavior.connected, Region: region, GameID: gameID, Frozen: behavior.frozen,
 		UpdatedAt: time.Now(), Participants: roster, Message: message}
 	e.publishLocked()
 	if !preparationStage(stage) {
@@ -598,7 +592,7 @@ func (e *Engine) replaceLocked(stage, phase string, gameID int64, roster []core.
 }
 
 func (e *Engine) startPreparationLocked() {
-	if !preparationStage(e.snapshot.Stage) || e.client == nil || e.prepareRunning || time.Now().Before(e.prepareRetryAt) || (e.phaseHint != "" && stageForPhase(e.phaseHint) != e.snapshot.Stage) {
+	if !preparationStage(snapshotStage(e.snapshot.Stage)) || e.client == nil || e.prepareRunning || time.Now().Before(e.prepareRetryAt) || (e.phaseHint != PhaseUnknown && stageForPhase(e.phaseHint) != snapshotStage(e.snapshot.Stage)) {
 		return
 	}
 	if e.prepareDeadline.IsZero() {
@@ -645,12 +639,12 @@ func (e *Engine) prepare(ctx context.Context, token uint64, client Client, versi
 	}()
 	for ctx.Err() == nil {
 		e.mu.RLock()
-		if e.prepareToken != token || e.clientVersion != version || !preparationStage(e.snapshot.Stage) {
+		if e.prepareToken != token || e.clientVersion != version || !preparationStage(snapshotStage(e.snapshot.Stage)) {
 			e.mu.RUnlock()
 			return
 		}
 		players := clone(e.snapshot).Participants
-		preparingStage := e.snapshot.Stage
+		preparingStage := snapshotStage(e.snapshot.Stage)
 		preferred := e.preferred
 		sort.SliceStable(players, func(i, j int) bool {
 			a, b := e.prepareAttempts[players[i].PUUID], e.prepareAttempts[players[j].PUUID]
@@ -669,7 +663,7 @@ func (e *Engine) prepare(ctx context.Context, token uint64, client Client, versi
 		e.mu.RUnlock()
 		if player.PUUID == "" {
 			e.mu.Lock()
-			if e.prepareToken != token || e.clientVersion != version || e.snapshot.Stage != preparingStage || ctx.Err() != nil {
+			if e.prepareToken != token || e.clientVersion != version || snapshotStage(e.snapshot.Stage) != preparingStage || ctx.Err() != nil {
 				e.mu.Unlock()
 				return
 			}
@@ -685,7 +679,7 @@ func (e *Engine) prepare(ctx context.Context, token uint64, client Client, versi
 				return
 			}
 			e.prepareOptionalProfile(ctx, client, player, func() bool {
-				return e.client != nil && e.clientVersion == version && e.prepareToken == token && e.snapshot.Stage == preparingStage && (e.phaseHint == "" || stageForPhase(e.phaseHint) == preparingStage)
+				return e.client != nil && e.clientVersion == version && e.prepareToken == token && snapshotStage(e.snapshot.Stage) == preparingStage && (e.phaseHint == PhaseUnknown || stageForPhase(e.phaseHint) == preparingStage)
 			})
 			continue
 		}
@@ -718,9 +712,9 @@ func (e *Engine) prepare(ctx context.Context, token uint64, client Client, versi
 			}
 		}
 		phaseCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		phase, err := client.Phase(phaseCtx)
+		phaseValue, err := client.Phase(phaseCtx)
 		cancel()
-		if err != nil || stageForPhase(phase) != preparingStage || ctx.Err() != nil {
+		if err != nil || stageForPhase(Phase(phaseValue)) != preparingStage || ctx.Err() != nil {
 			e.mu.Lock()
 			if e.prepareToken == token {
 				e.prepareRetryAt = time.Now().Add(2 * time.Second)
@@ -756,7 +750,7 @@ func (e *Engine) prepare(ctx context.Context, token uint64, client Client, versi
 func (e *Engine) updatePrepared(token uint64, puuid string, edit func(*core.Participant)) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.prepareToken != token || !preparationStage(e.snapshot.Stage) {
+	if e.prepareToken != token || !preparationStage(snapshotStage(e.snapshot.Stage)) {
 		return
 	}
 	for i := range e.snapshot.Participants {
@@ -1189,17 +1183,18 @@ func (e *Engine) RefreshRoster(ctx context.Context) (core.Snapshot, error) {
 	if client == nil {
 		return e.Snapshot(), source.ErrNotConnected
 	}
-	phase, err := client.Phase(ctx)
+	phaseValue, err := client.Phase(ctx)
 	if err != nil {
 		return e.Snapshot(), err
 	}
+	phase := Phase(phaseValue)
 	stage := stageForPhase(phase)
 	if !preparationStage(stage) && !activeMatch(phase) {
 		return e.Snapshot(), apperrors.New(apperrors.NoRoster)
 	}
 	var gameID int64
 	var roster []core.Participant
-	if stage == "party" {
+	if stage == StageParty {
 		lobby, ok := client.(source.LobbySource)
 		if !ok {
 			return e.Snapshot(), apperrors.New(apperrors.Unsupported)
@@ -1215,24 +1210,24 @@ func (e *Engine) RefreshRoster(ctx context.Context) (core.Snapshot, error) {
 		return e.Snapshot(), apperrors.New(apperrors.NoRoster)
 	}
 	e.mu.Lock()
-	if generation != e.snapshot.Generation || version != e.clientVersion || epoch != e.phaseEpoch || (stage == "preparing" && champEpoch != e.champEpoch) {
+	if generation != e.snapshot.Generation || version != e.clientVersion || epoch != e.phaseEpoch || (stage == StagePreparing && champEpoch != e.champEpoch) {
 		e.mu.Unlock()
 		return e.Snapshot(), apperrors.New(apperrors.StaleData)
 	}
 	for i := range roster {
 		roster[i].ConnectionID = version
 	}
-	if stage == "preparing" && e.snapshot.Stage == stage && gameID == 0 {
+	if stage == StagePreparing && snapshotStage(e.snapshot.Stage) == stage && gameID == 0 {
 		gameID = e.snapshot.GameID
 	}
 	if activeMatch(phase) && e.snapshot.ConnectionID == version && gameID == e.snapshot.GameID && !rosterImproves(e.snapshot.Participants, roster) {
 		roster = clone(e.snapshot).Participants
 	}
-	if activeMatch(phase) && (!activeMatch(e.snapshot.Phase) || (phase == "GameStart" && e.snapshot.Phase != "GameStart") || (gameID != 0 && gameID != e.snapshot.GameID)) {
+	if activeMatch(phase) && (!activeMatch(snapshotPhase(e.snapshot.Phase)) || (phase == PhaseGameStart && snapshotPhase(e.snapshot.Phase) != PhaseGameStart) || (gameID != 0 && gameID != e.snapshot.GameID)) {
 		e.matchRosterAttempts = 0
 		e.matchRosterComplete = false
 	}
-	if phase == "InProgress" && e.snapshot.Phase == "GameStart" && !e.matchRosterComplete {
+	if phase == PhaseInProgress && snapshotPhase(e.snapshot.Phase) == PhaseGameStart && !e.matchRosterComplete {
 		e.matchRosterAttempts = 0
 	}
 	// Explicit refresh also renews the independent scouting round. Ordinary
@@ -1278,25 +1273,6 @@ func rosterImproves(old, next []core.Participant) bool {
 	}
 	return known(next) > known(old) || (len(next) >= len(old) && known(next) >= known(old))
 }
-func activeMatch(phase string) bool {
-	return phase == "GameStart" || phase == "InProgress" || phase == "Reconnect"
-}
-
-func stageForPhase(phase string) string {
-	switch phase {
-	case "Lobby", "Matchmaking", "ReadyCheck":
-		return "party"
-	case "ChampSelect":
-		return "preparing"
-	case "GameStart", "InProgress", "Reconnect", "WatchInProgress", "WaitingForStats", "PreEndOfGame", "EndOfGame":
-		return "in-game"
-	default:
-		return "idle"
-	}
-}
-
-func preparationStage(stage string) bool { return stage == "preparing" || stage == "party" }
-
 func rosterChanged(old, current []core.Participant) bool {
 	if len(old) != len(current) {
 		return true

@@ -8,8 +8,8 @@ import (
 	"leaguepingo/internal/source"
 )
 
-func readRoster(ctx context.Context, client Client, stage string) (int64, []core.Participant, error) {
-	if stage == "preparing" {
+func readRoster(ctx context.Context, client Client, stage Stage) (int64, []core.Participant, error) {
+	if stage == StagePreparing {
 		if selection, ok := client.(source.ChampSelectSource); ok {
 			return selection.ChampSelectRoster(ctx)
 		}
@@ -20,7 +20,7 @@ func readRoster(ctx context.Context, client Client, stage string) (int64, []core
 func (e *Engine) syncChampSelectEvents(ctx context.Context) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ctx.Err() != nil || e.client == nil || !e.snapshot.Connected || e.snapshot.Stage != "preparing" || (e.phaseHint != "" && e.phaseHint != "ChampSelect") {
+	if ctx.Err() != nil || e.client == nil || !e.snapshot.Connected || snapshotStage(e.snapshot.Stage) != StagePreparing || (e.phaseHint != PhaseUnknown && e.phaseHint != PhaseChampSelect) {
 		e.stopChampSelectEventsLocked()
 		return
 	}
@@ -60,7 +60,7 @@ func (e *Engine) stopChampSelectEventsLocked() {
 func (e *Engine) observeChampSelect(version, sequence uint64) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.client == nil || e.clientVersion != version || e.champWatchSeq != sequence || e.snapshot.Stage != "preparing" || (e.phaseHint != "" && e.phaseHint != "ChampSelect") {
+	if e.client == nil || e.clientVersion != version || e.champWatchSeq != sequence || snapshotStage(e.snapshot.Stage) != StagePreparing || (e.phaseHint != PhaseUnknown && e.phaseHint != PhaseChampSelect) {
 		return
 	}
 	e.champEpoch++
@@ -75,18 +75,18 @@ func (e *Engine) observeChampSelect(version, sequence uint64) {
 func (e *Engine) refreshChampSelect(ctx context.Context) {
 	e.mu.RLock()
 	client, version, generation, epoch, phaseEpoch := e.client, e.clientVersion, e.snapshot.Generation, e.champEpoch, e.phaseEpoch
-	eligible := e.snapshot.Connected && e.snapshot.Stage == "preparing" && (e.phaseHint == "" || e.phaseHint == "ChampSelect")
+	eligible := e.snapshot.Connected && snapshotStage(e.snapshot.Stage) == StagePreparing && (e.phaseHint == PhaseUnknown || e.phaseHint == PhaseChampSelect)
 	e.mu.RUnlock()
 	if client == nil || !eligible {
 		return
 	}
 	requestCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	phase, err := client.Phase(requestCtx)
+	phaseValue, err := client.Phase(requestCtx)
 	if err != nil {
 		return
 	} // Periodic polling remains responsible for connectivity.
-	if phase != "ChampSelect" {
+	if Phase(phaseValue) != PhaseChampSelect {
 		e.mu.Lock()
 		if e.clientVersion == version && e.phaseEpoch == phaseEpoch {
 			e.stopChampSelectEventsLocked()
@@ -102,15 +102,15 @@ func (e *Engine) refreshChampSelect(ctx context.Context) {
 		return
 	}
 	e.mu.RLock()
-	stillEligible := e.clientVersion == version && e.phaseEpoch == phaseEpoch && e.snapshot.Generation == generation && e.snapshot.Stage == "preparing"
+	stillEligible := e.clientVersion == version && e.phaseEpoch == phaseEpoch && e.snapshot.Generation == generation && snapshotStage(e.snapshot.Stage) == StagePreparing
 	e.mu.RUnlock()
 	if !stillEligible {
 		return
 	}
-	gameID, roster, err := readRoster(requestCtx, client, "preparing")
+	gameID, roster, err := readRoster(requestCtx, client, StagePreparing)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.clientVersion != version || e.snapshot.Generation != generation || e.champEpoch != epoch || e.phaseEpoch != phaseEpoch || e.snapshot.Stage != "preparing" {
+	if e.clientVersion != version || e.snapshot.Generation != generation || e.champEpoch != epoch || e.phaseEpoch != phaseEpoch || snapshotStage(e.snapshot.Stage) != StagePreparing {
 		return
 	}
 	if err != nil || len(roster) == 0 {
@@ -123,6 +123,6 @@ func (e *Engine) refreshChampSelect(ctx context.Context) {
 		gameID = e.snapshot.GameID
 	}
 	if gameID != e.snapshot.GameID || rosterChanged(e.snapshot.Participants, roster) {
-		e.replaceLocked("preparing", "ChampSelect", gameID, roster, "")
+		e.replaceLocked(StagePreparing, PhaseChampSelect, gameID, roster, "")
 	}
 }

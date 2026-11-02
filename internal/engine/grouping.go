@@ -40,7 +40,8 @@ func (e *Engine) syncGroupingLocked() {
 			p.GroupSource = ""
 		}
 	}
-	active := supported && s.Connected && (s.Phase == "GameStart" || s.Phase == "InProgress") && s.GameID > 0 && s.SelfKey != ""
+	phase := snapshotPhase(s.Phase)
+	active := supported && s.Connected && (phase == PhaseGameStart || phase == PhaseInProgress) && s.GameID > 0 && s.SelfKey != ""
 	if !active || key != e.groupScope {
 		if e.groupCancel != nil {
 			e.groupCancel()
@@ -119,7 +120,7 @@ func (e *Engine) syncGroupingLocked() {
 				return
 			}
 			e.mu.Lock()
-			valid := ctx.Err() == nil && e.groupScope == key && e.clientVersion == s.ConnectionID && e.snapshot.SelfKey == s.SelfKey && e.snapshot.GameID == s.GameID && activeMatch(e.snapshot.Phase)
+			valid := ctx.Err() == nil && e.groupScope == key && e.clientVersion == s.ConnectionID && e.snapshot.SelfKey == s.SelfKey && e.snapshot.GameID == s.GameID && activeMatch(snapshotPhase(e.snapshot.Phase))
 			if !valid {
 				e.mu.Unlock()
 				return

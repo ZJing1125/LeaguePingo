@@ -44,13 +44,14 @@ func (e *Engine) prepareOptionalProfile(ctx context.Context, client Client, targ
 			break
 		}
 	}
-	stage := e.snapshot.Stage
+	stage := snapshotStage(e.snapshot.Stage)
 	e.mu.RUnlock()
 	if !valid || current.PUUID == "" || automaticProfileFresh(current.Profile) {
 		return
 	}
 	phase, err := client.Phase(automaticCtx)
-	if err != nil || stageForPhase(phase) != stage || (stage == "in-game" && !activeMatch(phase)) {
+	observed := Phase(phase)
+	if err != nil || stageForPhase(observed) != stage || (stage == StageInGame && !activeMatch(observed)) {
 		return
 	}
 	profile := profiles.Profile(automaticCtx, target.PUUID)

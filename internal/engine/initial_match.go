@@ -41,7 +41,7 @@ func (e *Engine) stopInitialMatchLocked() {
 
 func (e *Engine) startInitialMatchLocked() {
 	s := &e.initialMatch
-	if s.parent == nil || s.parent.Err() != nil || e.client == nil || !e.snapshot.Connected || !activeMatch(e.snapshot.Phase) || e.snapshot.GameID == 0 || (e.phaseHint != "" && !activeMatch(e.phaseHint)) {
+	if s.parent == nil || s.parent.Err() != nil || e.client == nil || !e.snapshot.Connected || !activeMatch(snapshotPhase(e.snapshot.Phase)) || e.snapshot.GameID == 0 || (e.phaseHint != PhaseUnknown && !activeMatch(e.phaseHint)) {
 		return
 	}
 	if s.gameID != e.snapshot.GameID {
@@ -54,7 +54,7 @@ func (e *Engine) startInitialMatchLocked() {
 		return
 	}
 	// Wait for actual gameplay and allow bounded identity discovery to finish.
-	if e.snapshot.Phase == "GameStart" || (!completeRoster(e.snapshot.Participants) && e.matchRosterAttempts < inGameRosterAttemptLimit) {
+	if snapshotPhase(e.snapshot.Phase) == PhaseGameStart || (!completeRoster(e.snapshot.Participants) && e.matchRosterAttempts < inGameRosterAttemptLimit) {
 		return
 	}
 	s.started = true
@@ -100,7 +100,7 @@ func (e *Engine) startInitialMatchLocked() {
 }
 
 func (e *Engine) initialMatchValidLocked(version uint64, gameID int64) bool {
-	return e.initialMatch.eligible && e.initialMatch.cancel != nil && e.client != nil && e.clientVersion == version && e.snapshot.Connected && e.snapshot.GameID == gameID && activeMatch(e.snapshot.Phase) && (e.phaseHint == "" || activeMatch(e.phaseHint))
+	return e.initialMatch.eligible && e.initialMatch.cancel != nil && e.client != nil && e.clientVersion == version && e.snapshot.Connected && e.snapshot.GameID == gameID && activeMatch(snapshotPhase(e.snapshot.Phase)) && (e.phaseHint == PhaseUnknown || activeMatch(e.phaseHint))
 }
 
 func (e *Engine) initialMatchValid(version uint64, gameID int64) bool {
@@ -118,7 +118,7 @@ func (e *Engine) prepareInitialMatch(ctx context.Context, version uint64, gameID
 		phaseCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		phase, err := client.Phase(phaseCtx)
 		cancel()
-		if err != nil || !activeMatch(phase) {
+		if err != nil || !activeMatch(Phase(phase)) {
 			return
 		}
 		if ctx.Err() != nil || !e.initialMatchValid(version, gameID) {
@@ -210,7 +210,7 @@ func (e *Engine) finishInitialMatch(version uint64, gameID int64, token uint64) 
 		s.cancel = nil
 	}
 	s.eligible = false
-	if e.clientVersion != version || !e.snapshot.Connected || e.snapshot.GameID != gameID || !activeMatch(e.snapshot.Phase) {
+	if e.clientVersion != version || !e.snapshot.Connected || e.snapshot.GameID != gameID || !activeMatch(snapshotPhase(e.snapshot.Phase)) {
 		return
 	}
 	for i := range e.snapshot.Participants {

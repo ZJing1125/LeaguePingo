@@ -7,12 +7,12 @@ import (
 	"leaguepingo/internal/source"
 )
 
-func (e *Engine) observeAutoAcceptLocked(phase string, at ...time.Time) {
+func (e *Engine) observeAutoAcceptLocked(phase Phase, at ...time.Time) {
 	client, _ := e.client.(source.ReadyCheckSource)
 	if len(at) > 0 {
-		e.autoAccept.ObserveAt(client, e.clientVersion, phase, at[0])
+		e.autoAccept.ObserveAt(client, e.clientVersion, string(phase), at[0])
 	} else {
-		e.autoAccept.Observe(client, e.clientVersion, phase)
+		e.autoAccept.Observe(client, e.clientVersion, string(phase))
 	}
 }
 func (e *Engine) ConfigureAutoAccept(enabled bool, delay int) error {

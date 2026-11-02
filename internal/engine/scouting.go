@@ -100,8 +100,8 @@ func (e *Engine) syncScoutingLocked() {
 	s := &e.scouting
 	// A finished match changes what the range contains: do not resume a cursor
 	// that was read before this result. Freshness still bounds every other case.
-	switch e.snapshot.Phase {
-	case "WaitingForStats", "PreEndOfGame", "EndOfGame":
+	switch snapshotPhase(e.snapshot.Phase) {
+	case PhaseWaitingForStats, PhasePreEndOfGame, PhaseEndOfGame:
 		s.progress = nil
 	}
 	if e.client == nil || !e.snapshot.Connected {
@@ -127,7 +127,7 @@ func (e *Engine) syncScoutingLocked() {
 		s.queue = e.snapshot.QueueID
 	}
 	e.snapshot.ScoutQueue = s.queue
-	if e.client == nil || !e.snapshot.Connected || e.initialMatch.parent == nil || e.initialMatch.parent.Err() != nil || (!preparationStage(e.snapshot.Stage) && !activeMatch(e.snapshot.Phase)) || e.snapshot.Phase == "GameStart" || e.phaseHint != "" && stageForPhase(e.phaseHint) != e.snapshot.Stage {
+	if e.client == nil || !e.snapshot.Connected || e.initialMatch.parent == nil || e.initialMatch.parent.Err() != nil || (!preparationStage(snapshotStage(e.snapshot.Stage)) && !activeMatch(snapshotPhase(e.snapshot.Phase))) || snapshotPhase(e.snapshot.Phase) == PhaseGameStart || e.phaseHint != PhaseUnknown && stageForPhase(e.phaseHint) != snapshotStage(e.snapshot.Stage) {
 		if s.cancel != nil {
 			e.stopScoutingLocked()
 		}
@@ -137,7 +137,7 @@ func (e *Engine) syncScoutingLocked() {
 	if !ok {
 		return
 	}
-	if e.snapshot.Stage == "in-game" && !completeRoster(e.snapshot.Participants) && e.matchRosterAttempts < inGameRosterAttemptLimit {
+	if snapshotStage(e.snapshot.Stage) == StageInGame && !completeRoster(e.snapshot.Participants) && e.matchRosterAttempts < inGameRosterAttemptLimit {
 		return
 	}
 	scope := fmt.Sprintf("%d:%s:%d", e.clientVersion, e.snapshot.Stage, e.snapshot.GameID)
@@ -208,7 +208,7 @@ func (e *Engine) syncScoutingLocked() {
 }
 
 func (e *Engine) scoutValidLocked(version uint64, scope string, token uint64) bool {
-	return e.client != nil && e.snapshot.Connected && e.clientVersion == version && e.scouting.scope == scope && e.scouting.token == token && (e.phaseHint == "" || stageForPhase(e.phaseHint) == e.snapshot.Stage)
+	return e.client != nil && e.snapshot.Connected && e.clientVersion == version && e.scouting.scope == scope && e.scouting.token == token && (e.phaseHint == PhaseUnknown || stageForPhase(e.phaseHint) == snapshotStage(e.snapshot.Stage))
 }
 func (e *Engine) saveScout(version uint64, scope string, token uint64, id string, r core.ScoutReport) bool {
 	e.mu.Lock()

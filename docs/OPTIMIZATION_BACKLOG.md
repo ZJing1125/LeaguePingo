@@ -11,7 +11,7 @@ suggested_repo_path: docs/OPTIMIZATION_BACKLOG.md
 
 # 1. 使用规则（agent 先读）
 
-执行记录（实施起始基线4d57e0b，附件审阅基线cc229e7）：Q1已实施并通过dev推送实跑，见下方记录；Q4建议性staticcheck、govulncheck与npm audit已实施，强制门禁等待Go标准库漏洞随依赖治理清零；F1本地度量已实施，口径与验证见PERFORMANCE.md；F2已核实后端逐人发布链路并补齐前端骨架和逐卡替换回归；S3共享动作执行器已实施并接入自动接受/赛后流程，两个编排循环均小于60行；U1错误码与中文提示、U2降级与有界恢复已实施，协议与验证分别见ERRORS.md、DATA_RECOVERY.md及本提交CI，R1实验性标注与分轮记录已准备；用户已反馈A1/A2/P1/P2没有问题，后续确认跳过可用但继续/返回/开排链条失败，修复版与版本信息及其他项目待补，整体R1未完成；S1回调瘦身/备用入口核验/设置说明已实施，国服反作弊专项待实机；U3启动前依赖检查、静态版本检查、NSIS与证书存储签名代码链已实施，发布证书与干净Win10的I1–I6仍待人工；U4实验性说明、行为边界和一键停用已实施并由前端合成回归覆盖；其余任务尚未实施。该清单是任务输入，原审阅统计与推断不能当作当前事实。其他任务仍按依赖逐项核实；未执行的Windows/国服检查保留未验证状态。
+执行记录（实施起始基线4d57e0b，附件审阅基线cc229e7）：Q1已实施并通过dev推送实跑，见下方记录；Q4建议性staticcheck、govulncheck与npm audit已实施，强制门禁等待Go标准库漏洞随依赖治理清零；F1本地度量已实施，口径与验证见PERFORMANCE.md；F2已核实后端逐人发布链路并补齐前端骨架和逐卡替换回归；S3共享动作执行器已实施并接入自动接受/赛后流程，两个编排循环均小于60行；S4引擎Stage/Phase强类型与集中行为表已实施，对外快照字符串未变；U1错误码与中文提示、U2降级与有界恢复已实施，协议与验证分别见ERRORS.md、DATA_RECOVERY.md及本提交CI，R1实验性标注与分轮记录已准备；用户已反馈A1/A2/P1/P2没有问题，后续确认跳过可用但继续/返回/开排链条失败，修复版与版本信息及其他项目待补，整体R1未完成；S1回调瘦身/备用入口核验/设置说明已实施，国服反作弊专项待实机；U3启动前依赖检查、静态版本检查、NSIS与证书存储签名代码链已实施，发布证书与干净Win10的I1–I6仍待人工；U4实验性说明、行为边界和一键停用已实施并由前端合成回归覆盖；其余任务尚未实施。该清单是任务输入，原审阅统计与推断不能当作当前事实。其他任务仍按依赖逐项核实；未执行的Windows/国服检查保留未验证状态。
 
 Q1首次运行：[40856437383](https://github.com/ZJing1125/LeaguePingo/actions/runs/40856437383)，Linux成功，Windows原生Go检查通过，侧栏720px五卡高度回归失败。已根据日志修复摘要内边距，保留原验收断言。修复提交dd33476的[40857941063](https://github.com/ZJing1125/LeaguePingo/actions/runs/40857941063)两个job全部成功：Windows全包test/vet、绑定生成/一致性、九项浏览器回归、EXE编译及产物审计均通过。EXE只存在runner，未上传、部署或登记为用户已验收；截图保留7天。PR事件配置已做语法检查，未专门新建PR测试。默认分支仍为main，手动触发入口需工作流进入默认分支后才能使用；本批未修改main或默认分支。
 
@@ -236,19 +236,21 @@ id: S4
 title: Stage、Phase 改为带类型的枚举
 priority: P1
 area: design
-status: todo
+status: implemented
 confidence: verified-static
 needs_human: false
-problem: 阶段用裸字符串（"preparing"、"party"、"in-game"、"idle"、"disconnected" 等）分散在 switch 中，拼写错误编译期发现不了。
+problem: 引擎内部Stage与Phase已改为强类型常量并集中映射；对外快照继续使用兼容字符串。
 evidence:
-  - "未找到 type Stage / type Phase 的定义"
-  - internal/engine/engine.go:181 pollInterval
+  - internal/engine/stage.go
+  - internal/engine/stage_test.go
+  - internal/engine/engine.go
 actions:
-  - 定义带类型的常量，并提供集中的"阶段到行为"转换表
-  - 前端快照字段的字符串取值保持不变，避免破坏 Wails 绑定
+  - 已完成：定义Stage/Phase常量、Phase到Stage映射及Stage行为表
+  - 已完成：引擎轮询、事件、选人、恢复、复盘和统计路径不再比较阶段裸字符串
+  - 已保持：core.Snapshot与前端绑定仍使用原字符串取值
 acceptance:
-  - 引擎代码中不再出现阶段的裸字符串比较
-  - frontend/bindings 无意外变化
+  - 引擎产品代码除集中常量定义外不再出现阶段裸字符串
+  - frontend/bindings无需改动，远程Windows绑定一致性继续核验
 depends_on: []
 verify:
   - bash scripts/verify.sh windows

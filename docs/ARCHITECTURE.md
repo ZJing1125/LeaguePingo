@@ -13,6 +13,10 @@ BUG-0073：guides增加固定OP.GG海克斯两公共页面适配，受限Flight 
 BUG-0071/0072新增当前局来源分组字段与独立OP.GG攻略服务。分组优先现有名单，GSM当前局有界补充；攻略由main快照回调观察，独立任务/缓存和revision事件，不进入战绩scheduler。详见[PREMADE_GROUPS.md](PREMADE_GROUPS.md)、[HERO_GUIDES.md](HERO_GUIDES.md)。
 
 
+## BUG-0092 引擎阶段模型
+
+引擎在`stage.go`中集中定义内部`Stage`、客户端`Phase`、Phase到Stage映射和Stage行为。轮询、事件、选人、缓存恢复、复盘和统计任务只比较强类型常量；未知Phase进入idle，未知Stage使用disconnected行为。对外`core.Snapshot`仍保留字符串字段，写入时显式转换，因此Wails绑定和前端协议不随内部类型调整。
+
 ## BUG-0091 自动化动作会话
 
 `internal/actionlane`为自动接受与赛后流程提供共享的本地会话执行器：新会话会取消旧会话，阶段/配置变化令旧令牌失效，跳过保持到明确重置，动作许可同时检查时间窗口与次数。执行器不决定业务阶段或调用端点；`readycheck.Controller`和`postgame.Controller`继续在每次写入前核验各自的客户端状态，并用控制器状态发布完成最终迟到门禁。这样可以复用生命周期规则，同时保留自动接受最多3次/15秒及赛后写入不确定时不重发的现有边界。

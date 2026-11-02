@@ -35,7 +35,7 @@ func (e *Engine) syncReviewLocked() {
 		}
 		e.reviewOwner = s.SelfKey
 	}
-	if s.Connected && s.Phase == "InProgress" && s.GameID > 0 && len(s.Participants) > 0 {
+	if s.Connected && snapshotPhase(s.Phase) == PhaseInProgress && s.GameID > 0 && len(s.Participants) > 0 {
 		if e.reviewCandidate == nil || e.reviewCandidate.GameID != s.GameID {
 			e.stopReviewLocked()
 		}
@@ -43,12 +43,13 @@ func (e *Engine) syncReviewLocked() {
 		return
 	}
 	// Disconnection/reconnection is not evidence of a finished game.
-	if !s.Connected || activeMatch(s.Phase) || s.Phase == "WatchInProgress" || e.reviewCandidate == nil {
+	phase := snapshotPhase(s.Phase)
+	if !s.Connected || activeMatch(phase) || phase == PhaseWatchInProgress || e.reviewCandidate == nil {
 		return
 	}
-	switch s.Phase {
-	case "WaitingForStats", "PreEndOfGame", "EndOfGame", "Lobby", "Matchmaking", "ReadyCheck", "ChampSelect":
-	case "None":
+	switch phase {
+	case PhaseWaitingForStats, PhasePreEndOfGame, PhaseEndOfGame, PhaseLobby, PhaseMatchmaking, PhaseReadyCheck, PhaseChampSelect:
+	case PhaseNone:
 		if s.SelfKey == "" || s.SelfKey != e.reviewCandidate.SelfKey {
 			return
 		}
@@ -155,7 +156,7 @@ func (e *Engine) RefreshReview(ctx context.Context, gameID int64) (core.Snapshot
 	}
 	defer done()
 	e.mu.Lock()
-	if e.review == nil || e.review.GameID != gameID || e.client == nil || activeMatch(e.snapshot.Phase) ||
+	if e.review == nil || e.review.GameID != gameID || e.client == nil || activeMatch(snapshotPhase(e.snapshot.Phase)) ||
 		e.accountIdentity == "" || e.review.SelfKey != e.accountIdentity || e.review.Region != e.client.Region() {
 		e.mu.Unlock()
 		return core.Snapshot{}, apperrors.New(apperrors.MatchNotReady)
@@ -170,7 +171,7 @@ func (e *Engine) RefreshReview(ctx context.Context, gameID int64) (core.Snapshot
 func (e *Engine) fetchReview(ctx context.Context, gameID int64, version, token uint64, client Client, manual bool) error {
 	e.mu.RLock()
 	r := e.review
-	valid := r != nil && r.GameID == gameID && e.reviewToken == token && e.clientVersion == version && e.client != nil && e.snapshot.Connected && !activeMatch(e.snapshot.Phase)
+	valid := r != nil && r.GameID == gameID && e.reviewToken == token && e.clientVersion == version && e.client != nil && e.snapshot.Connected && !activeMatch(snapshotPhase(e.snapshot.Phase))
 	target := ""
 	if valid {
 		for _, p := range r.Participants {
@@ -201,7 +202,7 @@ func (e *Engine) fetchReview(ctx context.Context, gameID int64, version, token u
 	defer release()
 	// Recheck after waiting for a manual operation/new match/account transition.
 	e.mu.RLock()
-	valid = e.reviewToken == token && e.clientVersion == version && e.client != nil && e.snapshot.Connected && !activeMatch(e.snapshot.Phase)
+	valid = e.reviewToken == token && e.clientVersion == version && e.client != nil && e.snapshot.Connected && !activeMatch(snapshotPhase(e.snapshot.Phase))
 	e.mu.RUnlock()
 	if !valid {
 		return apperrors.New(apperrors.StaleData)
@@ -218,7 +219,7 @@ func (e *Engine) fetchReview(ctx context.Context, gameID int64, version, token u
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.reviewToken != token || e.clientVersion != version || e.client == nil || !e.snapshot.Connected || e.review == nil || e.review.GameID != gameID || activeMatch(e.snapshot.Phase) {
+	if e.reviewToken != token || e.clientVersion != version || e.client == nil || !e.snapshot.Connected || e.review == nil || e.review.GameID != gameID || activeMatch(snapshotPhase(e.snapshot.Phase)) {
 		return apperrors.New(apperrors.StaleData)
 	}
 	copy := *e.review

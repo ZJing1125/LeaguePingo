@@ -46,36 +46,38 @@ func (e *Engine) stopPhaseEventsLocked() {
 }
 
 func (e *Engine) observePhase(version, sequence uint64, phase string) {
+	observed := Phase(phase)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.client == nil || e.clientVersion != version || e.phaseWatchSeq != sequence || phase == "" || phase == e.phaseHint {
+	if e.client == nil || e.clientVersion != version || e.phaseWatchSeq != sequence || observed == PhaseUnknown || observed == e.phaseHint {
 		return
 	}
 	e.phaseEpoch++
-	if stageForPhase(phase) != "idle" {
+	stage := stageForPhase(observed)
+	if stage != StageIdle {
 		e.historyRecovery.stop()
 	}
-	e.phaseHint = phase
+	e.phaseHint = observed
 	e.readiness.Phase(phase, time.Now())
-	e.observeAutoAcceptLocked(phase)
+	e.observeAutoAcceptLocked(observed)
 	e.postGame.Hint(version, phase)
-	if !activeMatch(phase) && e.groupCancel != nil {
+	if !activeMatch(observed) && e.groupCancel != nil {
 		e.groupCancel()
 		e.groupCancel = nil
 	}
-	if stageForPhase(phase) != e.snapshot.Stage || phase == "GameStart" {
+	if stage != snapshotStage(e.snapshot.Stage) || observed == PhaseGameStart {
 		e.stopScoutingLocked()
 	}
-	if stageForPhase(phase) != "idle" && e.homeCancel != nil {
+	if stage != StageIdle && e.homeCancel != nil {
 		e.homeCancel()
 	}
-	if !activeMatch(phase) {
+	if !activeMatch(observed) {
 		e.stopInitialMatchLocked()
 	}
-	if phase != "ChampSelect" {
+	if observed != PhaseChampSelect {
 		e.stopChampSelectEventsLocked()
 	}
-	if (!preparationStage(stageForPhase(phase)) || stageForPhase(phase) != e.snapshot.Stage) && e.cancel != nil {
+	if (!preparationStage(stage) || stage != snapshotStage(e.snapshot.Stage)) && e.cancel != nil {
 		e.cancel() // Stop prefetch before waiting for a confirming HTTP response.
 	}
 	select {

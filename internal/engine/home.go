@@ -30,7 +30,7 @@ func (e *Engine) CurrentPlayer(ctx context.Context, connectionID uint64) (core.P
 			break
 		}
 	}
-	idle := e.snapshot.Stage == "idle" && (e.phaseHint == "" || stageForPhase(e.phaseHint) == "idle")
+	idle := snapshotStage(e.snapshot.Stage) == StageIdle && (e.phaseHint == PhaseUnknown || stageForPhase(e.phaseHint) == StageIdle)
 	if !idle || cached {
 		e.mu.Unlock()
 		if !cached {
@@ -56,7 +56,7 @@ func (e *Engine) CurrentPlayer(ctx context.Context, connectionID uint64) (core.P
 		}
 	}
 	result, err := e.loadManualHistoryGuarded(ctx, client, generation, version, player, false, true, func() bool {
-		return ctx.Err() != context.Canceled && e.client != nil && e.clientVersion == version && e.accountIdentity == key && e.snapshot.Stage == "idle" && (e.phaseHint == "" || stageForPhase(e.phaseHint) == "idle")
+		return ctx.Err() != context.Canceled && e.client != nil && e.clientVersion == version && e.accountIdentity == key && snapshotStage(e.snapshot.Stage) == StageIdle && (e.phaseHint == PhaseUnknown || stageForPhase(e.phaseHint) == StageIdle)
 	})
 	// An optional profile timeout must not discard a completed first history.
 	if ctx.Err() != nil && (ctx.Err() == context.Canceled || !historyCached(result)) {

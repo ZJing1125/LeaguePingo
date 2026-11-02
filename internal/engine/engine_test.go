@@ -113,7 +113,7 @@ func TestLocalRosterPollingDoesNotStartPlayerPreparation(t *testing.T) {
 				t.Fatalf("mid-game startup not explained: %+v", snapshot)
 			}
 			expected := 1
-			if activeMatch(phase) {
+			if activeMatch(Phase(phase)) {
 				expected = 2
 			}
 			if len(fake.calls) != expected || fake.calls[0] != "phase" || (expected == 2 && fake.calls[1] != "roster") {
