@@ -24,50 +24,39 @@ func (e *Engine) syncChampSelectEvents(ctx context.Context) {
 		e.stopChampSelectEventsLocked()
 		return
 	}
-	if e.champWatchCancel != nil || (e.champWatchVersion == e.clientVersion && time.Now().Before(e.champWatchRetry)) {
-		return
-	}
 	stream, ok := e.client.(source.ChampSelectEventSource)
 	if !ok {
 		return
 	}
-	watchCtx, cancel := context.WithCancel(ctx)
-	e.champWatchCancel, e.champWatchVersion = cancel, e.clientVersion
-	e.champWatchSeq++
-	version, sequence := e.clientVersion, e.champWatchSeq
+	version := e.clientVersion
+	watchCtx, cancel, sequence, started := e.champEvents.begin(ctx, version, time.Now())
+	if !started {
+		return
+	}
 	go func() {
 		defer cancel()
 		_ = stream.WatchChampSelect(watchCtx, func() { e.observeChampSelect(version, sequence) })
 		e.mu.Lock()
 		defer e.mu.Unlock()
-		if e.clientVersion == version && e.champWatchSeq == sequence {
-			e.champWatchCancel = nil
-			e.champWatchRetry = time.Now().Add(time.Minute)
-			e.champWatchSeq++
+		if e.clientVersion == version {
+			e.champEvents.finish(version, sequence, time.Now(), true)
 		}
 	}()
 }
 
 func (e *Engine) stopChampSelectEventsLocked() {
-	if e.champWatchCancel != nil {
-		e.champWatchCancel()
-	}
-	e.champWatchCancel = nil
-	e.champWatchSeq++
+	e.champEvents.stop(false)
 	e.champEpoch++
 }
 
 func (e *Engine) observeChampSelect(version, sequence uint64) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.client == nil || e.clientVersion != version || e.champWatchSeq != sequence || snapshotStage(e.snapshot.Stage) != StagePreparing || (e.phaseHint != PhaseUnknown && e.phaseHint != PhaseChampSelect) {
+	if e.client == nil || e.clientVersion != version || !e.champEvents.current(sequence) || snapshotStage(e.snapshot.Stage) != StagePreparing || (e.phaseHint != PhaseUnknown && e.phaseHint != PhaseChampSelect) {
 		return
 	}
 	e.champEpoch++
-	select {
-	case e.champWake <- struct{}{}:
-	default:
-	}
+	e.champEvents.notify()
 }
 
 // The event path only verifies phase and the local selection roster. It does
@@ -93,10 +82,7 @@ func (e *Engine) refreshChampSelect(ctx context.Context) {
 			if e.cancel != nil {
 				e.cancel()
 			}
-			select {
-			case e.phaseWake <- struct{}{}:
-			default:
-			}
+			e.phaseEvents.notify()
 		}
 		e.mu.Unlock()
 		return

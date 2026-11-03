@@ -54,17 +54,9 @@ type Engine struct {
 	homeCancel          context.CancelFunc
 	phaseEpoch          uint64
 	phaseHint           Phase
-	phaseWake           chan struct{}
-	phaseWatchCancel    context.CancelFunc
-	phaseWatchVersion   uint64
-	phaseWatchSeq       uint64
-	phaseWatchRetry     time.Time
-	champWake           chan struct{}
-	champWatchCancel    context.CancelFunc
-	champWatchVersion   uint64
-	champWatchSeq       uint64
+	phaseEvents         *eventSubscription
+	champEvents         *eventSubscription
 	champEpoch          uint64
-	champWatchRetry     time.Time
 	scheduler           *requestScheduler
 	prepareToken        uint64
 	prepareRunning      bool
@@ -99,7 +91,7 @@ func NewWithHistoryCache(discover Discoverer, onChange func(core.Snapshot), path
 }
 
 func newEngine(discover Discoverer, onChange func(core.Snapshot)) *Engine {
-	e := &Engine{discover: discover, onChange: onChange, lookupGate: make(chan struct{}, 1), phaseWake: make(chan struct{}, 1), champWake: make(chan struct{}, 1), scheduler: newScheduler(), cache: map[string]core.Participant{}, aliases: map[string]string{}, snapshot: core.Snapshot{Stage: string(StageDisconnected), UpdatedAt: time.Now(), Participants: []core.Participant{}}}
+	e := &Engine{discover: discover, onChange: onChange, lookupGate: make(chan struct{}, 1), phaseEvents: newEventSubscription(), champEvents: newEventSubscription(), scheduler: newScheduler(), cache: map[string]core.Participant{}, aliases: map[string]string{}, snapshot: core.Snapshot{Stage: string(StageDisconnected), UpdatedAt: time.Now(), Participants: []core.Participant{}}}
 	e.autoAccept = readycheck.New()
 	e.historyRecovery.updates = make(chan core.Participant, 64)
 	e.postGame = postgame.New()
@@ -167,12 +159,12 @@ func (e *Engine) Run(ctx context.Context) {
 			e.syncPhaseEvents(ctx)
 			e.syncChampSelectEvents(ctx)
 			timer.Reset(e.pollInterval())
-		case <-e.phaseWake:
+		case <-e.phaseEvents.wake:
 			e.poll(ctx)
 			e.syncPhaseEvents(ctx)
 			e.syncChampSelectEvents(ctx)
 			timer.Reset(e.pollInterval())
-		case <-e.champWake:
+		case <-e.champEvents.wake:
 			if champTick == nil {
 				champTimer = time.NewTimer(250 * time.Millisecond)
 				champTick = champTimer.C
@@ -402,7 +394,7 @@ func (e *Engine) invalidateConnectionLocked() {
 	e.stopInitialMatchLocked()
 	e.stopPhaseEventsLocked()
 	e.stopChampSelectEventsLocked()
-	e.champWatchRetry = time.Time{}
+	e.champEvents.resetRetry()
 	e.phaseHint = ""
 	e.clientVersion++
 	e.accountIdentity = ""

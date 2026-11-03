@@ -105,7 +105,7 @@ func TestInGameHomeIdentityComesFromAlreadyReadLocalRoster(t *testing.T) {
 
 func TestPhaseEventCancelsHomeBeforeConfirmingPoll(t *testing.T) {
 	e := New(nil, nil)
-	e.client, e.clientVersion, e.phaseWatchSeq = &fakeClient{}, 1, 1
+	e.client, e.clientVersion, e.phaseEvents.sequence = &fakeClient{}, 1, 1
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	e.homeCancel = cancel

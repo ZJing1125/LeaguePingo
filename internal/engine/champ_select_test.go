@@ -86,7 +86,7 @@ func TestSelectionRejectsStalePollManualAndEventResponses(t *testing.T) {
 		t.Run(operation, func(t *testing.T) {
 			e, c := selectionFixture()
 			c.selection[0].ChampionID = 24
-			c.onRead = func() { e.observeChampSelect(e.clientVersion, e.champWatchSeq) }
+			c.onRead = func() { e.observeChampSelect(e.clientVersion, e.champEvents.sequence) }
 			switch operation {
 			case "poll":
 				e.poll(context.Background())
@@ -110,21 +110,21 @@ func TestSelectionRejectsStalePollManualAndEventResponses(t *testing.T) {
 
 func TestSelectionRejectsOldSessionsAndStopsOnPhaseHint(t *testing.T) {
 	e, c := selectionFixture()
-	version, sequence := e.clientVersion, e.champWatchSeq
+	version, sequence := e.clientVersion, e.champEvents.sequence
 	e.observeChampSelect(version-1, sequence)
 	e.observeChampSelect(version, sequence-1)
-	if len(e.champWake) != 0 {
+	if len(e.champEvents.wake) != 0 {
 		t.Fatal("old connection callback accepted")
 	}
 	for i := 0; i < 1000; i++ {
 		e.observeChampSelect(version, sequence)
 	}
-	if len(e.champWake) != 1 {
+	if len(e.champEvents.wake) != 1 {
 		t.Fatal("unbounded selection queue")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	e.champWatchCancel = cancel
-	e.observePhase(e.clientVersion, e.phaseWatchSeq, "InProgress")
+	e.champEvents.cancel = cancel
+	e.observePhase(e.clientVersion, e.phaseEvents.sequence, "InProgress")
 	if ctx.Err() == nil {
 		t.Fatal("selection watcher not cancelled by game start")
 	}
@@ -134,7 +134,7 @@ func TestSelectionRejectsOldSessionsAndStopsOnPhaseHint(t *testing.T) {
 		t.Fatal("selection read started after phase exit")
 	}
 	e.observeChampSelect(version, sequence)
-	if e.champWatchCancel != nil {
+	if e.champEvents.cancel != nil {
 		t.Fatal("late callback restarted watcher")
 	}
 }
@@ -152,7 +152,7 @@ func TestSelectionFailureRetainsDataAndWatchCooldown(t *testing.T) {
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
 		e.mu.RLock()
-		failed := !e.champWatchRetry.IsZero()
+		failed := !e.champEvents.retry.IsZero()
 		e.mu.RUnlock()
 		if failed {
 			break
@@ -177,7 +177,7 @@ func TestSelectionPhaseVerificationCannotStartReadAfterExitNotification(t *testi
 	e, c := selectionFixture()
 	before := c.reads.Load()
 	c.phaseFn = func() (string, error) {
-		e.observePhase(e.clientVersion, e.phaseWatchSeq, "InProgress")
+		e.observePhase(e.clientVersion, e.phaseEvents.sequence, "InProgress")
 		return "ChampSelect", nil
 	}
 	e.refreshChampSelect(context.Background())

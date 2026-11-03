@@ -113,7 +113,7 @@ func TestFailedPhaseWatchIsCooledDownAndPollingStillWorks(t *testing.T) {
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
 		e.mu.RLock()
-		failed := !e.phaseWatchRetry.IsZero()
+		failed := !e.phaseEvents.retry.IsZero()
 		e.mu.RUnlock()
 		if failed {
 			break
@@ -138,16 +138,16 @@ func TestFailedPhaseWatchIsCooledDownAndPollingStillWorks(t *testing.T) {
 func TestPhaseEventsRejectLateConnectionsAndCoalesce(t *testing.T) {
 	e := New(nil, nil)
 	e.client = &fakeClient{}
-	e.clientVersion, e.phaseWatchSeq = 2, 10
+	e.clientVersion, e.phaseEvents.sequence = 2, 10
 	e.observePhase(1, 10, "InProgress")
 	e.observePhase(2, 9, "InProgress")
-	if e.phaseEpoch != 0 || len(e.phaseWake) != 0 {
+	if e.phaseEpoch != 0 || len(e.phaseEvents.wake) != 0 {
 		t.Fatal("late stream mutated current connection")
 	}
 	for i := 0; i < 1000; i++ {
 		e.observePhase(2, 10, "InProgress")
 	}
-	if len(e.phaseWake) != 1 || e.phaseEpoch != 1 {
+	if len(e.phaseEvents.wake) != 1 || e.phaseEpoch != 1 {
 		t.Fatal("duplicate phases built an unbounded queue")
 	}
 }
@@ -155,13 +155,13 @@ func TestPhaseEventsRejectLateConnectionsAndCoalesce(t *testing.T) {
 func TestPhaseEventDiscardsOlderInFlightPhaseResponse(t *testing.T) {
 	e := New(nil, nil)
 	fake := &fakeClient{phase: "ChampSelect"}
-	e.client, e.clientVersion, e.phaseWatchSeq = fake, 2, 10
+	e.client, e.clientVersion, e.phaseEvents.sequence = fake, 2, 10
 	fake.phaseFn = func() (string, error) {
 		e.observePhase(2, 10, "InProgress")
 		return "ChampSelect", nil
 	}
 	e.poll(context.Background())
-	if e.Snapshot().Phase == "ChampSelect" || e.prepareRunning || len(e.phaseWake) != 1 {
+	if e.Snapshot().Phase == "ChampSelect" || e.prepareRunning || len(e.phaseEvents.wake) != 1 {
 		t.Fatal("old HTTP response restarted preparation after game-start event")
 	}
 }
