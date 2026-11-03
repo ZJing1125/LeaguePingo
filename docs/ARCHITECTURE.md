@@ -1,5 +1,7 @@
 # 架构与技术选型
 
+S8：main仅执行WebView2前置检查、创建生命周期、显式传入资源并运行desktopApplication。桌面对象统一持有桥接、窗口、输入/客户端监控及取消依赖；组装先进行单实例检查再创建服务和窗口。desktop_app负责组装/托盘/关闭，desktop_controls负责侧栏与设置，desktop_workers负责快照/事件转发与启动后的调度。原事件名、辅助WebView懒创建、UI线程调度、快捷键回滚及退出取消顺序保留。
+
 F3：完整ID/已选玩家重新打开时，同连接过期内存历史也先返回原记录与时间，复用既有12秒合并后台首批刷新和PlayerUpdates；不重复确认已核验身份。失败不改变原fetchedAt，强制刷新保留同步语义；后台排队前、取槽后及写回复核连接/阶段。首页和磁盘分页的已有缓存策略继续复用，详见PERFORMANCE。
 
 U2：source共享SGP冷却门只决定是否允许读取，不内部轮询/阻塞等待。engine提供受配额的单次RetryHistory与有界本地PlayerUpdates，保留资料与服务状态独立时钟；UI只在允许的活动场景调度有限恢复，分页重试仍在原操作预算内。见[DATA_RECOVERY.md](DATA_RECOVERY.md)。
