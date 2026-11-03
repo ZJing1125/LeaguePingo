@@ -155,6 +155,7 @@ func (s *AppService) ConfigureAutoAccept(enabled bool, delay int) (serviceValue 
 		s.settings.SetAutoAccept(old.AutoAcceptEnabled, old.AutoAcceptDelay)
 		return AppInfo{}, err
 	}
+	// The controller can only reject a delay, already validated above.
 	_ = s.engine.ConfigureAutoAccept(enabled, delay)
 	return s.Info(), nil
 }
@@ -177,6 +178,7 @@ func (s *AppService) ConfigurePostGame(ret, queue bool, delay int, skipHonor boo
 		s.settings.SetSkipHonor(old.AutoSkipHonor)
 		return AppInfo{}, err
 	}
+	// The controller can only reject a delay, already validated above.
 	_ = s.engine.ConfigurePostGame(ret, queue, delay, skipHonor)
 	return s.Info(), nil
 }

@@ -15,6 +15,7 @@ import (
 
 	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/core"
+	"leaguepingo/internal/diagnostics"
 )
 
 type Service struct {
@@ -400,7 +401,18 @@ func (s *Service) trimMemory() {
 }
 func (s *Service) save(key string, g *Guide) {
 	s.trimMemory()
-	if s.dir == "" || os.MkdirAll(s.dir, 0700) != nil {
+	if s.dir == "" {
+		return
+	}
+	started, failed := time.Now(), true
+	defer func() {
+		status := 200
+		if failed {
+			status = 500
+		}
+		diagnostics.Default.Record("/guide-cache/write", time.Since(started), status, failed)
+	}()
+	if os.MkdirAll(s.dir, 0700) != nil {
 		return
 	}
 	raw, err := json.Marshal(g)
@@ -408,10 +420,17 @@ func (s *Service) save(key string, g *Guide) {
 		return
 	}
 	path := filepath.Join(s.dir, key+".json")
-	if os.WriteFile(path+".tmp", raw, 0600) == nil {
-		_ = os.Rename(path+".tmp", path)
+	temporary := path + ".tmp"
+	defer os.Remove(temporary) // Only the temporary file created by this write.
+	if os.WriteFile(temporary, raw, 0600) != nil || os.Rename(temporary, path) != nil {
+		return // The already-normalized in-memory guide remains usable.
 	}
-	entries, _ := os.ReadDir(s.dir)
+	failed = false
+	entries, err := os.ReadDir(s.dir)
+	if err != nil {
+		failed = true
+		return
+	}
 	type file struct {
 		name string
 		t    time.Time
@@ -424,11 +443,15 @@ func (s *Service) save(key string, g *Guide) {
 		}
 		if info, err := e.Info(); err == nil {
 			files = append(files, file{n, info.ModTime()})
+		} else {
+			failed = true
 		}
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].t.Before(files[j].t) })
 	for len(files) > 128 {
-		_ = os.Remove(filepath.Join(s.dir, files[0].name))
+		if err := os.Remove(filepath.Join(s.dir, files[0].name)); err != nil && !os.IsNotExist(err) {
+			failed = true
+		}
 		files = files[1:]
 	}
 }

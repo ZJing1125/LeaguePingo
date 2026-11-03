@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"leaguepingo/internal/core"
+	"leaguepingo/internal/diagnostics"
 )
 
 type fakeProvider struct {
@@ -18,6 +19,35 @@ type fakeProvider struct {
 	calls int
 	fail  bool
 	block chan struct{}
+}
+
+func TestGuideCacheWriteFailureKeepsMemoryAndRemovesOwnTemporaryFile(t *testing.T) {
+	q := Query{Mode: "aram-mayhem", Champion: 3}
+	g := &Guide{Query: q, FetchedAt: time.Now(), SourceURL: "https://op.gg/zh-cn/lol/champions/galio/aram-mayhem"}
+	key, dir := cacheKey(q), t.TempDir()
+	s := &Service{dir: dir, cache: map[string]*Guide{key: g}}
+	// A nonempty destination directory makes Rename fail on Windows and Unix.
+	blocker := filepath.Join(dir, key+".json")
+	if err := os.Mkdir(blocker, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(blocker, "preserve"), []byte("synthetic"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	before := diagnostics.Default.Snapshot()["guide-cache-write"].Failed
+	s.save(key, g)
+	if s.cached(q) != g {
+		t.Fatal("optional disk failure discarded the available guide")
+	}
+	if _, err := os.Stat(filepath.Join(dir, key+".json.tmp")); !os.IsNotExist(err) {
+		t.Fatal("failed write left its temporary file")
+	}
+	if _, err := os.Stat(filepath.Join(blocker, "preserve")); err != nil {
+		t.Fatal("cache cleanup touched an existing unrelated entry")
+	}
+	if next := diagnostics.Default.Snapshot()["guide-cache-write"]; next.Failed != before+1 || next.LastStatus != 500 {
+		t.Fatal("cache failure was not recorded safely")
+	}
 }
 
 type timeoutProvider struct{}

@@ -140,9 +140,12 @@ func (s *Store) Save() error {
 	}
 	return nil
 }
+
+var shortcutPattern = regexp.MustCompile(`^CTRL\+SHIFT\+[A-Z]$`)
+
 func NormalizeShortcut(key string) (string, error) {
 	key = strings.ToUpper(strings.TrimSpace(key))
-	if !regexp.MustCompile(`^CTRL\+SHIFT\+[A-Z]$`).MatchString(key) {
+	if !shortcutPattern.MatchString(key) {
 		return "", apperrors.New(apperrors.InvalidShortcut)
 	}
 	return "Ctrl+Shift+" + key[len(key)-1:], nil
