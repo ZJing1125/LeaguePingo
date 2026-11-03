@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "moduleResolution": "Bundler" },
+  "include": ["src/**/*.ts", "src/**/*.vue", "bindings", "tests/unit/**/*.ts"]
+}

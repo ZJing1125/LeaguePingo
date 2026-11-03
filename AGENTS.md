@@ -14,6 +14,8 @@
 
 ## 产品与架构边界
 
+- Q3 / BUG-0096：前端纯逻辑测试固定使用Vitest 5.1.0，`npm --prefix frontend run test:unit`先按tsconfig.unit.json类型检查再运行。portable与Windows verify共用该强制入口，保留既有test:smoke和组件工作台入口。分页单测挂载实际Vue生命周期，只模拟Wails桥接；不得连接游戏、要求浏览器或以重写业务逻辑替代实际模块。类型/单测失败必须阻断构建，workflow策略防止移除门禁。
+
 - S7 / BUG-0095：SGP页缓存为512页/15秒TTL的LRU，仅淘汰过期页或最久未使用页；64个首页游标逐人淘汰及清理该身份分页，不得容量一满整表清空。首页仍重新读取，变化只失效该玩家分页，并拒绝首页变化前发出的迟到分页。sgpMu只保护内存，不在锁内读取本机授权或远端HTTP；同类授权刷新合并，entitlements与league-session独立等待且不混用。历史/段位/详情/组队各有最多4个远端在途请求，等待计入原ctx预算、可取消且取槽后重查冷却。会话epoch与gate版本隔离换号迟到响应，禁止旧响应回填缓存/授权或覆盖新冷却。可信当前大区HTTPS、禁重定向、8MiB响应限制及已有请求/整轮预算不变。
 
 - S6 / BUG-0094：`history-cache.json` schema 3最多8 MiB、64个身份/每人50页；按更新时间保留可装入上限的最新身份，编码在锁外对深拷贝快照完成，只有版本未变化才把淘汰结果回写内存。身份键必须使用独立0600本地32字节随机密钥的HMAC-SHA256；schema 1/2、密钥丢失或损坏文件全部丢弃旧摘要并重建，不能复用无密钥SHA-256。写临时文件、fsync、关闭和最多3次Rename任一步失败都计入固定`history-cache-write`脱敏诊断，不记录路径、身份或错误原文。仅持久化去姓名HistoryPage摘要，原PUUID、Riot ID、授权、Profile、Scout、对局详情、时间线和原始响应仍禁止落盘；重启后仍须由当前客户端重新核验PUUID才可HMAC命中。

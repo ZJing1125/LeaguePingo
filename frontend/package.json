@@ -11,17 +11,19 @@
     "test:components": "node tests/component-preview.cjs",
     "preview:components": "npm --prefix preview run dev",
     "build:components": "npm --prefix preview run build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:unit": "vue-tsc --project tsconfig.unit.json && vitest run"
   },
   "dependencies": {
     "@wailsio/runtime": "3.0.0-beta.29",
     "vue": "^3.2.45"
   },
   "devDependencies": {
-    "playwright": "1.62.1",
     "@vitejs/plugin-vue": "^6.0.0",
+    "playwright": "1.62.1",
     "typescript": "~5.9.3",
     "vite": "^8.0.5",
+    "vitest": "5.1.0",
     "vue-tsc": "^3.3.12"
   }
 }

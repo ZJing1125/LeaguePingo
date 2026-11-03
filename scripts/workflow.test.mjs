@@ -27,6 +27,7 @@ test('policy regression mutations are rejected', () => {
     ['scripts/dev.sh', '-o artifacts/hot-reload/leaguepingo-hot-reload.exe', '-o bin/leaguepingo.exe'],
     ['scripts/verify.sh', 'scripts/workflow.test.mjs', ''],
     ['scripts/verify.sh', 'scripts/version.test.mjs', ''],
+    ['scripts/verify.sh', 'npm --prefix frontend run test:unit', 'echo skipped unit tests'],
     ['scripts/package-windows.sh', 'node scripts/artifacts.mjs current', 'echo unverified'],
     ['scripts/sign-windows.sh', '"$task_signtool" verify', 'echo trusted'],
     ['scripts/audit-player-data.sh', 'LEAGUEPINGO_LIVE_DATA_AUDIT=1', ''],

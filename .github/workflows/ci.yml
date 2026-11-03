@@ -48,7 +48,7 @@ jobs:
       - name: Install frontend dependencies (locked)
         run: npm --prefix frontend ci
 
-      # 内容：workflow 策略检查、脚本测试、前端 vue-tsc + 生产构建、
+      # 内容：workflow 策略检查、脚本测试、前端单元测试 + vue-tsc + 生产构建、
       # go test/vet ./internal/...、git diff --check
       - name: Portable verification
         run: bash scripts/verify.sh portable
