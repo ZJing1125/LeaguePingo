@@ -1,6 +1,7 @@
 package source
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"sync"
@@ -10,14 +11,54 @@ import (
 	"leaguepingo/internal/core"
 )
 
-// serviceGate gives one SGP feature its own cooldown and serialises only its own
-// requests. History, rank and match detail must not share a gate: a slow page
-// used to hold the single global mutex and the shared cooldown, so an unrelated
-// rank or detail read failed with it.
+const sgpChannelConcurrency = 4
+
+// serviceGate gives one SGP feature its own cooldown and bounded request lane.
+// History, rank and match detail must not share a gate: a slow page used to hold
+// the single global mutex and the shared cooldown, so an unrelated rank or detail
+// read failed with it.
 type serviceGate struct {
-	mu       sync.Mutex
-	cooldown serviceCooldown
+	mu         sync.Mutex
+	cooldown   serviceCooldown
+	generation uint64
+	limit      int
+	once       sync.Once
+	slots      chan struct{}
 }
+
+func (g *serviceGate) acquire(ctx context.Context) error {
+	if ctx.Err() != nil {
+		return apperrors.Request(ctx, ctx.Err(), apperrors.DataService)
+	}
+	if err := g.blocked(time.Now()); err != nil {
+		return err
+	}
+	g.once.Do(func() {
+		limit := g.limit
+		if limit <= 0 {
+			limit = sgpChannelConcurrency
+		}
+		g.slots = make(chan struct{}, limit)
+	})
+	select {
+	case g.slots <- struct{}{}:
+	case <-ctx.Done():
+		return apperrors.Request(ctx, ctx.Err(), apperrors.DataService)
+	}
+	if ctx.Err() != nil {
+		g.release()
+		return apperrors.Request(ctx, ctx.Err(), apperrors.DataService)
+	}
+	// A rejection can open the channel cooldown while this request waits for a
+	// slot. Recheck before doing any network I/O.
+	if err := g.blocked(time.Now()); err != nil {
+		g.release()
+		return err
+	}
+	return nil
+}
+
+func (g *serviceGate) release() { <-g.slots }
 
 func (g *serviceGate) blocked(now time.Time) error {
 	g.mu.Lock()
@@ -31,9 +72,33 @@ func (g *serviceGate) failed(err error, retryAfter string, now time.Time) error 
 	return g.cooldown.failed(err, retryAfter, now)
 }
 
-func (g *serviceGate) clear() {
+func (g *serviceGate) reset() {
 	g.mu.Lock()
+	g.generation++
 	g.cooldown = serviceCooldown{}
+	g.mu.Unlock()
+}
+
+func (g *serviceGate) version() uint64 {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.generation
+}
+
+func (g *serviceGate) failedFor(version uint64, err error, retryAfter string, now time.Time) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if version != g.generation {
+		return apperrors.New(apperrors.StaleData)
+	}
+	return g.cooldown.failed(err, retryAfter, now)
+}
+
+func (g *serviceGate) clearFor(version uint64) {
+	g.mu.Lock()
+	if version == g.generation {
+		g.cooldown = serviceCooldown{}
+	}
 	g.mu.Unlock()
 }
 

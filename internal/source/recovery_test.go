@@ -43,6 +43,41 @@ func TestServiceCooldownBackoffAndRetryAfter(t *testing.T) {
 	}
 }
 
+func TestServiceGateLimitsOnlyItsOwnChannel(t *testing.T) {
+	gate := serviceGate{limit: 1}
+	if err := gate.acquire(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	blocked := make(chan error, 1)
+	go func() { blocked <- gate.acquire(ctx) }()
+
+	other := serviceGate{limit: 1}
+	if err := other.acquire(context.Background()); err != nil {
+		t.Fatalf("independent channel was blocked: %v", err)
+	}
+	other.release()
+	if err := <-blocked; !errors.Is(err, context.DeadlineExceeded) || apperrors.CodeOf(err) != apperrors.RequestTimeout {
+		t.Fatalf("same channel bypassed its limit: %v", err)
+	}
+	gate.release()
+}
+
+func TestServiceGateResetDiscardsLateFailuresAndSuccesses(t *testing.T) {
+	var gate serviceGate
+	previous := gate.version()
+	gate.reset()
+	if err := gate.failedFor(previous, apperrors.HTTP(apperrors.DataService, 429), "60", time.Now()); apperrors.CodeOf(err) != apperrors.StaleData || gate.blocked(time.Now()) != nil {
+		t.Fatal("old rejection poisoned the new session")
+	}
+	gate.failed(apperrors.HTTP(apperrors.DataService, 429), "60", time.Now())
+	gate.clearFor(previous)
+	if gate.blocked(time.Now()) == nil {
+		t.Fatal("old success bypassed the new session cooldown")
+	}
+}
+
 func TestOutageRetainsLocalHistoryAndGateCoversOtherPlayers(t *testing.T) {
 	remoteCalls, localHistory, tokenReads := 0, 0, 0
 	c := lcu.NewClient(lcu.Credentials{Port: 12345})

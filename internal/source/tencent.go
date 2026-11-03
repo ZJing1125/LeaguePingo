@@ -17,17 +17,20 @@ import (
 )
 
 type TencentLCU struct {
-	client    *lcu.Client
-	selfMu    sync.Mutex
-	selfPUUID string
-	sgpMu     sync.Mutex
-	sgp       *sgpHistory
-	channels  sgpChannels
-	queueID   atomic.Int32
-	metaMu    sync.Mutex
-	meta      SessionMetadata
-	masteryMu sync.Mutex
-	masteries map[string]cachedMastery
+	client      *lcu.Client
+	selfMu      sync.Mutex
+	selfPUUID   string
+	sgpMu       sync.Mutex
+	sgp         *sgpHistory
+	sgpEpoch    uint64
+	historyAuth sgpAuthLane
+	rankAuth    sgpAuthLane
+	channels    sgpChannels
+	queueID     atomic.Int32
+	metaMu      sync.Mutex
+	meta        SessionMetadata
+	masteryMu   sync.Mutex
+	masteries   map[string]cachedMastery
 }
 
 func (*TencentLCU) Region() string { return "CN" }
@@ -40,18 +43,19 @@ func (s *TencentLCU) ResetIdentity() {
 	s.selfPUUID = ""
 	s.selfMu.Unlock()
 	s.sgpMu.Lock()
+	s.sgpEpoch++
 	if s.sgp != nil {
 		s.sgp.token, s.sgp.origin, s.sgp.platform = "", "", ""
 		s.sgp.leagueToken = ""
 		s.sgp.expires, s.sgp.leagueExpires = time.Time{}, time.Time{}
-		s.sgp.pages = nil
+		s.sgp.pages.clear()
 		s.sgp.heads = nil
 	}
 	s.sgpMu.Unlock()
-	s.channels.history.clear()
-	s.channels.rank.clear()
-	s.channels.detail.clear()
-	s.channels.group.clear()
+	s.channels.history.reset()
+	s.channels.rank.reset()
+	s.channels.detail.reset()
+	s.channels.group.reset()
 	s.masteryMu.Lock()
 	s.masteries = nil
 	s.masteryMu.Unlock()

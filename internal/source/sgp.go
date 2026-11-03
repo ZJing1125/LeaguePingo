@@ -1,6 +1,7 @@
 package source
 
 import (
+	"container/list"
 	"context"
 	"encoding/json"
 	"errors"
@@ -25,8 +26,8 @@ type sgpHistory struct {
 	expires                 time.Time
 	leagueToken             string
 	leagueExpires           time.Time
-	pages                   map[string]cachedSGPPage
-	heads                   map[string]int64
+	pages                   sgpPageCache
+	heads                   map[string]cachedSGPHead
 }
 
 // One gate per SGP feature: a stalled history scan no longer shares a lock or a
@@ -36,9 +37,87 @@ type sgpChannels struct {
 }
 
 type cachedSGPPage struct {
+	key     string
 	page    core.HistoryPage
 	expires time.Time
 }
+
+type cachedSGPHead struct {
+	gameID int64
+	usedAt time.Time
+}
+
+const sgpPageCacheCapacity = 512
+const sgpHeadCacheCapacity = 64
+const sgpPageCacheTTL = 15 * time.Second
+
+type sgpPageCache struct {
+	items map[string]*list.Element
+	order list.List
+}
+
+func (c *sgpPageCache) get(key string, now time.Time) (core.HistoryPage, bool) {
+	if c.items == nil {
+		return core.HistoryPage{}, false
+	}
+	element, ok := c.items[key]
+	if !ok {
+		return core.HistoryPage{}, false
+	}
+	entry := element.Value.(cachedSGPPage)
+	if !now.Before(entry.expires) {
+		c.remove(element)
+		return core.HistoryPage{}, false
+	}
+	c.order.MoveToFront(element)
+	return entry.page, true
+}
+
+func (c *sgpPageCache) put(key string, page core.HistoryPage, now time.Time) {
+	if c.items == nil {
+		c.items = make(map[string]*list.Element, sgpPageCacheCapacity)
+	}
+	for candidate, element := range c.items {
+		if !now.Before(element.Value.(cachedSGPPage).expires) {
+			delete(c.items, candidate)
+			c.order.Remove(element)
+		}
+	}
+	entry := cachedSGPPage{key: key, page: page, expires: now.Add(sgpPageCacheTTL)}
+	if element, ok := c.items[key]; ok {
+		element.Value = entry
+		c.order.MoveToFront(element)
+		return
+	}
+	c.items[key] = c.order.PushFront(entry)
+	for len(c.items) > sgpPageCacheCapacity {
+		c.remove(c.order.Back())
+	}
+}
+
+func (c *sgpPageCache) removePrefix(prefix string) {
+	for key, element := range c.items {
+		if strings.HasPrefix(key, prefix) {
+			delete(c.items, key)
+			c.order.Remove(element)
+		}
+	}
+}
+
+func (c *sgpPageCache) remove(element *list.Element) {
+	if element == nil {
+		return
+	}
+	delete(c.items, element.Value.(cachedSGPPage).key)
+	c.order.Remove(element)
+}
+
+func (c *sgpPageCache) clear() {
+	c.items = nil
+	c.order.Init()
+}
+
+func (c *sgpPageCache) len() int { return len(c.items) }
 
 // Caller holds sgpMu. History and ranked stats share the verified origin and
 // transport, but their authorization tokens are different and never swapped.
@@ -59,11 +138,7 @@ func (s *TencentLCU) sgpClientLocked() *sgpHistory {
 	return r
 }
 
-func (s *TencentLCU) ensureSGPOrigin(ctx context.Context, r *sgpHistory) error {
-	if r.origin != "" && ((r.token != "" && time.Now().Before(r.expires)) || (r.leagueToken != "" && time.Now().Before(r.leagueExpires))) {
-		_, err := trustedSGPOrigin(r.platform, r.origin)
-		return err
-	}
+func (s *TencentLCU) fetchSGPOrigin(ctx context.Context) (string, string, error) {
 	var auth struct {
 		Platform string `json:"currentPlatformId"`
 	}
@@ -77,22 +152,17 @@ func (s *TencentLCU) ensureSGPOrigin(ctx context.Context, r *sgpHistory) error {
 	} {
 		raw, err := s.client.Get(ctx, item.path)
 		if err != nil {
-			return err
+			return "", "", err
 		}
 		if json.Unmarshal(raw, item.target) != nil {
-			return apperrors.New(apperrors.InvalidResponse)
+			return "", "", apperrors.New(apperrors.InvalidResponse)
 		}
 	}
 	origin, err := trustedSGPOrigin(auth.Platform, configured)
 	if err != nil {
-		return err
+		return "", "", err
 	}
-	if r.origin != origin || r.platform != auth.Platform {
-		r.token, r.leagueToken = "", ""
-		r.pages, r.heads = nil, nil
-	}
-	r.origin, r.platform = origin, auth.Platform
-	return nil
+	return origin, auth.Platform, nil
 }
 
 var tencentPlatform = regexp.MustCompile(`^[A-Z][A-Z0-9]{1,11}$`)
@@ -119,34 +189,32 @@ func (s *TencentLCU) sgpSummaryPage(ctx context.Context, puuid string, offset in
 	if err := gate.blocked(time.Now()); err != nil {
 		return core.HistoryPage{}, err
 	}
+	version := gate.version()
 	path := "/match-history-query/v1/products/lol/player/" + url.PathEscape(puuid) + "/SUMMARY?" + url.Values{"startIndex": {fmt.Sprint(offset)}, "count": {"20"}}.Encode()
+	session, err := s.sgpSession(ctx, false, gate)
+	if err != nil {
+		return core.HistoryPage{}, gate.failedFor(version, err, "", time.Now())
+	}
 	s.sgpMu.Lock()
-	r := s.sgpClientLocked()
-	if err := s.ensureHistorySession(ctx, r); err != nil {
+	if !s.sessionValidLocked(session) {
 		s.sgpMu.Unlock()
-		return core.HistoryPage{}, gate.failed(err, "", time.Now())
+		return core.HistoryPage{}, apperrors.New(apperrors.StaleData)
 	}
-	if cached, ok := r.pages[path]; offset > 0 && ok && time.Now().Before(cached.expires) {
+	r := session.client
+	headBefore, hadHead := r.heads[puuid]
+	if cached, ok := r.pages.get(path, time.Now()); offset > 0 && ok {
 		s.sgpMu.Unlock()
-		return cached.page, nil
+		return cached, nil
 	}
-	origin, token, platform := r.origin, r.token, r.platform
 	s.sgpMu.Unlock()
 
 	// The request itself runs outside sgpMu: a slow history page must not block
 	// the rank, detail or grouping channels.
-	raw, status, err := r.getAuthorized(ctx, origin, path, token, "/sgp-history", gate)
-	if status == http.StatusUnauthorized || status == http.StatusForbidden {
-		s.sgpMu.Lock()
-		if r.token == token {
-			r.token = ""
-		}
-		s.sgpMu.Unlock()
-	}
+	raw, err := s.getSGPAuthorized(ctx, session, path, "/sgp-history", gate)
 	if err != nil {
 		return core.HistoryPage{}, err
 	}
-	result, err := core.ParseSGPHistory(raw, puuid, platform)
+	result, err := core.ParseSGPHistory(raw, puuid, session.platform)
 	if err != nil {
 		return core.HistoryPage{}, err
 	}
@@ -156,6 +224,12 @@ func (s *TencentLCU) sgpSummaryPage(ctx context.Context, puuid string, offset in
 	page := core.HistoryPage{Matches: result.Matches, Meta: result.Meta, Offset: offset, NextOffset: offset + result.Meta.Returned, HasMore: result.Meta.Returned == 20}
 	s.sgpMu.Lock()
 	defer s.sgpMu.Unlock()
+	if ctx.Err() != nil || !s.sessionValidLocked(session) {
+		return core.HistoryPage{}, apperrors.New(apperrors.StaleData)
+	}
+	if headAfter, hasHead := r.heads[puuid]; offset > 0 && (hadHead != hasHead || headBefore.gameID != headAfter.gameID) {
+		return core.HistoryPage{}, apperrors.New(apperrors.StaleData)
+	}
 	if offset == 0 {
 		var head int64
 		if len(result.Matches) > 0 {
@@ -163,52 +237,47 @@ func (s *TencentLCU) sgpSummaryPage(ctx context.Context, puuid string, offset in
 		}
 		r.rememberHead(puuid, head)
 	}
-	if r.pages == nil || len(r.pages) >= 512 {
-		r.pages = map[string]cachedSGPPage{}
-	}
-	r.pages[path] = cachedSGPPage{page: page, expires: time.Now().Add(15 * time.Second)}
+	r.pages.put(path, page, time.Now())
 	return page, nil
 }
 
-func (s *TencentLCU) ensureHistorySession(ctx context.Context, r *sgpHistory) error {
-	if r.token == "" || time.Now().After(r.expires) {
-		if err := s.ensureSGPOrigin(ctx, r); err != nil {
-			return err
-		}
-		var token struct {
-			Access string `json:"accessToken"`
-		}
-		raw, err := s.client.Get(ctx, "/entitlements/v1/token")
-		if err != nil {
-			return err
-		}
-		if json.Unmarshal(raw, &token) != nil || token.Access == "" || len(token.Access) > 32768 || strings.ContainsAny(token.Access, "\r\n") {
-			return apperrors.New(apperrors.NotLoggedIn)
-		}
-		r.token, r.expires = token.Access, time.Now().Add(2*time.Minute)
-	}
-	return nil
-}
-
 func (r *sgpHistory) rememberHead(puuid string, head int64) {
-	if r.heads == nil || len(r.heads) >= 64 {
-		r.heads = map[string]int64{}
-		r.pages = nil
+	now := time.Now()
+	if r.heads == nil {
+		r.heads = make(map[string]cachedSGPHead, sgpHeadCacheCapacity)
 	}
-	if previous, ok := r.heads[puuid]; ok && previous != head {
+	if previous, ok := r.heads[puuid]; !ok || previous.gameID != head {
 		prefix := "/match-history-query/v1/products/lol/player/" + url.PathEscape(puuid) + "/SUMMARY?"
-		for key := range r.pages {
-			if strings.HasPrefix(key, prefix) {
-				delete(r.pages, key)
+		r.pages.removePrefix(prefix)
+	}
+	if _, exists := r.heads[puuid]; !exists && len(r.heads) >= sgpHeadCacheCapacity {
+		var oldestKey string
+		var oldest time.Time
+		for key, candidate := range r.heads {
+			if oldestKey == "" || candidate.usedAt.Before(oldest) {
+				oldestKey, oldest = key, candidate.usedAt
 			}
 		}
+		delete(r.heads, oldestKey)
+		r.pages.removePrefix("/match-history-query/v1/products/lol/player/" + url.PathEscape(oldestKey) + "/SUMMARY?")
 	}
-	r.heads[puuid] = head
+	r.heads[puuid] = cachedSGPHead{gameID: head, usedAt: now}
 }
 
 func (r *sgpHistory) getAuthorized(ctx context.Context, origin, path, token, category string, gate *serviceGate) (raw []byte, status int, resultErr error) {
-	if err := gate.blocked(time.Now()); err != nil {
+	return r.getAuthorizedChecked(ctx, origin, path, token, category, gate, nil)
+}
+
+func (r *sgpHistory) getAuthorizedChecked(ctx context.Context, origin, path, token, category string, gate *serviceGate, check func() error) (raw []byte, status int, resultErr error) {
+	if err := gate.acquire(ctx); err != nil {
 		return nil, apperrors.Status(err), err
+	}
+	defer gate.release()
+	version := gate.version()
+	if check != nil {
+		if err := check(); err != nil {
+			return nil, 0, err
+		}
 	}
 	started := time.Now()
 	defer func() {
@@ -222,22 +291,22 @@ func (r *sgpHistory) getAuthorized(ctx context.Context, origin, path, token, cat
 	req.Header.Set("Authorization", "Bearer "+token)
 	response, err := r.http.Do(req)
 	if err != nil {
-		return nil, 0, gate.failed(apperrors.Request(ctx, err, apperrors.DataService), "", time.Now())
+		return nil, 0, gate.failedFor(version, apperrors.Request(ctx, err, apperrors.DataService), "", time.Now())
 	}
 	defer response.Body.Close()
 	if response.StatusCode != 200 {
-		return nil, response.StatusCode, gate.failed(apperrors.HTTP(apperrors.DataService, response.StatusCode), response.Header.Get("Retry-After"), time.Now())
+		return nil, response.StatusCode, gate.failedFor(version, apperrors.HTTP(apperrors.DataService, response.StatusCode), response.Header.Get("Retry-After"), time.Now())
 	}
 	raw, err = io.ReadAll(io.LimitReader(response.Body, (8<<20)+1))
 	if err != nil || len(raw) > 8<<20 {
 		if ctx.Err() != nil {
-			return nil, response.StatusCode, gate.failed(apperrors.Normalize(ctx.Err(), apperrors.InvalidResponse), "", time.Now())
+			return nil, response.StatusCode, gate.failedFor(version, apperrors.Normalize(ctx.Err(), apperrors.InvalidResponse), "", time.Now())
 		}
 		if err != nil {
-			return nil, response.StatusCode, gate.failed(apperrors.Normalize(err, apperrors.InvalidResponse), "", time.Now())
+			return nil, response.StatusCode, gate.failedFor(version, apperrors.Normalize(err, apperrors.InvalidResponse), "", time.Now())
 		}
 		return nil, response.StatusCode, apperrors.New(apperrors.InvalidResponse)
 	}
-	gate.clear()
+	gate.clearFor(version)
 	return raw, response.StatusCode, nil
 }

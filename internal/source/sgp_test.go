@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"leaguepingo/internal/apperrors"
+	"leaguepingo/internal/core"
 	"leaguepingo/internal/lcu"
 )
 
@@ -153,8 +154,49 @@ func TestSGPScoutingAndBrowseSharePagesButChangedHeadInvalidatesCursorCache(t *t
 		t.Fatal("browse did not reuse matching scouting page")
 	}
 	s.ResetIdentity()
-	if len(r.pages) > 0 || len(r.heads) > 0 {
+	if r.pages.len() > 0 || len(r.heads) > 0 {
 		t.Fatal("account reset retained player cursors")
+	}
+}
+
+func TestSGPPageCacheUsesTTLAndLRUWithoutWholeCacheClear(t *testing.T) {
+	var cache sgpPageCache
+	now := time.Date(2026, 11, 2, 8, 0, 0, 0, time.UTC)
+	for i := 0; i < sgpPageCacheCapacity; i++ {
+		cache.put(fmt.Sprintf("page-%03d", i), core.HistoryPage{Offset: i}, now)
+	}
+	if _, ok := cache.get("page-000", now.Add(time.Second)); !ok {
+		t.Fatal("LRU cache lost a live entry")
+	}
+	cache.put("page-new", core.HistoryPage{Offset: 999}, now.Add(time.Second))
+	if cache.len() != sgpPageCacheCapacity {
+		t.Fatalf("page cache size = %d", cache.len())
+	}
+	if _, ok := cache.get("page-001", now.Add(time.Second)); ok {
+		t.Fatal("LRU cache did not evict the least recently used page")
+	}
+	if _, ok := cache.get("page-000", now.Add(time.Second)); !ok {
+		t.Fatal("adding one page cleared unrelated cache entries")
+	}
+	if _, ok := cache.get("page-000", now.Add(sgpPageCacheTTL+time.Second)); ok {
+		t.Fatal("expired SGP page remained reusable")
+	}
+}
+
+func TestSGPHeadLimitDoesNotClearUnrelatedPages(t *testing.T) {
+	var history sgpHistory
+	now := time.Now()
+	for i := 0; i <= sgpHeadCacheCapacity; i++ {
+		player := fmt.Sprintf("player-%02d", i)
+		path := "/match-history-query/v1/products/lol/player/" + player + "/SUMMARY?startIndex=20"
+		history.rememberHead(player, int64(i+1))
+		history.pages.put(path, core.HistoryPage{Offset: 20}, now)
+	}
+	if len(history.heads) != sgpHeadCacheCapacity {
+		t.Fatalf("head cache size = %d", len(history.heads))
+	}
+	if history.pages.len() != sgpHeadCacheCapacity {
+		t.Fatal("head bookkeeping cleared unrelated live pages")
 	}
 }
 

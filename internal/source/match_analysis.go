@@ -3,7 +3,6 @@ package source
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"time"
 
 	"leaguepingo/internal/apperrors"
@@ -16,23 +15,12 @@ func (s *TencentLCU) sgpGameData(ctx context.Context, gameID int64, kind, catego
 	if err := gate.blocked(time.Now()); err != nil {
 		return nil, "", err
 	}
-	s.sgpMu.Lock()
-	r := s.sgpClientLocked()
-	if err := s.ensureHistorySession(ctx, r); err != nil {
-		s.sgpMu.Unlock()
+	session, err := s.sgpSession(ctx, false, gate)
+	if err != nil {
 		return nil, "", err
 	}
-	origin, token, platform := r.origin, r.token, r.platform
-	s.sgpMu.Unlock()
-	raw, status, err := r.getAuthorized(ctx, origin, fmt.Sprintf("/match-history-query/v1/products/lol/%s_%d/%s", platform, gameID, kind), token, category, gate)
-	if status == http.StatusUnauthorized || status == http.StatusForbidden {
-		s.sgpMu.Lock()
-		if r.token == token {
-			r.token = ""
-		}
-		s.sgpMu.Unlock()
-	}
-	return raw, platform, err
+	raw, err := s.getSGPAuthorized(ctx, session, fmt.Sprintf("/match-history-query/v1/products/lol/%s_%d/%s", session.platform, gameID, kind), category, gate)
+	return raw, session.platform, err
 }
 
 func (s *TencentLCU) MatchTimeline(ctx context.Context, detail core.MatchDetail, target string) (core.MatchTimeline, error) {

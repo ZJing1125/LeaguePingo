@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"net/url"
 	"strings"
 
+	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/core"
 )
 
@@ -23,9 +25,26 @@ func (s *TencentLCU) Grouping(ctx context.Context, gameID int64) ([]core.Partici
 }
 
 func (s *TencentLCU) requestGrouping(ctx context.Context, self string, gameID int64, local *sgpHistory) ([]core.Participant, error) {
-	if err := s.ensureSGPOrigin(ctx, local); err != nil {
+	gate := &s.channels.group
+	if err := gate.blocked(time.Now()); err != nil {
 		return nil, err
 	}
+	s.sgpMu.Lock()
+	epoch := s.sgpEpoch
+	s.sgpMu.Unlock()
+	check := func() error {
+		s.sgpMu.Lock()
+		defer s.sgpMu.Unlock()
+		if s.sgpEpoch != epoch {
+			return apperrors.New(apperrors.StaleData)
+		}
+		return nil
+	}
+	origin, platform, err := s.fetchSGPOrigin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	local.origin, local.platform = origin, platform
 	tokenRaw, err := s.client.Get(ctx, "/lol-league-session/v1/league-session-token")
 	if err != nil {
 		return nil, err
@@ -35,8 +54,11 @@ func (s *TencentLCU) requestGrouping(ctx context.Context, self string, gameID in
 		return nil, errors.New("当前对局授权不可用")
 	}
 	local.token = token
-	raw, _, err := local.getAuthorized(ctx, local.origin, "/gsm/v1/ledge/region/"+url.PathEscape(local.platform)+"/puuid/"+url.PathEscape(self), token, "/sgp-group", &s.channels.group)
+	raw, _, err := local.getAuthorizedChecked(ctx, local.origin, "/gsm/v1/ledge/region/"+url.PathEscape(local.platform)+"/puuid/"+url.PathEscape(self), token, "/sgp-group", gate, check)
 	if err != nil {
+		return nil, err
+	}
+	if err := check(); err != nil {
 		return nil, err
 	}
 	return parseCurrentGrouping(raw, self, gameID)
