@@ -1,5 +1,7 @@
 # 前端迭代与组件预览
 
+U5：ConnectionGuide在首页未连接时显示启动国服客户端、完成登录、保持助手运行三步；使用原主题、局部样式及uiText文案，无弹窗、焦点或网络副作用。home-theme覆盖首次离线启动、断线旧资料、重连收起、亮暗主题及880/1280宽度；只读指引不改变后台查询策略。uiText仅开始集中新增文案，U8仍待全量处理。
+
 Q3：`npm --prefix frontend run test:unit`先以tsconfig.unit.json检查测试类型，再通过固定Vitest 5.1.0在Node环境运行tests/unit。当前19项测试覆盖historyBrowser的实际Vue生命周期/缓存/扫描/迟到隔离和presentation的缺失值/统计/输入/错误展示；只模拟Wails桥接，不连接游戏，不需要浏览器。scripts/verify.sh在portable及Windows路径都强制执行，workflow策略拒绝移除。生产test:smoke仍负责浏览器交互和布局，两者不代替国服验收。
 
 S1：游戏辅助设置补充“只监听已配置的按键，不记录其他输入”与主窗/托盘手动入口说明，不增桥接或设置字段；overlay-smoke核对说明与禁用按住后手动按钮仍调用ToggleOverlay，原设置保存失败/焦点回归保留。见HOLD_INPUT.md。

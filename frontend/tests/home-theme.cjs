@@ -78,6 +78,8 @@ async function main() {
     }
     await page.goto("http://127.0.0.1:43202/");
     await page.locator(".home-account h2").filter({ hasText: self.displayName }).waitFor();
+    const connectionGuide = page.getByRole('region', { name: '连接游戏客户端', exact: true });
+    assert.equal(await connectionGuide.count(), 0, 'connected home must not show connection instructions');
     assert.equal(await nav.getByRole("button", { name: "首页", exact: true }).getAttribute("aria-current"), "page");
     assert.equal(await page.locator(".home-match").count(), 20);
     const homeSidebar = page.locator(".home-ranks");
@@ -222,18 +224,35 @@ async function main() {
       assert(await page.locator(".home-workspace").evaluate(el => el.scrollWidth <= el.clientWidth + 1), "home overflow");
       await screenshot(`dark-${size.width}`);
     }
+    before = calls.length;
+    const backgroundBeforeDisconnect = backgroundCalls.length;
     snapshot.connected = false; snapshot.generation++;
     await emit();
+    await connectionGuide.waitFor();
+    assert.deepEqual(await connectionGuide.getByRole('listitem').allTextContents(), [
+      '1启动腾讯国服英雄联盟客户端',
+      '2完成登录，进入客户端首页',
+      '3保持 LeaguePingo 运行，等待自动连接',
+    ]);
+    assert.equal(await page.getByRole('dialog').count(), 0, 'connection instructions must not block cached browsing');
     assert((await page.locator(".home-account").innerText()).includes("旧资料"));
-    before = calls.length;
-    await theme.selectOption("light"); await resolved("light");
-    assert.equal(calls.length, before);
+    for (const selectedTheme of ['dark', 'light']) {
+      await theme.selectOption(selectedTheme); await resolved(selectedTheme);
+      for (const width of [880, 1280]) {
+        await page.setViewportSize({width, height: 800});
+        assert(await connectionGuide.evaluate(el => el.scrollWidth <= el.clientWidth + 1), 'connection guide overflow');
+        await screenshot(`connection-guide-${selectedTheme}-${width}`);
+      }
+    }
+    assert.equal(calls.length, before, 'connection instructions requested data');
+    assert.equal(backgroundCalls.length, backgroundBeforeDisconnect, 'connection instructions launched history scanning');
     // A new account cannot inherit the previous user's data; a failed load does
     // not restart on every snapshot, theme change or navigation.
     snapshot = { ...snapshot, connected: true, connectionId: 2, selfKey: "synthetic-new", phase: "None", stage: "idle", generation: snapshot.generation + 1, participants: [] };
     failHome = true;
     await emit();
     await page.locator(".home-error").waitFor();
+    assert.equal(await connectionGuide.count(), 0, 'instructions must disappear on reconnect even if player data is unavailable');
     assert(!(await page.locator(".home-account").innerText()).includes("我的合成账号"));
     before = calls.filter(c => c === "CurrentPlayer").length;
     await emit(); await nav.getByRole("button", { name: "对局室", exact: true }).click(); await nav.getByRole("button", { name: "首页", exact: true }).click();
@@ -279,6 +298,18 @@ async function main() {
         assert.equal(calls.filter(c => c === 'Lookup').length, lookups + 1);
       }
     }
+    // First launch has no cached account. The same inline guide remains usable
+    // without requesting CurrentPlayer or opening a modal.
+    snapshot = { ...snapshot, connected: false, selfKey: '', participants: [], generation: snapshot.generation + 1 };
+    const homeCallsBeforeOfflineLaunch = calls.filter(call => call === 'CurrentPlayer').length;
+    await page.reload();
+    await connectionGuide.waitFor();
+    assert.equal(await page.locator('.home-avatar-empty').count(), 1, 'offline first launch must show an empty account');
+    assert.equal(await page.getByRole('dialog').count(), 0);
+    await nav.getByRole('button', {name: '游戏辅助', exact: true}).click();
+    await nav.getByRole('button', {name: '首页', exact: true}).click();
+    await connectionGuide.waitFor();
+    assert.equal(calls.filter(call => call === 'CurrentPlayer').length, homeCallsBeforeOfflineLaunch, 'offline first launch requested player data');
     assert.deepEqual(errors, []); assert.deepEqual(external, []);
     console.log("PASS: home ownership/one-shot preparation/cache/refresh/failure/account switch, light/dark/system/persistence, settings focus and 1280/1100/880 layouts; no external requests (synthetic bridge).");
   } finally { await browser.close(); }

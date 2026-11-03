@@ -12,6 +12,7 @@ import RankPanel from './RankPanel.vue';
 import ChampionAnalysis from './ChampionAnalysis.vue';
 import PlaystylePanel from './PlaystylePanel.vue';
 import MasteryPanel from './MasteryPanel.vue';
+import ConnectionGuide from './ConnectionGuide.vue';
 
 import RecentForm from "./RecentForm.vue";
 import HistoryNotice from "./HistoryNotice.vue";
@@ -47,6 +48,7 @@ const historyMessage = computed(() => !props.snapshot?.connected ? "连接游戏
       <div class="home-account"><ParticipantAvatar v-if="player" :player="player" account :size="64" /><span v-else class="home-avatar-empty"><AppIcon name="user" :size="30" /></span><div><span class="home-account-caption">{{ snapshot?.connected ? "当前账号" : "等待客户端" }}</span><h2>{{ player ? playerName(player) : snapshot?.connected ? loading ? "正在识别玩家" : "账号资料待获取" : "启动并登录英雄联盟" }}</h2><p><span v-if="player?.profile?.level != null">等级 {{ player.profile.level }} · </span>{{ status.split(" · ")[0] }}<span v-if="player?.stale || !snapshot?.connected && player"> · 旧资料</span></p><span v-if="player?.privacyState === 'private'" class="home-privacy">生涯不公开</span></div></div>
       <div class="home-form-summary"><div class="home-form-last"><span>最近表现</span><RecentForm v-if="matches.length" :matches="matches"/><span v-else>等待战绩</span><small>{{sampleLabel}}</small></div></div>
     </div>
+    <ConnectionGuide v-if="!snapshot?.connected" />
     <p v-if="error" class="error-banner home-error" role="status">{{ error }}</p>
     <div class="home-grid">
       <aside class="home-ranks">
