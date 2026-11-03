@@ -1,5 +1,7 @@
 # 架构与技术选型
 
+F3：完整ID/已选玩家重新打开时，同连接过期内存历史也先返回原记录与时间，复用既有12秒合并后台首批刷新和PlayerUpdates；不重复确认已核验身份。失败不改变原fetchedAt，强制刷新保留同步语义；后台排队前、取槽后及写回复核连接/阶段。首页和磁盘分页的已有缓存策略继续复用，详见PERFORMANCE。
+
 U2：source共享SGP冷却门只决定是否允许读取，不内部轮询/阻塞等待。engine提供受配额的单次RetryHistory与有界本地PlayerUpdates，保留资料与服务状态独立时钟；UI只在允许的活动场景调度有限恢复，分页重试仍在原操作预算内。见[DATA_RECOVERY.md](DATA_RECOVERY.md)。
 
 U1：apperrors提供固定错误码与Go/TS共用中文目录。底层按HTTP/上下文类型分类，AppService命名error返回统一Present，配合Wails MarshalError保护message与cause；前端只按码映射。快照/攻略/原生窗口警告在发布前归一，显式导出仅包含最多128桶服务/码/状态/计数。无原文或新增请求/重试，见[ERRORS.md](ERRORS.md)。

@@ -842,12 +842,16 @@ func (e *Engine) lookup(ctx context.Context, riotID string, force bool) (core.Pa
 	cacheID := e.aliases[normalizeID(riotID)]
 	entry, hasEntry := e.cache[cacheID]
 	e.mu.RUnlock()
-	if !force && hasEntry && (client == nil || cacheFresh(entry)) {
-		return e.enrichCachedProfile(ctx, cachedPlayer(entry, client == nil)), nil
+	if !force && hasEntry {
+		if player, ok := e.reuseLookupHistory(ctx, client, generation, version, entry); ok {
+			return player, nil
+		}
 	}
 	for _, p := range cached.Participants {
-		if !force && normalizeID(p.DisplayName) == normalizeID(riotID) && historyCached(p) && (client == nil || (p.ConnectionID == version && !p.Stale && cacheFresh(p))) {
-			return e.enrichCachedProfile(ctx, cachedPlayer(p, client == nil)), nil
+		if !force && normalizeID(p.DisplayName) == normalizeID(riotID) {
+			if player, ok := e.reuseLookupHistory(ctx, client, generation, version, p); ok {
+				return player, nil
+			}
 		}
 	}
 	if client == nil {
@@ -904,8 +908,10 @@ func (e *Engine) lookupPlayer(ctx context.Context, key string, force bool) (core
 	if !core.IsKnownPUUID(player.PUUID) {
 		return core.Participant{}, apperrors.New(apperrors.PlayerIdentityUnavailable)
 	}
-	if !force && historyCached(player) && (client == nil || cacheFresh(player)) {
-		return e.enrichCachedProfile(ctx, cachedPlayer(player, client == nil)), nil
+	if !force {
+		if cached, ok := e.reuseLookupHistory(ctx, client, snapshot.Generation, version, player); ok {
+			return cached, nil
+		}
 	}
 	if client == nil {
 		return core.Participant{}, source.ErrNotConnected
@@ -1103,6 +1109,10 @@ func (e *Engine) hydrateHistory(player *core.Participant) bool {
 
 func (e *Engine) refreshHydratedHistory(client Client, generation, version uint64, player core.Participant) {
 	e.mu.Lock()
+	if e.client == nil || e.clientVersion != version || player.ConnectionID != version {
+		e.mu.Unlock()
+		return
+	}
 	if e.historyRecovery.background == nil {
 		e.historyRecovery.background = map[string]*historyRecoveryEntry{}
 	}
@@ -1129,6 +1139,12 @@ func (e *Engine) refreshHydratedHistory(client Client, generation, version uint6
 			e.mu.Unlock()
 		}()
 		history, err := e.scheduler.history(ctx, fmt.Sprintf("%d:%s", version, player.PUUID), false, func(request context.Context) (core.HistoryResult, error) {
+			e.mu.RLock()
+			current := e.client != nil && e.clientVersion == version && e.phaseEpoch == epoch
+			e.mu.RUnlock()
+			if !current {
+				return core.HistoryResult{}, apperrors.New(apperrors.StaleData)
+			}
 			return client.History(request, player.PUUID)
 		})
 		e.mu.Lock()

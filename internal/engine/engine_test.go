@@ -642,8 +642,16 @@ func TestManualCacheExpiryRefreshAndFailurePreservesData(t *testing.T) {
 	}
 	old := time.Now().Add(-6 * time.Minute)
 	e.cache["manual"] = func() core.Participant { p := e.cache["manual"]; p.HistoryMeta.FetchedAt = &old; return p }()
-	if _, err = e.Lookup(context.Background(), "Manual#TEST"); err != nil || len(fake.calls) == before {
-		t.Fatal("expired cache prevented refresh")
+	if p, err = e.Lookup(context.Background(), "Manual#TEST"); err != nil || !p.Cached || !p.Stale || !p.HistoryMeta.FetchedAt.Equal(old) {
+		t.Fatal("expired cache did not return immediately with its original age")
+	}
+	select {
+	case <-e.PlayerUpdates():
+	case <-time.After(time.Second):
+		t.Fatal("expired cache did not refresh in the background")
+	}
+	if len(fake.calls) != before+1 || fake.calls[len(fake.calls)-1] != "history" {
+		t.Fatal("background refresh repeated identity lookup")
 	}
 	fake.historyFn = func(context.Context, string) (core.HistoryResult, error) {
 		return core.HistoryResult{}, errors.New("temporary failure")

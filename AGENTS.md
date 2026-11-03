@@ -14,6 +14,8 @@
 
 ## 产品与架构边界
 
+- F3 / BUG-0097：完整ID别名或已选玩家命中本连接已核验的过期历史时立即返回旧记录、原fetchedAt及Cached/Stale，复用既有按身份合并的12秒可取消低优先级首批刷新；不得先重查身份或等待完整历史。刷新成功发布PlayerUpdates，失败保留数据/时间并单独更新checkedAt/service。显式RefreshLookup/RefreshPlayer/RefreshData仍同步执行；后台任务在排队前、取槽后和写回前复核连接/phaseEpoch，换号/离阶段拒绝迟到。首页与磁盘页已有策略继续复用，不新增定时轮询/扫描或扩大落盘内容。
+
 - Q3 / BUG-0096：前端纯逻辑测试固定使用Vitest 5.1.0，`npm --prefix frontend run test:unit`先按tsconfig.unit.json类型检查再运行。portable与Windows verify共用该强制入口，保留既有test:smoke和组件工作台入口。分页单测挂载实际Vue生命周期，只模拟Wails桥接；不得连接游戏、要求浏览器或以重写业务逻辑替代实际模块。类型/单测失败必须阻断构建，workflow策略防止移除门禁。
 
 - S7 / BUG-0095：SGP页缓存为512页/15秒TTL的LRU，仅淘汰过期页或最久未使用页；64个首页游标逐人淘汰及清理该身份分页，不得容量一满整表清空。首页仍重新读取，变化只失效该玩家分页，并拒绝首页变化前发出的迟到分页。sgpMu只保护内存，不在锁内读取本机授权或远端HTTP；同类授权刷新合并，entitlements与league-session独立等待且不混用。历史/段位/详情/组队各有最多4个远端在途请求，等待计入原ctx预算、可取消且取槽后重查冷却。会话epoch与gate版本隔离换号迟到响应，禁止旧响应回填缓存/授权或覆盖新冷却。可信当前大区HTTPS、禁重定向、8MiB响应限制及已有请求/整轮预算不变。
