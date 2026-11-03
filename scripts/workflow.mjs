@@ -9,7 +9,7 @@ export const policyFiles = ['AGENTS.md', 'Taskfile.yml', 'build/windows/Taskfile
   'scripts/dev.sh', 'scripts/verify.sh', 'scripts/audit-player-data.sh', 'docs/ci/verify.yml.example',
   'scripts/package-windows.sh', 'scripts/sign-windows.sh', 'scripts/verify-installer.sh', 'scripts/version.mjs',
   'frontend/package.json', 'frontend/preview/package.json', 'frontend/preview/histoire.config.ts',
-  '.github/workflows/ci.yml'];
+  '.github/workflows/ci.yml', '.github/dependabot.yml'];
 
 // A deliberately restricted policy check, not a general YAML parser. Keep
 // entry tasks simple and also test their expansion with the real Wails runner.
@@ -117,6 +117,19 @@ export function checkWorkflow(read) {
   // Fixed CI entry points. The Windows job delegates verification to build.sh
   // exactly once; a green portable job is never desktop verification.
   const ci = contents['.github/workflows/ci.yml'];
+  const actions = [...ci.matchAll(/^\s*- uses:\s*(\S+)/gm)].map(m => m[1]);
+  if (!actions.length || actions.some(action => !/^actions\/(checkout|setup-go|setup-node|cache|upload-artifact)@[a-f0-9]{40}$/.test(action))) {
+    throw new Error('CI actions must use reviewed official actions pinned to a full commit SHA');
+  }
+  const dependencies = contents['.github/dependabot.yml'];
+  for (const text of ['version: 2', 'multi-ecosystem-groups:', 'package-ecosystem: gomod', 'package-ecosystem: npm', 'package-ecosystem: github-actions', 'directory: "/frontend"', 'directory: "/frontend/preview"', 'timezone: Asia/Shanghai']) {
+    requireText('.github/dependabot.yml', text);
+  }
+  const updates = dependencies.split(/^  - package-ecosystem:/m).slice(1);
+  if (updates.length !== 4 || updates.some(block => !/^    target-branch: dev$/m.test(block)) ||
+      (dependencies.match(/^    multi-ecosystem-group: desktop$/gm) || []).length !== 2) {
+    throw new Error('Dependency updates must target dev and review product Go/npm dependencies together');
+  }
   for (const text of ['branches: [dev]', 'branches: [dev, main]', 'contents: read',
     'needs: portable', 'runs-on: ubuntu-latest', 'runs-on: windows-latest',
     'run: bash scripts/verify.sh portable', 'git status --porcelain -- frontend/bindings',

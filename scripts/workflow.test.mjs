@@ -71,6 +71,24 @@ test('CI preserves managed build, binding verification and opt-in executable upl
     assert.throws(() => checkWorkflow(f => f === file ? changed : files[f]), undefined, before);
   }
 });
+test('dependency updates stay coupled on dev and CI actions stay pinned', () => {
+  const ci = '.github/workflows/ci.yml';
+  const unpinned = files[ci].replace(/actions\/checkout@[a-f0-9]{40}/, 'actions/checkout@v4');
+  assert.notEqual(unpinned, files[ci]);
+  assert.throws(() => checkWorkflow(f => f === ci ? unpinned : files[f]));
+  const config = '.github/dependabot.yml';
+  for (const [before, after] of [
+    ['target-branch: dev', 'target-branch: main'],
+    ['multi-ecosystem-group: desktop', 'multi-ecosystem-group: separated'],
+    ['directory: "/frontend/preview"', 'directory: "/frontend"'],
+    ['multi-ecosystem-groups:', 'disabled-groups:'],
+  ]) {
+    assert.ok(files[config].includes(before), before);
+    const changed = files[config].replace(before, after);
+    assert.throws(() => checkWorkflow(f => f === config ? changed : files[f]), undefined, before);
+  }
+});
+
 test('component preview routes cannot become product or desktop delivery entry points', () => {
   for (const [file, change] of [
     ['frontend/package.json', json => { json.scripts['build:components'] = 'wails3 build'; }],
