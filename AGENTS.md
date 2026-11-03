@@ -14,6 +14,8 @@
 
 ## 产品与架构边界
 
+- F4 / BUG-0098：四个SGP通道共用serviceGate的退避规则，基线5/15/45/60秒，增加0–20%非负抖动且本机等待封顶60秒；服务端更长Retry-After优先，重叠拒绝不得缩短已有等待。每个请求记录连接版本及拒绝序号，限流前发出的迟到成功不得清除新冷却；只有后续获准请求成功才清除。冷却时拒绝新/排队调用，不刷新授权或增加网络计数。保留S7每通道4个在途上限、U2降级、原操作预算与各业务重试次数，不将此策略套到客户端写动作。
+
 - F3 / BUG-0097：完整ID别名或已选玩家命中本连接已核验的过期历史时立即返回旧记录、原fetchedAt及Cached/Stale，复用既有按身份合并的12秒可取消低优先级首批刷新；不得先重查身份或等待完整历史。刷新成功发布PlayerUpdates，失败保留数据/时间并单独更新checkedAt/service。显式RefreshLookup/RefreshPlayer/RefreshData仍同步执行；后台任务在排队前、取槽后和写回前复核连接/phaseEpoch，换号/离阶段拒绝迟到。首页与磁盘页已有策略继续复用，不新增定时轮询/扫描或扩大落盘内容。
 
 - Q3 / BUG-0096：前端纯逻辑测试固定使用Vitest 5.1.0，`npm --prefix frontend run test:unit`先按tsconfig.unit.json类型检查再运行。portable与Windows verify共用该强制入口，保留既有test:smoke和组件工作台入口。分页单测挂载实际Vue生命周期，只模拟Wails桥接；不得连接游戏、要求浏览器或以重写业务逻辑替代实际模块。类型/单测失败必须阻断构建，workflow策略防止移除门禁。

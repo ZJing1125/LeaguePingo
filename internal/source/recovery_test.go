@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,7 +17,7 @@ import (
 func TestServiceCooldownBackoffAndRetryAfter(t *testing.T) {
 	now := time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
 	for _, status := range []int{401, 429, 500, 503} {
-		var gate serviceCooldown
+		gate := serviceCooldown{jitter: func(time.Duration) time.Duration { return 0 }}
 		for i, delay := range []time.Duration{5 * time.Second, 15 * time.Second, 45 * time.Second, time.Minute} {
 			err := gate.failed(apperrors.HTTP(apperrors.DataService, status), "", now)
 			if apperrors.RetryAt(err) == nil || !apperrors.RetryAt(err).Equal(now.Add(delay)) || gate.failures != i+1 {
@@ -40,6 +42,112 @@ func TestServiceCooldownBackoffAndRetryAfter(t *testing.T) {
 		if gate.blocked(now) != nil || gate.failures != 0 {
 			t.Fatal("retried cancellation/permanent failure")
 		}
+	}
+}
+
+func TestServiceBackoffJitterNeverShortensWaitOrExceedsCap(t *testing.T) {
+	now := time.Now()
+	for _, maximum := range []bool{false, true} {
+		gate := serviceCooldown{jitter: func(spread time.Duration) time.Duration {
+			if maximum {
+				return spread
+			}
+			return 0
+		}}
+		for _, base := range []time.Duration{5 * time.Second, 15 * time.Second, 45 * time.Second, time.Minute} {
+			err := gate.failed(apperrors.HTTP(apperrors.DataService, 429), "", now)
+			wait := apperrors.RetryAt(err).Sub(now)
+			if wait < base || wait > min(base+base/5, time.Minute) {
+				t.Fatalf("jitter escaped its bounds: %v", wait)
+			}
+			now = gate.until
+		}
+	}
+	gate := serviceCooldown{}
+	err := gate.failed(apperrors.HTTP(apperrors.DataService, 429), "120", now)
+	if apperrors.RetryAt(err).Before(now.Add(2 * time.Minute)) {
+		t.Fatal("jitter bypassed Retry-After")
+	}
+}
+
+func TestConcurrentRejectionsCannotShortenServerWait(t *testing.T) {
+	now := time.Now()
+	gate := serviceCooldown{jitter: func(time.Duration) time.Duration { return 0 }}
+	first := gate.failed(apperrors.HTTP(apperrors.DataService, 429), "120", now)
+	next := gate.failed(apperrors.HTTP(apperrors.DataService, 503), "", now.Add(time.Second))
+	if apperrors.RetryAt(next).Before(*apperrors.RetryAt(first)) {
+		t.Fatal("overlapping rejection bypassed the longer server wait")
+	}
+}
+
+func TestRateLimitSurvivesConcurrentSuccessAndStopsRequestBurst(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	started, release := make(chan struct{}), make(chan struct{})
+	defer func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	}()
+	var calls atomic.Int32
+	r := &sgpHistory{http: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		calls.Add(1)
+		if req.URL.Path == "/delayed-success" {
+			close(started)
+			select {
+			case <-release:
+			case <-req.Context().Done():
+				return nil, req.Context().Err()
+			}
+			return jsonResponse(`{}`), nil
+		}
+		return &http.Response{StatusCode: 429, Body: jsonResponse("").Body, Header: http.Header{"Retry-After": []string{"60"}}}, nil
+	})}}
+	gate := &serviceGate{limit: 2}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _, _ = r.getAuthorized(ctx, "https://synthetic.invalid", "/delayed-success", "synthetic", "/sgp-history", gate)
+	}()
+	select {
+	case <-started:
+	case <-ctx.Done():
+		t.Fatal("delayed success did not start")
+	}
+	_, status, err := r.getAuthorized(ctx, "https://synthetic.invalid", "/rejection", "synthetic", "/sgp-history", gate)
+	if status != 429 || apperrors.CodeOf(err) != apperrors.RateLimited {
+		t.Fatal("limit response was lost")
+	}
+	close(release)
+	<-done
+	var burst sync.WaitGroup
+	for range 64 {
+		burst.Add(1)
+		go func() {
+			defer burst.Done()
+			_, _, err := r.getAuthorized(ctx, "https://synthetic.invalid", "/queued", "synthetic", "/sgp-history", gate)
+			if apperrors.CodeOf(err) != apperrors.RateLimited {
+				t.Errorf("cooldown bypassed: %v", err)
+			}
+		}()
+	}
+	burst.Wait()
+	if calls.Load() != 2 {
+		t.Fatalf("rate limit caused a request burst: %d", calls.Load())
+	}
+	if gate.blocked(time.Now()) == nil {
+		t.Fatal("pre-rejection success reopened the gate")
+	}
+	// A successful request admitted after the wait can clear the old rejection.
+	gate.mu.Lock()
+	gate.cooldown.until = time.Now().Add(-time.Second)
+	gate.mu.Unlock()
+	version := gate.version()
+	gate.clearFor(version)
+	if gate.blocked(time.Now()) != nil {
+		t.Fatal("new success failed to clear the expired rejection")
 	}
 }
 

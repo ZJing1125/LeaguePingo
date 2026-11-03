@@ -2,6 +2,7 @@ package source
 
 import (
 	"context"
+	"math/rand/v2"
 	"net/http"
 	"strconv"
 	"sync"
@@ -21,6 +22,7 @@ type serviceGate struct {
 	mu         sync.Mutex
 	cooldown   serviceCooldown
 	generation uint64
+	rejections uint64
 	limit      int
 	once       sync.Once
 	slots      chan struct{}
@@ -69,34 +71,45 @@ func (g *serviceGate) blocked(now time.Time) error {
 func (g *serviceGate) failed(err error, retryAfter string, now time.Time) error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	if transientServiceError(err) {
+		g.rejections++
+	}
 	return g.cooldown.failed(err, retryAfter, now)
 }
 
 func (g *serviceGate) reset() {
 	g.mu.Lock()
 	g.generation++
+	g.rejections = 0
 	g.cooldown = serviceCooldown{}
 	g.mu.Unlock()
 }
 
-func (g *serviceGate) version() uint64 {
+type serviceVersion struct{ generation, rejections uint64 }
+
+func (g *serviceGate) version() serviceVersion {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	return g.generation
+	return serviceVersion{g.generation, g.rejections}
 }
 
-func (g *serviceGate) failedFor(version uint64, err error, retryAfter string, now time.Time) error {
+func (g *serviceGate) failedFor(version serviceVersion, err error, retryAfter string, now time.Time) error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	if version != g.generation {
+	if version.generation != g.generation {
 		return apperrors.New(apperrors.StaleData)
+	}
+	if transientServiceError(err) {
+		g.rejections++
 	}
 	return g.cooldown.failed(err, retryAfter, now)
 }
 
-func (g *serviceGate) clearFor(version uint64) {
+func (g *serviceGate) clearFor(version serviceVersion) {
 	g.mu.Lock()
-	if version == g.generation {
+	// Success that started before a rejection must not reopen the channel for
+	// queued callers. Only a subsequent admitted request may clear that failure.
+	if version.generation == g.generation && version.rejections == g.rejections {
 		g.cooldown = serviceCooldown{}
 	}
 	g.mu.Unlock()
@@ -107,6 +120,7 @@ type serviceCooldown struct {
 	failures int
 	err      error
 	until    time.Time
+	jitter   func(time.Duration) time.Duration
 }
 
 // Only a service that answered with a rejection opens the shared gate. A slow
@@ -132,9 +146,21 @@ func (g *serviceCooldown) failed(err error, retryAfter string, now time.Time) er
 	}
 	g.failures = min(g.failures+1, 4)
 	delay := []time.Duration{5 * time.Second, 15 * time.Second, 45 * time.Second, time.Minute}[g.failures-1]
+	spread := min(delay/5, time.Minute-delay)
+	if spread > 0 {
+		jitter := time.Duration(rand.Int64N(int64(spread) + 1))
+		if g.jitter != nil {
+			jitter = g.jitter(spread)
+		}
+		delay += max(0, min(spread, jitter))
+	}
+	previous := g.until
 	g.until = now.Add(delay)
 	if at, ok := retryAfterTime(retryAfter, now); ok && at.After(g.until) {
 		g.until = at
+	}
+	if previous.After(g.until) {
+		g.until = previous
 	}
 	g.err = apperrors.Normalize(err, apperrors.DataUnavailable)
 	return apperrors.WithRetryAt(g.err, g.until)
