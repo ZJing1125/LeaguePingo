@@ -25,12 +25,26 @@ export LEAGUEPINGO_VERIFY_EXECUTABLE
 LEAGUEPINGO_VERIFY_EXECUTABLE=$(cygpath -w "$task_install_root/uninstall.exe")
 powershell.exe -NoProfile -NonInteractive -Command '
   $ErrorActionPreference = "Stop"
-  $process = Start-Process -FilePath $env:LEAGUEPINGO_VERIFY_EXECUTABLE -ArgumentList "/S" -PassThru
-  if (-not $process.WaitForExit(60000)) {
-    try { $process.Kill() } catch {}
-    throw "NSIS uninstaller timed out after 60 seconds"
+  # NSIS normally launches a temporary copy and exits its bootstrap process.
+  # Run our own external copy with the documented final _?= argument so the
+  # process we wait for performs the actual uninstall and can delete originals.
+  $copyRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("LeaguePingoUninstallTest-" + [Guid]::NewGuid().ToString("N"))
+  New-Item -ItemType Directory -Path $copyRoot | Out-Null
+  try {
+    $copy = Join-Path $copyRoot "uninstall.exe"
+    Copy-Item -LiteralPath $env:LEAGUEPINGO_VERIFY_EXECUTABLE -Destination $copy
+    # _?= must be last and unquoted even when the installation path has spaces.
+    $process = Start-Process -FilePath $copy -ArgumentList "/S _?=$env:LEAGUEPINGO_VERIFY_INSTALL_ROOT" -PassThru
+    if (-not $process.WaitForExit(60000)) {
+      try { $process.Kill(); $process.WaitForExit(5000) | Out-Null } catch {}
+      throw "NSIS uninstaller timed out after 60 seconds"
+    }
+    if ($process.ExitCode -ne 0) { throw "NSIS uninstaller exited with code $($process.ExitCode)" }
+  } finally {
+    # Only this test-created external copy is ours to clean. The original
+    # installation must be removed by NSIS and checked below, never by us.
+    Remove-Item -LiteralPath $copyRoot -Recurse -Force
   }
-  if ($process.ExitCode -ne 0) { throw "NSIS uninstaller exited with code $($process.ExitCode)" }
 '
 for _ in {1..40}; do
   [[ ! -e "$task_install_root/LeaguePingo.exe" && ! -e "$task_install_root/uninstall.exe" ]] && break

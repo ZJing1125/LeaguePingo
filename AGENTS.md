@@ -125,6 +125,8 @@
 
 ## 构建入口与交付（必须遵守）
 
+- BUG-0107：CI静默卸载验证运行本次独有的外部副本，末尾使用NSIS官方未加引号的_?=隔离安装路径，等待实际进程而不是自复制启动器；保留60秒超时及原文件消失断言。只能清理自建副本目录，不允许测试脚本直接删除隔离安装文件来伪造通过；真实交互卸载仍待人工验收。
+
 - BUG-0051：正式 C 款图标以 `build/appicon.png` 为源、`build/brand.json` 为完整性清单；仅显式 `node scripts/app-icons.mjs generate` 使用固定 CLI 派生 Windows ICO/前端 PNG，常规构建只校验资源。Windows 完整验证与热重载必须在 Go 链接前重新生成 `wails_windows_amd64.syso`（当前 ICO/manifest/info、amd64），不提交该对象或绕过统一构建。浏览器、目标编译与 Windows 原生任务栏/托盘/DPI 验收分开报告，见 `docs/APP_ICON.md`。
 
 - 给用户运行/验收的程序必须通过 `bash scripts/build.sh [尚不存在的 bin/leaguepingo*.exe 路径]` 生成。`wails3 build` / `wails3 task build` / `wails3 task windows:build` 必须转到同一脚本。

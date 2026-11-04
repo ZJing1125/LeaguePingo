@@ -30,6 +30,8 @@ test('policy regression mutations are rejected', () => {
     ['scripts/verify.sh', 'npm --prefix frontend run test:unit', 'echo skipped unit tests'],
     ['scripts/package-windows.sh', 'node scripts/artifacts.mjs current', 'echo unverified'],
     ['scripts/sign-windows.sh', '"$task_signtool" verify', 'echo trusted'],
+    ['scripts/verify-installer.sh', '/S _?=$env:LEAGUEPINGO_VERIFY_INSTALL_ROOT', '/S'],
+    ['scripts/verify-installer.sh', '$process.WaitForExit(60000)', '$true'],
     ['scripts/audit-player-data.sh', 'LEAGUEPINGO_LIVE_DATA_AUDIT=1', ''],
     ['scripts/audit-player-data.sh', 'go env GOHOSTOS', 'go env GOOS'],
     ['scripts/verify.sh', 'wails3 generate syso -arch amd64', 'echo skipped Windows resources'],

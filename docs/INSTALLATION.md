@@ -32,6 +32,8 @@ bash scripts/verify-installer.sh artifacts/installers/leaguepingo-example-instal
 
 MSIX、跨平台打包和 Docker 构建仍被策略拒绝。NSIS 与签名入口已同步纳入 `scripts/workflow.mjs` 和回归测试，不能用模板或直接编译绕过。
 
+CI静默卸载检查使用本次测试独有的外部卸载副本，并按[NSIS官方参数](https://nsis.sourceforge.io/Docs/Chapter3.html#3.2.2)将未加引号的`_?=<隔离安装目录>`置于最后，直接等待实际卸载进程。只清理自建副本目录，安装目录的程序及卸载器必须由NSIS移除后才通过；不通过测试脚本删除原文件来伪造成功。正常交互卸载、自复制启动和干净Win10仍按I1/I6人工验收。
+
 ## 代码签名
 
 签名证书及发布者身份必须由维护者提供。仓库不接收 PFX、密码、私钥、证书导出文件或密钥路径。证书应先安全安装到 Windows 证书存储，再设置其 40 位 SHA-1 thumbprint：

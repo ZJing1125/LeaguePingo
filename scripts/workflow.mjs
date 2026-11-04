@@ -113,6 +113,9 @@ export function checkWorkflow(read) {
   requireText('scripts/package-windows.sh', 'bash scripts/sign-windows.sh "$task_output"');
   requireText('scripts/sign-windows.sh', '"$task_signtool" verify');
   requireText('scripts/verify-installer.sh', 'NOT RUN: clean Windows 10');
+  requireText('scripts/verify-installer.sh', 'Copy-Item -LiteralPath $env:LEAGUEPINGO_VERIFY_EXECUTABLE -Destination $copy');
+  requireText('scripts/verify-installer.sh', '-FilePath $copy -ArgumentList "/S _?=$env:LEAGUEPINGO_VERIFY_INSTALL_ROOT"');
+  requireText('scripts/verify-installer.sh', '$process.WaitForExit(60000)');
   requireText('docs/ci/verify.yml.example', 'bash scripts/build.sh bin/leaguepingo-ci.exe');
   // Fixed CI entry points. The Windows job delegates verification to build.sh
   // exactly once; a green portable job is never desktop verification.
