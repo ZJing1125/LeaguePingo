@@ -13,7 +13,7 @@
 | DER SHA-256 | `ca8c9d325b4cdc464c6c94a585c85e91ec23d40ba5bf3ae2822b951a4a504ea3` |
 | 自签名算法 | sha1WithRSAEncryption；老格式候选，不据此关闭叶证书算法/名称检查 |
 
-公开PEM原字节只放在`internal/lcu/testdata/riot-game-client-root.pem`并由`tls_audit_test.go`嵌入测试程序，产品不嵌入、不下载、不安装到系统信任库。普通测试验证只有一个证书、指纹与有效期；这仅证明候选文件完整。
+公开PEM内容（Git归一化行尾，DER指纹固定）只放在`internal/lcu/testdata/riot-game-client-root.pem`并由`tls_audit_test.go`嵌入测试程序，产品不嵌入、不下载、不安装到系统信任库。普通测试验证只有一个证书、指纹与有效期；这仅证明候选文件完整。
 
 ## 游戏电脑后置步骤
 
