@@ -54,7 +54,7 @@ func selectionFixture() (*Engine, *selectionClient) {
 
 func TestSelectionHeroSwapsNeverReloadHistoryOrUseGameflow(t *testing.T) {
 	e, c := selectionFixture()
-	budget, token := e.prepareDeadline, e.prepareToken
+	budget, token := preparationForTest(e).deadline, preparationForTest(e).token
 	for _, hero := range []int{24, 25, 0, 23} {
 		c.selection[0].ChampionID = hero
 		e.refreshChampSelect(context.Background())
@@ -62,7 +62,7 @@ func TestSelectionHeroSwapsNeverReloadHistoryOrUseGameflow(t *testing.T) {
 			t.Fatal("hero change lost or history discarded")
 		}
 	}
-	if e.prepareDeadline != budget || e.prepareToken != token {
+	if preparationForTest(e).deadline != budget || preparationForTest(e).token != token {
 		t.Fatal("hero swap restarted preparation budget")
 	}
 	for _, call := range c.calls {

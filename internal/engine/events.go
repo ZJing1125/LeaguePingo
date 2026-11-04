@@ -70,8 +70,8 @@ func (e *Engine) observePhase(version, sequence uint64, phase string) {
 	if observed != PhaseChampSelect {
 		e.stopChampSelectEventsLocked()
 	}
-	if (!preparationStage(stage) || stage != snapshotStage(e.snapshot.Stage)) && e.cancel != nil {
-		e.cancel() // Stop prefetch before waiting for a confirming HTTP response.
+	if !preparationStage(stage) || stage != snapshotStage(e.snapshot.Stage) {
+		e.preparation.stop() // Stop prefetch before waiting for a confirming HTTP response.
 	}
 	e.phaseEvents.notify()
 }

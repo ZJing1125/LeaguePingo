@@ -161,7 +161,7 @@ func TestPhaseEventDiscardsOlderInFlightPhaseResponse(t *testing.T) {
 		return "ChampSelect", nil
 	}
 	e.poll(context.Background())
-	if e.Snapshot().Phase == "ChampSelect" || e.prepareRunning || len(e.phaseEvents.wake) != 1 {
+	if e.Snapshot().Phase == "ChampSelect" || preparationForTest(e).running || len(e.phaseEvents.wake) != 1 {
 		t.Fatal("old HTTP response restarted preparation after game-start event")
 	}
 }

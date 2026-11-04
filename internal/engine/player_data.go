@@ -17,8 +17,12 @@ func (e *Engine) needsAutomaticProfileLocked(p core.Participant) bool {
 	return supported && p.ConnectionID == e.clientVersion && p.IdentityState == core.IdentityKnown && core.IsKnownPUUID(p.PUUID) && !automaticProfileFresh(p.Profile)
 }
 
-func (e *Engine) needsPreparedProfileLocked(p core.Participant) bool {
-	return len(e.prepareProfiles) < 10 && !e.prepareProfiles[p.PUUID] && e.needsAutomaticProfileLocked(p)
+func (e *Engine) preparationProfilesLocked() []bool {
+	eligible := make([]bool, len(e.snapshot.Participants))
+	for i, p := range e.snapshot.Participants {
+		eligible[i] = e.needsAutomaticProfileLocked(p)
+	}
+	return eligible
 }
 
 // Called only by the existing bounded preparation workers, never by rendering

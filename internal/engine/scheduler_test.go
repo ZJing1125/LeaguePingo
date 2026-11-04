@@ -102,12 +102,12 @@ func TestPreparationSurvivesChampionChangeAndStopsAtGameStart(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("preparation did not start")
 	}
-	token := e.prepareToken
+	token := preparationForTest(e).token
 	fake.mu.Lock()
 	fake.champion = 42
 	fake.mu.Unlock()
 	e.poll(context.Background())
-	if e.prepareToken != token || calls.Load() != 1 {
+	if preparationForTest(e).token != token || calls.Load() != 1 {
 		t.Fatal("champion change restarted the identity's query")
 	}
 	fake.mu.Lock()

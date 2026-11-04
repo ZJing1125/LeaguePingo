@@ -79,9 +79,7 @@ func (e *Engine) refreshChampSelect(ctx context.Context) {
 		e.mu.Lock()
 		if e.clientVersion == version && e.phaseEpoch == phaseEpoch {
 			e.stopChampSelectEventsLocked()
-			if e.cancel != nil {
-				e.cancel()
-			}
+			e.preparation.stop()
 			e.phaseEvents.notify()
 		}
 		e.mu.Unlock()

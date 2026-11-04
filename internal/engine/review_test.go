@@ -16,7 +16,7 @@ func waitPreparationStopped(t *testing.T, e *Engine) {
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		e.mu.RLock()
-		running := e.prepareRunning
+		running := preparationForTest(e).running
 		e.mu.RUnlock()
 		if !running {
 			return
@@ -44,8 +44,10 @@ func TestPreparationRecoversAfterTransientPhaseFailureWithoutRosterChange(t *tes
 		}
 	}
 	e.mu.Lock()
-	deadline := e.prepareDeadline
-	e.prepareRetryAt = time.Time{} // Advance retry eligibility without a wall-clock sleep.
+	deadline := preparationForTest(e).deadline
+	e.preparation.mu.Lock()
+	e.preparation.retryAt = time.Time{}
+	e.preparation.mu.Unlock() // Advance retry eligibility without a wall-clock sleep.
 	e.mu.Unlock()
 	e.poll(context.Background())
 	waitPreparationStopped(t, e)
@@ -54,7 +56,7 @@ func TestPreparationRecoversAfterTransientPhaseFailureWithoutRosterChange(t *tes
 			t.Fatal("unchanged roster did not resume preparation")
 		}
 	}
-	if e.prepareDeadline != deadline {
+	if preparationForTest(e).deadline != deadline {
 		t.Fatal("retry renewed the session time budget")
 	}
 }

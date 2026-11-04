@@ -45,7 +45,9 @@ func TestDodgeCancelsWorkerAndClearsAbandonedLoading(t *testing.T) {
 	e.client = &loadingLobbyClient{&fakeClient{phase: "Lobby"}}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	e.cancel, e.prepareRunning = cancel, true
+	e.preparation.mu.Lock()
+	e.preparation.cancel, e.preparation.running = cancel, true
+	e.preparation.mu.Unlock()
 	p := fullTestRoster()[0]
 	p.HistoryState = core.HistoryLoading
 	e.snapshot = core.Snapshot{Stage: "preparing", Phase: "ChampSelect", GameID: 42, Participants: []core.Participant{p}}
@@ -100,13 +102,13 @@ func TestPartyPreparationDoesNotInventOpponentsAndResetsBudgetForChampSelect(t *
 			t.Fatal("invented opponents")
 		}
 	}
-	token := e.prepareToken
+	token := preparationForTest(e).token
 	fake.mu.Lock()
 	fake.phase = "ReadyCheck"
 	fake.mu.Unlock()
 	e.poll(context.Background())
 	waitPreparationStopped(t, e)
-	if e.prepareToken != token {
+	if preparationForTest(e).token != token {
 		t.Fatal("ready check unnecessarily restarted party budget")
 	}
 	fake.mu.Lock()
@@ -116,7 +118,7 @@ func TestPartyPreparationDoesNotInventOpponentsAndResetsBudgetForChampSelect(t *
 	fake.mu.Unlock()
 	e.poll(context.Background())
 	waitPreparationStopped(t, e)
-	if e.prepareToken == token || e.Snapshot().ReadyCount != 10 {
+	if preparationForTest(e).token == token || e.Snapshot().ReadyCount != 10 {
 		t.Fatal("champ select not given own budget")
 	}
 	if e.pollInterval() != 3*time.Second {

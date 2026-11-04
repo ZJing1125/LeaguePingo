@@ -2,9 +2,7 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -33,7 +31,6 @@ type Engine struct {
 	discover            Discoverer
 	client              Client
 	snapshot            core.Snapshot
-	cancel              context.CancelFunc
 	onChange            func(core.Snapshot)
 	updates             chan core.Snapshot
 	lastLookup          time.Time
@@ -50,13 +47,7 @@ type Engine struct {
 	champEvents         *eventSubscription
 	champEpoch          uint64
 	scheduler           *requestScheduler
-	prepareToken        uint64
-	prepareRunning      bool
-	prepareDeadline     time.Time
-	prepareRetryAt      time.Time
-	prepareAttempts     map[string]int
-	prepareProfiles     map[string]bool
-	preferred           string
+	preparation         preparationState
 	initialMatch        initialMatchPreparation
 	scouting            scoutPreparation
 	reviews             reviewState
@@ -133,9 +124,7 @@ func (e *Engine) Run(ctx context.Context) {
 				e.homeCancel()
 			}
 			e.stopInitialMatchLocked()
-			if e.cancel != nil {
-				e.cancel()
-			}
+			e.preparation.stop()
 			e.stopPhaseEventsLocked()
 			e.stopChampSelectEventsLocked()
 			e.mu.Unlock()
@@ -267,9 +256,7 @@ func (e *Engine) poll(ctx context.Context) {
 			e.matchRosterAttempts = 0
 			e.matchRosterComplete = false
 		}
-		if e.cancel != nil {
-			e.cancel()
-		}
+		e.preparation.stop()
 		refresh = e.matchRosterAttempts < inGameRosterAttemptLimit && !e.matchRosterComplete
 		if refresh {
 			e.matchRosterAttempts++
@@ -384,16 +371,7 @@ func (e *Engine) invalidateConnectionLocked() {
 	e.matchRosterAttempts = 0
 	e.matchRosterComplete = false
 	e.players.reset()
-	if e.cancel != nil {
-		e.cancel()
-	}
-	e.cancel = nil
-	e.prepareToken++
-	e.prepareRunning = false
-	e.prepareDeadline = time.Time{}
-	e.prepareRetryAt = time.Time{}
-	e.prepareAttempts = nil
-	e.prepareProfiles = nil
+	e.preparation.invalidate()
 	for i := range e.snapshot.Participants {
 		e.snapshot.Participants[i].Stale = true
 	}
@@ -414,9 +392,7 @@ func (e *Engine) disconnectLocked(message string) {
 	e.stopPhaseEventsLocked()
 	e.stopChampSelectEventsLocked()
 	e.client = nil
-	if e.cancel != nil {
-		e.cancel()
-	}
+	e.preparation.stop()
 	for i := range e.snapshot.Participants {
 		e.snapshot.Participants[i].Stale = true
 	}
@@ -453,15 +429,7 @@ func (e *Engine) replaceLocked(stage Stage, phase Phase, gameID int64, roster []
 	sameConnection := e.snapshot.ConnectionID == e.clientVersion
 	samePreparation := sameConnection && preparationStage(stage) && snapshotStage(e.snapshot.Stage) == stage && (gameID == 0 || e.snapshot.GameID == 0 || gameID == e.snapshot.GameID)
 	if !samePreparation {
-		if e.cancel != nil {
-			e.cancel()
-		}
-		e.prepareToken++
-		e.prepareRunning = false
-		e.prepareDeadline = time.Time{}
-		e.prepareRetryAt = time.Time{}
-		e.prepareAttempts = map[string]int{}
-		e.prepareProfiles = map[string]bool{}
+		e.preparation.reset()
 	}
 	if samePreparation && stage == StageParty {
 		for _, p := range roster {
@@ -473,7 +441,7 @@ func (e *Engine) replaceLocked(stage Stage, phase Phase, gameID int64, roster []
 				}
 			}
 			if !found && core.IsKnownPUUID(p.PUUID) {
-				e.prepareDeadline = time.Now().Add(45 * time.Second)
+				e.preparation.extend(time.Now())
 				break
 			}
 		}
@@ -552,173 +520,17 @@ func (e *Engine) replaceLocked(stage Stage, phase Phase, gameID int64, roster []
 		UpdatedAt: time.Now(), Participants: roster, Message: message}
 	e.publishLocked()
 	if !preparationStage(stage) {
-		e.cancel = nil
+		e.preparation.forgetCancel()
 	}
 	e.startPreparationLocked()
 	e.startInitialMatchLocked()
 	e.syncScoutingLocked()
 }
 
-func (e *Engine) startPreparationLocked() {
-	if !preparationStage(snapshotStage(e.snapshot.Stage)) || e.client == nil || e.prepareRunning || time.Now().Before(e.prepareRetryAt) || (e.phaseHint != PhaseUnknown && stageForPhase(e.phaseHint) != snapshotStage(e.snapshot.Stage)) {
-		return
-	}
-	if e.prepareDeadline.IsZero() {
-		e.prepareDeadline = time.Now().Add(45 * time.Second)
-		e.prepareAttempts = map[string]int{}
-		e.prepareProfiles = map[string]bool{}
-	}
-	if !time.Now().Before(e.prepareDeadline) {
-		return
-	}
-	for _, p := range e.snapshot.Participants {
-		if p.ConnectionID == e.clientVersion && core.IsKnownPUUID(p.PUUID) && ((!(historyCached(p) && cacheFresh(p) && !p.Stale) && e.prepareAttempts[p.PUUID] < 2) || e.needsPreparedProfileLocked(p)) {
-			ctx, cancel := context.WithDeadline(context.Background(), e.prepareDeadline)
-			e.cancel, e.prepareRunning = cancel, true
-			go func(token, version uint64, client Client) {
-				defer cancel()
-				e.prepare(ctx, token, client, version)
-			}(e.prepareToken, e.clientVersion, e.client)
-			return
-		}
-	}
-}
-
-func (e *Engine) prepare(ctx context.Context, token uint64, client Client, version uint64) {
-	defer func() {
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		if e.prepareToken == token {
-			e.prepareRunning = false
-			changed := false
-			for i := range e.snapshot.Participants {
-				p := &e.snapshot.Participants[i]
-				if p.HistoryState == core.HistoryLoading {
-					p.HistoryState = core.HistoryPending
-					p.Error = "准备已暂停，可主动查询"
-					changed = true
-				}
-			}
-			if changed {
-				e.snapshot.UpdatedAt = time.Now()
-				e.publishLocked()
-			}
-		}
-	}()
-	for ctx.Err() == nil {
-		e.mu.RLock()
-		if e.prepareToken != token || e.clientVersion != version || !preparationStage(snapshotStage(e.snapshot.Stage)) {
-			e.mu.RUnlock()
-			return
-		}
-		players := clone(e.snapshot).Participants
-		preparingStage := snapshotStage(e.snapshot.Stage)
-		preferred := e.preferred
-		sort.SliceStable(players, func(i, j int) bool {
-			a, b := e.prepareAttempts[players[i].PUUID], e.prepareAttempts[players[j].PUUID]
-			if a != b {
-				return a < b
-			}
-			return players[i].Key == preferred && players[j].Key != preferred
-		})
-		var player core.Participant
-		for _, p := range players {
-			if p.ConnectionID == version && core.IsKnownPUUID(p.PUUID) && !(historyCached(p) && cacheFresh(p) && !p.Stale) && e.prepareAttempts[p.PUUID] < 2 {
-				player = p
-				break
-			}
-		}
-		e.mu.RUnlock()
-		if player.PUUID == "" {
-			e.mu.Lock()
-			if e.prepareToken != token || e.clientVersion != version || snapshotStage(e.snapshot.Stage) != preparingStage || ctx.Err() != nil {
-				e.mu.Unlock()
-				return
-			}
-			for _, p := range e.snapshot.Participants {
-				if e.needsPreparedProfileLocked(p) {
-					player = p
-					e.prepareProfiles[p.PUUID] = true
-					break
-				}
-			}
-			e.mu.Unlock()
-			if player.PUUID == "" {
-				return
-			}
-			e.prepareOptionalProfile(ctx, client, player, func() bool {
-				return e.client != nil && e.clientVersion == version && e.prepareToken == token && snapshotStage(e.snapshot.Stage) == preparingStage && (e.phaseHint == PhaseUnknown || stageForPhase(e.phaseHint) == preparingStage)
-			})
-			continue
-		}
-		e.mu.Lock()
-		if e.prepareToken != token {
-			e.mu.Unlock()
-			return
-		}
-		e.prepareAttempts[player.PUUID]++
-		e.mu.Unlock()
-		e.mu.RLock()
-		cached, ok := e.players.player(player.PUUID)
-		e.mu.RUnlock()
-		if ok && cacheFresh(cached) {
-			e.updatePrepared(token, player.PUUID, func(p *core.Participant) {
-				if core.IsPlaceholderName(p.DisplayName) && !core.IsPlaceholderName(cached.DisplayName) {
-					p.DisplayName = cached.DisplayName
-				}
-				core.ApplyHistory(p, core.HistoryResult{Matches: cached.History, Meta: cached.HistoryMeta})
-			})
-			continue
-		}
-		e.updatePrepared(token, player.PUUID, func(p *core.Participant) { p.HistoryState = core.HistoryLoading; p.Error = "" })
-		if !strings.Contains(player.DisplayName, "#") {
-			nameCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-			name, err := e.loadName(nameCtx, client, player.PUUID, version, false)
-			cancel()
-			if err == nil && name != "" {
-				e.updatePrepared(token, player.PUUID, func(p *core.Participant) { p.DisplayName = name })
-			}
-		}
-		phaseCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		phaseValue, err := client.Phase(phaseCtx)
-		cancel()
-		if err != nil || stageForPhase(Phase(phaseValue)) != preparingStage || ctx.Err() != nil {
-			e.mu.Lock()
-			if e.prepareToken == token {
-				e.prepareRetryAt = time.Now().Add(2 * time.Second)
-			}
-			e.mu.Unlock()
-			return
-		}
-		requestCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
-		history, err := e.scheduler.history(requestCtx, fmt.Sprintf("%d:%s", version, player.PUUID), false, func(c context.Context) (core.HistoryResult, error) { return client.History(c, player.PUUID) })
-		cancel()
-		if err != nil {
-			if errors.Is(err, context.Canceled) && ctx.Err() == nil {
-				e.mu.Lock()
-				if e.prepareToken == token && e.prepareAttempts[player.PUUID] > 0 {
-					e.prepareAttempts[player.PUUID]--
-				}
-				e.mu.Unlock()
-				e.updatePrepared(token, player.PUUID, func(p *core.Participant) {
-					p.HistoryState = core.HistoryPending
-					p.Error = ""
-				})
-				continue
-			}
-			e.updatePrepared(token, player.PUUID, func(p *core.Participant) {
-				p.HistoryState = core.HistoryFailed
-				p.Error = apperrors.UserMessage(err, apperrors.DataUnavailable)
-			})
-			continue
-		}
-		e.updatePrepared(token, player.PUUID, func(p *core.Participant) { core.ApplyHistory(p, history) })
-	}
-}
 func (e *Engine) updatePrepared(token uint64, puuid string, edit func(*core.Participant)) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.prepareToken != token || !preparationStage(snapshotStage(e.snapshot.Stage)) {
+	if !e.preparation.current(token) || !preparationStage(snapshotStage(e.snapshot.Stage)) {
 		return
 	}
 	for i := range e.snapshot.Participants {
@@ -755,7 +567,7 @@ func (e *Engine) loadName(ctx context.Context, client Client, puuid string, vers
 	}
 	return client.Name(requestCtx, puuid)
 }
-func (e *Engine) PrioritizePlayer(key string) { e.mu.Lock(); e.preferred = key; e.mu.Unlock() }
+func (e *Engine) PrioritizePlayer(key string) { e.preparation.prioritize(key) }
 
 func (e *Engine) publishLocked() {
 	if m, ok := e.client.(source.SessionMetadataSource); ok {
