@@ -1,5 +1,9 @@
 # 国服实机验收
 
+## S9 严格TLS候选核验（后置，未执行）
+
+公开根来源/指纹与测试专用只读探针已准备，见[LCU_TLS.md](LCU_TLS.md)和空白[结果CSV](acceptance/S9-results.csv)。候选来自Riot的Game Client文档，不能推断适用于国服LCU；HTTP与定向WSS都必须由游戏电脑核验。当前生产连接方式未改，S9未完成；本步骤随其他人工验收集中执行，不为它中断非人工任务。
+
 ## U3 安装与版本
 
 启动前WebView2引导、静态版本清单、NSIS打包及证书存储签名链已经实施；CI会在Windows runner生成安装器并做临时目录安装/卸载，但不上传安装器。发布证书、干净Windows 10、缺WebView2引导、新版托盘入口和覆盖安装仍需人工执行I1–I6，见[INSTALLATION.md](INSTALLATION.md)及空白`acceptance/U3-results.csv`。未签名CI包和Windows Server runner不能登记正式通过。

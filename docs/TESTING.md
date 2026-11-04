@@ -46,6 +46,8 @@ LEAGUEPINGO_LIVE_ROSTER_TEST=1 go test ./internal/source -run '^TestLiveRoster$'
 
 数据双源对照使用 [PLAYER_DATA_AUDIT.md](PLAYER_DATA_AUDIT.md)的有界入口，组队真实准确性使用 [PREMADE_GROUPS.md](PREMADE_GROUPS.md)的匿名对照。跳过、不在适用阶段或缺少客户端均不能记为通过。
 
+S9严格证书候选使用[LCU_TLS.md](LCU_TLS.md)的显式测试，仅阶段HTTPS和定向WSS，无玩家读取或写动作；该测试默认跳过，生产连接方式未改。Riot的Game Client根不是已证明兼容国服LCU的根，必须保留NOT VERIFIED边界。
+
 ## 人工验收集中后置
 
 按用户安排，当前优先完成非人工任务；[ACCEPTANCE.md](ACCEPTANCE.md)、[HOLD_INPUT.md](HOLD_INPUT.md)、[INSTALLATION.md](INSTALLATION.md)与[性能记录](PERFORMANCE.md)中的整局、焦点/DPI/反作弊、干净 Win10、发布证书及 FPS/延迟检查保留待验收。CI、单账号只读成功或离线资源采样均不能替代这些结论。

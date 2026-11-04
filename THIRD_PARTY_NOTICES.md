@@ -1,5 +1,7 @@
 # 第三方资源
 
+S9测试夹具保存Riot官方公开Game Client根证书原始PEM，来源`https://static.developer.riotgames.com/docs/lol/riotgames.pem`，获取日期2026-11-04；DER SHA-256及使用边界见`docs/LCU_TLS.md`。只由测试程序嵌入作候选核验，产品未嵌入/安装它，不表示Riot或腾讯已保证LCU兼容，也不替代Q8整体授权审阅。
+
 BUG-0059 随包增加 Riot Data Dragon 16.20.1 的完整符文树元数据、67张原始符文/符文系PNG与召唤师峡谷map11 PNG，共68张/2,056,567字节。来源为官方 /cdn/{version}/data/zh_CN/runesReforged.json、/cdn/img/{icon}及/cdn/{version}/img/map/map11.png；逐项URL、字节数与SHA-256见 frontend/src/assets/game/analysis/manifest.json。显式维护 scripts/sync-analysis-assets.py；不在运行或构建时下载。这些仍是Riot游戏资源，不作为助手原创图标授权。OP.GG图片仅参考信息组织，没有复制竞品素材、评分或源码。
 
 

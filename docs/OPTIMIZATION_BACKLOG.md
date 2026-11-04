@@ -11,7 +11,7 @@ suggested_repo_path: docs/OPTIMIZATION_BACKLOG.md
 
 # 1. 使用规则（agent 先读）
 
-执行记录（实施起始基线4d57e0b，附件审阅基线cc229e7）：Q1已实施并通过dev推送实跑，见下方记录；Q4建议性staticcheck、govulncheck与npm audit已实施，强制门禁等待Go标准库漏洞随依赖治理清零；F1本地度量已实施，口径与验证见PERFORMANCE.md；F2已核实后端逐人发布链路并补齐前端骨架和逐卡替换回归；S3共享动作执行器已实施并接入自动接受/赛后流程，两个编排循环均小于60行；S4引擎Stage/Phase强类型与集中行为表已实施，对外快照字符串未变且远程Windows验证通过；S5攻略会话复用、功能开关、超时/缓存/原文降级已实施且远程Windows验证通过；S6战绩缓存字节上限、锁外编码、HMAC键、同轮重建、Rename重试与失败诊断已实施且远程Windows验证通过；S7页缓存TTL/LRU、锁外授权、独立并发上限及换号/首页变化迟到隔离已实施且远程Windows验证通过；Q3前端19项单测与类型检查已接入统一verify门禁且远程Windows验证通过；F3已核实首页/磁盘策略并补齐ID/选中玩家过期缓存先显及后台更新；F4统一退避抖动、并行成功隔离及长Retry-After保护已实施；S8入口与桌面依赖组装拆分已实施，本机目标staticcheck/portable通过，根包及桌面由Windows CI核验；Q5正则复用、缓存失败诊断与忽略错误/报告留存审阅已实施；S10依赖组更新配置与Actions SHA固定已准备，实际激活待正常进入默认分支；S2第一步已抽出事件订阅生命周期（59→51字段），整体仍进行中；U6已核实现有监听说明/冲突回滚和Windows自动回归，按已有证据结项；U5首页三步连接指引与首次离线/断线/重连/主题窄窗回归已实施；Q7当前架构/精简README/CHANGELOG与TESTING分工已完成并核对策略；U7两主题键盘主流程、共享焦点及浅色对比度修正已实施；U1错误码与中文提示、U2降级与有界恢复已实施，协议与验证分别见ERRORS.md、DATA_RECOVERY.md及本提交CI，R1实验性标注与分轮记录已准备；用户已反馈A1/A2/P1/P2没有问题，后续确认跳过可用但继续/返回/开排链条失败，修复版与版本信息及其他项目待补，整体R1未完成；S1回调瘦身/备用入口核验/设置说明已实施，国服反作弊专项待实机；U3启动前依赖检查、静态版本检查、NSIS与证书存储签名代码链已实施，发布证书与干净Win10的I1–I6仍待人工；U4实验性说明、行为边界和一键停用已实施并由前端合成回归覆盖；其余任务尚未实施。该清单是任务输入，原审阅统计与推断不能当作当前事实。其他任务仍按依赖逐项核实；未执行的Windows/国服检查保留未验证状态。
+执行记录（实施起始基线4d57e0b，附件审阅基线cc229e7）：Q1已实施并通过dev推送实跑，见下方记录；Q4建议性staticcheck、govulncheck与npm audit已实施，强制门禁等待Go标准库漏洞随依赖治理清零；F1本地度量已实施，口径与验证见PERFORMANCE.md；F2已核实后端逐人发布链路并补齐前端骨架和逐卡替换回归；S3共享动作执行器已实施并接入自动接受/赛后流程，两个编排循环均小于60行；S4引擎Stage/Phase强类型与集中行为表已实施，对外快照字符串未变且远程Windows验证通过；S5攻略会话复用、功能开关、超时/缓存/原文降级已实施且远程Windows验证通过；S6战绩缓存字节上限、锁外编码、HMAC键、同轮重建、Rename重试与失败诊断已实施且远程Windows验证通过；S7页缓存TTL/LRU、锁外授权、独立并发上限及换号/首页变化迟到隔离已实施且远程Windows验证通过；Q3前端19项单测与类型检查已接入统一verify门禁且远程Windows验证通过；F3已核实首页/磁盘策略并补齐ID/选中玩家过期缓存先显及后台更新；F4统一退避抖动、并行成功隔离及长Retry-After保护已实施；S8入口与桌面依赖组装拆分已实施，本机目标staticcheck/portable通过，根包及桌面由Windows CI核验；Q5正则复用、缓存失败诊断与忽略错误/报告留存审阅已实施；S10依赖组更新配置与Actions SHA固定已准备，实际激活待正常进入默认分支；S2第一步已抽出事件订阅生命周期（59→51字段），整体仍进行中；U6已核实现有监听说明/冲突回滚和Windows自动回归，按已有证据结项；U5首页三步连接指引与首次离线/断线/重连/主题窄窗回归已实施；Q7当前架构/精简README/CHANGELOG与TESTING分工已完成并核对策略；U7两主题键盘主流程、共享焦点及浅色对比度修正已实施；S9已完成官方根候选研究与测试专用严格探针，国服链/名称核验后置，生产传输未改；U1错误码与中文提示、U2降级与有界恢复已实施，协议与验证分别见ERRORS.md、DATA_RECOVERY.md及本提交CI，R1实验性标注与分轮记录已准备；用户已反馈A1/A2/P1/P2没有问题，后续确认跳过可用但继续/返回/开排链条失败，修复版与版本信息及其他项目待补，整体R1未完成；S1回调瘦身/备用入口核验/设置说明已实施，国服反作弊专项待实机；U3启动前依赖检查、静态版本检查、NSIS与证书存储签名代码链已实施，发布证书与干净Win10的I1–I6仍待人工；U4实验性说明、行为边界和一键停用已实施并由前端合成回归覆盖；其余任务尚未实施。该清单是任务输入，原审阅统计与推断不能当作当前事实。其他任务仍按依赖逐项核实；未执行的Windows/国服检查保留未验证状态。
 
 Q1首次运行：[40856437383](https://github.com/ZJing1125/LeaguePingo/actions/runs/40856437383)，Linux成功，Windows原生Go检查通过，侧栏720px五卡高度回归失败。已根据日志修复摘要内边距，保留原验收断言。修复提交dd33476的[40857941063](https://github.com/ZJing1125/LeaguePingo/actions/runs/40857941063)两个job全部成功：Windows全包test/vet、绑定生成/一致性、九项浏览器回归、EXE编译及产物审计均通过。EXE只存在runner，未上传、部署或登记为用户已验收；截图保留7天。PR事件配置已做语法检查，未专门新建PR测试。默认分支仍为main，手动触发入口需工作流进入默认分支后才能使用；本批未修改main或默认分支。
 
@@ -382,14 +382,17 @@ id: S9
 title: LCU 证书校验
 priority: P2
 area: design
-status: todo
+status: prepared-awaiting-live-validation
 confidence: verified-static
-needs_human: false
-problem: LCU 使用 InsecureSkipVerify（自签名证书的常见做法，且固定 127.0.0.1，风险较低）。
+needs_human: true
+problem: 官方Game Client根候选及严格只读探针已准备；国服LCU可信链/名称尚未实测，生产兼容传输未改，S9未完成。
 evidence:
   - internal/lcu/client.go:132
+  - internal/lcu/tls_audit_test.go、docs/LCU_TLS.md
 actions:
-  - 改为自定义 VerifyPeerCertificate，校验 Riot 根证书；证书获取方式先调研并核实
+  - 已完成：官方文档/PEM/指纹核查；根明确用于Game Client，不能推断国服LCU兼容
+  - 已完成：测试专用严格RootCAs的HTTPS/WSS有界只读探针、完整性/竞态及空白验收表
+  - 待后置实机：验证链/名称后再决定生产可信传输接入，不绕过Go标准校验
 acceptance:
   - 不再使用 InsecureSkipVerify，且客户端连接仍然可用（需要真机确认）
 depends_on: []
