@@ -1,5 +1,7 @@
 # 前端迭代与组件预览
 
+U7：player-analysis末尾复用keyboard-access的真实按键路径，不改变test:smoke入口；覆盖两主题的首页/资料展开、详情、搜索、战绩筛选、分析标签、设置和工作区导航。只有Tab/Shift+Tab/回车/空格/方向键及Esc驱动操作，并核对焦点返回、可见边框、原有减少动态效果与核心语义色对比度。该检查不替代屏幕阅读器或Windows原生窗口验收。
+
 U5：ConnectionGuide在首页未连接时显示启动国服客户端、完成登录、保持助手运行三步；使用原主题、局部样式及uiText文案，无弹窗、焦点或网络副作用。home-theme覆盖首次离线启动、断线旧资料、重连收起、亮暗主题及880/1280宽度；只读指引不改变后台查询策略。uiText仅开始集中新增文案，U8仍待全量处理。
 
 Q3：`npm --prefix frontend run test:unit`先以tsconfig.unit.json检查测试类型，再通过固定Vitest 5.1.0在Node环境运行tests/unit。当前19项测试覆盖historyBrowser的实际Vue生命周期/缓存/扫描/迟到隔离和presentation的缺失值/统计/输入/错误展示；只模拟Wails桥接，不连接游戏，不需要浏览器。scripts/verify.sh在portable及Windows路径都强制执行，workflow策略拒绝移除。生产test:smoke仍负责浏览器交互和布局，两者不代替国服验收。

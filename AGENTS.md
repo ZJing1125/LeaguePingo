@@ -16,6 +16,8 @@
 
 ## 产品与架构边界
 
+- U7 / BUG-0106：共享控件、链接、summary及tabindex=0滚动区域使用可见键盘焦点，战绩/滚动区域边框内收以免裁切；共享选择器用:where降低权重，不能覆盖组件必要的局部状态。浅色语义强调/胜负文字保持至少4.5:1、焦点至少3:1的回归口径；保留既有减少动态效果规则。player-analysis通过真实按键覆盖主流程及弹窗焦点，不用程序focus/click代替键盘验收，也不能把该用例称为屏幕阅读器/完整WCAG验收。
+
 - U5 / BUG-0104：首页未连接时内嵌三步连接引导，连接成功立即收起；不得弹阻塞教程、抢焦点或为引导增加玩家读取/定时器。断线仍可浏览已有资料，首次离线启动不查询CurrentPlayer。新增文案集中于uiText，ConnectionGuide使用局部主题样式，不代表U8全量迁移完成。
 
 - S2第一步 / BUG-0102：phase/champ-select订阅生命周期由eventSubscription持有自己的锁、取消、版本/序号、重连时间和单槽唤醒。Engine锁只编排连接/阶段业务，锁顺序固定Engine→订阅；不得在订阅锁内执行来源读取或通知回调。Watch退出仍显式cancel，phase和champ的结束序号/重试重置差异保持原值；generation/clientVersion/phaseEpoch/champEpoch继续在业务层核验。S2仅此组件迁移，其他职责未完成，不得将整体标为完成。

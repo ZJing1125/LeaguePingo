@@ -5,6 +5,7 @@ const {chromium}=require('playwright');
 const {mockWindowRuntime}=require('./window-runtime.cjs');
 const {saveUIArtifact}=require('./ui-artifacts.cjs');
 const {makePlayer,makeDetail,makeTimeline,now}=require('./analysis-fixture.cjs');
+const {verifyKeyboardAccess}=require('./keyboard-access.cjs');
 async function main(){
  const browser=await chromium.launch({headless:true,executablePath:process.env.BROWSER_EXECUTABLE});
  try{
@@ -153,8 +154,9 @@ async function main(){
   assert.equal(calls.filter(n=>n==='MatchDetail').length,detailsBeforeHome+1,'opening a paged home game did not load exactly one detail');
   await homeGame.press('Escape');
   assert.equal(calls.filter(n=>n==='CurrentPlayer').length,1,'analysis navigation restarted automatic home loading');
+  await verifyKeyboardAccess(page, player, calls, shot);
   assert.deepEqual(external,[]);assert.deepEqual(errors,[]);
-  console.log('PASS: professional overview, rich match rows, click-authorized scoreboard, opt-in timeline, six team metrics, build/runes, cached tab changes, 1280/1100/880 and both themes; synthetic bridge.');
+  console.log('PASS: professional overview, rich match rows, click-authorized scoreboard, opt-in timeline, six team metrics, build/runes, cached tab changes, 1280/1100/880; keyboard-only home/query/history/settings/navigation, dialog focus, theme text/focus contrast and reduced motion in both themes; synthetic bridge.');
  }finally{await browser.close()}
 }
 main().catch(e=>{console.error(e);process.exitCode=1});

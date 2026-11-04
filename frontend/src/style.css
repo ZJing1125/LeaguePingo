@@ -14,9 +14,9 @@
   --border: #1d282f26;
   --text: #1d282f;
   --muted: #59665e;
-  --accent: #c94b26;
-  --win: #287965;
-  --loss: #ac4b50;
+  --accent: #bd4524;
+  --win: #26735f;
+  --loss: #a5484d;
   --warning: #97621d;
   --selection: #e8ded1;
   --radius: 3px;
@@ -33,7 +33,7 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 summary:focus-visible {
-  outline: 2px solid var(--accent-art);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 .primary {
