@@ -81,7 +81,9 @@ func TestEnsureProfileFailureCooldownAndExplicitRetry(t *testing.T) {
 	if len(c.calls) != 2 || c.calls[1] != "profile" {
 		t.Fatal("explicit retry should bypass cooldown")
 	}
-	e.profileRetry[p.Key] = time.Now().Add(-time.Second)
+	e.players.mu.Lock()
+	e.players.profileRetry[p.Key] = time.Now().Add(-time.Second)
+	e.players.mu.Unlock()
 	_, _ = e.EnsureProfile(context.Background(), p.Key, 0)
 	if len(c.calls) != 3 {
 		t.Fatal("cooldown never expired")
@@ -93,30 +95,32 @@ func TestEnsureProfileRejectsLateConnectionAndPreservesNewHistory(t *testing.T) 
 	c.onBasic = func() {
 		e.mu.Lock()
 		defer e.mu.Unlock()
-		current := e.cache[p.Key]
+		current := cachedPlayerForTest(e, p.Key)
 		core.ApplyHistory(&current, core.HistoryResult{Matches: []core.Match{{GameID: 43}}})
-		e.cache[p.Key] = current
+		seedPlayerForTest(e, p.Key, current)
 	}
 	got, err := e.EnsureProfile(context.Background(), p.Key, 0)
-	if err != nil || got.History[0].GameID != 43 || e.cache[p.Key].History[0].GameID != 43 {
+	if err != nil || got.History[0].GameID != 43 || cachedPlayerForTest(e, p.Key).History[0].GameID != 43 {
 		t.Fatal("profile overwrote newer history")
 	}
 	e, c, p = profileEnsureFixture()
 	c.onBasic = func() { e.mu.Lock(); e.invalidateConnectionLocked(); e.mu.Unlock() }
-	if _, err = e.EnsureProfile(context.Background(), p.Key, 0); err == nil || len(e.cache) != 0 || len(e.profileRetry) != 0 {
+	if _, err = e.EnsureProfile(context.Background(), p.Key, 0); err == nil || cacheCountsForTest(e).players != 0 || cacheCountsForTest(e).profileRetry != 0 {
 		t.Fatal("old profile/cooldown leaked into new connection")
 	}
 }
 
 func TestEnsureProfileFromRosterOnlyAndManualGate(t *testing.T) {
 	e, c, p := profileEnsureFixture()
-	e.cache = map[string]core.Participant{}
+	e.players.mu.Lock()
+	e.players.players = map[string]core.Participant{}
+	e.players.mu.Unlock()
 	_, release, _ := e.beginLookup(context.Background())
 	if _, err := e.EnsureProfile(context.Background(), p.Key, 0); err == nil || len(c.calls) != 0 {
 		t.Fatal("parallel operation bypassed gate")
 	}
 	release()
-	if _, err := e.EnsureProfile(context.Background(), p.Key, 0); err != nil || e.cache[p.Key].Profile == nil {
+	if _, err := e.EnsureProfile(context.Background(), p.Key, 0); err != nil || cachedPlayerForTest(e, p.Key).Profile == nil {
 		t.Fatal("roster-only profile not cached", err)
 	}
 	if _, err := e.EnsureProfile(context.Background(), p.Key, 1); err == nil || len(c.calls) != 1 {

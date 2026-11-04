@@ -31,7 +31,7 @@ func (e *Engine) resolvePlayerName(ctx context.Context, client Client, version u
 		player.Stale = true
 		return player
 	}
-	if cached, ok := e.cache[player.PUUID]; ok && cached.ConnectionID == version {
+	if cached, ok := e.players.player(player.PUUID); ok && cached.ConnectionID == version {
 		if !core.IsPlaceholderName(cached.DisplayName) {
 			player.DisplayName = cached.DisplayName
 		} else {

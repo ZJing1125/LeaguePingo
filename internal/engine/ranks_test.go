@@ -41,9 +41,9 @@ func TestRankRetryPreservesHistoryAndUntouchedProfileFreshness(t *testing.T) {
 		}
 		e.mu.Lock()
 		defer e.mu.Unlock()
-		current := e.cache[p.Key]
+		current := cachedPlayerForTest(e, p.Key)
 		core.ApplyHistory(&current, core.HistoryResult{Matches: []core.Match{{GameID: 77}}})
-		e.cache[p.Key] = current
+		seedPlayerForTest(e, p.Key, current)
 	}
 	got, err = e.LoadRanks(context.Background(), p.Key, 0)
 	if err != nil || got.History[0].GameID != 77 || got.Profile.Level == nil || got.Profile.ProfileIconData != "synthetic-avatar" {
@@ -100,7 +100,7 @@ func TestRankReplyAndManualGateRejectOldConnection(t *testing.T) {
 		t.Fatal("stale identity triggered request")
 	}
 	c.onRank = func(context.Context) { e.mu.Lock(); defer e.mu.Unlock(); e.invalidateConnectionLocked() }
-	if _, err := e.LoadRanks(context.Background(), p.Key, 0); err == nil || len(e.cache) != 0 {
+	if _, err := e.LoadRanks(context.Background(), p.Key, 0); err == nil || cacheCountsForTest(e).players != 0 {
 		t.Fatal("late rank crossed connections")
 	}
 }

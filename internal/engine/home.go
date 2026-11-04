@@ -23,7 +23,7 @@ func (e *Engine) CurrentPlayer(ctx context.Context, connectionID uint64) (core.P
 		e.mu.Unlock()
 		return core.Participant{}, apperrors.New(apperrors.NotLoggedIn)
 	}
-	player, cached := e.cache[key]
+	player, cached := e.players.player(key)
 	for _, p := range e.snapshot.Participants {
 		if p.PUUID == key && p.ConnectionID == version {
 			player, cached = p, true

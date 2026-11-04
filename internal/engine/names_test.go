@@ -10,10 +10,10 @@ import (
 func TestCachedHistoryStillResolvesMissingNameAndSharesIt(t *testing.T) {
 	e, c, p := profileEnsureFixture()
 	p.DisplayName = "玩家名称暂不可用"
-	e.cache[p.Key] = p
+	seedPlayerForTest(e, p.Key, p)
 	e.snapshot.Participants[0] = p
 	got, err := e.LookupPlayer(context.Background(), p.Key)
-	if err != nil || got.DisplayName != "Alice#TEST" || e.cache[p.Key].DisplayName != "Alice#TEST" || e.Snapshot().Participants[0].DisplayName != "Alice#TEST" {
+	if err != nil || got.DisplayName != "Alice#TEST" || cachedPlayerForTest(e, p.Key).DisplayName != "Alice#TEST" || e.Snapshot().Participants[0].DisplayName != "Alice#TEST" {
 		t.Fatal("cached history bypassed missing name resolution", err)
 	}
 	for _, call := range c.calls {
@@ -26,7 +26,7 @@ func TestCachedHistoryStillResolvesMissingNameAndSharesIt(t *testing.T) {
 func TestQueuedNameRepairRejectsChangedConnection(t *testing.T) {
 	e, c, p := profileEnsureFixture()
 	p.DisplayName = "玩家名称暂不可用"
-	e.cache[p.Key] = p
+	seedPlayerForTest(e, p.Key, p)
 	e.snapshot.Participants[0] = p
 	release, err := e.scheduler.acquire(context.Background(), false)
 	if err != nil {
@@ -55,7 +55,7 @@ func TestQueuedNameRepairRejectsChangedConnection(t *testing.T) {
 	release()
 	select {
 	case got := <-done:
-		if !got.Stale || len(c.calls) != 0 || len(e.cache) != 0 {
+		if !got.Stale || len(c.calls) != 0 || cacheCountsForTest(e).players != 0 {
 			t.Fatal("old queued name query crossed connection boundary")
 		}
 	case <-time.After(time.Second):
@@ -66,11 +66,13 @@ func TestQueuedNameRepairRejectsChangedConnection(t *testing.T) {
 func TestResolvedIDDoesNotLoseNameWhenHistoryCacheHasPlaceholder(t *testing.T) {
 	e, c, p := profileEnsureFixture()
 	p.DisplayName = "玩家名称暂不可用"
-	e.cache[p.Key] = p
+	seedPlayerForTest(e, p.Key, p)
 	e.snapshot.Participants[0] = p
-	e.aliases = map[string]string{}
+	e.players.mu.Lock()
+	e.players.aliases = map[string]string{}
+	e.players.mu.Unlock()
 	got, err := e.Lookup(context.Background(), "Manual#TEST")
-	if err != nil || got.DisplayName != "Manual#TEST" || e.cache[p.Key].DisplayName != "Manual#TEST" || e.Snapshot().Participants[0].DisplayName != "Manual#TEST" {
+	if err != nil || got.DisplayName != "Manual#TEST" || cachedPlayerForTest(e, p.Key).DisplayName != "Manual#TEST" || e.Snapshot().Participants[0].DisplayName != "Manual#TEST" {
 		t.Fatal("freshly verified ID was replaced by cached placeholder", err)
 	}
 	for _, call := range c.calls {
@@ -83,7 +85,7 @@ func TestResolvedIDDoesNotLoseNameWhenHistoryCacheHasPlaceholder(t *testing.T) {
 func TestHistoryRefreshRepairsMissingNameWithoutOptionalProfileRequests(t *testing.T) {
 	e, c, p := profileEnsureFixture()
 	p.DisplayName = "玩家名称暂不可用"
-	e.cache[p.Key] = p
+	seedPlayerForTest(e, p.Key, p)
 	e.snapshot.Participants[0] = p
 	got, err := e.RefreshHistory(context.Background(), p.Key, p.ConnectionID)
 	if err != nil || got.DisplayName != "Alice#TEST" {

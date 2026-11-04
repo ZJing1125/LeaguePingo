@@ -40,9 +40,7 @@ type Engine struct {
 	lookupGate          chan struct{}
 	matchRosterAttempts int
 	matchRosterComplete bool
-	cache               map[string]core.Participant
-	aliases             map[string]string
-	profileRetry        map[string]time.Time
+	players             playerCache
 	clientVersion       uint64
 	accountIdentity     string
 	homeCancel          context.CancelFunc
@@ -59,8 +57,6 @@ type Engine struct {
 	prepareAttempts     map[string]int
 	prepareProfiles     map[string]bool
 	preferred           string
-	details             map[string]core.MatchDetail
-	timelines           map[string]core.MatchTimeline
 	initialMatch        initialMatchPreparation
 	scouting            scoutPreparation
 	reviews             reviewState
@@ -81,7 +77,7 @@ func NewWithHistoryCache(discover Discoverer, onChange func(core.Snapshot), path
 }
 
 func newEngine(discover Discoverer, onChange func(core.Snapshot)) *Engine {
-	e := &Engine{discover: discover, onChange: onChange, lookupGate: make(chan struct{}, 1), phaseEvents: newEventSubscription(), champEvents: newEventSubscription(), scheduler: newScheduler(), cache: map[string]core.Participant{}, aliases: map[string]string{}, snapshot: core.Snapshot{Stage: string(StageDisconnected), UpdatedAt: time.Now(), Participants: []core.Participant{}}}
+	e := &Engine{discover: discover, onChange: onChange, lookupGate: make(chan struct{}, 1), phaseEvents: newEventSubscription(), champEvents: newEventSubscription(), scheduler: newScheduler(), snapshot: core.Snapshot{Stage: string(StageDisconnected), UpdatedAt: time.Now(), Participants: []core.Participant{}}}
 	e.autoAccept = readycheck.New()
 	e.historyRecovery.updates = make(chan core.Participant, 64)
 	e.postGame = postgame.New()
@@ -387,11 +383,7 @@ func (e *Engine) invalidateConnectionLocked() {
 	e.accountIdentity = ""
 	e.matchRosterAttempts = 0
 	e.matchRosterComplete = false
-	e.cache = map[string]core.Participant{}
-	e.aliases = map[string]string{}
-	e.profileRetry = nil
-	e.details = nil
-	e.timelines = nil
+	e.players.reset()
 	if e.cancel != nil {
 		e.cancel()
 	}
@@ -493,7 +485,7 @@ func (e *Engine) replaceLocked(stage Stage, phase Phase, gameID int64, roster []
 	for i := range roster {
 		if e.hydrateHistory(&roster[i]) {
 			roster[i].ConnectionID = e.clientVersion
-			e.cache[roster[i].PUUID] = roster[i]
+			e.players.restorePlayer(roster[i])
 		}
 	}
 	if stage == StageInGame && message == "" {
@@ -532,7 +524,7 @@ func (e *Engine) replaceLocked(stage Stage, phase Phase, gameID int64, roster []
 	// Names belong to a verified connection/player, independently of the match
 	// or history timestamp. Never let a nameless roster overwrite the cache.
 	for i := range roster {
-		if cached, ok := e.cache[roster[i].PUUID]; ok && cached.ConnectionID == e.clientVersion {
+		if cached, ok := e.players.player(roster[i].PUUID); ok && cached.ConnectionID == e.clientVersion {
 			if core.IsPlaceholderName(roster[i].DisplayName) && !core.IsPlaceholderName(cached.DisplayName) {
 				roster[i].DisplayName = cached.DisplayName
 			}
@@ -667,7 +659,7 @@ func (e *Engine) prepare(ctx context.Context, token uint64, client Client, versi
 		e.prepareAttempts[player.PUUID]++
 		e.mu.Unlock()
 		e.mu.RLock()
-		cached, ok := e.cache[player.PUUID]
+		cached, ok := e.players.player(player.PUUID)
 		e.mu.RUnlock()
 		if ok && cacheFresh(cached) {
 			e.updatePrepared(token, player.PUUID, func(p *core.Participant) {
@@ -815,8 +807,7 @@ func (e *Engine) lookup(ctx context.Context, riotID string, force bool) (core.Pa
 	generation := e.snapshot.Generation
 	version := e.clientVersion
 	cached := clone(e.snapshot)
-	cacheID := e.aliases[normalizeID(riotID)]
-	entry, hasEntry := e.cache[cacheID]
+	entry, hasEntry := e.players.byAlias(normalizeID(riotID))
 	e.mu.RUnlock()
 	if !force && hasEntry {
 		if player, ok := e.reuseLookupHistory(ctx, client, generation, version, entry); ok {
@@ -868,7 +859,7 @@ func (e *Engine) lookupPlayer(ctx context.Context, key string, force bool) (core
 	e.mu.RLock()
 	snapshot := clone(e.snapshot)
 	version := e.clientVersion
-	entry, hasEntry := e.cache[key]
+	entry, hasEntry := e.players.player(key)
 	client := e.client
 	e.mu.RUnlock()
 	var player core.Participant
@@ -918,7 +909,7 @@ func (e *Engine) loadManualHistoryGuarded(ctx context.Context, client Client, ge
 		player = e.resolvePlayerName(ctx, client, version, player, true)
 	}
 	e.mu.RLock()
-	cached, ok := e.cache[player.PUUID]
+	cached, ok := e.players.player(player.PUUID)
 	sameClient := e.clientVersion == version
 	e.mu.RUnlock()
 	if !force && sameClient && ok && cacheFresh(cached) {
@@ -1001,7 +992,7 @@ func (e *Engine) loadManualHistoryGuarded(ctx context.Context, client Client, ge
 	}
 	// Background profile completion and manual history use independent clocks.
 	// Keep a newer profile that completed while history was waiting in the lane.
-	if latest, ok := e.cache[player.PUUID]; ok && latest.ConnectionID == version && latest.Profile != nil &&
+	if latest, ok := e.players.player(player.PUUID); ok && latest.ConnectionID == version && latest.Profile != nil &&
 		(player.Profile == nil || (latest.Profile.UpdatedAt != nil && (player.Profile.UpdatedAt == nil || latest.Profile.UpdatedAt.After(*player.Profile.UpdatedAt)))) {
 		player.Profile, player.PrivacyState = latest.Profile, latest.PrivacyState
 	}
@@ -1049,23 +1040,13 @@ func (e *Engine) cachePlayerLocked(p core.Participant) {
 	if p.HistoryMeta.Service == nil && historyCached(p) && p.Error == "" {
 		delete(e.historyRecovery.entries, p.Key)
 	}
-	if old, ok := e.cache[p.PUUID]; ok && old.ConnectionID == p.ConnectionID && core.IsPlaceholderName(p.DisplayName) && !core.IsPlaceholderName(old.DisplayName) {
-		p.DisplayName = old.DisplayName
-	}
-	if len(e.cache) >= 64 {
-		e.cache = map[string]core.Participant{}
-		e.aliases = map[string]string{}
-	}
-	e.cache[p.PUUID] = p
+	p = e.players.remember(p)
 	if len(p.History) > 0 && !p.Cached {
 		returned := p.HistoryMeta.Returned
 		if returned <= 0 || returned > len(p.History) {
 			returned = len(p.History)
 		}
 		e.historyStore.put(p.PUUID, core.HistoryPage{Matches: p.History, Meta: p.HistoryMeta, Offset: 0, NextOffset: returned, HasMore: returned >= 20})
-	}
-	if alias := normalizeID(p.DisplayName); alias != "" {
-		e.aliases[alias] = p.PUUID
 	}
 }
 
@@ -1128,7 +1109,7 @@ func (e *Engine) refreshHydratedHistory(client Client, generation, version uint6
 		if ctx.Err() != nil || e.client == nil || e.clientVersion != version || e.phaseEpoch != epoch {
 			return
 		}
-		if current, ok := e.cache[player.PUUID]; ok && current.ConnectionID == version {
+		if current, ok := e.players.player(player.PUUID); ok && current.ConnectionID == version {
 			player = current
 		}
 		if err == nil {

@@ -30,7 +30,7 @@ func TestProfileOnlyUpdateUsesCachedPlayerWithoutHistoryRefresh(t *testing.T) {
 	e.client = fake
 	p := fullTestRoster()[0]
 	core.ApplyHistory(&p, core.HistoryResult{Matches: []core.Match{{GameID: 99}}})
-	e.cache[p.Key] = p
+	seedPlayerForTest(e, p.Key, p)
 	got, err := e.LoadProfile(context.Background(), p.Key, 0)
 	if err != nil || got.PrivacyState != "private" || len(got.History) != 1 || len(fake.calls) != 1 || fake.calls[0] != "profile" {
 		t.Fatal("profile-only update fetched or lost history")
@@ -48,7 +48,7 @@ func TestHistoryOnlyRefreshDoesNotRepeatIdentityOrProfileRequests(t *testing.T) 
 	p := fullTestRoster()[0]
 	p.Profile = &core.Profile{PrivacyState: "private", RankState: "ready", Ranks: []core.Rank{{Tier: "GOLD"}}}
 	core.ApplyHistory(&p, core.HistoryResult{Matches: []core.Match{{GameID: 99}}})
-	e.cache[p.Key] = p
+	seedPlayerForTest(e, p.Key, p)
 	got, err := e.RefreshHistory(context.Background(), p.Key, 0)
 	if err != nil || len(fake.calls) != 1 || fake.calls[0] != "history" || got.Profile != p.Profile || got.Profile.PrivacyState != "private" {
 		t.Fatal("history refresh repeated identity/profile requests or lost profile", err)
@@ -67,7 +67,7 @@ func TestPartialProfileUpdatePreservesFieldAgeWithoutReplacingHistory(t *testing
 	p := fullTestRoster()[0]
 	core.ApplyHistory(&p, core.HistoryResult{Matches: []core.Match{{GameID: 99}}})
 	p.Profile = &old
-	e.cache[p.Key] = p
+	seedPlayerForTest(e, p.Key, p)
 	got, err := e.LoadProfile(context.Background(), p.Key, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -103,7 +103,7 @@ func TestHistoryRefreshRetainsPreviouslyVerifiedProfileOnOptionalFailure(t *test
 	e := New(nil, nil)
 	e.client = fake
 	level := 100
-	e.cache["manual"] = core.Participant{Key: "manual", PUUID: "manual", Profile: &core.Profile{Level: &level, PrivacyState: "private", RankState: "ready", Ranks: []core.Rank{{Tier: "GOLD"}}}}
+	seedPlayerForTest(e, "manual", core.Participant{Key: "manual", PUUID: "manual", Profile: &core.Profile{Level: &level, PrivacyState: "private", RankState: "ready", Ranks: []core.Rank{{Tier: "GOLD"}}}})
 	p, err := e.RefreshLookup(context.Background(), "Manual#TEST")
 	if err != nil || p.Profile == nil || p.Profile.Level == nil || *p.Profile.Level != 100 || p.PrivacyState != "private" || len(p.Profile.Ranks) != 1 {
 		t.Fatal("optional failure erased verified profile")
@@ -138,7 +138,7 @@ func TestMatchDetailCachedAndIsolatedFromConnectionChanges(t *testing.T) {
 		e.mu.Unlock()
 		return core.MatchDetail{GameID: 43}, nil
 	}
-	if _, err := e.MatchDetail(context.Background(), "player-0", 0, 43); err == nil || len(e.details) != 0 {
+	if _, err := e.MatchDetail(context.Background(), "player-0", 0, 43); err == nil || cacheCountsForTest(e).details != 0 {
 		t.Fatal("old detail entered new connection")
 	}
 }

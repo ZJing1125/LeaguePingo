@@ -66,7 +66,7 @@ func (e *Engine) startInitialMatchLocked() {
 			continue
 		}
 		known = true
-		if cached, ok := e.cache[p.PUUID]; ok && cached.ConnectionID == s.version && historyCached(cached) && cacheFresh(cached) {
+		if cached, ok := e.players.player(p.PUUID); ok && cached.ConnectionID == s.version && historyCached(cached) && cacheFresh(cached) {
 			core.ApplyHistory(p, core.HistoryResult{Matches: cached.History, Meta: cached.HistoryMeta})
 			if core.IsPlaceholderName(p.DisplayName) {
 				p.DisplayName = cached.DisplayName
@@ -130,7 +130,7 @@ func (e *Engine) prepareInitialMatch(ctx context.Context, version uint64, gameID
 		for i := range e.snapshot.Participants {
 			p := &e.snapshot.Participants[i]
 			if p.PUUID == target.PUUID && p.ConnectionID == version {
-				if cached, ok := e.cache[p.PUUID]; ok && cached.ConnectionID == version && historyCached(cached) && cacheFresh(cached) {
+				if cached, ok := e.players.player(p.PUUID); ok && cached.ConnectionID == version && historyCached(cached) && cacheFresh(cached) {
 					core.ApplyHistory(p, core.HistoryResult{Matches: cached.History, Meta: cached.HistoryMeta})
 					e.snapshot.UpdatedAt = time.Now()
 					e.publishLocked()

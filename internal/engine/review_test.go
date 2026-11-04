@@ -181,7 +181,7 @@ func TestAccountChangeWithoutNoneInvalidatesCacheOnlyBeforeGame(t *testing.T) {
 	e.snapshot.Participants = []core.Participant{p}
 	fake.account = "account-b"
 	e.poll(context.Background())
-	if e.clientVersion <= old || len(e.cache) != 0 || e.Snapshot().ConnectionID != e.clientVersion || len(e.Snapshot().Participants) != 0 {
+	if e.clientVersion <= old || cacheCountsForTest(e).players != 0 || e.Snapshot().ConnectionID != e.clientVersion || len(e.Snapshot().Participants) != 0 {
 		t.Fatal("same-connection account change retained old identity/cache")
 	}
 	fake.phase = "InProgress"

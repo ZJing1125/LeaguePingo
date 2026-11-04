@@ -107,7 +107,7 @@ func TestAutomaticProfileFailureIsBoundedAndLatePhaseReplyIgnored(t *testing.T) 
 		e.poll(context.Background())
 		waitPreparationStopped(t, e)
 		if leave {
-			if len(e.Snapshot().Participants) != 0 || e.cache[c.roster[0].Key].Profile != nil {
+			if len(e.Snapshot().Participants) != 0 || cachedPlayerForTest(e, c.roster[0].Key).Profile != nil {
 				t.Fatal("late profile crossed phase")
 			}
 		} else {
@@ -212,10 +212,10 @@ func TestHistoryReplyRetainsProfileCompletedWhileWaiting(t *testing.T) {
 	completed := mergeProfile(dataProfile(), nil)
 	c.historyFn = func(context.Context, string) (core.HistoryResult, error) {
 		e.mu.Lock()
-		current := e.cache[p.PUUID]
+		current := cachedPlayerForTest(e, p.PUUID)
 		current.Profile = &completed
 		current.PrivacyState = completed.PrivacyState
-		e.cache[p.PUUID] = current
+		seedPlayerForTest(e, p.PUUID, current)
 		e.mu.Unlock()
 		return core.HistoryResult{Matches: []core.Match{{GameID: 77}}}, nil
 	}

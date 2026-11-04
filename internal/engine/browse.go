@@ -21,7 +21,7 @@ func (e *Engine) browsePlayer(key string, connectionID uint64) (Client, core.Par
 	if connectionID != e.clientVersion {
 		return nil, core.Participant{}, apperrors.New(apperrors.StaleData)
 	}
-	if p, ok := e.cache[key]; ok && p.ConnectionID == connectionID {
+	if p, ok := e.players.player(key); ok && p.ConnectionID == connectionID {
 		return e.client, p, nil
 	}
 	for _, p := range e.snapshot.Participants {
@@ -124,10 +124,7 @@ func (e *Engine) markProfileAttempt(version uint64, key string) {
 	if e.clientVersion != version {
 		return
 	}
-	if e.profileRetry == nil || len(e.profileRetry) >= 64 {
-		e.profileRetry = map[string]time.Time{}
-	}
-	e.profileRetry[key] = time.Now().Add(30 * time.Second)
+	e.players.markProfileAttempt(key, time.Now())
 }
 
 func (e *Engine) loadProfileData(ctx context.Context, key string, connectionID uint64, onlyMissing bool) (core.Participant, error) {
@@ -137,7 +134,7 @@ func (e *Engine) loadProfileData(ctx context.Context, key string, connectionID u
 	}
 	if onlyMissing {
 		e.mu.RLock()
-		cooling := time.Now().Before(e.profileRetry[key])
+		cooling := e.players.profileCooling(key, time.Now())
 		e.mu.RUnlock()
 		if automaticProfileFresh(player.Profile) || cooling {
 			return player, nil
@@ -175,7 +172,7 @@ func (e *Engine) storeProfile(player core.Participant, connectionID uint64, prof
 		return core.Participant{}, apperrors.New(apperrors.StaleData)
 	}
 	// A profile-only operation must never replace history that completed meanwhile.
-	if current, ok := e.cache[player.Key]; ok {
+	if current, ok := e.players.player(player.Key); ok {
 		player = current
 	}
 	previous := player.Profile
@@ -333,7 +330,7 @@ func (e *Engine) MatchDetail(ctx context.Context, key string, connectionID uint6
 	}
 	cacheKey := fmt.Sprintf("%d:%s", gameID, player.PUUID)
 	e.mu.RLock()
-	cached, ok := e.details[cacheKey]
+	cached, ok := e.players.detail(cacheKey)
 	e.mu.RUnlock()
 	if ok && cached.ConnectionID == connectionID && time.Since(cached.FetchedAt) < 5*time.Minute {
 		return cached, nil
@@ -357,10 +354,7 @@ func (e *Engine) MatchDetail(ctx context.Context, key string, connectionID uint6
 		return core.MatchDetail{}, apperrors.New(apperrors.StaleData)
 	}
 	detail.ConnectionID = connectionID
-	if e.details == nil || len(e.details) >= 32 {
-		e.details = map[string]core.MatchDetail{}
-	}
-	e.details[cacheKey] = detail
+	e.players.rememberDetail(cacheKey, detail)
 	return detail, nil
 }
 

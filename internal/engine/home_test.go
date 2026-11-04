@@ -79,7 +79,7 @@ func TestHomePreparationStopsWhenLeavingIdle(t *testing.T) {
 		if err == nil {
 			t.Fatal("cancelled home load returned success")
 		}
-		if len(e.cache) != 0 {
+		if cacheCountsForTest(e).players != 0 {
 			t.Fatal("cancelled home load overwrote the next phase's cache")
 		}
 	case <-time.After(time.Second):

@@ -34,8 +34,7 @@ func (e *Engine) MatchTimeline(ctx context.Context, key string, connectionID uin
 	}
 	cacheKey := fmt.Sprintf("%d:%s", gameID, player.PUUID)
 	e.mu.RLock()
-	cached, found := e.timelines[cacheKey]
-	detail, hasDetail := e.details[cacheKey]
+	cached, found, detail, hasDetail := e.players.analysis(cacheKey)
 	e.mu.RUnlock()
 	if found && cached.ConnectionID == connectionID && time.Since(cached.FetchedAt) < 5*time.Minute {
 		return cached, nil
@@ -76,13 +75,6 @@ func (e *Engine) MatchTimeline(ctx context.Context, key string, connectionID uin
 	timeline.ConnectionID = connectionID
 	detail.ConnectionID = connectionID
 	timeline.Detail = &detail
-	if e.timelines == nil || len(e.timelines) >= 8 {
-		e.timelines = map[string]core.MatchTimeline{}
-	}
-	if e.details == nil || len(e.details) >= 32 {
-		e.details = map[string]core.MatchDetail{}
-	}
-	e.timelines[cacheKey] = timeline
-	e.details[cacheKey] = detail
+	e.players.rememberTimeline(cacheKey, timeline, detail)
 	return timeline, nil
 }

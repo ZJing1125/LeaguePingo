@@ -153,7 +153,7 @@ func (e *Engine) RetryHistory(ctx context.Context, key string, connectionID uint
 		return player, apperrors.New(apperrors.StaleData)
 	}
 	// Preserve profile, name and any newer manual history completed meanwhile.
-	if latest, ok := e.cache[player.PUUID]; ok && latest.ConnectionID == connectionID {
+	if latest, ok := e.players.player(player.PUUID); ok && latest.ConnectionID == connectionID {
 		player = latest
 	}
 	if loadErr == nil {

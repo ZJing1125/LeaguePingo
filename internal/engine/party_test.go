@@ -71,12 +71,12 @@ func TestCachedNameSurvivesPlaceholderProfileWrite(t *testing.T) {
 	placeholder := p
 	placeholder.DisplayName = "玩家名称暂不可用"
 	e.cachePlayerLocked(placeholder)
-	if e.cache[p.PUUID].DisplayName != p.DisplayName {
+	if cachedPlayerForTest(e, p.PUUID).DisplayName != p.DisplayName {
 		t.Fatal("profile-only cache write erased known name")
 	}
 	placeholder.ConnectionID++
 	e.cachePlayerLocked(placeholder)
-	if e.cache[p.PUUID].DisplayName == p.DisplayName {
+	if cachedPlayerForTest(e, p.PUUID).DisplayName == p.DisplayName {
 		t.Fatal("name was inherited across connections")
 	}
 }

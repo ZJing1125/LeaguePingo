@@ -641,7 +641,11 @@ func TestManualCacheExpiryRefreshAndFailurePreservesData(t *testing.T) {
 		t.Fatal("clipboard direction markers prevented cache reuse")
 	}
 	old := time.Now().Add(-6 * time.Minute)
-	e.cache["manual"] = func() core.Participant { p := e.cache["manual"]; p.HistoryMeta.FetchedAt = &old; return p }()
+	seedPlayerForTest(e, "manual", func() core.Participant {
+		p := cachedPlayerForTest(e, "manual")
+		p.HistoryMeta.FetchedAt = &old
+		return p
+	}())
 	if p, err = e.Lookup(context.Background(), "Manual#TEST"); err != nil || !p.Cached || !p.Stale || !p.HistoryMeta.FetchedAt.Equal(old) {
 		t.Fatal("expired cache did not return immediately with its original age")
 	}
@@ -693,7 +697,7 @@ func TestManualResultFromOldConnectionCannotEnterNewCache(t *testing.T) {
 	if _, err := e.Lookup(context.Background(), "Manual#TEST"); err != nil {
 		t.Fatal(err)
 	}
-	if len(e.cache) != 0 {
+	if cacheCountsForTest(e).players != 0 {
 		t.Fatal("old connection populated new connection cache")
 	}
 }

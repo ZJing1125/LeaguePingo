@@ -53,7 +53,7 @@ func TestTimelineExplicitCacheAndConnectionIsolation(t *testing.T) {
 		e.mu.Unlock()
 		return core.MatchTimeline{GameID: 43, FetchedAt: time.Now()}, nil
 	}
-	if _, err := e.MatchTimeline(context.Background(), "player-0", 0, 43); err == nil || len(e.timelines) != 0 || len(e.details) != 0 {
+	if _, err := e.MatchTimeline(context.Background(), "player-0", 0, 43); err == nil || cacheCountsForTest(e).timelines != 0 || cacheCountsForTest(e).details != 0 {
 		t.Fatal("late timeline crossed connection change")
 	}
 }
