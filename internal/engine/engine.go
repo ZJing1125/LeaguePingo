@@ -63,11 +63,7 @@ type Engine struct {
 	timelines           map[string]core.MatchTimeline
 	initialMatch        initialMatchPreparation
 	scouting            scoutPreparation
-	reviewCandidate     *core.MatchReview
-	review              *core.MatchReview
-	reviewOwner         string
-	reviewCancel        context.CancelFunc
-	reviewToken         uint64
+	reviews             reviewState
 	historyStore        *historyStore
 }
 
@@ -779,7 +775,7 @@ func (e *Engine) publishLocked() {
 	}
 	e.syncGroupingLocked()
 	e.syncReviewLocked()
-	e.snapshot.Review = e.review
+	e.snapshot.Review, _ = e.reviews.view()
 	e.observePostGameLocked()
 	e.observeReadinessLocked()
 	if e.onChange == nil {

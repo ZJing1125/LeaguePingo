@@ -16,21 +16,21 @@ func TestFinishedReviewIsDeepFrozenAndSurvivesNewLobby(t *testing.T) {
 	players[0].Scout = &core.ScoutReport{State: "loading"}
 	e.snapshot = core.Snapshot{Connected: true, Phase: "InProgress", Stage: "in-game", Region: "CN", GameID: 42, SelfKey: players[0].Key, Participants: players}
 	e.publishLocked()
-	if e.review != nil {
+	if reviewForTest(e) != nil {
 		t.Fatal("live match exposed as finished review")
 	}
 	e.snapshot.Phase = "EndOfGame"
 	e.publishLocked()
-	if e.review == nil || e.review.GameID != 42 || len(e.review.Participants) != 10 {
+	if reviewForTest(e) == nil || reviewForTest(e).GameID != 42 || len(reviewForTest(e).Participants) != 10 {
 		t.Fatal("finished roster lost")
 	}
-	if e.review.Participants[0].HistoryState == core.HistoryLoading || e.review.Participants[0].Scout.State == "loading" {
+	if reviewForTest(e).Participants[0].HistoryState == core.HistoryLoading || reviewForTest(e).Participants[0].Scout.State == "loading" {
 		t.Fatal("completed review retained running preparation")
 	}
 	level = 999
 	players[0].Profile.Ranks[0].Tier = "IRON"
 	players[0].DisplayName = "changed"
-	if *e.review.Participants[0].Profile.Level != 50 || e.review.Participants[0].Profile.Ranks[0].Tier != "GOLD" {
+	if *reviewForTest(e).Participants[0].Profile.Level != 50 || reviewForTest(e).Participants[0].Profile.Ranks[0].Tier != "GOLD" {
 		t.Fatal("nested profile was not frozen")
 	}
 	e.snapshot = core.Snapshot{Connected: true, Phase: "Lobby", Stage: "party", SelfKey: players[0].Key, Participants: players[:1]}
@@ -52,7 +52,7 @@ func TestDodgeAndDisconnectDoNotCreateFinishedReview(t *testing.T) {
 		e.publishLocked()
 		e.snapshot.Phase = "Lobby"
 		e.publishLocked()
-		if e.review != nil {
+		if reviewForTest(e) != nil {
 			t.Fatal("unfinished selection/loading archived")
 		}
 	}
@@ -61,7 +61,7 @@ func TestDodgeAndDisconnectDoNotCreateFinishedReview(t *testing.T) {
 	e.publishLocked()
 	e.snapshot.Connected = false
 	e.publishLocked()
-	if e.review != nil {
+	if reviewForTest(e) != nil {
 		t.Fatal("disconnect treated as game end")
 	}
 }
@@ -95,7 +95,7 @@ func TestReviewResultCannotArriveIntoNewMatch(t *testing.T) {
 	<-returned
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.review.Result != nil || e.reviewCandidate.GameID != 43 {
+	if reviewForTest(e).Result != nil || reviewCandidateForTest(e).GameID != 43 {
 		t.Fatal("old settlement contaminated new game")
 	}
 	e.stopReviewLocked()
@@ -219,4 +219,16 @@ func TestSinglePlayerPracticeSettlementIsReadyWithoutInventedTeamShares(t *testi
 		time.Sleep(time.Millisecond)
 	}
 	t.Fatal("legitimate solo practice treated as missing nine players")
+}
+
+// Component views are immutable after publication; inspect candidate only under
+// its own lock so the tests do not reintroduce Engine-owned review state.
+func reviewForTest(e *Engine) *core.MatchReview {
+	review, _ := e.reviews.view()
+	return review
+}
+func reviewCandidateForTest(e *Engine) *core.MatchReview {
+	e.reviews.mu.RLock()
+	defer e.reviews.mu.RUnlock()
+	return e.reviews.candidate
 }

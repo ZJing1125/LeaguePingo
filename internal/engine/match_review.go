@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"leaguepingo/internal/apperrors"
@@ -10,87 +9,19 @@ import (
 	"leaguepingo/internal/source"
 )
 
-func (e *Engine) stopReviewLocked() {
-	if e.reviewCancel != nil {
-		e.reviewCancel()
-		e.reviewCancel = nil
-	}
-	if e.review != nil && e.review.State == "waiting" {
-		copy := *e.review
-		copy.State = "unavailable"
-		if copy.Result != nil {
-			copy.State = "partial"
-		}
-		e.review = &copy
-	}
-	e.reviewToken++
-}
+func (e *Engine) stopReviewLocked() { e.reviews.stop() }
 
 func (e *Engine) syncReviewLocked() {
-	s := e.snapshot
-	if s.SelfKey != "" {
-		if e.reviewOwner != "" && e.reviewOwner != s.SelfKey {
-			e.stopReviewLocked()
-			e.review, e.reviewCandidate = nil, nil
-		}
-		e.reviewOwner = s.SelfKey
-	}
-	if s.Connected && snapshotPhase(s.Phase) == PhaseInProgress && s.GameID > 0 && len(s.Participants) > 0 {
-		if e.reviewCandidate == nil || e.reviewCandidate.GameID != s.GameID {
-			e.stopReviewLocked()
-		}
-		e.reviewCandidate = &core.MatchReview{ConnectionID: s.ConnectionID, GameID: s.GameID, Region: s.Region, SelfKey: s.SelfKey, QueueID: s.QueueID, ScoutQueue: s.ScoutQueue, CapturedAt: s.UpdatedAt, Participants: clone(s).Participants}
+	frozen := e.reviews.observe(e.snapshot)
+	if frozen == nil {
 		return
 	}
-	// Disconnection/reconnection is not evidence of a finished game.
-	phase := snapshotPhase(s.Phase)
-	if !s.Connected || activeMatch(phase) || phase == PhaseWatchInProgress || e.reviewCandidate == nil {
-		return
-	}
-	switch phase {
-	case PhaseWaitingForStats, PhasePreEndOfGame, PhaseEndOfGame, PhaseLobby, PhaseMatchmaking, PhaseReadyCheck, PhaseChampSelect:
-	case PhaseNone:
-		if s.SelfKey == "" || s.SelfKey != e.reviewCandidate.SelfKey {
-			return
-		}
-	default:
-		return
-	}
-	r := e.reviewCandidate
-	// One deep freeze at completion, including maps/pointers in reports/profiles.
-	raw, _ := json.Marshal(r)
-	var frozen core.MatchReview
-	if json.Unmarshal(raw, &frozen) != nil {
-		return
-	}
-	// A finished review has no running preparation. Preserve real values and
-	// their timestamps, but do not archive an endless loading/pending indicator.
-	for i := range frozen.Participants {
-		p := &frozen.Participants[i]
-		p.Cached = true
-		if p.IdentityState == core.IdentityKnown && (p.HistoryState == core.HistoryLoading || p.HistoryState == core.HistoryPending) {
-			if len(p.History) > 0 {
-				p.HistoryState = core.HistoryReady
-			} else {
-				p.HistoryState = core.HistoryFailed
-				if p.Error == "" {
-					p.Error = "本局结束时战绩未完整保留"
-				}
-			}
-		}
-		if p.Scout != nil && p.Scout.State == "loading" {
-			p.Scout.State = "partial"
-		}
-	}
-	frozen.State, frozen.CapturedAt = "waiting", time.Now()
-	e.stopReviewLocked()
-	e.review, e.reviewCandidate = &frozen, nil
 	if e.client == nil {
-		e.review.State = "unavailable"
+		e.reviews.unavailable()
 		return
 	}
 	if _, ok := e.client.(source.MatchDetailSource); !ok {
-		e.review.State = "unavailable"
+		e.reviews.unavailable()
 		return
 	}
 	verifiedTarget := false
@@ -101,52 +32,45 @@ func (e *Engine) syncReviewLocked() {
 		}
 	}
 	if !verifiedTarget {
-		e.review.State = "unavailable"
+		e.reviews.unavailable()
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	e.reviewCancel = cancel
-	token, version, client := e.reviewToken, e.clientVersion, e.client
-	go func() {
-		defer cancel()
-		started := time.Now()
-	attempts:
-		for attempt := 0; attempt < 3; attempt++ {
-			if attempt > 0 {
-				// Spend the existing 15-second budget across readiness windows,
-				// rather than exhausting three fast 404s in the first three seconds.
-				select {
-				case <-ctx.Done():
-					break attempts
-				case <-time.After(max(0, time.Until(started.Add(time.Duration(attempt)*5*time.Second)))):
-				}
-			}
-			if err := e.fetchReview(ctx, frozen.GameID, version, token, client, false); err == nil {
-				e.mu.RLock()
-				ready := e.review != nil && e.review.GameID == frozen.GameID && e.review.State == "ready"
-				e.mu.RUnlock()
-				if ready {
-					return
-				}
-			}
-			if ctx.Err() != nil {
-				break
+	ctx, cancel, token := e.reviews.begin()
+	go e.completeReview(ctx, cancel, frozen.GameID, e.clientVersion, token, e.client)
+}
+
+func (e *Engine) completeReview(ctx context.Context, cancel context.CancelFunc, gameID int64, version, token uint64, client Client) {
+	defer cancel()
+	started := time.Now()
+attempts:
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			// Keep the existing readiness windows within the 15-second budget.
+			select {
+			case <-ctx.Done():
+				break attempts
+			case <-time.After(max(0, time.Until(started.Add(time.Duration(attempt)*5*time.Second)))):
 			}
 		}
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		if e.reviewToken == token && e.review != nil && e.review.GameID == frozen.GameID {
-			copy := *e.review
-			if copy.Result != nil {
-				copy.State = "partial"
-			} else {
-				copy.State = "unavailable"
+		if err := e.fetchReview(ctx, gameID, version, token, client, false); err == nil {
+			e.mu.RLock()
+			review, _ := e.reviews.view()
+			ready := review != nil && review.GameID == gameID && review.State == "ready"
+			e.mu.RUnlock()
+			if ready {
+				return
 			}
-			e.review = &copy
-			e.snapshot.UpdatedAt = time.Now()
-			e.publishLocked()
 		}
-	}()
+		if ctx.Err() != nil {
+			break
+		}
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.reviews.finish(gameID, token) {
+		e.snapshot.UpdatedAt = time.Now()
+		e.publishLocked()
+	}
 }
 
 func (e *Engine) RefreshReview(ctx context.Context, gameID int64) (core.Snapshot, error) {
@@ -156,26 +80,33 @@ func (e *Engine) RefreshReview(ctx context.Context, gameID int64) (core.Snapshot
 	}
 	defer done()
 	e.mu.Lock()
-	if e.review == nil || e.review.GameID != gameID || e.client == nil || activeMatch(snapshotPhase(e.snapshot.Phase)) ||
-		e.accountIdentity == "" || e.review.SelfKey != e.accountIdentity || e.review.Region != e.client.Region() {
+	review, _ := e.reviews.view()
+	if review == nil || review.GameID != gameID || e.client == nil || activeMatch(snapshotPhase(e.snapshot.Phase)) ||
+		e.accountIdentity == "" || review.SelfKey != e.accountIdentity || review.Region != e.client.Region() {
 		e.mu.Unlock()
 		return core.Snapshot{}, apperrors.New(apperrors.MatchNotReady)
 	}
 	e.stopReviewLocked()
-	token, version, client := e.reviewToken, e.clientVersion, e.client
+	_, token := e.reviews.view()
+	version, client := e.clientVersion, e.client
 	e.mu.Unlock()
 	err = e.fetchReview(ctx, gameID, version, token, client, true)
 	return e.Snapshot(), err
 }
 
+// Engine lock must be held before inspecting component lifetime and live phase.
+func (e *Engine) reviewReadValidLocked(gameID int64, version, token uint64) bool {
+	return e.reviews.matches(gameID, token) && e.clientVersion == version && e.client != nil && e.snapshot.Connected && !activeMatch(snapshotPhase(e.snapshot.Phase))
+}
+
 func (e *Engine) fetchReview(ctx context.Context, gameID int64, version, token uint64, client Client, manual bool) error {
 	e.mu.RLock()
-	r := e.review
-	valid := r != nil && r.GameID == gameID && e.reviewToken == token && e.clientVersion == version && e.client != nil && e.snapshot.Connected && !activeMatch(snapshotPhase(e.snapshot.Phase))
+	review, _ := e.reviews.view()
+	valid := e.reviewReadValidLocked(gameID, version, token)
 	target := ""
 	if valid {
-		for _, p := range r.Participants {
-			if p.Key == r.SelfKey || p.PUUID == r.SelfKey {
+		for _, p := range review.Participants {
+			if p.Key == review.SelfKey || p.PUUID == review.SelfKey {
 				target = p.PUUID
 				break
 			}
@@ -200,9 +131,10 @@ func (e *Engine) fetchReview(ctx context.Context, gameID int64, version, token u
 		return err
 	}
 	defer release()
-	// Recheck after waiting for a manual operation/new match/account transition.
+	// Check again after the scheduler and after source I/O. No component lock
+	// is held while waiting for another operation or the source.
 	e.mu.RLock()
-	valid = e.reviewToken == token && e.clientVersion == version && e.client != nil && e.snapshot.Connected && !activeMatch(snapshotPhase(e.snapshot.Phase))
+	valid = e.reviewReadValidLocked(gameID, version, token)
 	e.mu.RUnlock()
 	if !valid {
 		return apperrors.New(apperrors.StaleData)
@@ -219,25 +151,9 @@ func (e *Engine) fetchReview(ctx context.Context, gameID int64, version, token u
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.reviewToken != token || e.clientVersion != version || e.client == nil || !e.snapshot.Connected || e.review == nil || e.review.GameID != gameID || activeMatch(snapshotPhase(e.snapshot.Phase)) {
+	if !e.reviewReadValidLocked(gameID, version, token) || !e.reviews.merge(gameID, token, version, detail, manual) {
 		return apperrors.New(apperrors.StaleData)
 	}
-	copy := *e.review
-	detail.ConnectionID = version
-	copy.Result = &detail
-	copy.State = "ready"
-	if detail.Partial {
-		copy.State = "partial"
-		if !manual {
-			copy.State = "waiting"
-		}
-	}
-	// Practice is a legitimate one-player game. Team shares still stay absent
-	// because ParseMatchDetail requires complete 5v5 for those comparisons.
-	if copy.QueueID == 3140 && len(copy.Participants) == 1 && len(detail.Players) == 1 && detail.Players[0].Target {
-		copy.State = "ready"
-	}
-	e.review = &copy
 	e.snapshot.UpdatedAt = time.Now()
 	e.publishLocked()
 	return nil

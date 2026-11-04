@@ -13,9 +13,9 @@ func (e *Engine) observePostGameLocked() {
 		return
 	}
 	o := postgame.Observation{Version: s.ConnectionID, Account: s.SelfKey, Phase: s.Phase, GameID: s.GameID, QueueID: s.QueueID}
-	if e.review != nil && e.review.ConnectionID == s.ConnectionID && e.review.SelfKey == s.SelfKey {
-		o.ReviewID = e.review.GameID
-		o.ReviewState = e.review.State
+	if review, _ := e.reviews.view(); review != nil && review.ConnectionID == s.ConnectionID && review.SelfKey == s.SelfKey {
+		o.ReviewID = review.GameID
+		o.ReviewState = review.State
 	}
 	e.postGame.Observe(client, o)
 }

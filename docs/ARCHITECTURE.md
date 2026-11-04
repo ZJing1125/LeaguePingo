@@ -34,7 +34,7 @@ desktopApplication ── 主窗 / 托盘 / companion 辅助窗口
 
 `main()` 只做 WebView2 前置检查、创建生命周期、传入资源和运行。`desktopApplication` 显式持有桥接、窗口、监控和取消依赖；`desktop_app` 负责组装/托盘/关闭，`desktop_controls` 负责侧栏与设置，`desktop_workers` 负责事件转发和启动任务。单实例检查早于服务创建，重复启动只唤起已有实例；关闭时先取消工作，再停监控和保存设置。
 
-Engine 的订阅生命周期由独立锁组件 `eventSubscription` 管理取消、版本/序号、重连时间和单槽唤醒；`groupingState`独立持有分组scope、匿名字段/标签、部分结果与一次任务取消。锁顺序固定 Engine → 组件；Watch、来源I/O、引擎发布和通知回调均在组件锁外。Engine仍核验连接/阶段/英雄epoch、当前身份及比赛，直接字段由59经51降为45；缓存、准备、复盘等职责尚未全部拆分，S2仍进行中。
+Engine的独立锁组件包括：`eventSubscription`管理事件取消/序号/重连与唤醒，`groupingState`持有分组scope/匿名字段/标签与单轮取消，`reviewState`持有候选/冻结复盘/归属账号与结算令牌。复盘视图发布后只读，更新替换外层值；锁顺序固定Engine→组件，Watch、来源I/O、引擎发布和通知回调均在组件锁外。Engine仍核验连接/阶段/英雄epoch、当前身份及比赛，字段由59经51、45降为41；缓存、准备、查询等尚未全部拆分，S2仍进行中。
 
 ## 阶段与并发
 
