@@ -22,7 +22,7 @@
 
 - U5 / BUG-0104：首页未连接时内嵌三步连接引导，连接成功立即收起；不得弹阻塞教程、抢焦点或为引导增加玩家读取/定时器。断线仍可浏览已有资料，首次离线启动不查询CurrentPlayer。新增文案集中于uiText，ConnectionGuide使用局部主题样式，不代表U8全量迁移完成。
 
-- S2第一步 / BUG-0102：phase/champ-select订阅生命周期由eventSubscription持有自己的锁、取消、版本/序号、重连时间和单槽唤醒。Engine锁只编排连接/阶段业务，锁顺序固定Engine→订阅；不得在订阅锁内执行来源读取或通知回调。Watch退出仍显式cancel，phase和champ的结束序号/重试重置差异保持原值；generation/clientVersion/phaseEpoch/champEpoch继续在业务层核验。S2仅此组件迁移，其他职责未完成，不得将整体标为完成。
+- S2 / BUG-0102、0109：phase/champ-select订阅生命周期由eventSubscription持有自己的锁、取消、版本/序号、重连时间和单槽唤醒；groupingState独立持有匿名分组/位置/标签、scope、单轮尝试与取消。Engine锁只编排连接/阶段业务，锁顺序固定Engine→组件；不得在组件锁内执行来源读取、引擎发布或通知回调。Watch退出仍显式cancel，phase/champ的结束序号与重试语义保持；分组仍只在原支持队列的GameStart/InProgress运行，每局至多两次/6秒，Reconnect不新增读取。连接/阶段/身份/比赛及ctx迟到核验保留，部分响应不擦除已有结果，冲突整批拒绝。Engine字段59→51→45；缓存/准备/复盘等仍未迁移，S2整体未完成。
 
 - S10 / BUG-0101：Dependabot按上海时间每周一10:00检查，产品Go/npm用desktop跨生态组共同发往dev，组件预览独立，Actions独立；CI继续检查Wails前后端版本一致。实际工作流只允许官方五类Actions并固定40位提交SHA，更新走PR及完整CI，不自动合并或发布。配置在dev已就绪不等于GitHub已激活：只有正常进入默认分支后才运行，不为此修改main或冒称已有更新PR。当前Go/Wails工具链与存量漏洞不会因配置更新自动清零。
 

@@ -26,13 +26,7 @@ const inGameRosterAttemptLimit = 3
 type Engine struct {
 	historyRecovery     historyRecovery
 	readiness           diagnostics.Readiness
-	groupLabels         map[string]string
-	groupScope          string
-	groupAttempted      bool
-	groupCancel         context.CancelFunc
-	groupMembers        map[string]string
-	groupSides          map[string]string
-	groupPositions      map[string]string
+	grouping            groupingState
 	autoAccept          *readycheck.Controller
 	postGame            *postgame.Controller
 	mu                  sync.RWMutex
@@ -376,10 +370,7 @@ func (e *Engine) invalidateConnectionLocked() {
 	e.historyRecovery.stop()
 	e.historyRecovery = historyRecovery{updates: e.historyRecovery.updates}
 	e.readiness.Reset()
-	if e.groupCancel != nil {
-		e.groupCancel()
-		e.groupCancel = nil
-	}
+	e.grouping.stop()
 	e.autoAccept.Observe(nil, 0, "")
 	e.postGame.Observe(nil, postgame.Observation{})
 	e.stopReviewLocked()
@@ -423,10 +414,7 @@ func (e *Engine) invalidateConnectionLocked() {
 // Keep the frozen match available while exposing why reconnection failed.
 func (e *Engine) disconnectLocked(message string) {
 	e.readiness.Reset()
-	if e.groupCancel != nil {
-		e.groupCancel()
-		e.groupCancel = nil
-	}
+	e.grouping.stop()
 	e.autoAccept.Observe(nil, 0, "")
 	e.postGame.Observe(nil, postgame.Observation{})
 	e.stopReviewLocked()

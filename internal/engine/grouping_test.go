@@ -72,10 +72,9 @@ func TestLateRosterIdentityUsesPreparedGroupMetadata(t *testing.T) {
 	e := New(nil, nil)
 	e.snapshot = core.Snapshot{ConnectionID: 1, SelfKey: "self", GameID: 42, QueueID: 420, Connected: true, Phase: "InProgress", Participants: []core.Participant{{PUUID: "self", Key: "self", Team: "ally"}, {PUUID: "late", Key: "late", Team: "ally"}}}
 	e.clientVersion = 1
-	e.groupScope = "1:self:42"
-	e.groupAttempted = true
-	e.groupMembers = map[string]string{"self": "8", "late": "8"}
-	e.groupSides = map[string]string{"self": "ally", "late": "ally"}
+	e.grouping = groupingState{scope: "1:self:42", attempted: true,
+		members: map[string]string{"self": "8", "late": "8"},
+		sides:   map[string]string{"self": "ally", "late": "ally"}}
 	e.syncGroupingLocked()
 	if e.snapshot.Participants[1].PremadeSize != 2 || e.snapshot.Participants[0].PremadeLabel != "A" {
 		t.Fatal("prepared group not reused")
@@ -122,7 +121,10 @@ func TestSecondPartialGroupingDoesNotEraseLateIdentity(t *testing.T) {
 		t.Fatal("second bounded lookup not attempted")
 	}
 	// Wait for publication under the same lock before inspecting prepared fields.
-	if e.groupMembers["late"] != "8" {
+	e.grouping.mu.Lock()
+	lateToken := e.grouping.members["late"]
+	e.grouping.mu.Unlock()
+	if lateToken != "8" {
 		t.Fatal("second partial response erased prepared identity")
 	}
 	e.snapshot.Participants = append(e.snapshot.Participants, core.Participant{Key: "late", PUUID: "late", Team: "ally"})

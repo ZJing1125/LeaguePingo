@@ -2,10 +2,6 @@ package engine
 
 import (
 	"context"
-	"crypto/sha256"
-	"fmt"
-
-	"strings"
 	"time"
 
 	"leaguepingo/internal/core"
@@ -13,170 +9,66 @@ import (
 )
 
 func (e *Engine) syncGroupingLocked() {
-	s := e.snapshot
-	e.snapshot.GroupCoverage = 0
-	e.snapshot.GroupStatus = "unavailable"
-	defer func() {
-		for _, p := range e.snapshot.Participants {
-			if p.GroupSource != "" {
-				e.snapshot.GroupCoverage++
-			}
-		}
-		if e.snapshot.GroupCoverage > 0 {
-			e.snapshot.GroupStatus = "partial"
-			if e.snapshot.GroupCoverage == len(e.snapshot.Participants) {
-				e.snapshot.GroupStatus = "observed"
-			}
-		}
-	}()
-	key := fmt.Sprintf("%d:%s:%d", s.ConnectionID, s.SelfKey, s.GameID)
-	supported := s.QueueID == 420 || s.QueueID == 440 || s.QueueID == 450 || s.QueueID == 400 || s.QueueID == 430 || s.QueueID == 490
-	if !supported {
-		for i := range e.snapshot.Participants {
-			p := &e.snapshot.Participants[i]
-			p.PremadeLabel = ""
-			p.PremadeGroup = ""
-			p.PremadeSize = 0
-			p.GroupSource = ""
-		}
-	}
-	phase := snapshotPhase(s.Phase)
-	active := supported && s.Connected && (phase == PhaseGameStart || phase == PhaseInProgress) && s.GameID > 0 && s.SelfKey != ""
-	if !active || key != e.groupScope {
-		if e.groupCancel != nil {
-			e.groupCancel()
-			e.groupCancel = nil
-		}
-		if key != e.groupScope {
-			e.groupScope = key
-			e.groupAttempted = false
-			e.groupMembers = nil
-			e.groupSides = nil
-			e.groupPositions = nil
-			e.groupLabels = nil
-		}
-	}
+	key, active := e.grouping.apply(&e.snapshot)
 	if !active {
 		return
 	}
-	// Reapply to replacement rosters only within the same game and identity.
-	for i := range e.snapshot.Participants {
-		p := &e.snapshot.Participants[i]
-		if p.Position == "" && e.groupSides[p.PUUID] == p.Team {
-			p.Position = e.groupPositions[p.PUUID]
-		}
-		if token := e.groupMembers[p.PUUID]; p.GroupToken == "" && token != "" && e.groupSides[p.PUUID] == p.Team {
-			p.GroupToken = token
-		}
-	}
-	core.AssignPremades(e.snapshot.Participants, "lcu")
-	if e.groupLabels == nil {
-		e.groupLabels = map[string]string{}
-	}
-	for i := range e.snapshot.Participants {
-		p := &e.snapshot.Participants[i]
-		p.PremadeLabel = ""
-		if p.PremadeGroup != "" {
-			p.PremadeGroup = fmt.Sprintf("%s-%x", p.Team, sha256.Sum256([]byte(key+":"+p.GroupToken)))
-			label := e.groupLabels[p.PremadeGroup]
-			if label == "" {
-				n := 0
-				for k := range e.groupLabels {
-					if strings.HasPrefix(k, p.Team+"-") {
-						n++
-					}
-				}
-				label = fmt.Sprintf("%c", 'A'+n)
-				e.groupLabels[p.PremadeGroup] = label
-			}
-			p.PremadeLabel = label
-		}
-	}
-
-	for i := range e.snapshot.Participants {
-		p := &e.snapshot.Participants[i]
-		if e.groupMembers[p.PUUID] != "" && e.groupSides[p.PUUID] == p.Team && e.groupMembers[p.PUUID] == p.GroupToken {
-			p.GroupSource = "sgp"
-		}
-	}
-	complete := len(s.Participants) == 10
-	for _, p := range s.Participants {
+	complete := len(e.snapshot.Participants) == 10
+	for _, p := range e.snapshot.Participants {
 		complete = complete && p.GroupToken != ""
 	}
 	src, ok := e.client.(source.GroupingSource)
-	if complete || !ok || e.groupAttempted || e.initialMatch.parent == nil {
+	if complete || !ok {
 		return
 	}
-	e.groupAttempted = true
-	ctx, cancel := context.WithTimeout(e.initialMatch.parent, 6*time.Second)
-	e.groupCancel = cancel
-	go func() {
-		defer cancel()
-		for attempt := 0; attempt < 2; attempt++ {
-			req, stop := context.WithTimeout(ctx, 2*time.Second)
-			members, err := src.Grouping(req, s.GameID)
-			stop()
-			if ctx.Err() != nil {
+	ctx, cancel, started := e.grouping.begin(e.initialMatch.parent, key)
+	if started {
+		go e.readGrouping(ctx, cancel, src, key, e.snapshot)
+	}
+}
+
+func (e *Engine) readGrouping(ctx context.Context, cancel context.CancelFunc, src source.GroupingSource, key string, snapshot core.Snapshot) {
+	defer cancel()
+	for attempt := 0; attempt < 2; attempt++ {
+		req, stop := context.WithTimeout(ctx, 2*time.Second)
+		members, err := src.Grouping(req, snapshot.GameID)
+		stop()
+		proceed, complete := e.acceptGrouping(ctx, key, snapshot, members, err)
+		if !proceed || complete {
+			return
+		}
+		if attempt == 0 {
+			select {
+			case <-ctx.Done():
 				return
-			}
-			e.mu.Lock()
-			valid := ctx.Err() == nil && e.groupScope == key && e.clientVersion == s.ConnectionID && e.snapshot.SelfKey == s.SelfKey && e.snapshot.GameID == s.GameID && activeMatch(snapshotPhase(e.snapshot.Phase))
-			if !valid {
-				e.mu.Unlock()
-				return
-			}
-			if err == nil {
-				// Use the same identity/side checks in product and explicit audit.
-				if _, checkErr := core.MergeGroupFields(e.snapshot.Participants, members); checkErr != nil {
-					e.mu.Unlock()
-					return
-				}
-				conflict := false
-				for _, p := range members {
-					if side := e.groupSides[p.PUUID]; side != "" && side != p.Team {
-						conflict = true
-					}
-					if token := e.groupMembers[p.PUUID]; token != "" && p.GroupToken != "" && token != p.GroupToken {
-						conflict = true
-					}
-				}
-				if conflict {
-					e.mu.Unlock()
-					return
-				}
-				if e.groupMembers == nil {
-					e.groupMembers = map[string]string{}
-					e.groupSides = map[string]string{}
-					e.groupPositions = map[string]string{}
-				}
-				for _, p := range members {
-					if !core.IsKnownPUUID(p.PUUID) {
-						continue
-					}
-					e.groupSides[p.PUUID] = p.Team
-					if p.GroupToken != "" {
-						e.groupMembers[p.PUUID] = p.GroupToken
-					}
-					if p.Position != "" {
-						e.groupPositions[p.PUUID] = p.Position
-					}
-				}
-				e.publishLocked()
-				all := len(e.groupMembers) == 10
-				e.mu.Unlock()
-				if all {
-					return
-				}
-			} else {
-				e.mu.Unlock()
-			}
-			if attempt == 0 {
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.After(time.Second):
-				}
+			case <-time.After(time.Second):
 			}
 		}
-	}()
+	}
+}
+
+func (e *Engine) acceptGrouping(ctx context.Context, key string, snapshot core.Snapshot, members []core.Participant, err error) (bool, bool) {
+	if ctx.Err() != nil {
+		return false, false
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	valid := ctx.Err() == nil && e.grouping.current(key) && e.clientVersion == snapshot.ConnectionID && e.snapshot.SelfKey == snapshot.SelfKey && e.snapshot.GameID == snapshot.GameID && activeMatch(snapshotPhase(e.snapshot.Phase))
+	if !valid {
+		return false, false
+	}
+	if err != nil {
+		return true, false
+	}
+	// Use the same identity/side checks in product and explicit audit.
+	if _, checkErr := core.MergeGroupFields(e.snapshot.Participants, members); checkErr != nil {
+		return false, false
+	}
+	accepted, complete := e.grouping.merge(key, members)
+	if !accepted {
+		return false, false
+	}
+	// Component lock is released before this re-enters grouping presentation.
+	e.publishLocked()
+	return true, complete
 }
