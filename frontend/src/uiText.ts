@@ -1,5 +1,10 @@
 // Shared product copy. Keep new UI text here as existing sections are migrated.
 export const uiText = {
+  automationState: {
+    loading: "正在读取设置…",
+    unavailable: "设置暂未读取",
+    retry: "重新读取设置",
+  },
   connectionGuide: {
     title: "连接游戏客户端",
     steps: [

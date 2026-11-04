@@ -7,6 +7,8 @@ const {chromium}=require('playwright');
 const {mockWindowRuntime}=require('./window-runtime.cjs');
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.BROWSER_EXECUTABLE});
+ const releases=[];
+ function barrier(){let release,entered;const gate=new Promise(resolve=>{release=resolve}),started=new Promise(resolve=>{entered=resolve});releases.push(release);return{gate,started,entered,release};}
  try {
  const context=await browser.newContext({viewport:{width:1280,height:800}});
  const binding=await fs.readFile(path.join(__dirname,'../bindings/leaguepingo/appservice.ts'),'utf8');
@@ -14,7 +16,7 @@ const {mockWindowRuntime}=require('./window-runtime.cjs');
  let info={autoSkipHonor:false,version:'synthetic',commit:'auto-accept-test',requests:{},shortcut:'Ctrl+Shift+P',holdEnabled:true,holdKey:'Backquote',sidebarEnabled:true,previewEnabled:true,sidebarWidth:320,autoAcceptEnabled:false,autoAcceptDelay:1,autoReturnEnabled:false,autoQueueEnabled:false,autoQueueDelay:10};
  let state={skipHonor:false,revision:0,returnEnabled:false,queueEnabled:false,delaySeconds:10,status:'off',dueAt:'0001-01-01T00:00:00Z'};
  const snapshot={connected:true,connectionId:1,generation:1,phase:'Matchmaking',stage:'party',participants:[],updatedAt:new Date().toISOString()};
- const calls=[],errors=[],pages=[];let failSave=false;
+ const calls=[],errors=[],pages=[];let failSave=false,failInfo=false,infoBarrier=null,saveBarrier=null;
  async function open(url,width=1280){
  const page=await context.newPage();pages.push(page);await page.setViewportSize({width,height:800});page.on('pageerror',err=>errors.push(err.message));const runtime=mockWindowRuntime(page);
  await page.route('**/*',async route=>{
@@ -27,9 +29,14 @@ const {mockWindowRuntime}=require('./window-runtime.cjs');
  else if (method === 'GuideStatus') result={revision:0,status:'idle',query:{},base:null,matchup:null};
  else if (method === 'PostGameStatus') result=state;
  else if(method==='AutoAcceptStatus')result={revision:0,enabled:false,delaySeconds:1,status:'off',dueAt:'0001-01-01T00:00:00Z'};
- else if(method==='Info')result=info;
+ else if(method==='Info'){
+ if(infoBarrier){const pending=infoBarrier;pending.entered();await pending.gate;}
+ if(failInfo)return route.fulfill({status:500,json:{kind:'RuntimeError',message:'synthetic info failure',cause:{code:'DataUnavailable'}}});
+ result=info;
+ }
  else if(method==='OverlayStatus')result={revision:1,mode:'sidebar',visible:true,sidebarEnabled:true,sidebarWidth:320,holdEnabled:true};
  else if(method==='ConfigurePostGame'){
+ if(saveBarrier){const pending=saveBarrier;pending.entered();await pending.gate;}
  if(failSave)return route.fulfill({status:400,json:{kind:'RuntimeError',message:'LCU HTTP 500 private-player#TEST',cause:{code:'SettingsWriteFailed'}}});
  info={...info,autoReturnEnabled:args[0],autoQueueEnabled:args[1],autoQueueDelay:args[2],autoSkipHonor:args[3]};state={...state,revision:state.revision+1,returnEnabled:args[0],queueEnabled:args[1],delaySeconds:args[2],skipHonor:args[3],status:args[0]||args[1]||args[3]?'armed':'off'};result=info;
  }else if(method==='CancelPostGame'){assert(['honor-countdown','return-countdown','queue-countdown'].includes(state.status));result=state={...state,revision:state.revision+1,status:'cancelled'};}
@@ -52,10 +59,34 @@ const {mockWindowRuntime}=require('./window-runtime.cjs');
  assert(info.autoSkipHonor && !info.autoReturnEnabled && !info.autoQueueEnabled,'skip-only option enabled return/queue');
  await page.locator('.automation-chip').getByText('自动 1 项',{exact:true}).waitFor();
  assert.equal(await page.locator('.post-game-notice').count(),0,'armed state must not render a banner');
- // Navigating away and back restores the saved switches from Info().
+ // Hold Info deliberately: rendering the workspace is not proof its settings
+ // have arrived. Never use a sleep or read transient defaults as saved values.
+ infoBarrier=barrier();
  await page.getByRole('button',{name:'首页',exact:true}).click();await page.getByRole('button',{name:'游戏辅助',exact:true}).click();
- await page.locator('.automation-workspace').waitFor();assert.equal(await skip.isChecked(),true,'saved skip state not restored');
- await ret.check();await queue.check();await delay.selectOption('15');await page.getByRole('button',{name:'保存自动化设置'}).click();await page.getByText('自动化设置已保存。',{exact:true}).waitFor();await emit();
+ await infoBarrier.started;
+ const workspace=page.locator('.automation-workspace');
+ assert.equal(await workspace.getAttribute('aria-busy'),'true','settings load must be observable');
+ for(const control of [skip,ret,queue,delay])assert.equal(await control.isDisabled(),true,'unloaded settings were editable');
+ assert.equal(calls.filter(c=>c==='ConfigurePostGame').length,1,'loading settings wrote automation');
+ infoBarrier.release();infoBarrier=null;
+ await page.locator('.automation-workspace[aria-busy="false"]').waitFor();
+ assert.equal(await skip.isChecked(),true,'saved skip state not restored');
+ // Failed initial loads keep controls unavailable; explicit local Info retry
+ // restores the persisted values without any configure call.
+ failInfo=true;
+ await page.getByRole('button',{name:'首页',exact:true}).click();await page.getByRole('button',{name:'游戏辅助',exact:true}).click();
+ await page.getByText(messages.DataUnavailable,{exact:true}).waitFor();
+ assert.equal(await skip.isDisabled(),true);
+ assert.equal(await page.getByRole('button',{name:'保存自动化设置',exact:true}).isDisabled(),true);
+ failInfo=false;await page.getByRole('button',{name:'重新读取设置',exact:true}).click();
+ await page.locator('.automation-workspace[aria-busy="false"]').waitFor();
+ assert.equal(await skip.isChecked(),true,'Info retry lost the saved option');
+ assert.equal(calls.filter(c=>c==='ConfigurePostGame').length,1,'Info retry wrote automation');
+ await ret.check();await queue.check();await delay.selectOption('15');
+ saveBarrier=barrier();await page.getByRole('button',{name:'保存自动化设置'}).click();await saveBarrier.started;
+ for(const control of [skip,ret,queue,delay])assert.equal(await control.isDisabled(),true,'saving allowed drafts that the response could overwrite');
+ saveBarrier.release();saveBarrier=null;
+ await page.getByText('自动化设置已保存。',{exact:true}).waitFor();await emit();
  assert.equal(calls.filter(c=>c==='ConfigurePostGame').length,2);assert.equal(info.autoQueueDelay,15);
  failSave=true;await skip.uncheck();await delay.selectOption('20');await page.getByRole('button',{name:'保存自动化设置'}).click();
  await page.getByText(messages.SettingsWriteFailed,{exact:true}).waitFor();assert.equal(info.autoQueueDelay,15);assert.equal(info.autoSkipHonor,true,'failed save changed active skip');failSave=false;
@@ -81,6 +112,6 @@ const {mockWindowRuntime}=require('./window-runtime.cjs');
  await skip.uncheck();await page.getByRole('button',{name:'保存自动化设置'}).click();await page.getByText('自动化设置已保存。',{exact:true}).waitFor();await emit();
  assert.equal(info.autoSkipHonor,false);assert.equal(info.autoReturnEnabled,false);
  if(process.env.UI_SCREENSHOT_PREFIX){await page.locator('.automation-workspace').scrollIntoViewIfNeeded();await page.screenshot({path:process.env.UI_SCREENSHOT_PREFIX+'-automation.png'});}
- assert.deepEqual(errors,[]);console.log('PASS: automation page opt-ins, chip instead of banners, persisted switches, save rollback, cross-window countdown cancellation, stale revision, settings link and 880/280 layouts (synthetic bridge).');
- }finally{await browser.close();}
+ assert.deepEqual(errors,[]);console.log('PASS: automation opt-ins, delayed/failed Info reads and explicit retry, persisted switches, in-flight draft locking/save rollback, cross-window countdown cancellation, settings link and 880/280 layouts (synthetic bridge).');
+ }finally{for(const release of releases)release();await browser.close();}
 })().catch(err=>{console.error(err);process.exitCode=1});
