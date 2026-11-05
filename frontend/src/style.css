@@ -900,17 +900,6 @@ select {
 .players-workspace {
   overflow: hidden;
 }
-.player-tabs {
-  background: var(--raised);
-  border-color: var(--border);
-}
-.player-tab {
-  background: transparent;
-}
-.player-tab.active {
-  background: var(--surface);
-  border-color: var(--accent-art);
-}
 
 .players-workspace .history-column {
   padding: 0;
@@ -971,21 +960,6 @@ select {
   top: 0;
   right: 20px;
   z-index: 3;
-}
-.settings-backdrop {
-  background: #1d282f88;
-}
-.settings-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-}
-.runtime-summary {
-  background: var(--raised);
-}
-.diagnostic-table th,
-.diagnostic-table td {
-  border-color: var(--border);
 }
 .settings-message {
   color: var(--win);
@@ -1393,24 +1367,6 @@ select {
   }
 }
 
-.settings-hold {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-}
-.settings-hold label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.settings-hold input {
-  accent-color: var(--primary-bg);
-}
-.settings-hold select {
-  max-width: 230px;
-}
-
 .card-portrait .card-avatar {
   position: absolute;
   right: 8px;
@@ -1509,8 +1465,6 @@ select {
 .compact .match-performance > small:last-child {
   display: none;
 }
-@media (min-width: 1000px) {
-}
 @media (min-width: 1000px) and (max-height: 780px) {
   .player-drawer {
     height: 188px;
@@ -1590,9 +1544,6 @@ select {
 .form-result.unknown {
   background: #858f87;
   color: #fff;
-}
-.player-tab.active {
-  border-bottom: 2px solid var(--accent-art);
 }
 .players-workspace .history-panel {
   border-inline: 0;

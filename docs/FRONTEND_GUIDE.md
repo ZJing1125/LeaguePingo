@@ -1,5 +1,7 @@
 # 前端迭代与组件预览
 
+Q6：所有产品Vue样式块使用scoped/module并沿用设计变量，check-styles门禁包含根应用。PlayerTabs/SettingsPanel专属规则已迁入组件，保持原级联/媒体条件，不再回流全局；settings-message由自动化页共享，仍保留全局。其余存量逐组件迁移，不一次性搬完。
+
 BUG-0113：AutomationView以独立loading及aria-busy标识Info读取，载入和保存期间冻结配置控件；失败可显式重新读取本机设置，没有自动重试或客户端写动作。post-game使用响应屏障测试重载持久值、失败重试与保存期间禁止被迟到响应覆盖的草稿；先等读取完成再断言真实开关，不能只等工作区挂载。新增短文案仍在uiText，U8全量迁移未完成。
 
 U7：player-analysis末尾复用keyboard-access的真实按键路径，不改变test:smoke入口；覆盖两主题的首页/资料展开、详情、搜索、战绩筛选、分析标签、设置和工作区导航。只有Tab/Shift+Tab/回车/空格/方向键及Esc驱动操作，并核对焦点返回、可见边框、原有减少动态效果与核心语义色对比度。该检查不替代屏幕阅读器或Windows原生窗口验收。

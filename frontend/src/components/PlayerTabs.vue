@@ -102,3 +102,69 @@ function navigate(event: KeyboardEvent, index: number) {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Component-owned rules, retaining foundation/style cascade order. */
+.player-tabs {
+  height: 38px;
+  flex: none;
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  padding: 4px 20px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.player-tabs::-webkit-scrollbar {
+  height: 4px;
+}
+.player-tabs::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+.player-tab {
+  display: flex;
+  max-width: 220px;
+  flex: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+}
+.player-tab.active {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+  background: #1a2029;
+  border-radius: 4px 4px 0 0;
+}
+.player-tab button {
+  border: 0;
+  background: none;
+  padding: 6px 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.player-tab .tab-close {
+  color: var(--muted);
+  padding: 4px 7px;
+}
+@media (max-width: 760px) {
+  .player-tabs {
+    padding-left: 12px;
+  }
+}
+.player-tabs {
+  background: var(--raised);
+  border-color: var(--border);
+}
+.player-tab {
+  background: transparent;
+}
+.player-tab.active {
+  background: var(--surface);
+  border-color: var(--accent-art);
+}
+.player-tab.active {
+  border-bottom: 2px solid var(--accent-art);
+}
+</style>

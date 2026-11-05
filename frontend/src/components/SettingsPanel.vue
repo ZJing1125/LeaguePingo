@@ -121,6 +121,101 @@ onUnmounted(() => { alive = false; void nextTick(() => { if (opener instanceof H
   </div>
 </template>
 <style scoped>
+/* Component-owned rules, retaining foundation/style cascade order. */
+.settings-backdrop {
+  position: fixed;
+  inset: var(--titlebar-height) 0 0;
+  z-index: 20;
+  background: #0009;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  width: min(620px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid #3c4759;
+  border-radius: 10px;
+  box-shadow: 0 18px 60px #0008;
+}
+.settings-panel header,
+.settings-shortcut,
+.settings-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.settings-shortcut select {
+  flex: 1;
+}
+.settings-panel h2 {
+  margin-top: 10px;
+}
+.runtime-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+}
+.runtime-summary small {
+  width: 100%;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.diagnostic-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+}
+.diagnostic-table th,
+.diagnostic-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 8px 5px;
+  text-align: left;
+}
+.diagnostic-table th {
+  color: var(--muted);
+}
+.settings-backdrop {
+  background: #1d282f88;
+}
+.settings-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.runtime-summary {
+  background: var(--raised);
+}
+.diagnostic-table th,
+.diagnostic-table td {
+  border-color: var(--border);
+}
+.settings-hold {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.settings-hold label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.settings-hold input {
+  accent-color: var(--primary-bg);
+}
+.settings-hold select {
+  max-width: 230px;
+}
+
 .settings-companion {display:flex;flex-direction:column;gap:10px;font-size:13px;}
 .settings-companion label {display:flex;align-items:center;gap:8px;}
 .settings-companion input {accent-color:var(--accent);}

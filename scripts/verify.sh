@@ -20,7 +20,8 @@ echo "Verification scope: $task_scope (not real-game acceptance)"
 node scripts/workflow.mjs check
 node scripts/version.mjs check
 go run ./cmd/functioncheck
-node --test scripts/artifacts.test.mjs scripts/workflow.test.mjs scripts/environment.test.mjs scripts/version.test.mjs scripts/champion-portraits.test.mjs scripts/ui-assets.test.mjs scripts/app-icons.test.mjs
+node scripts/check-styles.mjs
+node --test scripts/artifacts.test.mjs scripts/workflow.test.mjs scripts/environment.test.mjs scripts/version.test.mjs scripts/champion-portraits.test.mjs scripts/ui-assets.test.mjs scripts/app-icons.test.mjs scripts/check-styles.test.mjs
 npm --prefix frontend run test:unit
 if [[ "$task_scope" == portable ]]; then
   npm --prefix frontend run build

@@ -16,6 +16,8 @@
 
 ## 产品与架构边界
 
+- Q6 / BUG-0124：产品Vue样式须scoped或module，沿用共享设计变量；check-styles门禁扫描包含根应用的全部组件。PlayerTabs/SettingsPanel专属选择器已迁至组件，不能回流全局；settings-message由自动化页共享，仍留全局。存量按组件渐进迁移，不一次性搬完，不以治理为由改布局/主题/交互。
+
 - Q2 / BUG-0122–0123：生产Go声明与闭包不超过100物理行，使用cmd/functioncheck按AST检查Git受管及未忽略的新文件，包含平台专用文件、排除测试；按职责拆分，不用压行替代。portable与Windows verify共用强制门禁，Windows另用已有MinGW-w64 GCC执行单条CGO_ENABLED=1 go test -race ./...，不修改产品CGO设置或自动安装编译器。perfprobe测试只读测试进程自身/内存CSV，不代表整局性能验收。
 
 - BUG-0113：游戏辅助页Info读取完成前及保存期间禁用配置编辑，不把初始默认值标为已同步；用独立loading与aria-busy区分读取/保存，失败提供显式本机Info重试，不自动轮询或写客户端。默认关闭、双组固定草稿保存、一键停用及后端动作边界不变。恢复已保存开关的测试必须等待读取完成并断言实际值，不能只等待工作区DOM出现；延迟/失败读取与在途保存用可释放屏障复现，不靠sleep或放宽断言。
