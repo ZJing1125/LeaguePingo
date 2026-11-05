@@ -72,15 +72,14 @@ func TestDiscoveryFailureIsPublishedAndRecovers(t *testing.T) {
 	fake := &fakeClient{phase: "Lobby"}
 	e := New(func() (Client, error) { return fake, discoverErr }, nil)
 	// Observe publication without starting the UI callback worker.
-	e.onChange = func(core.Snapshot) {}
-	e.updates = make(chan core.Snapshot, 4)
+	updates := captureSnapshotsForTest(e, 4)
 	e.poll(context.Background())
 	snapshot := e.Snapshot()
 	if snapshot.Connected || snapshot.Stage != "disconnected" || snapshot.Message != apperrors.Message(apperrors.ClientConfigurationInvalid) {
 		t.Fatalf("discovery error not exposed: %+v", snapshot)
 	}
 	select {
-	case published := <-e.updates:
+	case published := <-updates:
 		if published.Message != snapshot.Message {
 			t.Fatal("published diagnostic differs from snapshot")
 		}
@@ -90,7 +89,7 @@ func TestDiscoveryFailureIsPublishedAndRecovers(t *testing.T) {
 	// Repeated identical failures should not flood the event bridge.
 	resetDiscoveryForTest(e)
 	e.poll(context.Background())
-	if len(e.updates) != 0 {
+	if len(updates) != 0 {
 		t.Fatal("unchanged discovery failure republished")
 	}
 	discoverErr = nil

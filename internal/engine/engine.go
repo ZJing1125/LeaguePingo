@@ -31,8 +31,7 @@ type Engine struct {
 	discovery       *clientDiscovery
 	client          Client
 	snapshot        core.Snapshot
-	onChange        func(core.Snapshot)
-	updates         chan core.Snapshot
+	publisher       *snapshotPublisher
 	queries         *playerQueries
 	roster          rosterDiscovery
 	players         playerCache
@@ -65,19 +64,11 @@ func NewWithHistoryCache(discover Discoverer, onChange func(core.Snapshot), path
 }
 
 func newEngine(discover Discoverer, onChange func(core.Snapshot)) *Engine {
-	e := &Engine{discovery: newClientDiscovery(discover), onChange: onChange, phaseEvents: newEventSubscription(), champEvents: newEventSubscription(), scheduler: newScheduler(), snapshot: core.Snapshot{Stage: string(StageDisconnected), UpdatedAt: time.Now(), Participants: []core.Participant{}}}
+	e := &Engine{discovery: newClientDiscovery(discover), publisher: newSnapshotPublisher(onChange), phaseEvents: newEventSubscription(), champEvents: newEventSubscription(), scheduler: newScheduler(), snapshot: core.Snapshot{Stage: string(StageDisconnected), UpdatedAt: time.Now(), Participants: []core.Participant{}}}
 	e.queries = newPlayerQueries(e, e.scheduler)
 	e.autoAccept = readycheck.New()
 	e.historyRecovery.init()
 	e.postGame = postgame.New()
-	if onChange != nil {
-		e.updates = make(chan core.Snapshot, 32)
-		go func() {
-			for snapshot := range e.updates {
-				onChange(snapshot)
-			}
-		}()
-	}
 	return e
 }
 
@@ -549,19 +540,8 @@ func (e *Engine) publishLocked() {
 	e.snapshot.Review, _ = e.reviews.view()
 	e.observePostGameLocked()
 	e.observeReadinessLocked()
-	if e.onChange == nil {
-		return
-	}
-	snapshot := clone(e.snapshot)
-	select {
-	case e.updates <- snapshot:
-	default:
-		// A slow UI consumer receives the latest state without stalling LCU polling.
-		select {
-		case <-e.updates:
-		default:
-		}
-		e.updates <- snapshot
+	if e.publisher.enabled() {
+		e.publisher.publish(clone(e.snapshot))
 	}
 }
 

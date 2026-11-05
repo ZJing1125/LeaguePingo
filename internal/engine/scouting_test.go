@@ -109,8 +109,7 @@ func TestScoutingRepeatedPageCannotBecomeCompleteSeason(t *testing.T) {
 func TestCachedScoutReportPublishesWithoutAnotherRequest(t *testing.T) {
 	f := &scoutClient{fakeClient: &fakeClient{}, now: time.Now().UTC()}
 	e := New(nil, nil)
-	e.onChange = func(core.Snapshot) {}
-	e.updates = make(chan core.Snapshot, 8)
+	updates := captureSnapshotsForTest(e, 8)
 	e.client = f
 	e.clientVersion = 1
 	e.initialMatch.setParent(context.Background())
@@ -123,7 +122,7 @@ func TestCachedScoutReportPublishesWithoutAnotherRequest(t *testing.T) {
 	e.syncScoutingLocked()
 	e.mu.Unlock()
 	select {
-	case s := <-e.updates:
+	case s := <-updates:
 		if s.Participants[0].Scout != r {
 			t.Fatal("cached report was not published")
 		}

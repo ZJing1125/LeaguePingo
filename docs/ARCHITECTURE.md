@@ -34,7 +34,7 @@ desktopApplication ── 主窗 / 托盘 / companion 辅助窗口
 
 `main()` 只做 WebView2 前置检查、创建生命周期、传入资源和运行。`desktopApplication` 显式持有桥接、窗口、监控和取消依赖；`desktop_app` 负责组装/托盘/关闭，`desktop_controls` 负责侧栏与设置，`desktop_workers` 负责事件转发和启动任务。单实例检查早于服务创建，重复启动只唤起已有实例；关闭时先取消工作，再停监控和保存设置。
 
-Engine的独立锁组件包括：`eventSubscription`管理事件取消/序号/重连与唤醒，`groupingState`持有分组scope/匿名字段/标签与单轮取消，`reviewState`持有候选/冻结复盘/账号与结算令牌，`playerCache`持有五表内存缓存，`preparationState`持有房间/选人准备的取消/令牌/期限/次数/优先玩家，`initialMatchPreparation`持有开局单轮资格/取消/版本/比赛/令牌，`querySession`持有手动查询独占槽与首页子任务取消，`scoutPreparation`持有独立统计范围/令牌/预算/报告/游标与发布节流，`historyRecovery`持有重试episode、合并后台任务与本机更新队列，`rosterDiscovery`持有本地身份发现就绪窗口/次数/完成状态，`clientDiscovery`持有十秒一次的发现节流。复盘发布后只读，更新替换外层值；固定Engine→组件锁序，来源/磁盘I/O、引擎发布和回调均在组件锁外。Engine保留连接/阶段/身份/比赛守卫，字段由59经51、45、41、37降为30，再由查询会话降为29、名单发现降为28、客户端发现降为27；开局状态原已为单字段，改为独立锁后字段数未变。独立统计原已为单字段，独立锁迁移未减少字段。手动查询数据编排已移至`playerQueries`，通过显式`queryState`与scheduler依赖调用；快照发布生命周期尚待收尾，S2仍进行中。
+Engine的独立锁组件包括：`eventSubscription`管理事件取消/序号/重连与唤醒，`groupingState`持有分组scope/匿名字段/标签与单轮取消，`reviewState`持有候选/冻结复盘/账号与结算令牌，`playerCache`持有五表内存缓存，`preparationState`持有房间/选人准备的取消/令牌/期限/次数/优先玩家，`initialMatchPreparation`持有开局单轮资格/取消/版本/比赛/令牌，`querySession`持有手动查询独占槽与首页子任务取消，`scoutPreparation`持有独立统计范围/令牌/预算/报告/游标与发布节流，`historyRecovery`持有重试episode、合并后台任务与本机更新队列，`rosterDiscovery`持有本地身份发现就绪窗口/次数/完成状态，`clientDiscovery`持有十秒一次的发现节流，`snapshotPublisher`持有32条有序队列和单回调worker。复盘发布后只读，更新替换外层值；固定Engine→组件锁序，来源/磁盘I/O、引擎发布和回调均在组件锁外。Engine保留连接/阶段/身份/比赛守卫，字段由59经51、45、41、37降为30，再由查询会话降为29、名单发现降为28、客户端发现降为27、发布器降为26；开局状态原已为单字段，改为独立锁后字段数未变。独立统计原已为单字段，独立锁迁移未减少字段。手动查询数据编排已移至`playerQueries`，通过显式`queryState`与scheduler依赖调用；S2按职责归属结项：26个字段包含18个显式组件/依赖和8个需要同一把锁核验的核心字段（mu/client/snapshot/clientVersion/accountIdentity/phaseEpoch/phaseHint/champEpoch）。建议不超过20的数量目标未达到；超长编排函数仍按Q2继续拆分。
 
 ## 阶段与并发
 
@@ -47,6 +47,8 @@ Engine的独立锁组件包括：`eventSubscription`管理事件取消/序号/�
 | 房间/排队/接受/选人 | 准备实际可见身份，历史优先、可选资料随后；选人事件合并唤醒，轮询仍作兜底 |
 | 加载/局内 | 有界刷新本地名单，正式开局/局内启动只补齐缺失资料一轮；不持续自动扫描玩家 |
 | 结算 | 冻结本次运行最近一局；完整结果允许最多 3 次/15 秒有界同步，非游戏阶段才读详情 |
+
+快照由`snapshotPublisher`在单worker上按队列顺序回调；队列32条，满时丢最旧一条并排入最新快照，保持原策略。Engine在自己的锁内深复制快照后入队，回调不持Engine或发布器锁，慢界面不阻塞轮询；没有回调时不创建队列/worker，也不复制发布快照。
 
 阶段流每连接至多一条；选人流只在选人阶段存在。失败后同连接一分钟再试，事件与轮询共用阶段核验，不订阅全量账号/战绩事件。阶段内容、玩家身份和事件正文不进入诊断。
 
@@ -102,4 +104,4 @@ SGP 认证/限流/服务错误进入共享冷却：5/15/45/60 秒基线加 0–2
 
 [TESTING.md](TESTING.md)列出自动与显式实机入口。[ENVIRONMENTS.md](ENVIRONMENTS.md)区分开发机、Windows runner 和游戏电脑；portable 不生成绑定或产品，Windows CI 经统一 `build.sh` 完整验证、构建和审计，不发布 Release、不自动部署。工具链和更新配置见 [DEPENDENCIES.md](DEPENDENCIES.md)；Dependabot 需默认分支含配置才激活。
 
-原生/真实客户端验收、干净 Windows 安装、发布证书及整局 FPS/延迟仍单独记录于 [ACCEPTANCE.md](ACCEPTANCE.md)、[INSTALLATION.md](INSTALLATION.md)和 [PERFORMANCE.md](PERFORMANCE.md)。自动化结果不冒称真机通过；当前 S2/S9/S10 的未完成部分以[优化清单](OPTIMIZATION_BACKLOG.md)为准。
+原生/真实客户端验收、干净 Windows 安装、发布证书及整局 FPS/延迟仍单独记录于 [ACCEPTANCE.md](ACCEPTANCE.md)、[INSTALLATION.md](INSTALLATION.md)和 [PERFORMANCE.md](PERFORMANCE.md)。自动化结果不冒称真机通过；当前 S9/S10 的未完成部分以[优化清单](OPTIMIZATION_BACKLOG.md)为准。

@@ -11,7 +11,7 @@ suggested_repo_path: docs/OPTIMIZATION_BACKLOG.md
 
 # 1. 使用规则（agent 先读）
 
-执行记录（实施起始基线4d57e0b，附件审阅基线cc229e7）：Q1已实施并通过dev推送实跑，见下方记录；Q4建议性staticcheck、govulncheck与npm audit已实施，强制门禁等待Go标准库漏洞随依赖治理清零；F1本地度量已实施，口径与验证见PERFORMANCE.md；F2已核实后端逐人发布链路并补齐前端骨架和逐卡替换回归；S3共享动作执行器已实施并接入自动接受/赛后流程，两个编排循环均小于60行；S4引擎Stage/Phase强类型与集中行为表已实施，对外快照字符串未变且远程Windows验证通过；S5攻略会话复用、功能开关、超时/缓存/原文降级已实施且远程Windows验证通过；S6战绩缓存字节上限、锁外编码、HMAC键、同轮重建、Rename重试与失败诊断已实施且远程Windows验证通过；S7页缓存TTL/LRU、锁外授权、独立并发上限及换号/首页变化迟到隔离已实施且远程Windows验证通过；Q3前端19项单测与类型检查已接入统一verify门禁且远程Windows验证通过；F3已核实首页/磁盘策略并补齐ID/选中玩家过期缓存先显及后台更新；F4统一退避抖动、并行成功隔离及长Retry-After保护已实施；S8入口与桌面依赖组装拆分已实施，本机目标staticcheck/portable通过，根包及桌面由Windows CI核验；Q5正则复用、缓存失败诊断与忽略错误/报告留存审阅已实施；S10依赖组更新配置与Actions SHA固定已准备，实际激活待正常进入默认分支；S2订阅/分组/复盘/缓存/房间选人准备/开局单轮/查询会话/独立统计已抽出独立状态与锁（59→51→45→41→37→30→29字段），整体仍进行中；U6已核实现有监听说明/冲突回滚和Windows自动回归，按已有证据结项；U5首页三步连接指引与首次离线/断线/重连/主题窄窗回归已实施；Q7当前架构/精简README/CHANGELOG与TESTING分工已完成并核对策略；U7两主题键盘主流程、共享焦点及浅色对比度修正已实施；S9已完成官方根候选研究与测试专用严格探针，国服链/名称核验后置，生产传输未改；U1错误码与中文提示、U2降级与有界恢复已实施，协议与验证分别见ERRORS.md、DATA_RECOVERY.md及本提交CI，R1实验性标注与分轮记录已准备；用户已反馈A1/A2/P1/P2没有问题，后续确认跳过可用但继续/返回/开排链条失败，修复版与版本信息及其他项目待补，整体R1未完成；S1回调瘦身/备用入口核验/设置说明已实施，国服反作弊专项待实机；U3启动前依赖检查、静态版本检查、NSIS与证书存储签名代码链已实施，发布证书与干净Win10的I1–I6仍待人工；U4实验性说明、行为边界和一键停用已实施并由前端合成回归覆盖；其余任务尚未实施。该清单是任务输入，原审阅统计与推断不能当作当前事实。其他任务仍按依赖逐项核实；未执行的Windows/国服检查保留未验证状态。
+执行记录（实施起始基线4d57e0b，附件审阅基线cc229e7）：Q1已实施并通过dev推送实跑，见下方记录；Q4建议性staticcheck、govulncheck与npm audit已实施，强制门禁等待Go标准库漏洞随依赖治理清零；F1本地度量已实施，口径与验证见PERFORMANCE.md；F2已核实后端逐人发布链路并补齐前端骨架和逐卡替换回归；S3共享动作执行器已实施并接入自动接受/赛后流程，两个编排循环均小于60行；S4引擎Stage/Phase强类型与集中行为表已实施，对外快照字符串未变且远程Windows验证通过；S5攻略会话复用、功能开关、超时/缓存/原文降级已实施且远程Windows验证通过；S6战绩缓存字节上限、锁外编码、HMAC键、同轮重建、Rename重试与失败诊断已实施且远程Windows验证通过；S7页缓存TTL/LRU、锁外授权、独立并发上限及换号/首页变化迟到隔离已实施且远程Windows验证通过；Q3前端19项单测与类型检查已接入统一verify门禁且远程Windows验证通过；F3已核实首页/磁盘策略并补齐ID/选中玩家过期缓存先显及后台更新；F4统一退避抖动、并行成功隔离及长Retry-After保护已实施；S8入口与桌面依赖组装拆分已实施，本机目标staticcheck/portable通过，根包及桌面由Windows CI核验；Q5正则复用、缓存失败诊断与忽略错误/报告留存审阅已实施；S10依赖组更新配置与Actions SHA固定已准备，实际激活待正常进入默认分支；S2已完成十三批职责迁移，Engine由59降为26字段（18组件/依赖与8核心守卫，建议20未达），完整引擎竞态通过，超长函数仍归Q2；U6已核实现有监听说明/冲突回滚和Windows自动回归，按已有证据结项；U5首页三步连接指引与首次离线/断线/重连/主题窄窗回归已实施；Q7当前架构/精简README/CHANGELOG与TESTING分工已完成并核对策略；U7两主题键盘主流程、共享焦点及浅色对比度修正已实施；S9已完成官方根候选研究与测试专用严格探针，国服链/名称核验后置，生产传输未改；U1错误码与中文提示、U2降级与有界恢复已实施，协议与验证分别见ERRORS.md、DATA_RECOVERY.md及本提交CI，R1实验性标注与分轮记录已准备；用户已反馈A1/A2/P1/P2没有问题，后续确认跳过可用但继续/返回/开排链条失败，修复版与版本信息及其他项目待补，整体R1未完成；S1回调瘦身/备用入口核验/设置说明已实施，国服反作弊专项待实机；U3启动前依赖检查、静态版本检查、NSIS与证书存储签名代码链已实施，发布证书与干净Win10的I1–I6仍待人工；U4实验性说明、行为边界和一键停用已实施并由前端合成回归覆盖；其余任务尚未实施。该清单是任务输入，原审阅统计与推断不能当作当前事实。其他任务仍按依赖逐项核实；未执行的Windows/国服检查保留未验证状态。
 
 Q1首次运行：[40856437383](https://github.com/ZJing1125/LeaguePingo/actions/runs/40856437383)，Linux成功，Windows原生Go检查通过，侧栏720px五卡高度回归失败。已根据日志修复摘要内边距，保留原验收断言。修复提交dd33476的[40857941063](https://github.com/ZJing1125/LeaguePingo/actions/runs/40857941063)两个job全部成功：Windows全包test/vet、绑定生成/一致性、九项浏览器回归、EXE编译及产物审计均通过。EXE只存在runner，未上传、部署或登记为用户已验收；截图保留7天。PR事件配置已做语法检查，未专门新建PR测试。默认分支仍为main，手动触发入口需工作流进入默认分支后才能使用；本批未修改main或默认分支。
 
@@ -173,17 +173,18 @@ id: S2
 title: 拆分 engine 上帝对象
 priority: P1
 area: design
-status: in-progress
+status: implemented
 confidence: verified-static
 needs_human: false
 problem: >-
-  Engine原59字段共用RWMutex；订阅、分组、复盘、缓存、房间/选人准备及查询会话独立后已降为27字段；开局原单字段已补齐独立锁/资格生命周期，字段数未变，独立统计原单字段已补齐独立锁/范围/游标生命周期，字段数未变，手动查询数据编排已迁至显式依赖的playerQueries，后台恢复已迁至独立锁组件，名单预算也已独立，客户端发现节流也已独立，快照发布生命周期仍待收尾。
+  Engine原59字段共用RWMutex；经十三批职责迁移后降为26字段，异步任务/缓存/预算/发布均归组件。
+  保留18个显式组件/依赖及8个同锁核心字段；建议不超过20的数量目标未达到，超长函数仍归Q2。
 evidence:
   - internal/engine/engine.go（Engine 结构体、poll）
   - internal/engine/event_subscription.go、grouping_state.go、review_state.go
   - internal/engine/player_cache.go、preparation_state.go、preparation.go
   - internal/engine/initial_match_state.go、initial_match.go、query_session.go、player_queries.go
-  - internal/engine/scouting_state.go、scouting.go、roster_discovery.go、client_discovery.go
+  - internal/engine/scouting_state.go、scouting.go、roster_discovery.go、client_discovery.go、snapshot_publisher.go
   - internal/engine/history_store.go、history_recovery_state.go
 actions:
   - 先完成 S4（类型化状态），再按职责抽出组件：阶段监听、选人监听、预取器、查询服务、复盘、分组、历史
@@ -199,12 +200,13 @@ actions:
   - 第十批已实施：historyRecovery独立拥有有界重试/后台合并任务/本机更新队列；修复旧任务清理误释放新任务，保留原额度/时限/抢占退款及换号隔离，字段仍29
   - 第十一批已实施：rosterDiscovery独立拥有本地名单三次就绪窗口与完成状态，29→28字段；加载→游戏仅未完整时续窗，同局手动刷新不续窗，原读取/新局/迟到回归保留
   - 第十二批已实施：clientDiscovery独立拥有十秒发现节流，28→27字段；发现回调在Engine及组件锁外执行，原失败/恢复/账号隔离和精确冷却并发回归通过
-  - 每个组件持有自己的状态和锁；Engine 只做编排和事件分发
+  - 第十三批已实施：snapshotPublisher独立拥有32条快照队列与单回调worker，27→26字段；原丢最旧/保持最新、顺序、深复制及回调可重入回归通过
+  - 已完成：异步子任务/缓存/预算/发布的状态和锁归组件；Engine保留API编排、原子阶段/身份守卫与提交
   - 保留现有的 generation / clientVersion / phaseEpoch 迟到结果丢弃机制，不要削弱
   - 每次只迁移一个组件，迁移后跑竞态测试
 acceptance:
-  - Engine 字段显著减少（建议目标不超过 20）
-  - 仍待完成：快照发布生命周期收尾；不能把已实施的十二批迁移记为整体完成
+  - 已完成显著减少：59→26；建议目标不超过20未达到，26个字段为18个显式组件/依赖及8个需原子核验的核心字段
+  - 十三批职责迁移完成，名单/发现/发布等生命周期无剩余迁移；超长函数由独立Q2任务继续处理
   - 新功能不再向 Engine 增加字段
   - go test -race ./internal/engine/... 通过
 depends_on: [S4]
