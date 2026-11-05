@@ -192,7 +192,23 @@ async function main() {
     await page.locator(".home-account").filter({ hasText: "等级 129" }).waitFor();
     assert.equal(calls.filter(c => c === "RefreshData").length, 1);
     await page.getByRole("textbox", { name: "玩家完整 ID" }).fill("其他账号#DEMO");
-    await page.getByRole("button", { name: "查询战绩", exact: true }).click();
+    try {
+      await page.getByRole("button", { name: "查询战绩", exact: true }).click();
+    } catch (error) {
+      // This page has only synthetic data. Capture the state that can hide the
+      // accessible button, without changing the selector, timeout or assertion.
+      console.error('Synthetic home query failure state:', await page.evaluate(() => {
+        const button = document.querySelector('.global-search button');
+        return {
+          toolbarInert: document.querySelector('.toolbar-content')?.hasAttribute('inert'),
+          dialogs: document.querySelectorAll('[role="dialog"]').length,
+          searchBusy: document.querySelector('.global-search')?.getAttribute('aria-busy'),
+          button: button ? { text: button.textContent, disabled: button.hasAttribute('disabled'), inertAncestor: !!button.closest('[inert]'), rect: button.getBoundingClientRect().toJSON() } : null,
+        };
+      }));
+      await screenshot('home-query-failure');
+      throw error;
+    }
     await page.locator(".players-workspace .identity-title").filter({ hasText: "查询的其他玩家#DEMO" }).waitFor();
     const beforeCollapse = calls.length;
     const originalWidth = await page.locator('.players-workspace .history-column').evaluate(el=>el.getBoundingClientRect().width);
