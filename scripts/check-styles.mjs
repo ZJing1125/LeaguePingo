@@ -14,6 +14,8 @@ const postcss = require('postcss');
 const owners = [
   { component: 'PlayerTabs.vue', privateClass: /\.(?:player-tabs|player-tab|tab-close)(?![\w-])/ },
   { component: 'SettingsPanel.vue', privateClass: /\.(?:settings-panel|settings-backdrop|settings-shortcut|settings-actions|settings-hold|runtime-summary|diagnostic-table)(?![\w-])/ },
+  { component: 'RecentForm.vue', privateClass: /\.(?:recent-form|form-result)(?![\w-])/ },
+  { component: 'DesktopTitleBar.vue', privateClass: /\.(?:window-controls|window-control-error)(?![\w-])/ },
 ];
 
 export function checkStyleOwnership(components, globalStyles) {

@@ -97,16 +97,6 @@ select {
   gap: 0;
   padding-left: 0;
 }
-.window-controls button {
-  color: var(--muted);
-}
-.window-controls button:hover {
-  background: var(--hover);
-}
-.window-controls .window-close:hover {
-  background: #c84040;
-  color: white;
-}
 .window-inactive .window-brand {
   opacity: 0.65;
 }
@@ -136,24 +126,6 @@ select {
 }
 .toolbar-content input {
   user-select: text;
-}
-.desktop-titlebar .window-controls {
-  flex: none;
-  margin-left: 0;
-}
-.desktop-titlebar .window-control-error {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 12px;
-  z-index: 30;
-  margin: 0;
-  padding: 8px 12px;
-  max-width: min(340px, calc(100vw - 24px));
-  border: 1px solid var(--warning-border);
-  border-radius: 6px;
-  background: var(--warning-bg);
-  color: var(--warning-text);
-  --wails-draggable: no-drag;
 }
 .nav-wordmark {
   display: flex;
@@ -1533,18 +1505,6 @@ select {
 .drawer-floating .compact .profile-ranks {
   flex-basis: auto;
 }
-.form-result.won {
-  background: #497d65;
-  color: #fbfff3;
-}
-.form-result.lost {
-  background: #a36d72;
-  color: #fff5f3;
-}
-.form-result.unknown {
-  background: #858f87;
-  color: #fff;
-}
 .players-workspace .history-panel {
   border-inline: 0;
   border-top: 0;
@@ -1563,15 +1523,6 @@ select {
 }
 .player-drawer .history-pagination {
   justify-content: space-between;
-}
-@media (max-width: 999px) {
-
-  .players-workspace .recent-form .form-result {
-    width: 15px;
-    height: 19px;
-    font-size: 10px;
-  }
-
 }
 .players-workspace .match-performance > strong {
   font-size: 15px;

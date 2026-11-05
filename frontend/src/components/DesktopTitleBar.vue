@@ -143,3 +143,79 @@ onUnmounted(() => {
     </div>
   </header>
 </template>
+<style scoped>
+/* Retain original global import order; shared controls and ancestor contexts stay in effect. */
+.window-control-error {
+  margin-left: 20px;
+  color: var(--loss);
+  font-size: 11px;
+}
+.window-controls {
+  display: flex;
+  align-self: stretch;
+  margin-left: auto;
+  --wails-draggable: no-drag;
+}
+.window-controls button {
+  width: 46px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+}
+.window-controls button:hover:not(:disabled) {
+  background: var(--raised);
+  color: var(--text);
+}
+.window-controls .window-close:hover:not(:disabled) {
+  background: #c44459;
+  color: #fff;
+}
+.window-controls button:focus-visible {
+  outline-offset: -4px;
+}
+.window-controls button[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: wait;
+}
+.window-controls .app-icon {
+  pointer-events: none;
+}
+:is(.desktop-app, .drawer-floating) .window-controls { gap: 3px; padding: 3px 6px; align-items: center; }
+:is(.desktop-app, .drawer-floating) .window-controls button { position: relative; width: 38px; height: 28px; min-height: 0; border: 1px solid transparent; border-radius: 6px; color: var(--muted); background: transparent; padding: 0; }
+:is(.desktop-app, .drawer-floating) .window-controls button:hover:not(:disabled) { color: var(--text); background: color-mix(in srgb, var(--accent) 13%, transparent); border-color: color-mix(in srgb, var(--accent) 22%, transparent); }
+:is(.desktop-app, .drawer-floating) .window-controls button:active:not(:disabled) { background: color-mix(in srgb, var(--accent) 25%, transparent); }
+:is(.desktop-app, .drawer-floating) .window-controls .window-close:hover:not(:disabled) { background: #d85e6d; border-color: #d85e6d; color: #fff; }
+:is(.desktop-app, .drawer-floating) .window-controls .app-icon { width: 14px; height: 14px; }
+.window-controls button {
+  color: var(--muted);
+}
+.window-controls button:hover {
+  background: var(--hover);
+}
+.window-controls .window-close:hover {
+  background: #c84040;
+  color: white;
+}
+.desktop-titlebar .window-controls {
+  flex: none;
+  margin-left: 0;
+}
+.desktop-titlebar .window-control-error {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 12px;
+  z-index: 30;
+  margin: 0;
+  padding: 8px 12px;
+  max-width: min(340px, calc(100vw - 24px));
+  border: 1px solid var(--warning-border);
+  border-radius: 6px;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  --wails-draggable: no-drag;
+}
+</style>

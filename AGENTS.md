@@ -18,7 +18,7 @@
 
 - U8 / BUG-0125：全部产品Vue组件的中文文案、属性、无障碍标签和动态格式引用uiText，以语义键按功能分组，不新增i18n依赖；check-copy扫描含根应用的脚本/模板及转义。保留原文案/标点/空格/参数顺序，Vue合并文本用toDisplayString，原JS模板保留原生转换。兼容匹配片段/位置键/选择器须和使用方一致；资源数据、原TS表现层映射及后端错误目录保持归属，不以迁移为由重写请求/状态/身份规则。
 
-- Q6 / BUG-0124：产品Vue样式须scoped或module，沿用共享设计变量；check-styles门禁扫描包含根应用的全部组件。PlayerTabs/SettingsPanel专属选择器已迁至组件，不能回流全局；settings-message由自动化页共享，仍留全局。存量按组件渐进迁移，不一次性搬完，不以治理为由改布局/主题/交互。
+- Q6 / BUG-0124、0130–0131：产品Vue样式须scoped或module，沿用共享设计变量；check-styles门禁扫描包含根应用的全部组件。PlayerTabs/SettingsPanel/RecentForm及DesktopTitleBar窗口控制/失败提示专属选择器已迁至组件，不能回流全局；settings-message由自动化页共享，标题栏根布局与插槽规则仍留全局。存量按组件渐进迁移，不一次性搬完，不以治理为由改布局/主题/交互。
 
 - Q2 / BUG-0122–0123：生产Go声明与闭包不超过100物理行，使用cmd/functioncheck按AST检查Git受管及未忽略的新文件，包含平台专用文件、排除测试；按职责拆分，不用压行替代。portable与Windows verify共用强制门禁，Windows另用已有MinGW-w64 GCC执行单条CGO_ENABLED=1 go test -race ./...，不修改产品CGO设置或自动安装编译器。perfprobe测试只读测试进程自身/内存CSV，不代表整局性能验收。
 

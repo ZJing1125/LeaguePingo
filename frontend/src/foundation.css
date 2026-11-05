@@ -278,45 +278,6 @@ small {
 .window-inactive .window-brand {
   opacity: 0.6;
 }
-.window-control-error {
-  margin-left: 20px;
-  color: var(--loss);
-  font-size: 11px;
-}
-.window-controls {
-  display: flex;
-  align-self: stretch;
-  margin-left: auto;
-  --wails-draggable: no-drag;
-}
-.window-controls button {
-  width: 46px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--muted);
-}
-.window-controls button:hover:not(:disabled) {
-  background: var(--raised);
-  color: var(--text);
-}
-.window-controls .window-close:hover:not(:disabled) {
-  background: #c44459;
-  color: #fff;
-}
-.window-controls button:focus-visible {
-  outline-offset: -4px;
-}
-.window-controls button[aria-disabled="true"] {
-  opacity: 0.45;
-  cursor: wait;
-}
-.window-controls .app-icon {
-  pointer-events: none;
-}
 .sidebar-status {
   display: flex;
   align-items: center;
@@ -673,29 +634,6 @@ small {
   color: var(--muted);
   line-height: 1.7;
   margin-top: 20px;
-}
-.recent-form {
-  display: inline-flex;
-  gap: 4px;
-  align-items: center;
-}
-.form-result {
-  display: inline-grid;
-  place-items: center;
-  width: 21px;
-  height: 21px;
-  font-size: 11px;
-  border-radius: 4px;
-  background: #2a303b;
-  color: #a9b5c6;
-}
-.form-result.won {
-  background: #203e38;
-  color: #98e6d1;
-}
-.form-result.lost {
-  background: #422c37;
-  color: #f2a8b8;
 }
 .game-icon {
   display: inline-grid;
@@ -1385,14 +1323,6 @@ small {
 }
 .overlay-player.outdated {
   border-color: #665232;
-}
-.overlay-player .form-result {
-  width: 18px;
-  height: 18px;
-  font-size: 10px;
-}
-.overlay-player .recent-form {
-  gap: 2px;
 }
 .overlay-player > .warning-text {
   display: block;
