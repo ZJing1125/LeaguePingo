@@ -4,6 +4,22 @@
 
 历史条目描述当时行为；如后续需求调整，以较新条目为准。当前局内请求边界见 BUG-0043；BUG-0045 仅为临时按住快览恢复鼠标穿透，手动模式保持可交互。
 
+## BUG-0129 / Q4强制质量门禁与失败传播
+
+2026-11-05。质量任务改为quality，staticcheck/govulncheck/npm audit移除continue-on-error；Windows依赖portable和quality全部成功。Go检查以!cancelled及前端/分析器准备成功为条件，npm只依赖前端准备，前项失败后仍执行其余可运行检查；always摘要显示实际outcome。准备失败记跳过，失败步骤仍使job失败，不使用shell补成功或允许失败隐藏结果。
+
+策略按实际job/step归属核验：固定前端构建/工具安装顺序、Go版本来源、Windows分析目标、精确命令、独立失败条件及摘要。新增变异回归覆盖绕过依赖、job跳过/强行执行、各检查允许失败和shell掩盖、success条件静默跳过、准备ID缺失、错误GOOS、工具后移和伪造摘要；原受管构建、绑定、图标、安装器和平台边界保留。当前未对远程CI注入失败，配置/策略验证与正常完整CI分别记录。
+
+前置c711426的[42024419785](https://github.com/ZJing1125/LeaguePingo/actions/runs/42024419785)三项CI全部通过，含Go 1.26.10下的绑定一致性、全包竞态、原生/浏览器回归、完整构建及隔离安装卸载；分析日志确认No vulnerabilities found及npm audit为0。本批强制门禁按PR后续提交单独核验。国服、反作弊、性能、签名和安装人工验收仍后置；Dependabot默认分支激活及合入流程独立，不自动合并/发布。
+
+## BUG-0128 / Q4与S10安全工具链升级
+
+2026-11-05。在623a197业务代码上重新核验，Go 1.25.14/govulncheck v1.7.0共11项标准库可达报告；官方当前支持Go 1.26.10和1.27.3，本批选择支持中的1.26.10修复线，并核验官方Linux SDK的SHA-256。保留旧本机SDK，隔离安装新工具，没有修改系统Go或自动安装项目运行依赖。
+
+go.mod最低版本改为1.26.10，CI三处统一go-version-file: go.mod、全局GOTOOLCHAIN=local，分析器同步到明确要求Go 1.26的staticcheck v0.8.2/govulncheck v1.8.0。策略回归拒绝补丁回退、另设toolchain、CI单独版本/错误文件及任务内auto覆盖。Wails前后端仍beta.29、其他产品模块版本及go.sum不变；tidy仅修正Windows测试直接引用go-ole的依赖分类。
+
+本机Windows目标根包/internal/cmd新版staticcheck通过，govulncheck为No vulnerabilities found，未以忽略或缩小当前生产包范围清零。完整internal竞态、portable及Windows根包测试链接检查通过；后者仅交叉编译，不是Windows实测。c711426的42024419785已通过Windows绑定/原生/全包竞态及完整构建和安装卸载；本条为工具链升级阶段，质量检查当时暂保持建议性，确认升级后的完整CI再启用强制门禁。升级按依赖规则提交PR到dev，不自动合并、修改main、发布或登记国服已验收。
+
 ## BUG-0127 / Q4分析任务缺前端嵌入资源
 
 2026-11-05。核验0077887的CI明细发现，建议性job虽然成功，staticcheck实际在main.go嵌入frontend/dist处以“no matching files found”退出；该job独立checkout没有运行前端构建，portable的产物不会自动跨job共享。govulncheck仍报告11项Go标准库可达漏洞，npm audit为0，不能把job成功推广为三项分析均通过。

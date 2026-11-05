@@ -66,10 +66,9 @@ test('CI preserves managed build, binding verification and opt-in executable upl
     ['run: bash scripts/build.sh bin/leaguepingo-ci.exe', 'run: bash scripts/verify.sh windows\n      - run: bash scripts/build.sh bin/leaguepingo-ci.exe'],
     ['needs: portable', 'needs: []'],
     ['git status --porcelain -- frontend/bindings', 'git diff -- frontend/bindings'],
-    ['go install honnef.co/go/tools/cmd/staticcheck@v0.7.0', 'go install honnef.co/go/tools/cmd/staticcheck@latest'],
-    ['go install golang.org/x/vuln/cmd/govulncheck@v1.7.0', 'go install golang.org/x/vuln/cmd/govulncheck@latest'],
+    ['go install honnef.co/go/tools/cmd/staticcheck@v0.8.2', 'go install honnef.co/go/tools/cmd/staticcheck@latest'],
+    ['go install golang.org/x/vuln/cmd/govulncheck@v1.8.0', 'go install golang.org/x/vuln/cmd/govulncheck@latest'],
     ['run: govulncheck ./...', 'run: true'],
-    ['continue-on-error: true', 'continue-on-error: false'],
     ['GOTOOLCHAIN: local', 'GOTOOLCHAIN: auto'],
     ["github.event_name == 'workflow_dispatch' && inputs.upload_exe", 'success()'],
     ['  pull_request:', '  pull_request_target:'],
@@ -96,9 +95,23 @@ test('dependency updates stay coupled on dev and CI actions stay pinned', () => 
     assert.throws(() => checkWorkflow(f => f === config ? changed : files[f]), undefined, before);
   }
 });
-test('advisory analyzers prepare real embedded assets in their own job', () => {
+test('all CI jobs follow one patched Go version source', () => {
+  for (const [file, before, after] of [
+    ['go.mod', 'go 1.26.10', 'go 1.26.9'],
+    ['go.mod', 'go 1.26.10', 'go 1.25.14'],
+    ['go.mod', 'go 1.26.10', 'go 1.26.10\ntoolchain go1.27.0'],
+    ['.github/workflows/ci.yml', 'go-version-file: go.mod', 'go-version: "1.25.x"'],
+    ['.github/workflows/ci.yml', 'go-version-file: go.mod', 'go-version-file: other.mod'],
+    ['.github/workflows/ci.yml', 'name: Quality checks', 'name: Quality checks\n    env:\n      GOTOOLCHAIN: auto'],
+  ]) {
+    assert.ok(files[file].includes(before));
+    const changed = files[file].replace(before, after);
+    assert.throws(() => checkWorkflow(f => f === file ? changed : files[f]), /patched Go 1.26.10 minimum/);
+  }
+});
+test('quality analyzers prepare real embedded assets in their own job', () => {
   const file = '.github/workflows/ci.yml';
-  const prepare = '      - name: Prepare embedded frontend for analyzers\n        run: |\n          npm --prefix frontend ci\n          npm --prefix frontend run build\n';
+  const prepare = '      - name: Prepare embedded frontend for analyzers\n        id: frontend\n        run: |\n          npm --prefix frontend ci\n          npm --prefix frontend run build\n';
   assert.ok(files[file].includes(prepare));
   for (const changed of [
     files[file].replace(prepare, ''),
@@ -106,10 +119,41 @@ test('advisory analyzers prepare real embedded assets in their own job', () => {
     files[file].replace(prepare, prepare.replace('npm --prefix frontend run build', 'mkdir -p frontend/dist')),
     // A build in the portable job cannot supply another checkout's embed inputs.
     files[file].replace(prepare, '').replace('      - name: Portable verification', prepare + '\n      - name: Portable verification'),
-    files[file].replace(prepare, '').replace('      - name: npm audit (advisory)', prepare + '\n      - name: npm audit (advisory)'),
+    files[file].replace(prepare, '').replace('      - name: npm audit', prepare + '\n      - name: npm audit'),
   ]) {
-    assert.throws(() => checkWorkflow(f => f === file ? changed : files[f]), /Advisory analyzers require/);
+    assert.throws(() => checkWorkflow(f => f === file ? changed : files[f]));
   }
+});
+test('quality failures block Windows and do not suppress independent check outcomes', () => {
+  const file = '.github/workflows/ci.yml';
+  const original = files[file];
+  const afterTools = "${{ !cancelled() && steps.frontend.outcome == 'success' && steps.analyzers.outcome == 'success' }}";
+  for (const [before, after] of [
+    ['needs: [portable, quality]', 'needs: portable'],
+    ['    name: Quality checks', '    name: Quality checks\n    if: false'],
+    ['    name: Windows verify and build', '    name: Windows verify and build\n    if: always()'],
+    ['        id: staticcheck', '        id: staticcheck\n        continue-on-error: true'],
+    ['        id: govulncheck', '        id: govulncheck\n        continue-on-error: true'],
+    ['        id: npm_audit', '        id: npm_audit\n        continue-on-error: true'],
+    ['run: staticcheck ./...', 'run: staticcheck ./... || true'],
+    ['run: govulncheck ./...', 'run: govulncheck ./... || true'],
+    ['run: npm --prefix frontend audit --audit-level=high', 'run: npm --prefix frontend audit --audit-level=high || true'],
+    ['        if: ' + afterTools, '        if: success()'],
+    ["        if: ${{ !cancelled() && steps.frontend.outcome == 'success' }}", '        if: success()'],
+    ['        id: frontend', '        id: missing_frontend'],
+    ['        id: analyzers', '        id: missing_analyzers'],
+    ['          GOOS: windows', '          GOOS: linux'],
+    ['        if: always()', '        if: success()'],
+    ['${{ steps.govulncheck.outcome }}', 'success'],
+  ]) {
+    assert.ok(original.includes(before), before);
+    const changed = original.replace(before, after);
+    assert.throws(() => checkWorkflow(f => f === file ? changed : files[f]), undefined, before);
+  }
+  const tools = original.match(/      - name: Install pinned analyzers\n[\s\S]*?(?=      - name: Staticcheck)/)?.[0];
+  assert.ok(tools);
+  const delayedTools = original.replace(tools, '').replace('      - name: npm audit', tools + '      - name: npm audit');
+  assert.throws(() => checkWorkflow(f => f === file ? delayedTools : files[f]), /independently after preparation/);
 });
 
 test('component preview routes cannot become product or desktop delivery entry points', () => {

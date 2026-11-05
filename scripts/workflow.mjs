@@ -9,13 +9,13 @@ export const policyFiles = ['AGENTS.md', 'Taskfile.yml', 'build/windows/Taskfile
   'scripts/dev.sh', 'scripts/verify.sh', 'scripts/audit-player-data.sh', 'docs/ci/verify.yml.example',
   'scripts/package-windows.sh', 'scripts/sign-windows.sh', 'scripts/verify-installer.sh', 'scripts/version.mjs',
   'frontend/package.json', 'frontend/preview/package.json', 'frontend/preview/histoire.config.ts',
-  '.github/workflows/ci.yml', '.github/dependabot.yml'];
+  '.github/workflows/ci.yml', '.github/dependabot.yml', 'go.mod'];
 
 // A deliberately restricted policy check, not a general YAML parser. Keep
 // entry tasks simple and also test their expansion with the real Wails runner.
-function taskBlocks(text) {
-  const tasks = text.split(/^tasks:\s*$/m)[1];
-  if (!tasks) throw new Error('Missing tasks section');
+function taskBlocks(text, section = 'tasks') {
+  const tasks = text.split(new RegExp(`^${section}:\\s*$`, 'm'))[1];
+  if (!tasks) throw new Error(`Missing ${section} section`);
   const result = new Map();
   const matches = [...tasks.matchAll(/^  ([\w:]+):\s*$/gm)];
   matches.forEach((m, i) => {
@@ -23,6 +23,52 @@ function taskBlocks(text) {
     result.set(m[1], tasks.slice(m.index + m[0].length, matches[i + 1]?.index ?? tasks.length));
   });
   return result;
+}
+
+function qualityPolicy(ci) {
+  const jobs = taskBlocks(ci, 'jobs');
+  const quality = jobs.get('quality') || '', windows = jobs.get('windows') || '';
+  if (jobs.size !== 3 || !jobs.has('portable') || !quality || !windows ||
+      !/^    needs: portable$/m.test(quality) || !/^    needs: \[portable, quality\]$/m.test(windows) ||
+      /^    (?:if|continue-on-error):/m.test(quality + windows) || /continue-on-error:/.test(quality)) {
+    throw new Error('Windows must depend on mandatory portable and quality jobs');
+  }
+  if ([...jobs.values()].some(job => (job.match(/^\s*go-version-file: go\.mod$/gm) || []).length !== 1)) {
+    throw new Error('Each CI job must read the single Go version source');
+  }
+  const blocks = quality.split(/^      - /m).slice(1);
+  function step(id) {
+    const found = blocks.filter(block => block.split('\n').includes('        id: ' + id));
+    if (found.length !== 1) throw new Error('Required quality step missing or duplicated: ' + id);
+    return found[0];
+  }
+  const frontend = step('frontend'), analyzers = step('analyzers');
+  const prepare = 'name: Prepare embedded frontend for analyzers\n        id: frontend\n        run: |\n          npm --prefix frontend ci\n          npm --prefix frontend run build\n';
+  if (!frontend.startsWith(prepare)) throw new Error('Quality analyzers require a locked frontend build in their own job');
+  for (const line of ['        run: |', '          tool_bin="$RUNNER_TEMP/quality-bin"',
+    '          GOBIN="$tool_bin" go install honnef.co/go/tools/cmd/staticcheck@v0.8.2',
+    '          GOBIN="$tool_bin" go install golang.org/x/vuln/cmd/govulncheck@v1.8.0',
+    '          echo "$tool_bin" >> "$GITHUB_PATH"']) {
+    if (!analyzers.split('\n').includes(line)) throw new Error('Quality analyzers must install the pinned tools');
+  }
+  const afterFrontend = "${{ !cancelled() && steps.frontend.outcome == 'success' }}";
+  const afterTools = "${{ !cancelled() && steps.frontend.outcome == 'success' && steps.analyzers.outcome == 'success' }}";
+  for (const [id, command, condition] of [['staticcheck', 'staticcheck ./...', afterTools],
+    ['govulncheck', 'govulncheck ./...', afterTools], ['npm_audit', 'npm --prefix frontend audit --audit-level=high', afterFrontend]]) {
+    const block = step(id), lines = block.split('\n');
+    if (!lines.includes('        run: ' + command) || !lines.includes('        if: ' + condition) ||
+        quality.indexOf(frontend) > quality.indexOf(block) || quality.indexOf(analyzers) > quality.indexOf(block)) {
+      throw new Error('Required quality checks must run independently after preparation without masking failures');
+    }
+    if (id !== 'npm_audit' && ['          GOOS: windows', '          GOARCH: amd64', '          CGO_ENABLED: "0"'].some(line => !lines.includes(line))) {
+      throw new Error('Quality Go analyzers must cover the Windows target');
+    }
+  }
+  const summary = step('summary');
+  if (!summary.split('\n').includes('        if: always()') ||
+      ['staticcheck', 'govulncheck', 'npm_audit'].some(id => !summary.includes('${{ steps.' + id + '.outcome }}'))) {
+    throw new Error('Quality summary must preserve actual outcomes after failure');
+  }
 }
 
 export function checkWorkflow(read) {
@@ -142,24 +188,26 @@ export function checkWorkflow(read) {
   for (const text of ['branches: [dev]', 'branches: [dev, main]', 'contents: read',
     'needs: portable', 'runs-on: ubuntu-latest', 'runs-on: windows-latest',
     'run: bash scripts/verify.sh portable', 'git status --porcelain -- frontend/bindings',
-    'go install honnef.co/go/tools/cmd/staticcheck@v0.7.0',
-    'go install golang.org/x/vuln/cmd/govulncheck@v1.7.0',
+    'go install honnef.co/go/tools/cmd/staticcheck@v0.8.2',
+    'go install golang.org/x/vuln/cmd/govulncheck@v1.8.0',
     'run: staticcheck ./...', 'run: govulncheck ./...',
     'run: npm --prefix frontend audit --audit-level=high', 'GOTOOLCHAIN: local',
     'choco install nsis --version=3.13.0', 'bash scripts/package-windows.sh --binary bin/leaguepingo-ci.exe',
     'bash scripts/verify-installer.sh artifacts/installer-check/leaguepingo-ci-installer.exe',
     "github.event_name == 'workflow_dispatch' && inputs.upload_exe"])
     requireText('.github/workflows/ci.yml', text);
-  const advisory = ci.split('\n  advisory:\n')[1]?.split('\n  windows:\n')[0] || '';
-  const embeddedFrontend = '      - name: Prepare embedded frontend for analyzers\n        run: |\n          npm --prefix frontend ci\n          npm --prefix frontend run build\n';
-  if (!advisory.includes(embeddedFrontend) ||
-      advisory.indexOf(embeddedFrontend) > advisory.indexOf('run: staticcheck ./...') ||
-      advisory.indexOf(embeddedFrontend) > advisory.indexOf('run: govulncheck ./...')) {
-    throw new Error('Advisory analyzers require a locked frontend build in their own job before analysis');
+  const declaredGo = contents['go.mod'].match(/^go (\d+)\.(\d+)\.(\d+)$/m);
+  const goParts = declaredGo?.slice(1).map(Number) || [];
+  const goFloor = [1, 26, 10];
+  const firstDifference = goParts.findIndex((value, index) => value !== goFloor[index]);
+  if (!declaredGo || (firstDifference >= 0 && goParts[firstDifference] < goFloor[firstDifference]) ||
+      /^toolchain /m.test(contents['go.mod']) || /^\s*go-version:/m.test(ci) ||
+      [...ci.matchAll(/^\s*GOTOOLCHAIN:\s*(\S+)/gm)].some(match => match[1] !== 'local') ||
+      (ci.match(/^\s*go-version-file: go\.mod$/gm) || []).length !== 3) {
+    throw new Error('CI Go versions must use go.mod with the patched Go 1.26.10 minimum');
   }
+  qualityPolicy(ci);
   if ((ci.match(/run: bash scripts\/build\.sh bin\/leaguepingo-ci\.exe/g) || []).length !== 1 ||
-      (ci.match(/^\s*needs: portable$/gm) || []).length !== 2 ||
-      (ci.match(/continue-on-error: true/g) || []).length < 3 ||
       /^\s*(?:run: |.*&&\s*)(?:go|garble)\s+build\b/m.test(ci) ||
       /run: bash scripts\/verify\.sh(?:\s*\n|\s+windows)/.test(ci) ||
       /^\s*pull_request_target:/m.test(ci)) {

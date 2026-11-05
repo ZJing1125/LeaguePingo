@@ -10,7 +10,9 @@ S10配置已准备在dev。GitHub只从默认分支加载Dependabot配置；当�
 
 跨生态组让Wails后端与前端运行时进入同一更新审阅，不保证第三方每次同时发布兼容版本；统一verify仍校验版本一致，完整CI失败不得合入。保持受管Windows构建、绑定一致性和浏览器回归，PR不自动合并、不发布或部署。
 
-当前Go 1.25与Wails beta.29等实际版本未在本批升级，已知漏洞仍按advisory报告处理；后续工具链/模块升级需一起更新CI、分析器兼容性和版本检查。新增更新配置不会自动清除Q4的存量漏洞或开启强制分析门禁。
+BUG-0128安全升级通过PR进行：Go最低补丁版为1.26.10，CI三个任务都从go.mod读取，分析器同步为staticcheck v0.8.2和govulncheck v1.8.0；GOTOOLCHAIN=local不允许任务自行切换工具链。官方Go下载元数据的SHA-256已核验，本机升级前11项可达报告、升级后0项，c711426的42024419785已通过Windows完整验证/构建及隔离安装卸载。Wails前后端继续beta.29，第三方产品模块版本及go.sum不变；不是一次性升级全部依赖。
+
+参考来源：[Go官方支持版本与校验和](https://go.dev/dl/?mode=json)、[staticcheck v0.8.2模块要求](https://proxy.golang.org/honnef.co/go/tools/@v/v0.8.2.mod)、[govulncheck v1.8.0模块要求](https://proxy.golang.org/golang.org/x/vuln/@v/v1.8.0.mod)。BUG-0129将三项检查接为强制quality任务，Windows构建依赖其成功，失败后其余独立检查仍可产出真实摘要。工具链升级与S10配置激活分别登记；Dependabot仍需配置进入默认分支才激活，未修改main或自动合并。
 
 本批使用官方仓库API核验的Actions固定点（主版本保持）：
 

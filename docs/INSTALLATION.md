@@ -13,7 +13,7 @@ U3 已建立 Windows amd64 的受管 NSIS 安装链、启动前 WebView2 引导�
 
 ## 受管构建与 NSIS
 
-在 Windows amd64、Git Bash 中准备 Go 1.25+、Node 22+、锁定的 Wails CLI、前端依赖和 NSIS 3.13.0。`node scripts/environment.mjs doctor` 只报告工具是否可发现；不会安装依赖。NSIS 不在 PATH 时可在可信本机配置中设置 `LEAGUEPINGO_MAKENSIS`。
+在 Windows amd64、Git Bash 中准备 Go 1.26.10+、Node 22+、锁定的 Wails CLI、前端依赖和 NSIS 3.13.0。`node scripts/environment.mjs doctor` 只报告工具是否可发现；不会安装依赖。NSIS 不在 PATH 时可在可信本机配置中设置 `LEAGUEPINGO_MAKENSIS`。
 
 ```bash
 # 构建新的受管 EXE，再生成安装器；不覆盖已有输出

@@ -31,7 +31,7 @@ source scripts/env.sh
 node scripts/environment.mjs doctor
 ```
 
-doctor 仅报告当前主机与必要工具存在性，不证明依赖已安装正确、测试通过或远端可访问；不输出任意环境变量或证书 thumbprint。Go 1.25+、Node 22+、锁定的 Wails CLI beta.29 及前端依赖仍需事先配置。NSIS 只在 Windows 安装器任务中必需，签名还需维护者提供证书；项目不会自动安装工具或导入证书。审批/安装权限沿用用户要求。
+doctor 仅报告当前主机与必要工具存在性，不证明依赖已安装正确、测试通过或远端可访问；不输出任意环境变量或证书 thumbprint。Go 1.26.10+、Node 22+、锁定的 Wails CLI beta.29 及前端依赖仍需事先配置。NSIS 只在 Windows 安装器任务中必需，签名还需维护者提供证书；项目不会自动安装工具或导入证书。审批/安装权限沿用用户要求。
 
 Windows完整验证还需要PATH已有兼容Go Windows竞态运行库的MinGW-w64 GCC，用于单条`CGO_ENABLED=1 go test -race ./...`；doctor报告gcc存在性，verify缺失明确失败，不静默安装。正式产品编译沿用原CGO设置，portable不因此要求Windows编译器。Go AST长度门禁在两种verify范围均执行，详情见[TESTING.md](TESTING.md)。
 
@@ -53,8 +53,8 @@ portable 是用户/开发者显式选择的子集，不因缺少 Windows 依赖�
 
 当前没有远程部署/下载/安装流程。将来需要分发时应另立批次，实现文件传输、SHA-256 核验、本机登记/切换及本机回退保护。远程构建成功只能证明远程构建结果，不能据此删除本机已验收版。构建机没有用户验收记录时只能称前一候选，不应宣称它已通过游戏验收。
 
-`.github/workflows/ci.yml`为远程Actions入口：dev推送、指向dev/main的PR及手动触发先执行Linux portable，再执行Windows `bash scripts/build.sh bin/leaguepingo-ci.exe`。build.sh内已含完整验证，不重复调用verify；锁定CLI版本取自go.mod，使用runner自带浏览器。Windows任务还固定安装NSIS 3.13.0，生成未签名测试安装器，并只在runner临时目录验证静默安装/卸载。`docs/ci/verify.yml.example`是保留的历史草案，不作为启用入口。本机专用环境文件不能上传到CI；CI用其自身工具环境和依赖配置。
+`.github/workflows/ci.yml`为远程Actions入口：dev推送、指向dev/main的PR及手动触发先执行Linux portable，再通过强制quality的三项检查，随后执行Windows `bash scripts/build.sh bin/leaguepingo-ci.exe`。build.sh内已含完整验证，不重复调用verify；锁定CLI版本取自go.mod，使用runner自带浏览器。Windows任务还固定安装NSIS 3.13.0，生成未签名测试安装器，并只在runner临时目录验证静默安装/卸载。`docs/ci/verify.yml.example`是保留的历史草案，不作为启用入口。本机专用环境文件不能上传到CI；CI用其自身工具环境和依赖配置。
 
-截图保留7天。EXE及其本机产物清单仅在手动触发并明确勾选upload_exe时上传，用于测试；测试安装器不上传。流程不发布release、不自动部署到游戏电脑或登记为用户已验收。远程成功只证明该提交在runner通过自动化验证、构建和隔离安装/卸载，国服客户端、游戏性能、干净Win10安装、缺WebView2交互和发布者信任仍未验证。静态分析建议任务按优化清单Q4另批接入。
+截图保留7天。EXE及其本机产物清单仅在手动触发并明确勾选upload_exe时上传，用于测试；测试安装器不上传。流程不发布release、不自动部署到游戏电脑或登记为用户已验收。远程成功只证明该提交在runner通过自动化验证、构建和隔离安装/卸载，国服客户端、游戏性能、干净Win10安装、缺WebView2交互和发布者信任仍未验证。静态分析与依赖安全检查为Q4强制quality任务，Go版本统一取go.mod，分析明细见STATIC_ANALYSIS。
 
 2026-10-29，dd33476的[CI 40857941063](https://github.com/ZJing1125/LeaguePingo/actions/runs/40857941063)已通过Linux及Windows两级任务。此前307fa29的首轮发现Windows侧栏720px高度溢出，修复后保留原断言并通过。该记录是hosted runner自动化结果，不是游戏电脑的实机验收。PR事件尚未专门新建PR触发验证；手动入口受GitHub默认分支规则限制，当前默认main未含此工作流，需后续正常合入默认分支后才可使用，不为启用按钮擅自修改main。
