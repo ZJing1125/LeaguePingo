@@ -351,10 +351,7 @@ func (e *Engine) invalidateConnectionLocked() {
 	e.postGame.Observe(nil, postgame.Observation{})
 	e.stopReviewLocked()
 	e.stopScoutingLocked()
-	e.scouting.scope = ""
-	e.scouting.cache = nil
-	e.scouting.progress = nil
-	e.scouting.attempted = nil
+	e.scouting.invalidate()
 	e.queries.stopHome()
 	e.stopInitialMatchLocked()
 	e.stopPhaseEventsLocked()
@@ -1005,12 +1002,7 @@ func (e *Engine) RefreshRoster(ctx context.Context) (core.Snapshot, error) {
 	// Explicit refresh also renews the independent scouting round. Ordinary
 	// polls, card selection and overlay visibility do not reset it.
 	e.stopScoutingLocked()
-	e.scouting.attempted = map[string]bool{}
-	e.scouting.deadline = time.Time{}
-	e.scouting.pages = 0
-	for _, p := range roster {
-		delete(e.scouting.cache, p.PUUID)
-	}
+	e.scouting.refresh(roster)
 	e.replaceLocked(stage, phase, gameID, roster, "")
 	if activeMatch(phase) && gameID != 0 && completeRoster(roster) {
 		e.matchRosterComplete = true

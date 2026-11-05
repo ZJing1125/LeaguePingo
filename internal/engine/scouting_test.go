@@ -88,8 +88,10 @@ func TestScoutingIndependentSeasonPagingAndModeSwitchDoesNotQuery(t *testing.T) 
 	}
 	e.mu.Lock()
 	e.stopScoutingLocked()
+	e.scouting.mu.Lock()
 	e.scouting.scope = "new-game"
 	token := e.scouting.token
+	e.scouting.mu.Unlock()
 	e.mu.Unlock()
 	if e.saveScout(1, "old-game", token-1, "p", core.ScoutReport{State: "ready"}) {
 		t.Fatal("late game report applied")
@@ -113,7 +115,9 @@ func TestCachedScoutReportPublishesWithoutAnotherRequest(t *testing.T) {
 	e.clientVersion = 1
 	e.initialMatch.setParent(context.Background())
 	r := &core.ScoutReport{State: "ready", Complete30: true, FetchedAt: time.Now().UTC()}
+	e.scouting.mu.Lock()
 	e.scouting.cache = map[string]*core.ScoutReport{"p": r}
+	e.scouting.mu.Unlock()
 	e.snapshot = core.Snapshot{ConnectionID: 1, Connected: true, Stage: "party", Phase: "Lobby", Participants: []core.Participant{{ConnectionID: 1, Key: "p", PUUID: "p", IdentityState: core.IdentityKnown}}}
 	e.mu.Lock()
 	e.syncScoutingLocked()
@@ -149,7 +153,9 @@ func TestExpiredSeasonCacheCannotBeReusedAsCurrentSeason(t *testing.T) {
 	e.client, e.clientVersion = f, 1
 	e.initialMatch.setParent(ctx)
 	old := &core.ScoutReport{State: "ready", Complete30: true, FetchedAt: now.Add(-time.Minute), Season: &core.ScoutSeason{Name: "old", Start: now.Add(-365 * 24 * time.Hour), End: now.Add(-30 * time.Second)}}
+	e.scouting.mu.Lock()
 	e.scouting.cache = map[string]*core.ScoutReport{"p": old}
+	e.scouting.mu.Unlock()
 	e.snapshot = core.Snapshot{ConnectionID: 1, Connected: true, Stage: "party", Phase: "Lobby", Participants: []core.Participant{{ConnectionID: 1, Key: "p", PUUID: "p", IdentityState: core.IdentityKnown}}}
 	e.mu.Lock()
 	e.syncScoutingLocked()
@@ -168,8 +174,10 @@ func TestScoutRefreshRetainsCoverageAndOriginalCutoffUntilReplacement(t *testing
 	e := New(nil, nil)
 	e.client = &fakeClient{}
 	e.clientVersion = 1
+	e.scouting.mu.Lock()
 	e.scouting.scope, e.scouting.token = "scope", 1
 	e.scouting.cache = map[string]*core.ScoutReport{}
+	e.scouting.mu.Unlock()
 	e.snapshot = core.Snapshot{Connected: true, Participants: []core.Participant{{ConnectionID: 1, PUUID: "p", Scout: old}}}
 	for _, incoming := range []core.ScoutReport{
 		{State: "loading", Season: season, FetchedAt: now},

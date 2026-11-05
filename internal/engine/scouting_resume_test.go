@@ -53,7 +53,9 @@ func TestScoutingResumesProgressAcrossStageChange(t *testing.T) {
 	e.clientVersion = 1
 	e.initialMatch.setParent(ctx)
 	progress, _ := progressFixture(f.now, 1)
+	e.scouting.mu.Lock()
 	e.scouting.progress = map[string]*scoutProgress{"p": progress}
+	e.scouting.mu.Unlock()
 	e.snapshot = core.Snapshot{ConnectionID: 1, Connected: true, Stage: "party", Phase: "Lobby", Participants: []core.Participant{{ConnectionID: 1, Key: "p", PUUID: "p", IdentityState: core.IdentityKnown, ChampionID: 23}}}
 	e.mu.Lock()
 	e.syncScoutingLocked()
@@ -78,7 +80,9 @@ func TestStaleScoutProgressIsIgnored(t *testing.T) {
 	e.initialMatch.setParent(ctx)
 	progress, _ := progressFixture(f.now, 1)
 	progress.at = time.Now().Add(-6 * time.Minute)
+	e.scouting.mu.Lock()
 	e.scouting.progress = map[string]*scoutProgress{"p": progress}
+	e.scouting.mu.Unlock()
 	e.snapshot = core.Snapshot{ConnectionID: 1, Connected: true, Stage: "party", Phase: "Lobby", Participants: []core.Participant{{ConnectionID: 1, Key: "p", PUUID: "p", IdentityState: core.IdentityKnown, ChampionID: 23}}}
 	e.mu.Lock()
 	e.syncScoutingLocked()
@@ -98,12 +102,14 @@ func TestFinishedMatchDropsScoutProgress(t *testing.T) {
 	e.clientVersion = 1
 	e.initialMatch.setParent(context.Background())
 	progress, _ := progressFixture(f.now, 1)
+	e.scouting.mu.Lock()
 	e.scouting.progress = map[string]*scoutProgress{"p": progress}
+	e.scouting.mu.Unlock()
 	e.snapshot = core.Snapshot{ConnectionID: 1, Connected: true, Stage: "in-game", Phase: "EndOfGame", Participants: []core.Participant{{ConnectionID: 1, Key: "p", PUUID: "p", IdentityState: core.IdentityKnown}}}
 	e.mu.Lock()
 	e.syncScoutingLocked()
 	e.mu.Unlock()
-	if e.scouting.progress != nil {
+	if !scoutProgressNilForTest(&e.scouting) {
 		t.Fatal("post-game phase kept a cursor from before the result")
 	}
 }

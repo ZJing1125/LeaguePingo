@@ -50,27 +50,13 @@ func scoutPageTimeout(collector *diagnostics.Collector) time.Duration {
 	return timeout
 }
 
-type scoutPreparation struct {
-	cancel      context.CancelFunc
-	token       uint64
-	scope       string
-	attempted   map[string]bool
-	cache       map[string]*core.ScoutReport
-	progress    map[string]*scoutProgress
-	queue       int
-	manual      bool
-	deadline    time.Time
-	pages       int
-	lastPublish time.Time
-}
-
 func (e *Engine) SetScoutQueue(queue int) (core.Snapshot, error) {
 	if queue != 420 && queue != 440 {
 		return e.Snapshot(), apperrors.New(apperrors.InvalidQueue)
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.scouting.queue, e.scouting.manual = queue, true
+	e.scouting.selectQueue(queue)
 	e.snapshot.ScoutQueue = queue
 	e.snapshot.UpdatedAt = time.Now()
 	e.publishLocked()
@@ -78,34 +64,17 @@ func (e *Engine) SetScoutQueue(queue int) (core.Snapshot, error) {
 }
 
 func (e *Engine) stopScoutingLocked() {
-	if e.scouting.cancel != nil {
-		e.scouting.cancel()
-		e.scouting.cancel = nil
-	}
-	e.scouting.token++
-	for i := range e.snapshot.Participants {
-		if r := e.snapshot.Participants[i].Scout; r != nil && r.State == "loading" {
-			copy := *r
-			copy.State = "partial"
-			copy.Message = "已保留读取结果"
-			e.snapshot.Participants[i].Scout = &copy
-			if e.scouting.cache != nil {
-				e.scouting.cache[e.snapshot.Participants[i].PUUID] = &copy
-			}
-		}
-	}
+	e.scouting.stop(e.snapshot.Participants)
 }
 
 func (e *Engine) syncScoutingLocked() {
-	s := &e.scouting
-	// A finished match changes what the range contains: do not resume a cursor
-	// that was read before this result. Freshness still bounds every other case.
+	// A finished result changes the range, so it cannot resume a pre-result cursor.
 	switch snapshotPhase(e.snapshot.Phase) {
 	case PhaseWaitingForStats, PhasePreEndOfGame, PhaseEndOfGame:
-		s.progress = nil
+		e.scouting.clearProgress()
 	}
 	if e.client == nil || !e.snapshot.Connected {
-		if s.cancel != nil {
+		if e.scouting.hasTask() {
 			e.stopScoutingLocked()
 		}
 		return
@@ -117,19 +86,13 @@ func (e *Engine) syncScoutingLocked() {
 			e.publishLocked()
 		}
 	}()
-	if s.queue != 420 && s.queue != 440 {
-		s.queue = 420
-	}
 	if q, ok := e.client.(source.QueueSource); ok {
 		e.snapshot.QueueID = q.CurrentQueue()
 	}
-	if !s.manual && (e.snapshot.QueueID == 420 || e.snapshot.QueueID == 440) {
-		s.queue = e.snapshot.QueueID
-	}
-	e.snapshot.ScoutQueue = s.queue
+	e.snapshot.ScoutQueue = e.scouting.queueFor(e.snapshot.QueueID)
 	parent := e.initialMatch.parentContext()
-	if e.client == nil || !e.snapshot.Connected || parent == nil || parent.Err() != nil || (!preparationStage(snapshotStage(e.snapshot.Stage)) && !activeMatch(snapshotPhase(e.snapshot.Phase))) || snapshotPhase(e.snapshot.Phase) == PhaseGameStart || e.phaseHint != PhaseUnknown && stageForPhase(e.phaseHint) != snapshotStage(e.snapshot.Stage) {
-		if s.cancel != nil {
+	if parent == nil || parent.Err() != nil || (!preparationStage(snapshotStage(e.snapshot.Stage)) && !activeMatch(snapshotPhase(e.snapshot.Phase))) || snapshotPhase(e.snapshot.Phase) == PhaseGameStart || e.phaseHint != PhaseUnknown && stageForPhase(e.phaseHint) != snapshotStage(e.snapshot.Stage) {
+		if e.scouting.hasTask() {
 			e.stopScoutingLocked()
 		}
 		return
@@ -142,74 +105,18 @@ func (e *Engine) syncScoutingLocked() {
 		return
 	}
 	scope := fmt.Sprintf("%d:%s:%d", e.clientVersion, e.snapshot.Stage, e.snapshot.GameID)
-	if s.scope != scope {
-		e.stopScoutingLocked()
-		s.scope = scope
-		s.attempted = map[string]bool{}
-		s.deadline = time.Time{}
-		s.pages = 0
-		s.manual = false
-		if e.snapshot.QueueID == 420 || e.snapshot.QueueID == 440 {
-			s.queue = e.snapshot.QueueID
-		}
-		e.snapshot.ScoutQueue = s.queue
-	}
-	if s.cache == nil {
-		s.cache = map[string]*core.ScoutReport{}
-	}
-	if s.cancel != nil {
-		return
-	}
-	if !s.deadline.IsZero() && time.Now().After(s.deadline) {
-		return
-	}
-	if s.pages >= scoutPageLimit {
-		return
-	}
-	var targets []core.Participant
-	for i := range e.snapshot.Participants {
-		p := &e.snapshot.Participants[i]
-		if p.IdentityState != core.IdentityKnown || !core.IsKnownPUUID(p.PUUID) || s.attempted[p.PUUID] {
-			continue
-		}
-		if len(s.attempted) >= 10 {
-			continue
-		}
-		s.attempted[p.PUUID] = true
-		if cached := s.cache[p.PUUID]; cached != nil && cached.State != "loading" && cached.Complete30 && time.Since(cached.FetchedAt) < 5*time.Minute && (cached.Season == nil || time.Now().Before(cached.Season.End)) {
-			if p.Scout != cached {
-				reportChanged = true
-			}
-			p.Scout = cached
-			continue
-		}
-		if len(targets) >= 10 {
-			continue
-		}
-		r := core.ScoutReport{State: "loading", Champions: []core.ScoutChampion{}, Queues: []core.ScoutQueue{}}
-		if p.Scout != nil {
-			r = *p.Scout
-			r.State = "loading"
-		}
-		p.Scout = &r
-		reportChanged = true
-		targets = append(targets, *p)
-	}
+	e.snapshot.ScoutQueue = e.scouting.scopeFor(scope, e.snapshot.QueueID, e.snapshot.Participants)
+	targets, changed := e.scouting.targets(e.snapshot.Participants, time.Now())
+	reportChanged = changed
 	if len(targets) == 0 {
 		return
 	}
-	if s.deadline.IsZero() {
-		s.deadline = time.Now().Add(scoutRoundBudget)
-	}
-	ctx, cancel := context.WithDeadline(parent, s.deadline)
-	s.cancel = cancel
-	s.token++
-	token, version := s.token, e.clientVersion
-	go e.prepareScouting(ctx, version, scope, token, src, targets)
+	ctx, token := e.scouting.begin(parent, time.Now())
+	go e.prepareScouting(ctx, e.clientVersion, scope, token, src, targets)
 }
 
 func (e *Engine) scoutValidLocked(version uint64, scope string, token uint64) bool {
-	return e.client != nil && e.snapshot.Connected && e.clientVersion == version && e.scouting.scope == scope && e.scouting.token == token && (e.phaseHint == PhaseUnknown || stageForPhase(e.phaseHint) == snapshotStage(e.snapshot.Stage))
+	return e.client != nil && e.snapshot.Connected && e.clientVersion == version && e.scouting.current(scope, token) && (e.phaseHint == PhaseUnknown || stageForPhase(e.phaseHint) == snapshotStage(e.snapshot.Stage))
 }
 func (e *Engine) saveScout(version uint64, scope string, token uint64, id string, r core.ScoutReport) bool {
 	e.mu.Lock()
@@ -243,13 +150,9 @@ func (e *Engine) saveScout(version uint64, scope string, token uint64, id string
 		}
 	}
 	if found {
-		if len(e.scouting.cache) >= 64 {
-			e.scouting.cache = map[string]*core.ScoutReport{}
-		}
-		e.scouting.cache[id] = &r
-		e.snapshot.UpdatedAt = time.Now()
-		if firstData || r.State != "loading" || time.Since(e.scouting.lastPublish) >= time.Second {
-			e.scouting.lastPublish = time.Now()
+		now := time.Now()
+		e.snapshot.UpdatedAt = now
+		if e.scouting.rememberReport(id, &r, firstData, now) {
 			e.publishLocked()
 		}
 	}
@@ -289,47 +192,16 @@ func (p *scoutProgress) fresh(now time.Time) bool {
 }
 
 func (e *Engine) resumeScoutCursor(p core.Participant) scoutCursor {
-	c := scoutCursor{player: p, seen: map[int64]bool{}}
-	e.mu.RLock()
-	progress := e.scouting.progress[p.PUUID]
-	e.mu.RUnlock()
-	if !progress.fresh(time.Now()) {
-		return c
-	}
-	c.matches = append([]core.Match(nil), progress.matches...)
-	for id := range progress.seen {
-		c.seen[id] = true
-	}
-	c.offset, c.oldest = progress.offset, progress.oldest
-	c.complete, c.twelve, c.month = progress.complete, progress.twelve, progress.month
-	return c
+	return e.scouting.resume(p, time.Now())
 }
 
-func (e *Engine) rememberScoutProgress(c *scoutCursor) {
+func (e *Engine) rememberScoutProgress(version uint64, scope string, token uint64, c *scoutCursor) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.scouting.progress == nil || len(e.scouting.progress) >= 16 {
-		next := map[string]*scoutProgress{}
-		for id, p := range e.scouting.progress {
-			if p.fresh(time.Now()) {
-				next[id] = p
-			}
-		}
-		e.scouting.progress = next
-	}
-	seen := make(map[int64]bool, len(c.seen))
-	for id := range c.seen {
-		seen[id] = true
-	}
-	e.scouting.progress[c.player.PUUID] = &scoutProgress{
-		matches:  append([]core.Match(nil), c.matches...),
-		seen:     seen,
-		offset:   c.offset,
-		oldest:   c.oldest,
-		complete: c.complete,
-		twelve:   c.twelve,
-		month:    c.month,
-		at:       time.Now(),
+	// Cancellation can happen between publishing a page and saving its cursor.
+	// Do not resurrect progress after a phase/connection/result reset.
+	if e.scoutValidLocked(version, scope, token) {
+		e.scouting.rememberProgress(c, time.Now())
 	}
 }
 
@@ -338,10 +210,7 @@ func (e *Engine) prepareScouting(ctx context.Context, version uint64, scope stri
 		e.mu.Lock()
 		defer e.mu.Unlock()
 		if e.scoutValidLocked(version, scope, token) {
-			if e.scouting.cancel != nil {
-				e.scouting.cancel()
-			}
-			e.scouting.cancel = nil
+			e.scouting.finish(scope, token)
 			e.publishLocked()
 		}
 	}()
@@ -374,9 +243,7 @@ func (e *Engine) prepareScouting(ctx context.Context, version uint64, scope stri
 	if season != nil && season.Start.Before(boundary) {
 		boundary = season.Start
 	}
-	e.mu.RLock()
-	count := e.scouting.pages
-	e.mu.RUnlock()
+	count := e.scouting.pageCount()
 	var pages atomic.Int64
 	if count < scoutPageLimit {
 		pages.Store(int64(count))
@@ -488,7 +355,7 @@ func (e *Engine) runScoutCursor(ctx context.Context, version uint64, scope strin
 		n := pages.Load()
 		e.mu.Lock()
 		if e.scoutValidLocked(version, scope, token) {
-			e.scouting.pages = int(n)
+			e.scouting.recordPages(int(n))
 		}
 		e.mu.Unlock()
 		if ctx.Err() != nil {
@@ -578,7 +445,7 @@ func (e *Engine) runScoutCursor(ctx context.Context, version uint64, scope strin
 		if !e.saveScout(version, scope, token, c.player.PUUID, r) {
 			c.done = true
 		}
-		e.rememberScoutProgress(c)
+		e.rememberScoutProgress(version, scope, token, c)
 		if c.done {
 			return
 		}

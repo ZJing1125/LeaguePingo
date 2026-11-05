@@ -23,7 +23,17 @@ func waitInitialMatch(t *testing.T, e *Engine) {
 		}
 		time.Sleep(time.Millisecond)
 	}
-	t.Fatal("initial match preparation did not settle")
+	e.mu.RLock()
+	state := initialMatchForTest(&e.initialMatch)
+	connected, phase := e.snapshot.Connected, e.snapshot.Phase
+	ready := 0
+	for _, p := range e.snapshot.Participants {
+		if historyCached(p) {
+			ready++
+		}
+	}
+	e.mu.RUnlock()
+	t.Fatalf("initial match preparation did not settle: started=%v task=%v eligible=%v connected=%v phase=%q ready=%d", state.started, state.cancel != nil, state.eligible, connected, phase, ready)
 }
 
 func TestInitialMatchRunFillsNamesAndHistoryOnce(t *testing.T) {
