@@ -25,6 +25,25 @@ defineProps<{ player: Participant; stats: Stats; filtered: boolean }>()
   </details>
 </template>
 <style scoped>
+/* Scope inside :where and retain original specificity with :is; child boundaries use :deep. */
+:where(.history-notice):is(.history-notice) {
+  margin: 14px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+:where(.history-notice):is(.history-notice) :deep(summary) {
+  cursor: pointer;
+  padding: 6px 0;
+}
+:where(.history-notice):is(.home-sample-note .history-notice) { font-size: 11px; }
+:where(.history-notice):is(.history-notice) {
+  font-size: 11px;
+}
+:where(.history-notice):is(.players-workspace .history-notice) {
+  margin: 9px 0;
+}
+</style>
+<style scoped>
 .history-notice {
   font-size: 11px;
   color: var(--muted);

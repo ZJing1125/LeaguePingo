@@ -83,6 +83,86 @@ const historyMessage = computed(() => !props.snapshot?.connected ? uiText.homeVi
   </section>
 </template>
 <style scoped>
+/* Scope inside :where and retain original specificity with :is; child boundaries use :deep. */
+:where(.home-workspace):is(.home-workspace) { flex: 1; min-height: 0; padding: 16px 22px 20px; overflow: auto; scrollbar-gutter: stable; }
+:where(.home-heading):is(.home-heading) { display: flex; justify-content: space-between; align-items: center; min-height: 40px; margin-bottom: 10px; }
+:where(.home-heading):is(.home-heading) :deep(h1) { font-size: 26px; line-height: 30px; letter-spacing: -.5px; }
+:where(.home-hero):is(.home-hero) { position: relative; isolation: isolate; overflow: hidden; display: flex; gap: 22px; align-items: center; justify-content: space-between; padding: 14px 18px; min-height: 100px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+:where(.home-hero-art):is(.home-hero-art) { position: absolute; inset: 0 0 0 14%; z-index: -1; opacity: .32; mask-image: linear-gradient(90deg, transparent, #000 48%, #000 68%, transparent); }
+:where(.home-hero):is(.home-hero)::after { position: absolute; inset: 0; z-index: -1; content: ''; background: linear-gradient(90deg, var(--panel) 0%, transparent 56%, color-mix(in srgb, var(--panel) 88%, transparent) 85%); }
+:where(.home-account):is(.home-account) { display: flex; align-items: center; gap: 16px; min-width: 0; flex: 1; }
+:where(.home-account):is(.home-account) :deep(>div) { min-width: 0; }
+:where(.home-account):is(.home-account) :deep(h2) { font-size: 20px; line-height: 1.35; margin: 4px 0 6px; overflow-wrap: anywhere; }
+:where(.home-account):is(.home-account) :deep(p) { font-size: 12px; color: var(--muted); }
+:where(.home-account-caption):is(.home-account-caption) { font-size: 12px; color: var(--muted); }
+:where(.home-avatar-empty):is(.home-avatar-empty) { flex: none; display: grid; place-items: center; width: 64px; height: 64px; border-radius: 10px; background: var(--raised); color: var(--muted); }
+:where(.home-privacy):is(.home-privacy) { font-size: 11px; color: var(--muted); display: block; margin-top: 7px; }
+:where(.home-form-summary):is(.home-form-summary) { display: flex; align-items: center; gap: 24px; flex: none; }
+:where(.home-form-summary):is(.home-form-summary) :deep(>div) { display: flex; flex-direction: column; gap: 8px; min-width: 95px; }
+:where(.home-form-summary):is(.home-form-summary) :deep(>div>span:first-child) { color: var(--muted); font-size: 12px; }
+:where(.home-form-summary):is(.home-form-summary) :deep(strong) { font-size: 32px; line-height: 34px; font-weight: 650; }
+:where(.home-form-summary):is(.home-form-summary) :deep(small) { color: var(--muted); font-size: 11px; }
+:where(.home-form-last):is(.home-form-last) { align-self: stretch; justify-content: center; }
+:where(.home-grid):is(.home-grid) {display:grid;grid-template-columns:280px minmax(0,1fr);gap:16px;margin-top:16px;align-items:start;}
+:where(.home-panel):is(.home-panel) {background:var(--panel);border:1px solid var(--border);border-radius:8px;min-width:0;overflow:hidden;}
+:where(.home-panel):is(.home-panel) :deep(>header) {display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;min-height:42px;border-bottom:1px solid var(--border);}
+:where(.home-panel):is(.home-panel) :deep(>header h2) {font-size:14px;}
+:where(.home-panel):is(.home-panel) :deep(header .text-button) {font-size:12px;padding:0;}
+:where(.home-ranks):is(.home-ranks) {display:flex;flex-direction:column;gap:12px;min-width:0;}
+:where(.home-rank):is(.home-rank) {padding:16px;display:flex;flex-wrap:wrap;gap:8px;color:var(--muted);font-size:12px;}
+:where(.home-rank):is(.home-rank) :deep(strong){color:var(--text);}
+:where(.home-rank):is(.home-rank) :deep(small){font-size:11px;}
+:where(.home-session):is(.home-session) {padding:12px;display:flex;flex-direction:column;gap:9px;}
+:where(.home-panel-caption):is(.home-panel-caption){font-size:11px;color:var(--muted);}
+:where(.home-session):is(.home-session) :deep(strong){display:flex;align-items:center;gap:6px;font-size:13px;}
+:where(.home-session):is(.home-session) :deep(p){font-size:12px;line-height:1.6;color:var(--muted);}
+:where(.home-session):is(.home-session) :deep(button){display:flex;justify-content:space-between;align-items:center;font-size:12px;}
+:where(.home-analysis-main):is(.home-analysis-main){display:flex;flex-direction:column;gap:12px;min-width:0;container-type:inline-size;}
+:where(.home-recent):is(.home-recent){display:flex;flex-direction:column;min-height:0;}
+:where(.home-match-list):is(.home-match-list){min-height:0;overflow:visible;}
+:where(.home-history-filters):is(.home-history-filters) { padding: 7px 10px; display: flex; gap: 7px; align-items: center; min-height: 42px; border-bottom: 1px solid var(--border); flex: none; }
+:where(.home-history-filters):is(.home-history-filters) :deep(select) { min-width: 0; max-width: 142px; font-size: 12px; }
+:where(.home-history-filters):is(.home-history-filters) :deep(>span) { margin-left: auto; white-space: nowrap; font-size: 11px; color: var(--muted); }
+:where(.home-pagination):is(.home-pagination) { flex: none; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; border-top: 1px solid var(--border); padding: 6px 8px; }
+:where(.home-pagination):is(.home-pagination) :deep(>span) { display: flex; flex-direction: column; align-items: center; font-size: 12px; white-space: nowrap; }
+:where(.home-pagination):is(.home-pagination) :deep(small) { font-size: 11px; color: var(--muted); margin-top: 2px; }
+:where(.home-pagination):is(.home-pagination) :deep(button) { font-size: 11px; padding: 5px 9px; }
+:where(.home-page-jump):is(.home-page-jump) { display: flex; gap: 5px; margin-left: auto; }
+:where(.home-page-jump):is(.home-page-jump) :deep(input) { width: 38px; min-width: 0; padding: 4px; font-size: 12px; text-align: center; }
+:where(.home-browse-status):is(.home-browse-status) { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); line-height: 1.5; padding: 6px 10px; border-bottom: 1px solid var(--border); flex: none; }
+:where(.home-browse-status):is(.home-browse-status) :deep(.text-button) { white-space: nowrap; font-size: 12px; }
+:where(.home-sample-note):is(.home-sample-note) { flex: none; border-top: 1px solid var(--border); padding: 10px 12px; font-size: 11px; line-height: 1.6; }
+:where(.home-sample-note):is(.home-sample-note) :deep(>span) { display: block; margin-bottom: 4px; }
+:where(.home-no-history):is(.home-no-history) { min-height: 180px; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 24px; gap: 14px; color: var(--muted); text-align: center; }
+:where(.home-no-history):is(.home-no-history) :deep(h3) { font-size: 15px; color: var(--text); margin: 0; }
+:where(.home-no-history):is(.home-no-history) :deep(p) { font-size: 12px; line-height: 1.8; }
+:where(.home-error):is(.home-error) { margin-top: 12px; }
+@media(max-width:1100px){:where(.home-grid):is(.home-grid){grid-template-columns:250px minmax(0,1fr);gap:12px;}}
+@media(max-width:1100px){:where(.home-workspace):is(.home-workspace){padding-inline:16px;}}
+@media(max-width:940px){:where(.home-grid):is(.home-grid){grid-template-columns:minmax(0,1fr);}}
+@media(max-width:940px){:where(.home-ranks):is(.home-ranks){display:grid;grid-template-columns:1fr 1fr;gap:10px;}}
+@media(max-width:940px){:where(.home-session):is(.home-session){grid-column:1/-1;display:grid;grid-template-columns:1fr auto;align-items:center;gap:6px 12px;}}
+@media(max-width:940px){:where(.home-session):is(.home-session) :deep(>span){grid-column:1;}}
+@media(max-width:940px){:where(.home-session):is(.home-session) :deep(>strong){grid-column:1;}}
+@media(max-width:940px){:where(.home-session):is(.home-session) :deep(>p){grid-column:1;}}
+@media(max-width:940px){:where(.home-session):is(.home-session) :deep(>button){grid-column:2;grid-row:1/4;}}
+@media(max-width:940px){
+  :where(.home-grid):is(.home-grid){grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+}
+@media(max-width:940px){
+  :where(.home-ranks):is(.home-ranks){display:contents;}
+}
+@media(max-width:940px){
+  :where(.home-rank):is(.home-ranks>.home-rank){grid-column:1/-1;grid-row:1;}
+}
+@media(max-width:940px){
+  :where(.home-analysis-main):is(.home-analysis-main){grid-column:1/-1;grid-row:2;}
+}
+@media(max-width:940px){
+  :where(.home-session):is(.home-session){grid-row:3;}
+}
+</style>
+<style scoped>
 .home-game-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:20px;border-bottom:1px solid var(--border);flex:none;}
 .home-game-heading h2{font-size:20px;margin:0 0 6px;}.home-game-heading p{font-size:12px;color:var(--muted);margin:0;}
 .home-game-content{padding:16px;min-height:0;overflow:auto;}.home-game-content .match-card{margin:0;}

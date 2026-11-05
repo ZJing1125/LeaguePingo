@@ -133,8 +133,6 @@ main.overlay-shell { padding-block: 8px; }
 .overlay-shell .overlay-groups > section { gap: 6px; }
 .overlay-shell .overlay-player.scout-card { height: 236px; min-height: 236px; width: calc((100% - 24px) / 5); margin: 0; }
 .overlay-shell .scout-card .scout-identity.card-portrait { height: 40px; min-height: 40px; max-height: 40px; padding: 4px 6px; gap: 6px; }
-.overlay-shell .scout-identity .participant-avatar,
-.overlay-shell .scout-identity .participant-avatar-fallback { width: 28px !important; height: 28px !important; }
 .overlay-shell .scout-card .scout-identity .card-identity > strong { font-size: 11px; }
 .overlay-shell .scout-card .scout-identity .card-identity > .scout-level { font-size: 11px; }
 .overlay-shell .scout-headline { height: 70px; min-height: 70px; }

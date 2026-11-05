@@ -62,6 +62,14 @@ const status = computed(() =>
   </span>
 </template>
 <style scoped>
+/* Scope inside :where and retain original specificity with :is; child boundaries use :deep. */
+:where(.participant-avatar):is(.player-row>.participant-avatar) {
+  grid-row: 1;
+}
+:where(.participant-avatar):is(.overlay-shell .scout-identity .participant-avatar) { width: 28px !important; height: 28px !important; }
+:where(.participant-avatar-fallback):is(.overlay-shell .scout-identity .participant-avatar-fallback) { width: 28px !important; height: 28px !important; }
+</style>
+<style scoped>
 .participant-avatar {
   display: inline-flex;
   flex: 0 0 auto;

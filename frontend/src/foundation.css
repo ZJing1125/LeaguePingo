@@ -19,12 +19,6 @@
 .match-context-detail .early-end {
   color: var(--warning);
 }
-.profile-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: inherit;
-}
 .detail-loadout {
   display: flex;
   gap: 2px;
@@ -339,106 +333,10 @@ small {
 .roster-message {
   margin: 0 0 12px;
 }
-.player-view {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-.player-profile {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 22px;
-  min-height: 80px;
-  flex: none;
-  border-bottom: 1px solid var(--border);
-}
-.profile-avatar {
-  width: 52px;
-  height: 52px;
-  display: grid;
-  place-items: center;
-  background: #252f3a;
-  border: 1px solid #384859;
-  border-radius: 12px;
-  color: #97b9ba;
-  flex: none;
-}
-.profile-identity {
-  min-width: 120px;
-  flex: 1;
-}
-.identity-title {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  min-width: 0;
-}
-.identity-title h1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 19px;
-  user-select: text;
-}
-.identity-title .square {
-  border-color: transparent;
-  flex: none;
-}
-.profile-meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 5px;
-  color: var(--muted);
-  font-size: 12px;
-}
-.privacy-unknown {
-  font-size: 11px;
-}
-.profile-ranks {
-  display: flex;
-  gap: 22px;
-  margin-left: auto;
-  flex: none;
-}
-.rank-card {
-  display: flex;
-  gap: 9px;
-  align-items: center;
-  min-width: 135px;
-}
-.rank-card small {
-  display: block;
-  color: var(--muted);
-  font-size: 11px;
-}
-.rank-card strong {
-  display: block;
-  font-size: 13px;
-  margin: 4px 0;
-  white-space: nowrap;
-}
-.rank-card strong span {
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--muted);
-}
 .profile-update {
   border: 0;
   padding: 6px;
   flex: none;
-}
-.player-error {
-  margin: 8px 18px;
-}
-.player-columns {
-  display: flex;
-  flex: 1;
-  min-height: 0;
 }
 .player-summary {
   width: 205px;
@@ -457,8 +355,7 @@ small {
   font-size: 11px;
   color: var(--muted);
 }
-.section-heading > select,
-.compact-stats > select {
+.section-heading > select {
   padding: 4px 6px;
   font-size: 11px;
   max-width: 100px;
@@ -470,76 +367,10 @@ small {
   color: var(--muted);
   overflow-wrap: anywhere;
 }
-.history-pagination {
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  flex-wrap: wrap;
-  min-height: 54px;
-  padding: 8px 10px;
-  border-top: 1px solid var(--border);
-  background: #151a22;
-  font-size: 11px;
-  color: var(--muted);
-}
-.history-pagination .page-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.history-pagination small {
-  display: block;
-  font-size: 10px;
-  margin-top: 3px;
-}
-.history-pagination button {
-  padding: 5px 8px;
-  font-size: 11px;
-}
-.page-jump,
-.page-jump label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.page-jump {
-  margin: 0;
-}
-.page-jump input {
-  width: 42px;
-  padding: 5px 4px;
-  font-size: 11px;
-  text-align: center;
-}
-.page-jump input[aria-invalid="true"] {
-  border-color: var(--loss);
-}
 .page-jump-error {
   width: 100%;
   margin: 0;
   color: var(--loss);
-}
-.page-indicator {
-  text-align: center;
-  min-width: 60px;
-  color: var(--text);
-}
-.browse-status {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  flex: none;
-  padding: 8px 0;
-  font-size: 11px;
-  line-height: 1.6;
-  color: var(--muted);
-}
-.browse-status button {
-  flex: none;
-  color: var(--accent);
 }
 .winrate-display {
   display: flex;
@@ -617,74 +448,6 @@ small {
   color: var(--muted);
   line-height: 1.7;
   margin-top: 20px;
-}
-.history-column {
-  display: flex;
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  flex-direction: column;
-  padding: 0 18px 14px;
-}
-.history-panel {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-  flex-direction: column;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-}
-.history-panel > .history-scroll {
-  padding: 8px 8px 4px;
-}
-.history-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  flex: none;
-  min-height: 46px;
-}
-.history-filter,
-.history-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-.history-count {
-  font-size: 13px;
-  white-space: nowrap;
-}
-.history-count > span {
-  font-weight: 400;
-  color: var(--muted);
-  margin-left: 4px;
-}
-.history-toolbar select {
-  max-width: 170px;
-  font-size: 12px;
-  padding: 5px 8px;
-}
-.toolbar-time {
-  font-size: 11px;
-  color: var(--muted);
-  white-space: nowrap;
-}
-.history-actions button {
-  padding: 5px 9px;
-}
-.history-column > .quality-warning {
-  margin-bottom: 9px;
-}
-.history-scroll {
-  min-height: 0;
-  flex: 1;
-  overflow-y: auto;
-  padding-right: 3px;
-  scrollbar-gutter: stable;
 }
 .match-card {
   margin-bottom: 7px;
@@ -823,15 +586,6 @@ small {
 .load-more {
   width: 100%;
   margin: 5px 0 12px;
-}
-.history-notice {
-  margin: 14px 0;
-  color: var(--muted);
-  font-size: 12px;
-}
-.history-notice summary {
-  cursor: pointer;
-  padding: 6px 0;
 }
 .empty-state {
   display: flex;
@@ -997,9 +751,6 @@ small {
   text-align: left;
   min-height: 84px;
 }
-.player-row > .participant-avatar {
-  grid-row: 1;
-}
 .player-row:hover {
   background: #1c2530;
   border-color: #43555f;
@@ -1055,82 +806,11 @@ small {
 .drawer-query {
   margin: 9px;
 }
-.compact .player-profile {
-  padding: 12px;
-  min-height: 74px;
-  gap: 9px;
-}
-.compact .profile-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-}
-.compact .identity-title h1 {
-  font-size: 15px;
-}
-.compact .identity-title .square {
-  display: none;
-}
-.compact .profile-meta {
-  font-size: 11px;
-}
-.compact .privacy-unknown {
-  display: none;
-}
 .compact .profile-update > span {
   display: none;
 }
 .compact .profile-update {
   padding: 4px;
-}
-.compact .history-column {
-  padding: 0 10px 10px;
-}
-.compact .history-pagination {
-  gap: 6px;
-  padding: 7px 8px;
-}
-.compact .history-pagination .page-jump {
-  width: 100%;
-  justify-content: flex-end;
-}
-.compact .history-toolbar {
-  min-height: 48px;
-}
-.compact .history-count {
-  display: none;
-}
-.compact .toolbar-time {
-  display: none;
-}
-.compact .history-filter,
-.compact .history-actions {
-  gap: 7px;
-}
-.compact .history-toolbar select {
-  max-width: 118px;
-  font-size: 11px;
-}
-.compact .history-actions button {
-  font-size: 11px;
-  padding: 6px 8px;
-}
-.compact .history-filter {
-  min-width: 0;
-}
-.history-filter > select {
-  max-width: 108px;
-}
-.compact-stats {
-  display: flex;
-  gap: 15px;
-  color: var(--muted);
-  font-size: 12px;
-  padding: 4px 0 12px;
-}
-.compact-stats b {
-  color: var(--text);
-  font-weight: 500;
 }
 .compact .match-main {
   display: grid;
@@ -1313,9 +993,6 @@ small {
   line-height: 1.7;
 }
 @media (min-width: 1300px) {
-  .profile-ranks {
-    gap: 34px;
-  }
   .match-main {
     gap: 16px;
   }
@@ -1330,12 +1007,6 @@ small {
   }
 }
 @media (max-width: 1180px) {
-  .profile-ranks {
-    gap: 14px;
-  }
-  .rank-card {
-    min-width: 110px;
-  }
   .profile-update > span {
     display: none;
   }
@@ -1354,9 +1025,6 @@ small {
   .settings-trigger {
     justify-content: center;
   }
-  .profile-ranks {
-    gap: 12px;
-  }
   .player-summary {
     width: 185px;
     padding: 18px 12px;
@@ -1364,23 +1032,8 @@ small {
   .app-toolbar {
     gap: 10px;
   }
-  .rank-card {
-    min-width: 100px;
-  }
-  .rank-card strong {
-    font-size: 12px;
-  }
-  .profile-identity {
-    min-width: 100px;
-  }
-  .identity-title h1 {
-    font-size: 17px;
-  }
 }
 @media (max-width: 760px) {
-  .profile-ranks {
-    display: none;
-  }
   .player-summary {
     display: none;
   }
@@ -1395,16 +1048,6 @@ small {
     padding: 7px;
   }
   .app-toolbar > .icon-button > span {
-    display: none;
-  }
-  .player-profile {
-    padding: 14px;
-    min-height: 84px;
-  }
-  .history-column {
-    padding: 0 10px;
-  }
-  .toolbar-time {
     display: none;
   }
   .roster-progress-track {
@@ -1466,15 +1109,5 @@ small {
   }
   .drawer-floating {
     padding: 8px;
-  }
-  .history-toolbar {
-    flex-wrap: wrap;
-    padding: 7px 0;
-  }
-  .history-filter {
-    gap: 7px;
-  }
-  .history-actions {
-    margin-left: auto;
   }
 }

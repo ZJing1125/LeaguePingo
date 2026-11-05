@@ -59,7 +59,12 @@ const history = computed<RankRecord[]>(() => [
     </details>
   </section>
 </template>
-
+<style scoped>
+/* Scope inside :where and retain original specificity with :is; child boundaries use :deep. */
+@media(max-width:940px){
+  :where(.rank-panel):is(.home-ranks>.rank-panel){grid-row:1;}
+}
+</style>
 <style scoped>
 .rank-panel{min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden;}
 .rank-panel>header{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);height:36px;}
