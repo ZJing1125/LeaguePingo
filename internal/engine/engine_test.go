@@ -88,13 +88,13 @@ func TestDiscoveryFailureIsPublishedAndRecovers(t *testing.T) {
 		t.Fatal("discovery failure not published to UI")
 	}
 	// Repeated identical failures should not flood the event bridge.
-	e.lastLookup = time.Time{}
+	resetDiscoveryForTest(e)
 	e.poll(context.Background())
 	if len(e.updates) != 0 {
 		t.Fatal("unchanged discovery failure republished")
 	}
 	discoverErr = nil
-	e.lastLookup = time.Time{}
+	resetDiscoveryForTest(e)
 	e.poll(context.Background())
 	snapshot = e.Snapshot()
 	if !snapshot.Connected || snapshot.Phase != "Lobby" || snapshot.Message != "" {
@@ -137,14 +137,14 @@ func TestFrozenCacheSurvivesPhaseAndDiscoveryFailure(t *testing.T) {
 		t.Fatalf("phase failure lost cache or diagnostic: %+v", snapshot)
 	}
 	discoverErr = apperrors.New(apperrors.ClientPermissionDenied)
-	e.lastLookup = time.Time{}
+	resetDiscoveryForTest(e)
 	e.poll(context.Background())
 	if snapshot := e.Snapshot(); snapshot.Connected || !snapshot.Frozen || len(snapshot.Participants) != 1 || !strings.Contains(snapshot.Message, discoverErr.Error()) {
 		t.Fatalf("rediscovery failure lost cache or diagnostic: %+v", snapshot)
 	}
 	discoverErr = nil
 	fake.phaseErr = nil
-	e.lastLookup = time.Time{}
+	resetDiscoveryForTest(e)
 	e.poll(context.Background())
 	if snapshot := e.Snapshot(); !snapshot.Connected || !snapshot.Frozen || snapshot.GameID != 42 || len(snapshot.Participants) != 1 {
 		t.Fatalf("cached game did not reconnect: %+v", snapshot)
@@ -191,7 +191,7 @@ func (f *fakeClient) FindByRiotID(context.Context, string) (core.Participant, er
 func TestEnteringGameFreezesSnapshotAndStopsHistoryRequests(t *testing.T) {
 	fake := &fakeClient{phase: "ChampSelect"}
 	e := New(func() (Client, error) { return fake, nil }, nil)
-	e.lastLookup = time.Time{}
+	resetDiscoveryForTest(e)
 	e.poll(context.Background())
 	if len(e.Snapshot().Participants) != 1 {
 		t.Fatalf("expected one player in preparation: %+v", e.Snapshot())

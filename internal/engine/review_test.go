@@ -123,7 +123,7 @@ func TestInGameReconnectRenewsRosterBudgetWithoutAutomaticHistory(t *testing.T) 
 	fake.phaseErr = errors.New("temporary disconnect")
 	e.poll(context.Background())
 	fake.phaseErr = nil
-	e.lastLookup = time.Time{}
+	resetDiscoveryForTest(e)
 	e.poll(context.Background())
 	s := e.Snapshot()
 	if s.ConnectionID <= first || !s.Connected || !e.roster.view().complete {

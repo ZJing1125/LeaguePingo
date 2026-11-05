@@ -177,13 +177,13 @@ status: in-progress
 confidence: verified-static
 needs_human: false
 problem: >-
-  Engine原59字段共用RWMutex；订阅、分组、复盘、缓存、房间/选人准备及查询会话独立后已降为28字段；开局原单字段已补齐独立锁/资格生命周期，字段数未变，独立统计原单字段已补齐独立锁/范围/游标生命周期，字段数未变，手动查询数据编排已迁至显式依赖的playerQueries，后台恢复已迁至独立锁组件，名单预算也已独立，发现/发布生命周期仍待收尾。
+  Engine原59字段共用RWMutex；订阅、分组、复盘、缓存、房间/选人准备及查询会话独立后已降为27字段；开局原单字段已补齐独立锁/资格生命周期，字段数未变，独立统计原单字段已补齐独立锁/范围/游标生命周期，字段数未变，手动查询数据编排已迁至显式依赖的playerQueries，后台恢复已迁至独立锁组件，名单预算也已独立，客户端发现节流也已独立，快照发布生命周期仍待收尾。
 evidence:
   - internal/engine/engine.go（Engine 结构体、poll）
   - internal/engine/event_subscription.go、grouping_state.go、review_state.go
   - internal/engine/player_cache.go、preparation_state.go、preparation.go
   - internal/engine/initial_match_state.go、initial_match.go、query_session.go、player_queries.go
-  - internal/engine/scouting_state.go、scouting.go、roster_discovery.go
+  - internal/engine/scouting_state.go、scouting.go、roster_discovery.go、client_discovery.go
   - internal/engine/history_store.go、history_recovery_state.go
 actions:
   - 先完成 S4（类型化状态），再按职责抽出组件：阶段监听、选人监听、预取器、查询服务、复盘、分组、历史
@@ -198,12 +198,13 @@ actions:
   - 第九批已实施：playerQueries负责手动历史/可选资料编排，显式依赖queryState与scheduler；Engine保留原子守卫/写回，字段仍29，原预算/失败保留/独立时钟回归保留
   - 第十批已实施：historyRecovery独立拥有有界重试/后台合并任务/本机更新队列；修复旧任务清理误释放新任务，保留原额度/时限/抢占退款及换号隔离，字段仍29
   - 第十一批已实施：rosterDiscovery独立拥有本地名单三次就绪窗口与完成状态，29→28字段；加载→游戏仅未完整时续窗，同局手动刷新不续窗，原读取/新局/迟到回归保留
+  - 第十二批已实施：clientDiscovery独立拥有十秒发现节流，28→27字段；发现回调在Engine及组件锁外执行，原失败/恢复/账号隔离和精确冷却并发回归通过
   - 每个组件持有自己的状态和锁；Engine 只做编排和事件分发
   - 保留现有的 generation / clientVersion / phaseEpoch 迟到结果丢弃机制，不要削弱
   - 每次只迁移一个组件，迁移后跑竞态测试
 acceptance:
   - Engine 字段显著减少（建议目标不超过 20）
-  - 仍待完成：发现/发布生命周期收尾；不能把已实施的十一批迁移记为整体完成
+  - 仍待完成：快照发布生命周期收尾；不能把已实施的十二批迁移记为整体完成
   - 新功能不再向 Engine 增加字段
   - go test -race ./internal/engine/... 通过
 depends_on: [S4]

@@ -28,12 +28,11 @@ type Engine struct {
 	autoAccept      *readycheck.Controller
 	postGame        *postgame.Controller
 	mu              sync.RWMutex
-	discover        Discoverer
+	discovery       *clientDiscovery
 	client          Client
 	snapshot        core.Snapshot
 	onChange        func(core.Snapshot)
 	updates         chan core.Snapshot
-	lastLookup      time.Time
 	queries         *playerQueries
 	roster          rosterDiscovery
 	players         playerCache
@@ -66,7 +65,7 @@ func NewWithHistoryCache(discover Discoverer, onChange func(core.Snapshot), path
 }
 
 func newEngine(discover Discoverer, onChange func(core.Snapshot)) *Engine {
-	e := &Engine{discover: discover, onChange: onChange, phaseEvents: newEventSubscription(), champEvents: newEventSubscription(), scheduler: newScheduler(), snapshot: core.Snapshot{Stage: string(StageDisconnected), UpdatedAt: time.Now(), Participants: []core.Participant{}}}
+	e := &Engine{discovery: newClientDiscovery(discover), onChange: onChange, phaseEvents: newEventSubscription(), champEvents: newEventSubscription(), scheduler: newScheduler(), snapshot: core.Snapshot{Stage: string(StageDisconnected), UpdatedAt: time.Now(), Participants: []core.Participant{}}}
 	e.queries = newPlayerQueries(e, e.scheduler)
 	e.autoAccept = readycheck.New()
 	e.historyRecovery.init()
@@ -167,10 +166,9 @@ func (e *Engine) pollInterval() time.Duration {
 func (e *Engine) poll(ctx context.Context) {
 	e.mu.Lock()
 	client := e.client
-	if client == nil && time.Since(e.lastLookup) >= 10*time.Second {
-		e.lastLookup = time.Now()
+	if client == nil && e.discovery.claim(time.Now()) {
 		e.mu.Unlock()
-		found, err := e.discover()
+		found, err := e.discovery.find()
 		e.mu.Lock()
 		if err == nil && found != nil {
 			e.client = found

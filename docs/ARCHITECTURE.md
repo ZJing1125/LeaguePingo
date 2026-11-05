@@ -34,7 +34,7 @@ desktopApplication ── 主窗 / 托盘 / companion 辅助窗口
 
 `main()` 只做 WebView2 前置检查、创建生命周期、传入资源和运行。`desktopApplication` 显式持有桥接、窗口、监控和取消依赖；`desktop_app` 负责组装/托盘/关闭，`desktop_controls` 负责侧栏与设置，`desktop_workers` 负责事件转发和启动任务。单实例检查早于服务创建，重复启动只唤起已有实例；关闭时先取消工作，再停监控和保存设置。
 
-Engine的独立锁组件包括：`eventSubscription`管理事件取消/序号/重连与唤醒，`groupingState`持有分组scope/匿名字段/标签与单轮取消，`reviewState`持有候选/冻结复盘/账号与结算令牌，`playerCache`持有五表内存缓存，`preparationState`持有房间/选人准备的取消/令牌/期限/次数/优先玩家，`initialMatchPreparation`持有开局单轮资格/取消/版本/比赛/令牌，`querySession`持有手动查询独占槽与首页子任务取消，`scoutPreparation`持有独立统计范围/令牌/预算/报告/游标与发布节流，`historyRecovery`持有重试episode、合并后台任务与本机更新队列，`rosterDiscovery`持有本地身份发现就绪窗口/次数/完成状态。复盘发布后只读，更新替换外层值；固定Engine→组件锁序，来源/磁盘I/O、引擎发布和回调均在组件锁外。Engine保留连接/阶段/身份/比赛守卫，字段由59经51、45、41、37降为30，再由查询会话降为29、名单发现降为28；开局状态原已为单字段，改为独立锁后字段数未变。独立统计原已为单字段，独立锁迁移未减少字段。手动查询数据编排已移至`playerQueries`，通过显式`queryState`与scheduler依赖调用；发现/发布生命周期尚待收尾，S2仍进行中。
+Engine的独立锁组件包括：`eventSubscription`管理事件取消/序号/重连与唤醒，`groupingState`持有分组scope/匿名字段/标签与单轮取消，`reviewState`持有候选/冻结复盘/账号与结算令牌，`playerCache`持有五表内存缓存，`preparationState`持有房间/选人准备的取消/令牌/期限/次数/优先玩家，`initialMatchPreparation`持有开局单轮资格/取消/版本/比赛/令牌，`querySession`持有手动查询独占槽与首页子任务取消，`scoutPreparation`持有独立统计范围/令牌/预算/报告/游标与发布节流，`historyRecovery`持有重试episode、合并后台任务与本机更新队列，`rosterDiscovery`持有本地身份发现就绪窗口/次数/完成状态，`clientDiscovery`持有十秒一次的发现节流。复盘发布后只读，更新替换外层值；固定Engine→组件锁序，来源/磁盘I/O、引擎发布和回调均在组件锁外。Engine保留连接/阶段/身份/比赛守卫，字段由59经51、45、41、37降为30，再由查询会话降为29、名单发现降为28、客户端发现降为27；开局状态原已为单字段，改为独立锁后字段数未变。独立统计原已为单字段，独立锁迁移未减少字段。手动查询数据编排已移至`playerQueries`，通过显式`queryState`与scheduler依赖调用；快照发布生命周期尚待收尾，S2仍进行中。
 
 ## 阶段与并发
 
