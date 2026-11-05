@@ -22,19 +22,5 @@
 :is(.desktop-app, .drawer-floating) input:not([type="checkbox"]) { border-radius: var(--control-radius); }
 :is(.desktop-app, .drawer-floating) input[type="checkbox"] { accent-color: var(--accent); }
 :is(.desktop-app, .drawer-floating) .desktop-titlebar { position: relative; height: 64px; border-bottom: 1px solid var(--border); }
-.scout-card .scout-queue-label { color: var(--scout-muted); font-size: 11px; line-height: 11px; }
-.scout-card .scout-rank { gap: 0; padding: 2px 4px; }
-.scout-card .scout-champion .card-pick small { overflow: hidden; text-overflow: ellipsis; }
-.scout-card .scout-no-kda { overflow: hidden; text-overflow: ellipsis; }
-.scout-card .scout-empty-tags { font-size: 11px; line-height: 18px; color: var(--scout-muted); }
-.scout-card .scout-level { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.scout-card .history-preparation { font-size: 11px; color: var(--scout-muted); }
-.scout-position-cell { display: flex; flex-direction: column; align-items: center; border-inline: 1px solid var(--scout-border); min-width: 0; position: relative; }
-.role-distribution { position: absolute; display: flex; gap: 1px; height: 3px; width: 80%; bottom: -4px; border-radius: 2px; overflow: hidden; }
-.role-distribution i { min-width: 2px; background: #d5b56f; }
-.role-distribution .jungle { background: #61ba91; }.role-distribution .middle { background: #a494e4; }.role-distribution .bottom { background: #68b6db; }.role-distribution .utility { background: #d78da9; }
-.overlay-shell .scout-queue-label { font-size: 11px; line-height: 9px; }
-.overlay-shell .scout-empty-tags { font-size: 11px; }
 @media (max-width: 999px) { :is(.desktop-app, .drawer-floating) .roster-toolbar .hold-hint { display: none; } }
 @media (prefers-reduced-motion: reduce) { :is(.desktop-app, .drawer-floating) button, .overlay-shell button { transition: none; } }
-.overlay-shell .scout-tags .scout-tag { flex: 0 1 auto; max-width: 100%; }

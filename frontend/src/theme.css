@@ -108,8 +108,6 @@
 :root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .quality-warning { background: var(--warning-bg); color: var(--warning-text); border-color: var(--warning-border); }
 :root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .detail-metrics { color: var(--text); }
 :root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .match-runes > span { color: var(--text); }
-:root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .player-row.selected:after { border-color: var(--accent-art); }
-:root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .hero-card:focus-visible { box-shadow: inset 0 0 0 3px var(--accent); }
 @media (max-width: 1150px) {
   .toolbar-content { gap: 10px; }
   .workspace-nav { gap: 14px; }
