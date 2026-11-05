@@ -15,7 +15,8 @@ func waitInitialMatch(t *testing.T, e *Engine) {
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		e.mu.RLock()
-		done := e.initialMatch.started && e.initialMatch.cancel == nil
+		state := initialMatchForTest(&e.initialMatch)
+		done := state.started && state.cancel == nil
 		e.mu.RUnlock()
 		if done {
 			return
@@ -100,7 +101,7 @@ func TestInitialMatchPublishesEachPlayerBeforeBatchCompletes(t *testing.T) {
 	}
 	published := make(chan core.Snapshot, 64)
 	e := New(func() (Client, error) { return f, nil }, func(snapshot core.Snapshot) { published <- snapshot })
-	e.initialMatch.parent = context.Background()
+	e.initialMatch.setParent(context.Background())
 	e.poll(context.Background())
 	select {
 	case <-secondStarted:
@@ -129,7 +130,7 @@ func TestInitialMatchPublishesEachPlayerBeforeBatchCompletes(t *testing.T) {
 func TestInitialMatchUsesPartialRosterAfterIdentityBudgetEnds(t *testing.T) {
 	f := &fakeClient{phase: "InProgress", gameID: 42, roster: fullTestRoster()[:9]}
 	e := New(func() (Client, error) { return f, nil }, nil)
-	e.initialMatch.parent = context.Background()
+	e.initialMatch.setParent(context.Background())
 	e.poll(context.Background())
 	f.mu.Lock()
 	f.rosterErr = errors.New("later roster read unavailable")
@@ -155,7 +156,7 @@ func TestMatchEntryReusesPreparedAlliesAndFillsNewEnemies(t *testing.T) {
 	f := &fakeClient{phase: "ChampSelect", gameID: 42, roster: fullTestRoster()}
 	f.roster = f.roster[:5]
 	e := New(func() (Client, error) { return f, nil }, nil)
-	e.initialMatch.parent = context.Background()
+	e.initialMatch.setParent(context.Background())
 	e.poll(context.Background())
 	waitPreparationStopped(t, e)
 	f.mu.Lock()
@@ -167,7 +168,7 @@ func TestMatchEntryReusesPreparedAlliesAndFillsNewEnemies(t *testing.T) {
 	}
 	f.mu.Unlock()
 	e.poll(context.Background())
-	if e.initialMatch.started {
+	if initialMatchForTest(&e.initialMatch).started {
 		t.Fatal("loading screen started player requests")
 	}
 	f.mu.Lock()
@@ -199,9 +200,9 @@ func TestMatchEntryReusesPreparedAlliesAndFillsNewEnemies(t *testing.T) {
 func TestInitialMatchWaitsForFirstNonemptyPhase(t *testing.T) {
 	f := &fakeClient{phase: "", gameID: 42, roster: fullTestRoster()}
 	e := New(func() (Client, error) { return f, nil }, nil)
-	e.initialMatch.parent = context.Background()
+	e.initialMatch.setParent(context.Background())
 	e.poll(context.Background())
-	if e.initialMatch.gameID != 0 {
+	if initialMatchForTest(&e.initialMatch).gameID != 0 {
 		t.Fatal("empty phase consumed startup eligibility")
 	}
 	f.mu.Lock()
@@ -209,7 +210,7 @@ func TestInitialMatchWaitsForFirstNonemptyPhase(t *testing.T) {
 	f.mu.Unlock()
 	e.poll(context.Background())
 	waitInitialMatch(t, e)
-	if !e.initialMatch.started {
+	if !initialMatchForTest(&e.initialMatch).started {
 		t.Fatal("first confirmed active phase did not initialise match")
 	}
 }
@@ -222,7 +223,7 @@ func TestEachMatchGetsOneEntryBatchButReconnectDoesNotRetry(t *testing.T) {
 		return core.HistoryResult{}, errors.New("synthetic failure")
 	}
 	e := New(func() (Client, error) { return f, nil }, nil)
-	e.initialMatch.parent = context.Background()
+	e.initialMatch.setParent(context.Background())
 	e.poll(context.Background())
 	waitInitialMatch(t, e)
 	for i := 0; i < 3; i++ {
@@ -261,7 +262,7 @@ func TestPreviousMatchCompletionCannotCancelNewBatch(t *testing.T) {
 	defer cancel()
 	e.initialMatch = initialMatchPreparation{version: 2, gameID: 43, token: 2, cancel: cancel, eligible: true}
 	e.finishInitialMatch(2, 42, 1)
-	if ctx.Err() != nil || e.initialMatch.cancel == nil || !e.initialMatch.eligible {
+	if ctx.Err() != nil || initialMatchForTest(&e.initialMatch).cancel == nil || !initialMatchForTest(&e.initialMatch).eligible {
 		t.Fatal("previous game's completion cancelled new preparation")
 	}
 }
@@ -269,9 +270,9 @@ func TestPreviousMatchCompletionCannotCancelNewBatch(t *testing.T) {
 func TestInitialMatchWaitsForInProgressAndReusesFreshHistory(t *testing.T) {
 	f := &fakeClient{phase: "GameStart", gameID: 42, roster: fullTestRoster()}
 	e := New(func() (Client, error) { return f, nil }, nil)
-	e.initialMatch.parent = context.Background()
+	e.initialMatch.setParent(context.Background())
 	e.poll(context.Background())
-	if e.initialMatch.started {
+	if initialMatchForTest(&e.initialMatch).started {
 		t.Fatal("loading screen started player requests")
 	}
 	e.mu.Lock()
@@ -308,7 +309,7 @@ func TestInitialMatchTimeoutClearsLoadingAndDoesNotRetry(t *testing.T) {
 	e := New(func() (Client, error) { return f, nil }, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
 	defer cancel()
-	e.initialMatch.parent = ctx
+	e.initialMatch.setParent(ctx)
 	e.poll(context.Background())
 	waitInitialMatch(t, e)
 	for _, p := range e.Snapshot().Participants {
@@ -333,7 +334,7 @@ func TestInitialMatchCapsPlayersAndFailureAttempts(t *testing.T) {
 		return core.HistoryResult{}, errors.New("synthetic failure")
 	}
 	e := New(func() (Client, error) { return f, nil }, nil)
-	e.initialMatch.parent = context.Background()
+	e.initialMatch.setParent(context.Background())
 	e.poll(context.Background())
 	waitInitialMatch(t, e)
 	if calls.Load() != initialMatchPlayerLimit {
@@ -353,7 +354,7 @@ func TestInitialMatchCancellationRejectsLateDataAndKeepsDisconnectReason(t *test
 		return core.HistoryResult{Matches: []core.Match{{GameID: 99}}}, nil
 	}
 	e := New(func() (Client, error) { return f, nil }, nil)
-	e.initialMatch.parent = context.Background()
+	e.initialMatch.setParent(context.Background())
 	e.poll(context.Background())
 	<-started
 	e.mu.Lock()

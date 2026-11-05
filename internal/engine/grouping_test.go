@@ -32,7 +32,7 @@ func TestGroupingOnceAndLateConnectionIsolation(t *testing.T) {
 			e := New(nil, nil)
 			e.client = f
 			e.clientVersion = 1
-			e.initialMatch.parent = ctx
+			e.initialMatch.setParent(ctx)
 			e.snapshot = core.Snapshot{ConnectionID: 1, SelfKey: "self", GameID: 42, QueueID: 420, Connected: true, Phase: "InProgress", Participants: []core.Participant{{PUUID: "self", Key: "self", Team: "ally"}, {PUUID: "ally", Key: "ally", Team: "ally"}, {PUUID: "enemy", Key: "enemy", Team: "enemy"}, {PUUID: "enemy2", Key: "enemy2", Team: "enemy"}}}
 			e.mu.Lock()
 			for range 10 {
@@ -106,7 +106,7 @@ func TestSecondPartialGroupingDoesNotEraseLateIdentity(t *testing.T) {
 	e := New(nil, nil)
 	e.client = f
 	e.clientVersion = 1
-	e.initialMatch.parent = ctx
+	e.initialMatch.setParent(ctx)
 	e.snapshot = core.Snapshot{ConnectionID: 1, SelfKey: "self", GameID: 42, QueueID: 420, Connected: true, Phase: "InProgress", Participants: []core.Participant{{Key: "self", PUUID: "self", Team: "ally"}}}
 	e.mu.Lock()
 	e.syncGroupingLocked()

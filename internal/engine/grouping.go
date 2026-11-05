@@ -21,7 +21,7 @@ func (e *Engine) syncGroupingLocked() {
 	if complete || !ok {
 		return
 	}
-	ctx, cancel, started := e.grouping.begin(e.initialMatch.parent, key)
+	ctx, cancel, started := e.grouping.begin(e.initialMatch.parentContext(), key)
 	if started {
 		go e.readGrouping(ctx, cancel, src, key, e.snapshot)
 	}

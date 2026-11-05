@@ -66,7 +66,7 @@ func TestLobbyAutomaticallyPreparesAvatarAndRanksEvenWithWarmHistory(t *testing.
 func TestInitialMatchPreparesFullDataOnlyOnceAndHistoryFirst(t *testing.T) {
 	c := &playerDataClient{fakeClient: &fakeClient{phase: "InProgress", gameID: 42, roster: fullTestRoster()}, profile: dataProfile()}
 	e := New(func() (Client, error) { return c, nil }, nil)
-	e.initialMatch.parent = context.Background()
+	e.initialMatch.setParent(context.Background())
 	e.poll(context.Background())
 	waitInitialMatch(t, e)
 	for _, p := range e.Snapshot().Participants {

@@ -97,7 +97,8 @@ func TestGroupingCancellationDoesNotWaitForSource(t *testing.T) {
 	f := &groupClient{fakeClient: &fakeClient{}, block: make(chan struct{})}
 	defer close(f.block)
 	e := New(nil, nil)
-	e.client, e.clientVersion, e.initialMatch.parent = f, 1, ctx
+	e.client, e.clientVersion = f, 1
+	e.initialMatch.setParent(ctx)
 	e.snapshot = groupingSnapshot(42)
 	e.mu.Lock()
 	e.syncGroupingLocked()

@@ -48,7 +48,7 @@ func TestScoutingReadsTwoPlayersInParallel(t *testing.T) {
 	t.Cleanup(cancel)
 	e.client = f
 	e.clientVersion = 1
-	e.initialMatch.parent = ctx
+	e.initialMatch.setParent(ctx)
 	e.snapshot = core.Snapshot{ConnectionID: 1, Connected: true, Stage: "party", Phase: "Lobby", Participants: []core.Participant{
 		{ConnectionID: 1, Key: "p1", PUUID: "p1", IdentityState: core.IdentityKnown, ChampionID: 23},
 		{ConnectionID: 1, Key: "p2", PUUID: "p2", IdentityState: core.IdentityKnown, ChampionID: 24},

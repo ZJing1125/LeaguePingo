@@ -127,7 +127,8 @@ func (e *Engine) syncScoutingLocked() {
 		s.queue = e.snapshot.QueueID
 	}
 	e.snapshot.ScoutQueue = s.queue
-	if e.client == nil || !e.snapshot.Connected || e.initialMatch.parent == nil || e.initialMatch.parent.Err() != nil || (!preparationStage(snapshotStage(e.snapshot.Stage)) && !activeMatch(snapshotPhase(e.snapshot.Phase))) || snapshotPhase(e.snapshot.Phase) == PhaseGameStart || e.phaseHint != PhaseUnknown && stageForPhase(e.phaseHint) != snapshotStage(e.snapshot.Stage) {
+	parent := e.initialMatch.parentContext()
+	if e.client == nil || !e.snapshot.Connected || parent == nil || parent.Err() != nil || (!preparationStage(snapshotStage(e.snapshot.Stage)) && !activeMatch(snapshotPhase(e.snapshot.Phase))) || snapshotPhase(e.snapshot.Phase) == PhaseGameStart || e.phaseHint != PhaseUnknown && stageForPhase(e.phaseHint) != snapshotStage(e.snapshot.Stage) {
 		if s.cancel != nil {
 			e.stopScoutingLocked()
 		}
@@ -200,7 +201,7 @@ func (e *Engine) syncScoutingLocked() {
 	if s.deadline.IsZero() {
 		s.deadline = time.Now().Add(scoutRoundBudget)
 	}
-	ctx, cancel := context.WithDeadline(e.initialMatch.parent, s.deadline)
+	ctx, cancel := context.WithDeadline(parent, s.deadline)
 	s.cancel = cancel
 	s.token++
 	token, version := s.token, e.clientVersion

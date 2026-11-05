@@ -407,12 +407,10 @@ func (e *Engine) fetchHistoryPage(ctx context.Context, client Client, player cor
 }
 
 func (e *Engine) refreshHistoryPage(client Client, player core.Participant, connectionID uint64, offset int) {
-	parent := context.Background()
-	e.mu.RLock()
-	if e.initialMatch.parent != nil {
-		parent = e.initialMatch.parent
+	parent := e.initialMatch.parentContext()
+	if parent == nil {
+		parent = context.Background()
 	}
-	e.mu.RUnlock()
 	go func() {
 		ctx, cancel := context.WithTimeout(parent, 8*time.Second)
 		defer cancel()

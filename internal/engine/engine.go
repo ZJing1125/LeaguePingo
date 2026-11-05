@@ -98,7 +98,7 @@ func (e *Engine) Run(ctx context.Context) {
 	defer func() { <-acceptDone }()
 	defer e.historyStore.close()
 	e.mu.Lock()
-	e.initialMatch.parent = ctx
+	e.initialMatch.setParent(ctx)
 	e.mu.Unlock()
 	e.poll(ctx)
 	e.syncPhaseEvents(ctx)
@@ -420,7 +420,7 @@ func (e *Engine) replaceLocked(stage Stage, phase Phase, gameID int64, roster []
 	if stage != StageIdle && e.homeCancel != nil {
 		e.homeCancel()
 	}
-	if e.initialMatch.gameID != 0 && (!activeMatch(phase) || (gameID != 0 && e.initialMatch.gameID != gameID)) {
+	if entryGame := e.initialMatch.game(); entryGame != 0 && (!activeMatch(phase) || (gameID != 0 && entryGame != gameID)) {
 		e.stopInitialMatchLocked()
 	}
 	if stage != StagePreparing {
@@ -464,7 +464,7 @@ func (e *Engine) replaceLocked(stage Stage, phase Phase, gameID int64, roster []
 		} else {
 			message = "已取得本地对局名单，保留赛前战绩；缺少资料的玩家可点击手动查询。局内暂停自动战绩预取。"
 		}
-		if e.initialMatch.cancel != nil && e.initialMatch.eligible && e.initialMatch.gameID == gameID {
+		if e.initialMatch.running(gameID) {
 			message = initialMatchMessage
 		}
 	}
@@ -502,7 +502,7 @@ func (e *Engine) replaceLocked(stage Stage, phase Phase, gameID int64, roster []
 			}
 		}
 	}
-	if (stage == StageInGame && e.initialMatch.cancel == nil) || (stage != StageInGame && !samePreparation) {
+	if (stage == StageInGame && !e.initialMatch.hasTask()) || (stage != StageInGame && !samePreparation) {
 		for i := range roster {
 			if roster[i].HistoryState == core.HistoryLoading {
 				roster[i].HistoryState = core.HistoryPending
@@ -889,7 +889,7 @@ func (e *Engine) refreshHydratedHistory(client Client, generation, version uint6
 		e.mu.Unlock()
 		return
 	}
-	parent := e.initialMatch.parent
+	parent := e.initialMatch.parentContext()
 	if parent == nil {
 		parent = context.Background()
 	}

@@ -13,51 +13,57 @@ const initialMatchBudget = 45 * time.Second
 const initialMatchPlayerLimit = 10
 const initialMatchMessage = "正在补齐本局开局资料；每局仅一轮，最多 10 位玩家、45 秒。"
 
-// Run owns this bounded entry batch, both for an in-game startup and for players
-// whose identities only become available after champion selection ends.
-type initialMatchPreparation struct {
-	parent            context.Context
-	eligible, started bool
-	version           uint64
-	token             uint64
-	gameID            int64
-	cancel            context.CancelFunc
-}
-
 func (e *Engine) stopInitialMatchLocked() {
-	s := &e.initialMatch
-	if s.cancel != nil {
-		s.cancel()
+	if version, stopped := e.initialMatch.stop(); stopped {
 		for i := range e.snapshot.Participants {
 			p := &e.snapshot.Participants[i]
-			if p.ConnectionID == s.version && p.HistoryState == core.HistoryLoading {
+			if p.ConnectionID == version && p.HistoryState == core.HistoryLoading {
 				p.HistoryState = core.HistoryPending
 				p.Error = "开局补齐已停止，可手动查询"
 			}
 		}
 	}
-	s.eligible = false
 }
 
 func (e *Engine) startInitialMatchLocked() {
-	s := &e.initialMatch
-	if s.parent == nil || s.parent.Err() != nil || e.client == nil || !e.snapshot.Connected || !activeMatch(snapshotPhase(e.snapshot.Phase)) || e.snapshot.GameID == 0 || (e.phaseHint != PhaseUnknown && !activeMatch(e.phaseHint)) {
+	parent := e.initialMatch.parentContext()
+	if parent == nil || parent.Err() != nil || e.client == nil || !e.snapshot.Connected || !activeMatch(snapshotPhase(e.snapshot.Phase)) || e.snapshot.GameID == 0 || (e.phaseHint != PhaseUnknown && !activeMatch(e.phaseHint)) {
 		return
 	}
-	if s.gameID != e.snapshot.GameID {
+	if e.initialMatch.game() != e.snapshot.GameID {
 		e.stopInitialMatchLocked()
-		s.token++
-		s.gameID, s.version = e.snapshot.GameID, e.clientVersion
-		s.started, s.eligible = false, true
-	}
-	if !s.eligible || s.started || s.version != e.clientVersion {
-		return
+		e.initialMatch.enterGame(e.snapshot.GameID, e.clientVersion)
 	}
 	// Wait for actual gameplay and allow bounded identity discovery to finish.
 	if snapshotPhase(e.snapshot.Phase) == PhaseGameStart || (!completeRoster(e.snapshot.Participants) && e.matchRosterAttempts < inGameRosterAttemptLimit) {
 		return
 	}
-	s.started = true
+	scope, claimed := e.initialMatch.claim(e.clientVersion, e.snapshot.GameID)
+	if !claimed {
+		return
+	}
+	targets, known := e.initialMatchTargetsLocked(scope.version)
+	if len(targets) == 0 {
+		e.initialMatch.empty(scope)
+		e.snapshot.Message = "已复用本局已有资料；本局不再自动补取，缺失资料可手动查询。"
+		if !known {
+			e.snapshot.Message = "客户端尚未提供可查询身份；可刷新本地名单或输入完整 ID 查询。"
+		}
+		e.snapshot.UpdatedAt = time.Now()
+		e.publishLocked()
+		return
+	}
+	ctx, started := e.initialMatch.begin(scope)
+	if !started {
+		return
+	}
+	e.snapshot.Message = initialMatchMessage
+	e.snapshot.UpdatedAt = time.Now()
+	e.publishLocked()
+	go e.prepareInitialMatch(ctx, scope.version, scope.gameID, scope.token, e.client, targets)
+}
+
+func (e *Engine) initialMatchTargetsLocked(version uint64) ([]core.Participant, bool) {
 	var targets []core.Participant
 	known := false
 	for i := range e.snapshot.Participants {
@@ -66,7 +72,7 @@ func (e *Engine) startInitialMatchLocked() {
 			continue
 		}
 		known = true
-		if cached, ok := e.players.player(p.PUUID); ok && cached.ConnectionID == s.version && historyCached(cached) && cacheFresh(cached) {
+		if cached, ok := e.players.player(p.PUUID); ok && cached.ConnectionID == version && historyCached(cached) && cacheFresh(cached) {
 			core.ApplyHistory(p, core.HistoryResult{Matches: cached.History, Meta: cached.HistoryMeta})
 			if core.IsPlaceholderName(p.DisplayName) {
 				p.DisplayName = cached.DisplayName
@@ -81,26 +87,11 @@ func (e *Engine) startInitialMatchLocked() {
 		}
 		targets = append(targets, *p)
 	}
-	if len(targets) == 0 {
-		s.eligible = false
-		e.snapshot.Message = "已复用本局已有资料；本局不再自动补取，缺失资料可手动查询。"
-		if !known {
-			e.snapshot.Message = "客户端尚未提供可查询身份；可刷新本地名单或输入完整 ID 查询。"
-		}
-		e.snapshot.UpdatedAt = time.Now()
-		e.publishLocked()
-		return
-	}
-	ctx, cancel := context.WithTimeout(s.parent, initialMatchBudget)
-	s.cancel = cancel
-	e.snapshot.Message = initialMatchMessage
-	e.snapshot.UpdatedAt = time.Now()
-	e.publishLocked()
-	go e.prepareInitialMatch(ctx, s.version, s.gameID, s.token, e.client, targets)
+	return targets, known
 }
 
 func (e *Engine) initialMatchValidLocked(version uint64, gameID int64) bool {
-	return e.initialMatch.eligible && e.initialMatch.cancel != nil && e.client != nil && e.clientVersion == version && e.snapshot.Connected && e.snapshot.GameID == gameID && activeMatch(snapshotPhase(e.snapshot.Phase)) && (e.phaseHint == PhaseUnknown || activeMatch(e.phaseHint))
+	return e.initialMatch.valid(version, gameID) && e.client != nil && e.clientVersion == version && e.snapshot.Connected && e.snapshot.GameID == gameID && activeMatch(snapshotPhase(e.snapshot.Phase)) && (e.phaseHint == PhaseUnknown || activeMatch(e.phaseHint))
 }
 
 func (e *Engine) initialMatchValid(version uint64, gameID int64) bool {
@@ -200,16 +191,10 @@ func (e *Engine) prepareInitialMatch(ctx context.Context, version uint64, gameID
 func (e *Engine) finishInitialMatch(version uint64, gameID int64, token uint64) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	s := &e.initialMatch
 	// A cancelled previous game's worker may finish after the next batch starts.
-	if s.version != version || s.gameID != gameID || s.token != token {
+	if !e.initialMatch.finish(initialMatchScope{version: version, gameID: gameID, token: token}) {
 		return
 	}
-	if s.cancel != nil {
-		s.cancel()
-		s.cancel = nil
-	}
-	s.eligible = false
 	if e.clientVersion != version || !e.snapshot.Connected || e.snapshot.GameID != gameID || !activeMatch(snapshotPhase(e.snapshot.Phase)) {
 		return
 	}

@@ -51,7 +51,7 @@ func TestScoutingResumesProgressAcrossStageChange(t *testing.T) {
 	t.Cleanup(cancel)
 	e.client = f
 	e.clientVersion = 1
-	e.initialMatch.parent = ctx
+	e.initialMatch.setParent(ctx)
 	progress, _ := progressFixture(f.now, 1)
 	e.scouting.progress = map[string]*scoutProgress{"p": progress}
 	e.snapshot = core.Snapshot{ConnectionID: 1, Connected: true, Stage: "party", Phase: "Lobby", Participants: []core.Participant{{ConnectionID: 1, Key: "p", PUUID: "p", IdentityState: core.IdentityKnown, ChampionID: 23}}}
@@ -75,7 +75,7 @@ func TestStaleScoutProgressIsIgnored(t *testing.T) {
 	t.Cleanup(cancel)
 	e.client = f
 	e.clientVersion = 1
-	e.initialMatch.parent = ctx
+	e.initialMatch.setParent(ctx)
 	progress, _ := progressFixture(f.now, 1)
 	progress.at = time.Now().Add(-6 * time.Minute)
 	e.scouting.progress = map[string]*scoutProgress{"p": progress}
@@ -96,7 +96,7 @@ func TestFinishedMatchDropsScoutProgress(t *testing.T) {
 	e := New(nil, nil)
 	e.client = f
 	e.clientVersion = 1
-	e.initialMatch.parent = context.Background()
+	e.initialMatch.setParent(context.Background())
 	progress, _ := progressFixture(f.now, 1)
 	e.scouting.progress = map[string]*scoutProgress{"p": progress}
 	e.snapshot = core.Snapshot{ConnectionID: 1, Connected: true, Stage: "in-game", Phase: "EndOfGame", Participants: []core.Participant{{ConnectionID: 1, Key: "p", PUUID: "p", IdentityState: core.IdentityKnown}}}

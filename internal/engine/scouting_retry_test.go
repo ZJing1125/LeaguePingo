@@ -32,7 +32,7 @@ func TestScoutingRetriesOneFailedPage(t *testing.T) {
 	t.Cleanup(cancel)
 	e.client = f
 	e.clientVersion = 1
-	e.initialMatch.parent = ctx
+	e.initialMatch.setParent(ctx)
 	e.snapshot = core.Snapshot{ConnectionID: 1, Connected: true, Stage: "party", Phase: "Lobby", Participants: []core.Participant{{ConnectionID: 1, Key: "p", PUUID: "p", IdentityState: core.IdentityKnown, ChampionID: 23, History: []core.Match{{GameID: 999999}}}}}
 	e.mu.Lock()
 	e.syncScoutingLocked()
@@ -59,7 +59,7 @@ func TestScoutingStopsAfterRepeatedPageFailures(t *testing.T) {
 	t.Cleanup(cancel)
 	e.client = f
 	e.clientVersion = 1
-	e.initialMatch.parent = ctx
+	e.initialMatch.setParent(ctx)
 	e.snapshot = core.Snapshot{ConnectionID: 1, Connected: true, Stage: "party", Phase: "Lobby", Participants: []core.Participant{{ConnectionID: 1, Key: "p", PUUID: "p", IdentityState: core.IdentityKnown, ChampionID: 23}}}
 	e.mu.Lock()
 	e.syncScoutingLocked()

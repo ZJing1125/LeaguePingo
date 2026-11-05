@@ -19,7 +19,7 @@ func TestExpiredLookupReturnsBeforeBackgroundReadCompletes(t *testing.T) {
 			entered, release := make(chan struct{}), make(chan struct{})
 			parent, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			e.initialMatch.parent = parent
+			e.initialMatch.setParent(parent)
 			f.historyFn = func(ctx context.Context, _ string) (core.HistoryResult, error) {
 				close(entered)
 				select {

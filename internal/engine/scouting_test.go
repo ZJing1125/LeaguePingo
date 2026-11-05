@@ -43,7 +43,7 @@ func startScoutTest(t *testing.T, f *scoutClient) *Engine {
 	t.Cleanup(cancel)
 	e.client = f
 	e.clientVersion = 1
-	e.initialMatch.parent = ctx
+	e.initialMatch.setParent(ctx)
 	e.snapshot = core.Snapshot{ConnectionID: 1, Connected: true, Stage: "party", Phase: "Lobby", Participants: []core.Participant{{ConnectionID: 1, Key: "p", PUUID: "p", IdentityState: core.IdentityKnown, ChampionID: 23, History: []core.Match{{GameID: 999999}}}}}
 	e.mu.Lock()
 	e.syncScoutingLocked()
@@ -111,7 +111,7 @@ func TestCachedScoutReportPublishesWithoutAnotherRequest(t *testing.T) {
 	e.updates = make(chan core.Snapshot, 8)
 	e.client = f
 	e.clientVersion = 1
-	e.initialMatch.parent = context.Background()
+	e.initialMatch.setParent(context.Background())
 	r := &core.ScoutReport{State: "ready", Complete30: true, FetchedAt: time.Now().UTC()}
 	e.scouting.cache = map[string]*core.ScoutReport{"p": r}
 	e.snapshot = core.Snapshot{ConnectionID: 1, Connected: true, Stage: "party", Phase: "Lobby", Participants: []core.Participant{{ConnectionID: 1, Key: "p", PUUID: "p", IdentityState: core.IdentityKnown}}}
@@ -146,7 +146,8 @@ func TestExpiredSeasonCacheCannotBeReusedAsCurrentSeason(t *testing.T) {
 	e := New(nil, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	e.client, e.clientVersion, e.initialMatch.parent = f, 1, ctx
+	e.client, e.clientVersion = f, 1
+	e.initialMatch.setParent(ctx)
 	old := &core.ScoutReport{State: "ready", Complete30: true, FetchedAt: now.Add(-time.Minute), Season: &core.ScoutSeason{Name: "old", Start: now.Add(-365 * 24 * time.Hour), End: now.Add(-30 * time.Second)}}
 	e.scouting.cache = map[string]*core.ScoutReport{"p": old}
 	e.snapshot = core.Snapshot{ConnectionID: 1, Connected: true, Stage: "party", Phase: "Lobby", Participants: []core.Participant{{ConnectionID: 1, Key: "p", PUUID: "p", IdentityState: core.IdentityKnown}}}
@@ -219,7 +220,8 @@ func TestUnlockedChampionFirstPageArrivesBeforeOtherPlayersMastery(t *testing.T)
 	e := New(nil, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	e.client, e.clientVersion, e.initialMatch.parent = f, 1, ctx
+	e.client, e.clientVersion = f, 1
+	e.initialMatch.setParent(ctx)
 	e.snapshot = core.Snapshot{ConnectionID: 1, Connected: true, Stage: "preparing", Phase: "ChampSelect", Participants: []core.Participant{{ConnectionID: 1, Key: "first", PUUID: "first", IdentityState: core.IdentityKnown, ChampionID: 23, ChampionState: "intent"}, {ConnectionID: 1, Key: "second", PUUID: "second", IdentityState: core.IdentityKnown}}}
 	e.mu.Lock()
 	e.syncScoutingLocked()
