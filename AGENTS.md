@@ -18,7 +18,7 @@
 
 - U8 / BUG-0125：全部产品Vue组件的中文文案、属性、无障碍标签和动态格式引用uiText，以语义键按功能分组，不新增i18n依赖；check-copy扫描含根应用的脚本/模板及转义。保留原文案/标点/空格/参数顺序，Vue合并文本用toDisplayString，原JS模板保留原生转换。兼容匹配片段/位置键/选择器须和使用方一致；资源数据、原TS表现层映射及后端错误目录保持归属，不以迁移为由重写请求/状态/身份规则。
 
-- Q6 / BUG-0124、0130–0131：产品Vue样式须scoped或module，沿用共享设计变量；check-styles门禁扫描包含根应用的全部组件。PlayerTabs/SettingsPanel/RecentForm及DesktopTitleBar窗口控制/失败提示专属选择器已迁至组件，不能回流全局；settings-message由自动化页共享，标题栏根布局与插槽规则仍留全局。存量按组件渐进迁移，不一次性搬完，不以治理为由改布局/主题/交互。
+- Q6 / BUG-0124、0130–0132：产品Vue样式须scoped或module，沿用共享设计变量；check-styles门禁扫描包含根应用的全部组件。已迁移13组：PlayerTabs/SettingsPanel/RecentForm、DesktopTitleBar窗口控制/失败提示，以及AppIcon/BrandIcon/GameIcon/RankEmblem/ChampionPortrait/ChampionSplash/RoleIcon/QueueSwitch/ScoutRing；专属规则不能回流全局。settings-message、标题栏根布局/插槽及侧栏两条:not图标排除规则仍按共享归属保留；归属门禁逐选择器检查，排除规则不能掩盖分组中的私有样式。存量按组件渐进迁移，不一次性搬完，不以治理为由改布局/主题/交互。
 
 - Q2 / BUG-0122–0123：生产Go声明与闭包不超过100物理行，使用cmd/functioncheck按AST检查Git受管及未忽略的新文件，包含平台专用文件、排除测试；按职责拆分，不用压行替代。portable与Windows verify共用强制门禁，Windows另用已有MinGW-w64 GCC执行单条CGO_ENABLED=1 go test -race ./...，不修改产品CGO设置或自动安装编译器。perfprobe测试只读测试进程自身/内存CSV，不代表整局性能验收。
 
@@ -32,7 +32,7 @@
 
 - S2 / BUG-0102、0109–0112、0114–0121：独立锁组件eventSubscription、groupingState、reviewState、playerCache、preparationState、initialMatchPreparation、querySession、scoutPreparation、historyRecovery、rosterDiscovery、clientDiscovery、snapshotPublisher分别拥有事件、分组、冻结复盘、五表内存缓存、房间/选人准备、开局单轮资格/取消/令牌、手动独占查询/首页取消及独立统计范围/预算/报告/游标及有界恢复/合并后台任务/本机更新队列及本地名单发现窗口/次数/完成及客户端发现节流及有序快照发布状态。固定Engine→组件锁序，组件锁内不得来源/磁盘I/O、引擎发布或通知回调；Engine保留连接/阶段/账号/代次守卫，historyStore写入在缓存锁外。准备仍45秒、每人两次历史/最多十次资料、原3秒姓名/2秒阶段/6秒历史/3秒资料及两秒阶段失败冷却；手动抢占退还历史次数，换英雄不续窗，新房间成员只按原规则延长，旧任务结束不能停止新任务。资料资格按名单每条记录核验，不能把重复身份的不同连接资格合并。保留缓存64/64/32/8容量及原清空策略、恢复不绑别名/不刷新时效、只读复盘和15秒三次结算、原事件/分组边界。开局保持45秒/10人/每人一次、原姓名/阶段/历史/资料预算，同局重连不续轮，旧version/game/token结束不能取消新任务；Run共享父context不随开局任务取消。查询仍12秒，拒绝并行且不自动排队，首页子任务离idle取消但不取消手动查询或父context，取消不提前释放独占槽。字段59→51→45→41→37→30→29→28→27→26；开局原已为单字段，独立锁后字段数未变；独立统计保持180秒/500页/两worker/10身份、原缓存复用及逐人推送，保存游标须复核version/scope/token与阶段，不能在清空后被旧任务复活。playerQueries通过显式queryState与scheduler依赖负责手动历史/可选资料编排，Engine只在边界核验身份/连接/代次并提交；保留两次姓名处理顺序、2秒可选资料和历史/资料独立时钟，不在查询会话锁内来源I/O或回调。historyRecovery保留每身份两次/一分钟/单次最多6秒及后台64个合并任务/12秒，取消退还本次额度不释放新任务，旧连接清理不影响新条目；更新队列64且重置保留通道。名单预算仍每就绪阶段三次，GameStart→InProgress仅未完整时续窗，完整名单不再自动读取，手动同局刷新不续窗；客户端发现仍十秒一次且回调不持Engine/组件锁，snapshotPublisher保留32条队列、丢最旧一条与单worker顺序，回调在锁外；Engine保留18个显式组件/依赖与8个需原子一致的核心字段。S2按职责拆分完成，26字段未达到建议的20；超长函数继续归Q2处理。
 
-- S10 / BUG-0101：Dependabot按上海时间每周一10:00检查，产品Go/npm用desktop跨生态组共同发往dev，组件预览独立，Actions独立；CI继续检查Wails前后端版本一致。实际工作流只允许官方五类Actions并固定40位提交SHA，更新走PR及完整CI，不自动合并或发布。配置在dev已就绪不等于GitHub已激活：只有正常进入默认分支后才运行，不为此修改main或冒称已有更新PR。当前Go/Wails工具链与存量漏洞不会因配置更新自动清零。
+- S10 / BUG-0101、0133：Dependabot按上海时间每周一10:00检查，产品Go/npm用desktop跨生态组共同发往dev，组件预览独立，Actions独立；CI继续检查Wails前后端版本一致。实际工作流只允许官方五类Actions并固定40位提交SHA，更新走PR及完整CI，不自动合并或发布。配置在dev已就绪不等于GitHub已激活：已准备仅含同一配置的默认分支PR #3，待正常审阅合入；不直接修改main、不改默认分支、不冒称已有更新PR。实际更新任务与首个更新PR按DEPENDENCIES核对，main缺产品CI时不能把没有检查标为通过。当前Go/Wails工具链与存量漏洞不会因配置更新自动清零。
 
 - Q5 / BUG-0100：快捷键正则只在包初始化时编译，允许范围不变。公共攻略缓存写入/重命名/保留清理失败只进入固定guide-cache-write脱敏诊断，保留内存攻略并清理本次.tmp；不能为可选缓存故障清掉可用结果或泄露路径/错误原文。诊断报告是用户显式导出文件，无后台自动生成/上传或自动轮转删除；按需手动删除报告，不把受管攻略/战绩缓存清理扩展到用户报告。客户端动作POST错误继续通过固定后读核验处理，不能因错误审阅改成盲目重发。
 

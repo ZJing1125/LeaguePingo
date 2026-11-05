@@ -110,7 +110,6 @@
 :root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .detail-metrics { color: var(--text); }
 :root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .match-card { border-bottom-color: var(--border); }
 :root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .match-runes > span { color: var(--text); }
-:root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .game-icon { background-color: var(--raised); color: var(--muted); }
 :root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .match-main:hover { background: #ffffff08; }
 :root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .players-workspace .match-expanded { border-left-color: var(--border); }
 :root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .player-row.selected:after { border-color: var(--accent-art); }

@@ -78,13 +78,6 @@ select {
 .inline-status {
   background: transparent;
 }
-.brand-mark {
-  display: block;
-  object-fit: contain;
-  background: transparent;
-  border-radius: 0;
-  clip-path: none;
-}
 .desktop-app {
   display: flex;
   flex-direction: column;
@@ -134,11 +127,6 @@ select {
   letter-spacing: -0.6px;
   font-weight: 750;
   white-space: nowrap;
-}
-.nav-wordmark .brand-mark {
-  margin-right: 8px;
-  width: 26px;
-  height: 26px;
 }
 .nav-wordmark > span:last-child {
   color: var(--accent-art);
@@ -418,15 +406,6 @@ select {
   z-index: 2;
   background: transparent;
 }
-.hero-art {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: 50% 23%;
-  z-index: -2;
-}
 .hero-card:before,
 .overlay-player:before {
   position: absolute;
@@ -446,18 +425,6 @@ select {
   object-fit: contain;
   object-position: right center;
   z-index: 0;
-}
-.portrait-fallback {
-  position: absolute;
-  inset: 0;
-  z-index: -2;
-  display: grid;
-  place-items: center;
-  background: linear-gradient(135deg, #4a605d, #192e35);
-  font:
-    bold italic 70px "Segoe UI",
-    sans-serif;
-  color: #ffffff12;
 }
 .card-identity {
   width: 100%;
@@ -622,13 +589,6 @@ select {
   display: flex;
   flex-direction: column;
   align-items: center;
-}
-.recent-game .game-icon {
-  border: 1px solid #9ac5ad;
-  border-radius: 0;
-}
-.recent-game.loss .game-icon {
-  border-color: #d49ba0;
 }
 .recent-game small {
   font-size: 7px;
@@ -973,10 +933,6 @@ select {
   font-size: 9px;
   color: #93a68e;
 }
-.overlay-title .brand-mark {
-  width: 25px;
-  height: 25px;
-}
 .overlay-controls button {
   background: #25322e;
   color: #cbd7c4;
@@ -1157,10 +1113,6 @@ select {
   .recent-games {
     gap: 2px;
   }
-  .recent-game .game-icon {
-    width: 18px !important;
-    height: 18px !important;
-  }
   .main-heroes {
     gap: 5px;
   }
@@ -1185,11 +1137,6 @@ select {
   }
   .nav-wordmark {
     font-size: 14px;
-  }
-  .nav-wordmark .brand-mark {
-    width: 22px;
-    height: 22px;
-    font-size: 18px;
   }
   .workspace-nav {
     gap: 13px;
@@ -1346,9 +1293,6 @@ select {
   opacity: 0.85;
   z-index: 2;
 }
-.card-portrait .card-avatar .game-icon {
-  border-radius: 0;
-}
 
 /* Explicit sizes override the old vertical-list minima. */
 .roster-toolbar {
@@ -1426,10 +1370,6 @@ select {
 }
 .match-main:hover {
   background: #ffffff44;
-}
-.game-icon {
-  background-color: #d3d9c8;
-  border-radius: 2px;
 }
 .history-notice {
   font-size: 11px;
@@ -1705,10 +1645,6 @@ select {
 }
 .match-workspace .recent-games {
   gap: 5px;
-}
-.match-workspace .recent-game .game-icon {
-  width: 22px !important;
-  height: 22px !important;
 }
 .match-workspace .recent-game > small {
   font-size: 10px;

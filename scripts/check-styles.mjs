@@ -16,6 +16,15 @@ const owners = [
   { component: 'SettingsPanel.vue', privateClass: /\.(?:settings-panel|settings-backdrop|settings-shortcut|settings-actions|settings-hold|runtime-summary|diagnostic-table)(?![\w-])/ },
   { component: 'RecentForm.vue', privateClass: /\.(?:recent-form|form-result)(?![\w-])/ },
   { component: 'DesktopTitleBar.vue', privateClass: /\.(?:window-controls|window-control-error)(?![\w-])/ },
+  { component: 'AppIcon.vue', privateClass: /\.app-icon(?![\w-])/ },
+  { component: 'BrandIcon.vue', privateClass: /\.brand-mark(?![\w-])/ },
+  { component: 'GameIcon.vue', privateClass: /\.game-icon(?![\w-])/, sharedReferences: ['.sidebar-hero>span:not(.game-icon)'] },
+  { component: 'RankEmblem.vue', privateClass: /\.(?:rank-emblem|rank-placeholder)(?![\w-])/, sharedReferences: ['.sidebar-identity>span:not(.participant-avatar):not(.rank-emblem)'] },
+  { component: 'ChampionPortrait.vue', privateClass: /\.(?:hero-art|portrait-fallback)(?![\w-])/ },
+  { component: 'ChampionSplash.vue', privateClass: /\.(?:hero-splash|splash-fallback)(?![\w-])/ },
+  { component: 'RoleIcon.vue', privateClass: /\.role-icon(?![\w-])/ },
+  { component: 'QueueSwitch.vue', privateClass: /\.queue-switch(?![\w-])/ },
+  { component: 'ScoutRing.vue', privateClass: /\.(?:scout-ring-metric|scout-ring|scout-ring-center)(?![\w-])/ },
 ];
 
 export function checkStyleOwnership(components, globalStyles) {
@@ -37,8 +46,12 @@ export function checkStyleOwnership(components, globalStyles) {
   for (const [file, source] of Object.entries(globalStyles)) {
     postcss.parse(source, { from: file }).walkRules(rule => {
       for (const owner of owners) {
-        if (owner.privateClass.test(rule.selector)) {
-          throw new Error(`Private ${owner.component} selector returned to ${file}: ${rule.selector}`);
+        // These exact :not exclusions style a sidebar sibling, not the icon.
+        // Check each selector so a grouped private rule cannot hide behind one.
+        for (const selector of rule.selectors) {
+          if (owner.privateClass.test(selector) && !owner.sharedReferences?.includes(selector)) {
+            throw new Error(`Private ${owner.component} selector returned to ${file}: ${selector}`);
+          }
         }
       }
     });

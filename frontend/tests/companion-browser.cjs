@@ -127,7 +127,12 @@ async function main(){
   assert((await side.locator('.sidebar-player[open] .scout-rings').innerText()).includes('72 场'));
   assert((await side.locator('.sidebar-player[open] .scout-kda').innerText()).includes('4.0 / 5.0 / 18.0'));
   assert.deepEqual(calls.slice(reads).map(c=>c.method),['SetScoutQueue'],'render/hero changes fetched extra player data');
-  for(const width of [280,320,420]){await side.setViewportSize({width,height:720});assert(await side.locator('.client-sidebar').evaluate(el=>el.scrollWidth<=el.clientWidth+1));await rankFits(side);}
+  for(const width of [280,320,420]){
+   await side.setViewportSize({width,height:720});
+   assert(await side.locator('.client-sidebar').evaluate(el=>el.scrollWidth<=el.clientWidth+1));
+   assert.equal(await side.locator('.sidebar-heading .queue-switch').evaluate(el=>getComputedStyle(el).gap),'8px','mode switch overrode the sidebar layout spacing');
+   await rankFits(side);
+  }
   await side.setViewportSize({width:320,height:720});
   await side.getByRole('button',{name:'收起客户端侧栏'}).click();await side.getByRole('button',{name:'展开客户端侧栏'}).waitFor();
   snapshot={...snapshot,phase:'Matchmaking',stage:'party',participants:[players[0]]};await publish();

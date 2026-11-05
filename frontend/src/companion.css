@@ -2,15 +2,12 @@
 .client-sidebar,.sidebar-rail { height:100dvh; width:100%; background:var(--surface); color:var(--text); border:1px solid var(--border); font-variant-numeric:tabular-nums; overflow:hidden; }
 .client-sidebar { display:flex;flex-direction:column;font-size:12px;line-height:1.25; }
 .sidebar-header { display:flex;align-items:center;gap:8px;padding:6px 12px;flex:none;border-bottom:1px solid var(--border);height:38px; }
-.sidebar-header .brand-mark {width:23px;height:23px;}
 .sidebar-header strong {font-size:13px;letter-spacing:-.3px;}
 .sidebar-header button {margin-left:auto;padding:4px;}
 .sidebar-heading {flex:none;display:flex;flex-direction:column;padding:9px 10px 8px;gap:7px;}
 .sidebar-heading>div {display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
 .sidebar-heading h1 {font-size:18px;letter-spacing:-.5px;margin:0;}
 .sidebar-heading small,.sidebar-footer {font-size:11px;color:var(--muted);}
-.sidebar-heading .queue-switch {display:flex;}
-.sidebar-heading .queue-switch button {flex:1;font-size:12px;padding:5px 9px;}
 .sidebar-players {flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:0 10px 10px;scrollbar-gutter:stable;}
 .sidebar-player {background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:6px;}
 .sidebar-player summary {display:flex;flex-direction:column;cursor:pointer;list-style:none;padding:4px 8px;gap:3px;}
@@ -22,7 +19,6 @@
 .sidebar-identity>span:not(.participant-avatar):not(.rank-emblem) {min-width:0;flex:1;}
 .sidebar-identity strong {display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:16px;}
 .sidebar-identity small {font-size:11px;color:var(--muted);}
-.sidebar-identity .rank-emblem {object-fit:contain;flex:none;height:30px;width:34px;}
 .sidebar-rank {font-size:11px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;}
 .sidebar-rank b {font-size:12px;color:var(--text);font-weight:600;}
 .sidebar-hero {display:flex;align-items:center;min-width:0;gap:6px;padding-top:0;border-top:0;}
@@ -45,7 +41,6 @@
 .sidebar-empty {color:var(--muted);font-size:13px;padding:24px 6px;}
 .client-sidebar>.quality-warning {margin:0 10px 8px;font-size:11px;}
 .sidebar-rail>button {display:flex;flex-direction:column;align-items:center;justify-content:center;gap:15px;width:100%;height:100%;padding:3px;background:var(--surface);color:var(--text);border:0;}
-.sidebar-rail .brand-mark {width:21px;height:21px;}
 .sidebar-rail span {writing-mode:vertical-rl;letter-spacing:4px;font-size:12px;}
 .sidebar-rail b {font-size:12px;color:var(--accent);}
 .overlay-shell {position:relative;}
@@ -88,7 +83,5 @@
 .sidebar-experience small {font-size:11px;}
 .overlay-shell .scout-queue-label {display:block;}
 .overlay-shell .scout-rank {gap:1px;padding:3px;}
-.overlay-shell .scout-rank .rank-emblem {height:22px;}
 .overlay-shell .scout-rank .scout-season {display:flex;flex-direction:column;gap:0;line-height:12px;white-space:normal;}
 .sidebar-hero>span:not(.game-icon) {flex:1;min-width:0;}
-.sidebar-hero>.game-icon {flex:0 0 26px;}

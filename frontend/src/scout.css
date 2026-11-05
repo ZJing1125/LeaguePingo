@@ -83,7 +83,6 @@
 .scout-headline { display: grid; grid-template-columns: 1fr 1fr; height: 90px; min-height: 90px; background: var(--scout-cell); border-bottom: 1px solid var(--scout-border); }
 .scout-champion { display: flex; flex-direction: column; min-width: 0; padding: 7px 7px 5px; gap: 4px; border-right: 1px solid var(--scout-border); }
 .scout-champion .card-pick { display: flex; align-items: center; gap: 5px; min-width: 0; }
-.scout-champion .card-pick > .app-icon { color: var(--scout-muted); flex: none; }
 .scout-champion .card-pick > span { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .scout-champion .card-pick strong { display: block; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .scout-champion .card-pick small { display: block; font-size: 11px; color: var(--scout-muted); white-space: nowrap; }
@@ -98,27 +97,11 @@
 .scout-rank { display: flex; flex-direction: column; justify-content: center; align-items: center; min-width: 0; gap: 2px; padding: 3px 4px 5px; text-align: center; }
 .scout-rank-heading { display: flex; align-items: center; justify-content: center; gap: 4px; line-height: 12px; }
 .scout-queue-label { font-size: 11px; line-height: 12px; }
-.scout-rank .rank-emblem { width: 36px; height: 28px; flex: none; }
 .scout-card .scout-rank .rank-line { display: flex; align-items: center; justify-content: center; gap: 3px; min-height: 14px; width: 100%; font-size: 11px; white-space: normal; }
 .scout-card .scout-rank .rank-line > b { flex: initial; color: var(--scout-text); font-weight: 600; font-size: 12px; line-height: 13px; overflow: visible; white-space: normal; }
 .scout-card .scout-rank .rank-line small { font-size: 11px; color: var(--scout-warning); }
 .scout-season { display: flex; flex-direction: column; align-items: center; font-size: 11px; color: var(--scout-muted); line-height: 12px; white-space: nowrap; }
 .scout-card .overview-metrics.scout-rings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; height: 98px; min-height: 98px; padding: 7px 3px 3px; gap: 0; }
-.scout-ring-metric { --ring-color: var(--scout-good); display: flex; flex-direction: column; align-items: center; gap: 2px; padding-inline: 1px; min-width: 0; color: var(--scout-text); }
-.scout-ring-metric + .scout-ring-metric { border-left: 1px solid var(--scout-border); }
-.scout-ring-metric.warning { --ring-color: var(--scout-warning); }
-.scout-ring-metric.negative { --ring-color: var(--scout-bad); }
-.scout-ring-metric.unknown { --ring-color: var(--scout-muted); }
-.scout-ring { display: grid; place-items: center; width: 43px; height: 43px; flex: none; border-radius: 50%; padding: 3px; background: conic-gradient(var(--ring-color) var(--ring-value), var(--scout-track) 0); }
-.scout-ring-center { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; gap: 1px; border-radius: 50%; background: var(--scout-inset); }
-.scout-card .scout-rings .scout-ring b { font-size: 16px; font-weight: 700; letter-spacing: -.3px; line-height: 16px; color: var(--scout-text); }
-.scout-card .scout-rings .negative .scout-ring b { color: var(--scout-bad); }
-.scout-card .scout-rings .unknown .scout-ring b { color: var(--scout-muted); }
-.scout-card .scout-rings .scout-ring small { font-size: 11px; color: var(--scout-muted); line-height: 10px; margin: 0; }
-.scout-ring .role-icon { width: 23px; height: 23px; color: var(--scout-warning); }
-.scout-card .scout-rings .scout-ring-metric > strong { font-size: 11px; line-height: 13px; font-weight: 600; white-space: nowrap; }
-.scout-card .scout-rings .scout-ring-metric > span:not(.scout-ring) { font-size: 11px; line-height: 12px; white-space: nowrap; }
-.scout-card .scout-rings .scout-ring-metric > small { display: block; color: var(--scout-muted); font-size: 11px; line-height: 11px; white-space: nowrap; margin: 0; }
 .scout-scope { display: flex; align-items: center; justify-content: center; gap: 8px; height: 22px; min-height: 22px; color: var(--scout-muted); font-size: 11px; }
 .scout-scope .sample-size { font-size: 11px; white-space: nowrap; }
 .scout-scope b { color: var(--scout-text); font-size: 11px; font-weight: 600; }
@@ -126,7 +109,6 @@
 .scout-tag { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid currentColor; padding: 1px 4px; border-radius: 3px; color: var(--scout-muted); font-size: 11px; line-height: 13px; }
 .scout-tag.positive { color: var(--scout-good); background: color-mix(in srgb, var(--scout-good) 7%, transparent); }
 .scout-tag.accent { color: var(--scout-accent); background: color-mix(in srgb, var(--scout-accent) 7%, transparent); }
-.scout-tag .game-icon { margin-right: 3px; border-radius: 1px; vertical-align: -2px; }
 .scout-card .rich-state.scout-state { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; min-height: 0; gap: 10px; padding: 12px; color: var(--scout-muted); text-align: center; }
 .scout-card .rich-state.scout-state b { font-size: 15px; color: var(--scout-text); }
 .scout-card .rich-state.scout-state small { font-size: 11px; line-height: 16px; }
@@ -157,19 +139,12 @@ main.overlay-shell { padding-block: 8px; }
 .overlay-shell .scout-card .scout-identity .card-identity > .scout-level { font-size: 11px; }
 .overlay-shell .scout-headline { height: 70px; min-height: 70px; }
 .overlay-shell .scout-champion { padding: 4px; gap: 3px; }
-.overlay-shell .scout-champion .card-pick .game-icon { width: 25px !important; height: 25px !important; }
 .overlay-shell .scout-champion .card-pick { gap: 4px; }
 .overlay-shell .scout-champion .card-pick strong { font-size: 12px; }
 .overlay-shell .scout-rank { padding-block: 2px; }
-.overlay-shell .scout-rank .rank-emblem { height: 22px; width: 30px; }
 .overlay-shell .scout-card .scout-rank .rank-line > b { font-size: 12px; }
 .overlay-shell .scout-hero-rate > span { display: none; }
 .overlay-shell .scout-card .overview-metrics.scout-rings { height: 82px; min-height: 82px; padding-block: 4px 0; }
-.overlay-shell .scout-ring { width: 36px; height: 36px; }
-.overlay-shell .scout-card .scout-rings .scout-ring b { font-size: 15px; line-height: 14px; }
-.overlay-shell .scout-card .scout-rings .scout-ring-metric > small { font-size: 11px; line-height: 12px; }
-.overlay-shell .scout-card .scout-rings .scout-ring-metric > strong { font-size: 11px; line-height: 12px; }
-.overlay-shell .scout-card .scout-rings .scout-ring-metric > span:not(.scout-ring) { font-size: 11px; }
 .overlay-shell .scout-scope { min-height: 18px; height: 18px; gap: 6px; }
 .overlay-shell .scout-scope .sample-size,
 .overlay-shell .scout-scope b,

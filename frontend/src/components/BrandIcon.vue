@@ -10,3 +10,38 @@
     draggable="false"
   />
 </template>
+<style scoped>
+/* Preserve source cascade and contextual sizing; shared tokens remain global. */
+.brand-mark {
+  display: block;
+  object-fit: contain;
+  width: 30px;
+  height: 30px;
+  flex: none;
+}
+.brand-mark {
+  display: block;
+  object-fit: contain;
+  background: transparent;
+  border-radius: 0;
+  clip-path: none;
+}
+.nav-wordmark .brand-mark {
+  margin-right: 8px;
+  width: 26px;
+  height: 26px;
+}
+.overlay-title .brand-mark {
+  width: 25px;
+  height: 25px;
+}
+@media (max-width: 999px) {
+  .nav-wordmark .brand-mark {
+    width: 22px;
+    height: 22px;
+    font-size: 18px;
+  }
+}
+.sidebar-header .brand-mark {width:23px;height:23px;}
+.sidebar-rail .brand-mark {width:21px;height:21px;}
+</style>

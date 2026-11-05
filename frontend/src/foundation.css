@@ -116,10 +116,6 @@ h2 {
 small {
   font-size: 12px;
 }
-.app-icon {
-  flex: none;
-  vertical-align: middle;
-}
 .sr-only {
   position: absolute;
   width: 1px;
@@ -221,13 +217,6 @@ small {
 .quality-warning p {
   margin-top: 8px;
 }
-.brand-mark {
-  display: block;
-  object-fit: contain;
-  width: 30px;
-  height: 30px;
-  flex: none;
-}
 .status-badge {
   display: inline-flex;
   padding: 2px 6px;
@@ -327,9 +316,6 @@ small {
   background: #171b24;
   border-radius: 7px;
 }
-.global-search > .app-icon {
-  color: var(--muted);
-}
 .global-search input {
   background: none;
   border: 0;
@@ -424,9 +410,6 @@ small {
   gap: 9px;
   align-items: center;
   min-width: 135px;
-}
-.rank-card > .app-icon {
-  color: #8dabae;
 }
 .rank-card small {
   display: block;
@@ -634,17 +617,6 @@ small {
   color: var(--muted);
   line-height: 1.7;
   margin-top: 20px;
-}
-.game-icon {
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-  border-radius: 5px;
-  background-color: #252c37;
-  vertical-align: middle;
-  overflow: hidden;
-  color: #a7b3c5;
-  font-size: 12px;
 }
 .history-column {
   display: flex;
@@ -878,10 +850,6 @@ small {
 }
 .initial-empty {
   flex: 1;
-}
-.initial-empty > .app-icon {
-  color: var(--accent);
-  margin-bottom: 8px;
 }
 .match-workspace {
   min-height: 0;
@@ -1179,10 +1147,6 @@ small {
   grid-row: span 2;
   min-width: 0;
 }
-.compact .match-hero > .game-icon {
-  width: 32px !important;
-  height: 32px !important;
-}
 .compact .match-spells {
   grid-row: span 2;
 }
@@ -1199,10 +1163,6 @@ small {
   grid-column: 4;
   gap: 2px;
   flex-wrap: wrap;
-}
-.compact .match-items > .game-icon {
-  width: 17px !important;
-  height: 17px !important;
 }
 .compact .expand-indicator {
   display: none;
@@ -1375,9 +1335,6 @@ small {
   }
   .rank-card {
     min-width: 110px;
-  }
-  .rank-card > .app-icon {
-    display: none;
   }
   .profile-update > span {
     display: none;

@@ -25,3 +25,7 @@ defineProps<{ role?: string }>();
     <path v-else fill-rule="evenodd" d="M6 6h22v22H6V6Zm4 4v14h14V10H10Zm5 4a4 4 0 1 1 5 3.87V21h-3v-5h1a1 1 0 1 0-1-1h-3c0-.34.04-.68.12-1H15Zm2 9h3v3h-3v-3Z"/>
   </svg>
 </template>
+<style scoped>
+/* Preserve source cascade and contextual sizing; shared tokens remain global. */
+.scout-ring .role-icon { width: 23px; height: 23px; color: var(--scout-warning); }
+</style>

@@ -57,3 +57,26 @@ const paths = {
     <path :d="paths[name]" />
   </svg>
 </template>
+<style scoped>
+/* Preserve source cascade and contextual sizing; shared tokens remain global. */
+.app-icon {
+  flex: none;
+  vertical-align: middle;
+}
+.global-search > .app-icon {
+  color: var(--muted);
+}
+.rank-card > .app-icon {
+  color: #8dabae;
+}
+.initial-empty > .app-icon {
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+@media (max-width: 1180px) {
+  .rank-card > .app-icon {
+    display: none;
+  }
+}
+.scout-champion .card-pick > .app-icon { color: var(--scout-muted); flex: none; }
+</style>

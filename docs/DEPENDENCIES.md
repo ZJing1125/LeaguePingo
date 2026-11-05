@@ -1,6 +1,6 @@
 # 依赖更新与验证
 
-S10配置已准备在dev。GitHub只从默认分支加载Dependabot配置；当前默认main尚未包含它，需后续正常合入后才激活。没有因配置就绪而创建或合并main，也没有把尚未出现的依赖PR记为已验证。
+S10配置已准备在dev。GitHub只从默认分支加载Dependabot配置；当前默认main尚未包含它。[激活PR #3](https://github.com/ZJing1125/LeaguePingo/pull/3)已准备，只增加与dev逐字节相同的配置，不带入两分支之间其余产品改动。PR尚未合并，不能把提交就绪记作已激活或把尚未出现的依赖PR记为已验证；不直接修改main、不改默认分支、不自动合并。
 
 | 范围 | 配置和节奏 |
 | --- | --- |
@@ -25,3 +25,16 @@ BUG-0128安全升级通过PR进行：Go最低补丁版为1.26.10，CI三个任�
 | actions/upload-artifact | v4 | `ea165f8d65b6e75b540449e92b4886f43607fa02` |
 
 验证来源：[GitHub跨生态配置](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/configuring-multi-ecosystem-updates)、[target-branch规则](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#target-branch)、[SchemaStore配置Schema](https://github.com/SchemaStore/schemastore/blob/master/src/schemas/json/dependabot-2.0.json)。本地已解析YAML并用该Schema校验；`node --test scripts/workflow.test.mjs`覆盖固定SHA、dev目标和产品组被破坏时失败。实际激活与生成PR仍待默认分支配置生效后核对。
+
+## 激活后的核对
+
+PR #3只增加50行`.github/dependabot.yml`，文件SHA-256为`002d0f39cb34192bea24beae6ea8c72b9b943f5e940b196b0c50e9888826ccfa`，与已验证的dev配置相同。本批workflow策略回归再次通过；默认main尚无产品CI，此配置PR不编译产品，不能把没有检查记为CI通过。
+
+合并后依次核对：
+
+1. 确认默认分支仍为main，默认分支配置与dev一致。
+2. 在仓库的[Dependabot更新页面](https://github.com/ZJing1125/LeaguePingo/network/updates)确认Go、产品npm、preview npm及Actions四个目录/生态条目的任务实际运行；配置进入默认分支是前置条件，不保证立即生成更新PR。
+3. 核对首个更新PR目标为dev；产品Go/npm共同审阅，preview与Actions独立；Actions仍固定完整提交SHA，Wails前后端版本一致。
+4. 更新PR必须通过dev的portable、quality及Windows完整CI后再人工审阅；不自动合并或发版。没有待更新版本时保留“无更新”，以任务成功记录证明已执行，不凭空补出PR。
+
+只有默认分支配置生效且实际更新任务成功后才能登记S10激活；若有更新PR，再分别记录其完整CI结果。当前状态为激活PR待审阅，后续实际任务未核验。
