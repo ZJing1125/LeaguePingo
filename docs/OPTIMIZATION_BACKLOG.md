@@ -597,13 +597,13 @@ confidence: verified-static
 needs_human: false
 problem: >-
   已接入全部53个产品Vue组件的scoped/module门禁，按组件渐进迁移；
-  首批PlayerTabs/SettingsPanel共30条专属规则迁入组件，两份全局CSS共减少156行。
+  首批PlayerTabs/SettingsPanel共30条规则及RecentForm新增14条专属规则已迁入组件；本批从四份全局CSS减少56行。
 evidence:
   - scripts/check-styles.mjs、scripts/check-styles.test.mjs
   - frontend/src/components/PlayerTabs.vue、SettingsPanel.vue
-  - BUGFIX_LOG.md BUG-0124
+  - BUGFIX_LOG.md BUG-0124、0130
 actions:
-  - 已完成：作用域、两组私有选择器归属及主题/媒体回流检查，接入两平台verify/workflow回归
+  - 已完成：作用域、三组私有选择器归属及主题/媒体回流检查，接入两平台verify/workflow回归
   - 已完成：原级联顺序及媒体规则保留，共享settings-message继续由自动化页使用
 acceptance:
   - 已完成：构建/portable及完整12组浏览器回归；16场景150节点亮暗计算样式零差异

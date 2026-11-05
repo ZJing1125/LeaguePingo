@@ -113,9 +113,6 @@
 :root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .game-icon { background-color: var(--raised); color: var(--muted); }
 :root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .match-main:hover { background: #ffffff08; }
 :root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .players-workspace .match-expanded { border-left-color: var(--border); }
-:root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .form-result.won { background: #2b4365; color: #b8d5ff; }
-:root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .form-result.lost { background: #533341; color: #ffc0cf; }
-:root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .form-result.unknown { background: var(--raised); color: var(--muted); }
 :root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .player-row.selected:after { border-color: var(--accent-art); }
 :root[data-theme="dark"] :is(.desktop-app, .drawer-floating) .hero-card:focus-visible { box-shadow: inset 0 0 0 3px var(--accent); }
 @media (max-width: 1150px) {
