@@ -61,8 +61,8 @@ func (e *Engine) observePhase(version, sequence uint64, phase string) {
 	if stage != snapshotStage(e.snapshot.Stage) || observed == PhaseGameStart {
 		e.stopScoutingLocked()
 	}
-	if stage != StageIdle && e.homeCancel != nil {
-		e.homeCancel()
+	if stage != StageIdle {
+		e.queries.stopHome()
 	}
 	if !activeMatch(observed) {
 		e.stopInitialMatchLocked()

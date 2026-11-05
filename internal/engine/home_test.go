@@ -106,9 +106,8 @@ func TestInGameHomeIdentityComesFromAlreadyReadLocalRoster(t *testing.T) {
 func TestPhaseEventCancelsHomeBeforeConfirmingPoll(t *testing.T) {
 	e := New(nil, nil)
 	e.client, e.clientVersion, e.phaseEvents.sequence = &fakeClient{}, 1, 1
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := e.queries.startHome(context.Background())
 	defer cancel()
-	e.homeCancel = cancel
 	e.observePhase(1, 1, "Lobby")
 	if ctx.Err() == nil {
 		t.Fatal("leaving idle did not cancel home on the phase notification")

@@ -41,8 +41,7 @@ func (e *Engine) CurrentPlayer(ctx context.Context, connectionID uint64) (core.P
 		}
 		return cachedPlayer(player, false), nil
 	}
-	ctx, cancel := context.WithCancel(ctx)
-	e.homeCancel = cancel
+	ctx, cancel := e.queries.startHome(ctx)
 	e.mu.Unlock()
 	defer cancel()
 	if !cached {

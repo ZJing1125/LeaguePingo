@@ -34,13 +34,12 @@ type Engine struct {
 	onChange            func(core.Snapshot)
 	updates             chan core.Snapshot
 	lastLookup          time.Time
-	lookupGate          chan struct{}
+	queries             *querySession
 	matchRosterAttempts int
 	matchRosterComplete bool
 	players             playerCache
 	clientVersion       uint64
 	accountIdentity     string
-	homeCancel          context.CancelFunc
 	phaseEpoch          uint64
 	phaseHint           Phase
 	phaseEvents         *eventSubscription
@@ -68,7 +67,7 @@ func NewWithHistoryCache(discover Discoverer, onChange func(core.Snapshot), path
 }
 
 func newEngine(discover Discoverer, onChange func(core.Snapshot)) *Engine {
-	e := &Engine{discover: discover, onChange: onChange, lookupGate: make(chan struct{}, 1), phaseEvents: newEventSubscription(), champEvents: newEventSubscription(), scheduler: newScheduler(), snapshot: core.Snapshot{Stage: string(StageDisconnected), UpdatedAt: time.Now(), Participants: []core.Participant{}}}
+	e := &Engine{discover: discover, onChange: onChange, queries: newQuerySession(), phaseEvents: newEventSubscription(), champEvents: newEventSubscription(), scheduler: newScheduler(), snapshot: core.Snapshot{Stage: string(StageDisconnected), UpdatedAt: time.Now(), Participants: []core.Participant{}}}
 	e.autoAccept = readycheck.New()
 	e.historyRecovery.updates = make(chan core.Participant, 64)
 	e.postGame = postgame.New()
@@ -120,9 +119,7 @@ func (e *Engine) Run(ctx context.Context) {
 			e.readiness.Reset()
 			e.stopReviewLocked()
 			e.stopScoutingLocked()
-			if e.homeCancel != nil {
-				e.homeCancel()
-			}
+			e.queries.stopHome()
 			e.stopInitialMatchLocked()
 			e.preparation.stop()
 			e.stopPhaseEventsLocked()
@@ -358,9 +355,7 @@ func (e *Engine) invalidateConnectionLocked() {
 	e.scouting.cache = nil
 	e.scouting.progress = nil
 	e.scouting.attempted = nil
-	if e.homeCancel != nil {
-		e.homeCancel()
-	}
+	e.queries.stopHome()
 	e.stopInitialMatchLocked()
 	e.stopPhaseEventsLocked()
 	e.stopChampSelectEventsLocked()
@@ -385,9 +380,7 @@ func (e *Engine) disconnectLocked(message string) {
 	e.postGame.Observe(nil, postgame.Observation{})
 	e.stopReviewLocked()
 	e.stopScoutingLocked()
-	if e.homeCancel != nil {
-		e.homeCancel()
-	}
+	e.queries.stopHome()
 	e.stopInitialMatchLocked()
 	e.stopPhaseEventsLocked()
 	e.stopChampSelectEventsLocked()
@@ -417,8 +410,8 @@ func (e *Engine) replaceLocked(stage Stage, phase Phase, gameID int64, roster []
 		e.historyRecovery.stop()
 	}
 	e.readiness.Phase(string(phase), time.Now())
-	if stage != StageIdle && e.homeCancel != nil {
-		e.homeCancel()
+	if stage != StageIdle {
+		e.queries.stopHome()
 	}
 	if entryGame := e.initialMatch.game(); entryGame != 0 && (!activeMatch(phase) || (gameID != 0 && entryGame != gameID)) {
 		e.stopInitialMatchLocked()
@@ -699,13 +692,7 @@ func (e *Engine) lookupPlayer(ctx context.Context, key string, force bool) (core
 }
 
 func (e *Engine) beginLookup(ctx context.Context) (context.Context, func(), error) {
-	select {
-	case e.lookupGate <- struct{}{}:
-		bounded, cancel := context.WithTimeout(ctx, 12*time.Second)
-		return bounded, func() { cancel(); <-e.lookupGate }, nil
-	default:
-		return nil, nil, apperrors.New(apperrors.QueryBusy)
-	}
+	return e.queries.begin(ctx)
 }
 
 func (e *Engine) loadManualHistory(ctx context.Context, client Client, generation uint64, version uint64, player core.Participant, force, enrich bool) (core.Participant, error) {
