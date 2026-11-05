@@ -344,3 +344,354 @@ onUnmounted(() => {
     />
   </main>
 </template>
+<style scoped>
+/* Scope inside :where and retain original specificity with :is; child boundaries use :deep. */
+:where(.workspace-message):is(.workspace-message) {
+  margin: 8px 20px 0;
+}
+:where(.window-brand):is(.window-brand) {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-left: 16px;
+  min-width: 0;
+}
+:where(.window-brand):is(.window-inactive .window-brand) {
+  opacity: 0.6;
+}
+:where(.settings-trigger):is(.settings-trigger) {
+  justify-content: flex-start;
+  padding: 7px 0;
+}
+:where(.toolbar-status):is(.toolbar-status) {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+:where(.app-main):is(.app-main) {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+:where(.global-search):is(.global-search) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  width: min(450px, 55%);
+  padding: 3px 4px 3px 12px;
+  border: 1px solid var(--border);
+  background: #171b24;
+  border-radius: 7px;
+}
+:where(.global-search):is(.global-search) :deep(input) {
+  background: none;
+  border: 0;
+  padding: 4px 0;
+  min-width: 80px;
+  width: 100%;
+  font-size: 12px;
+}
+:where(.global-search):is(.global-search) :deep(button) {
+  padding: 4px 10px;
+}
+:where(.players-workspace):is(.players-workspace) {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+:where(.initial-empty):is(.initial-empty) {
+  flex: 1;
+}
+:where(.match-workspace):is(.match-workspace) {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 20px 0;
+}
+:where(.match-workspace):is(.match-workspace) :deep(>.error-banner) {
+  margin-bottom: 8px;
+}
+@media (max-width: 1000px) {
+  :where(.settings-trigger):is(.settings-trigger) {
+    justify-content: center;
+  }
+}
+@media (max-width: 760px) {
+  :where(.global-search):is(.global-search) {
+    width: auto;
+    flex: 1;
+  }
+}
+@media (max-width: 760px) {
+  :where(.toolbar-status):is(.toolbar-status) {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  :where(.match-workspace):is(.match-workspace) {
+    padding: 15px 12px 0;
+  }
+}
+:where(.theme-select):is(.theme-select) {
+  flex: none;
+  font-size: 12px;
+  max-width: 102px;
+  padding: 6px 5px;
+  cursor: pointer;
+}
+@media (max-width: 1150px) {
+  :where(.workspace-nav):is(.workspace-nav) { gap: 14px; }
+}
+@media (max-width: 1150px) {
+  :where(.global-search):is(.global-search) { flex: 1; min-width: 200px; }
+}
+@media (max-width: 999px) {
+  :where(.nav-wordmark):is(.app-toolbar .nav-wordmark) { font-size: 13px; }
+}
+@media (max-width: 999px) {
+  :where(.workspace-nav):is(.app-toolbar .workspace-nav) { gap: 10px; }
+}
+@media (max-width: 999px) {
+  :where(.global-search):is(.app-toolbar .global-search) { min-width: 180px; }
+}
+@media (max-width: 999px) {
+  :where(.theme-select):is(.theme-select) { max-width: 88px; font-size: 11px; }
+}
+:where(.match-workspace):is(.desktop-app .match-workspace) :deep(.roster-toolbar) { height: 46px; padding-block: 3px; }
+:where(.match-workspace):is(.match-workspace) :deep(.roster-toolbar .section-eyebrow) { display: none; }
+:where(.match-workspace):is(.match-workspace) :deep(.roster-toolbar h1) { font-size: 23px; line-height: 26px; margin: 0 0 2px; }
+:where(.match-workspace):is(.desktop-app .match-workspace) :deep(.roster-progress) { height: 22px; min-height: 22px; margin-bottom: 2px; padding-block: 2px; }
+:where(.window-brand):is(.window-brand) {
+  gap: 0;
+  padding-left: 0;
+}
+:where(.window-brand):is(.window-inactive .window-brand) {
+  opacity: 0.65;
+}
+:where(.app-main):is(.app-main) {
+  width: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 55% 0, var(--page-glow), transparent 65%), var(--surface);
+}
+:where(.nav-wordmark):is(.nav-wordmark) {
+  display: flex;
+  align-items: center;
+  font-size: 18px;
+  letter-spacing: -0.6px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+:where(.nav-wordmark):is(.nav-wordmark) :deep(>span:last-child) {
+  color: var(--accent-art);
+}
+:where(.workspace-nav):is(.workspace-nav) {
+  display: flex;
+  height: 100%;
+  gap: 22px;
+  flex: none;
+  margin-left: 14px;
+}
+:where(.workspace-nav):is(.workspace-nav) :deep(button) {
+  position: relative;
+  padding: 0 2px;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--muted);
+  background: none;
+  border: 0;
+}
+:where(.workspace-nav):is(.workspace-nav) :deep(button.active) {
+  color: var(--text);
+}
+:where(.workspace-nav):is(.workspace-nav) :deep(button.active:after) {
+  content: "";
+  height: 3px;
+  background: var(--accent-art);
+  position: absolute;
+  bottom: 0;
+  left: 0;  right: 0;
+}
+:where(.nav-short):is(.workspace-nav .nav-short) { display: none; }
+:where(.automation-chip):is(.automation-chip) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--text);
+  background: none;
+}
+:where(.automation-chip):is(.automation-chip) :deep(.dot) { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+:where(.automation-chip.warn):is(.automation-chip.warn) { color: var(--danger, #e06c6c); border-color: currentColor; }
+:where(.automation-chip.warn):is(.automation-chip.warn) :deep(.dot) { background: currentColor; }
+:where(.automation-host):is(.automation-host) { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+:where(.global-search):is(.global-search) {
+  flex: 1;
+  width: auto;
+  min-width: 180px;
+  max-width: 360px;
+  background: var(--search-bg);
+  border: 0;
+  border-radius: 3px;
+  margin-left: auto;
+}
+:where(.global-search):is(.global-search) :deep(button) {
+  font-size: 11px;
+}
+:where(.toolbar-status):is(.toolbar-status) {
+  font-size: 11px;
+  white-space: nowrap;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+:where(.match-workspace):is(.match-workspace) {
+  padding: 0 28px 14px;
+  gap: 0;
+  overflow: hidden;
+}
+:where(.match-workspace):is(.match-workspace) :deep(>.roster-message) {
+  font-size: 10px;
+  margin: 0 0 4px;
+  line-height: 16px;
+  flex: none;
+}
+:where(.players-workspace):is(.players-workspace) {
+  overflow: hidden;
+}
+@media (max-width: 1150px) {
+  :where(.workspace-nav):is(.workspace-nav) {
+    margin-left: 2px;
+    gap: 15px;
+  }
+
+}
+@media (max-width: 1150px) {
+  :where(.nav-wordmark):is(.nav-wordmark) {
+    font-size: 16px;
+  }
+
+}
+@media (max-width: 1150px) {
+  :where(.global-search):is(.global-search) {
+    width: auto;
+  }
+
+}
+@media (max-width: 1150px) {
+  :where(.toolbar-status):is(.toolbar-status) {
+    display: none;
+  }
+
+}
+@media (max-width: 1150px) {
+  :where(.match-workspace):is(.match-workspace) {
+    padding-inline: 20px;
+  }
+
+}
+@media (max-width: 999px) {
+  :where(.nav-wordmark):is(.nav-wordmark) {
+    font-size: 14px;
+  }
+}
+@media (max-width: 999px) {
+  :where(.workspace-nav):is(.workspace-nav) {
+    gap: 13px;
+  }
+}
+@media (max-width: 999px) {
+  :where(.workspace-nav):is(.workspace-nav) :deep(button) {
+    font-size: 11px;
+  }
+}
+@media (max-width: 999px) {
+  :where(.global-search):is(.global-search) {
+    width: auto;
+    gap: 5px;
+  }
+}
+@media (max-width: 999px) {
+  :where(.global-search):is(.global-search) :deep(button) {
+    padding: 4px 6px;
+    font-size: 11px;
+  }
+}
+@media (max-width: 999px) {
+  :where(.match-workspace):is(.match-workspace) {
+    padding-inline: 18px;
+  }
+}
+:where(.players-workspace):is(.players-workspace) :deep(.rank-query) {
+  color: #f4e5c8;
+  border-color: #a1ad8e80;
+  background: #243b34;
+}
+:where(.match-workspace):is(.match-workspace) :deep(.card-intent) {
+  top: 58px;
+  right: 10px;
+  font-size: 10px;
+}
+:where(.match-workspace):is(.match-workspace) :deep(.current-hero) {
+  min-height: 25px;
+  gap: 5px;
+  font-size: 12px;
+  padding: 4px 0;
+}
+:where(.match-workspace):is(.match-workspace) :deep(.current-hero>span) {
+  font-size: 12px;
+}
+:where(.match-workspace):is(.match-workspace) :deep(.current-hero>b) {
+  font-size: 12px;
+}
+:where(.match-workspace):is(.match-workspace) :deep(.current-hero>small) {
+  display: none;
+}
+:where(.match-workspace):is(.match-workspace) :deep(.block-caption) {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+}
+:where(.match-workspace):is(.match-workspace) :deep(.block-caption small) {
+  font-size: 10px;
+}
+:where(.match-workspace):is(.match-workspace) :deep(.recent-games) {
+  gap: 5px;
+}
+:where(.match-workspace):is(.match-workspace) :deep(.recent-game>small) {
+  font-size: 10px;
+}
+:where(.match-workspace):is(.match-workspace) :deep(.main-heroes-row) {
+  display: flex;
+  min-height: 24px;
+  gap: 6px;
+}
+:where(.match-workspace):is(.match-workspace) :deep(.main-heroes-row>span:first-child) {
+  font-size: 11px;
+}
+:where(.match-workspace):is(.match-workspace) :deep(.main-hero small) {
+  font-size: 11px;
+}
+:where(.match-workspace):is(.match-workspace) :deep(.main-heroes) {
+  gap: 7px;
+}
+:where(.match-workspace):is(.match-workspace) :deep(.card-freshness) {
+  font-size: 11px;
+}
+@media (max-width: 1150px) { :where(.nav-full):is(.workspace-nav .nav-full) { display: none; } }
+@media (max-width: 1150px) { :where(.nav-short):is(.workspace-nav .nav-short) { display: inline; } }
+:where(.match-workspace.review-host):is(.match-workspace.review-host) {padding:0;overflow:hidden;}
+</style>

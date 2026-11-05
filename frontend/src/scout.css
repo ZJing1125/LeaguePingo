@@ -31,7 +31,3 @@
   --scout-ally: #50c6e3;
   --scout-enemy: #ef8b9b;
 }
-.desktop-app .match-workspace .roster-toolbar { height: 46px; padding-block: 3px; }
-.match-workspace .roster-toolbar .section-eyebrow { display: none; }
-.match-workspace .roster-toolbar h1 { font-size: 23px; line-height: 26px; margin: 0 0 2px; }
-.desktop-app .match-workspace .roster-progress { height: 22px; min-height: 22px; margin-bottom: 2px; padding-block: 2px; }

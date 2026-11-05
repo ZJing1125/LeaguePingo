@@ -21,6 +21,4 @@
 :is(.desktop-app, .drawer-floating) select option { color: var(--text); background: var(--panel); }
 :is(.desktop-app, .drawer-floating) input:not([type="checkbox"]) { border-radius: var(--control-radius); }
 :is(.desktop-app, .drawer-floating) input[type="checkbox"] { accent-color: var(--accent); }
-:is(.desktop-app, .drawer-floating) .desktop-titlebar { position: relative; height: 64px; border-bottom: 1px solid var(--border); }
-@media (max-width: 999px) { :is(.desktop-app, .drawer-floating) .roster-toolbar .hold-hint { display: none; } }
 @media (prefers-reduced-motion: reduce) { :is(.desktop-app, .drawer-floating) button { transition: none; } }

@@ -1,31 +1,14 @@
-// Component ownership checks use the existing locked Vue/PostCSS toolchain.
+// Component ownership checks use locked Vue, PostCSS and selector parsing tools.
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { classUsage, keyframeStep, positiveClasses, privateReferences, styleOwners } from './style-ownership.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(path.join(root, 'frontend/package.json'));
 const { parse } = require('@vue/compiler-sfc');
 const postcss = require('postcss');
-
-// Shared success feedback (.settings-message) is used by AutomationView too.
-// Only these migrated, private families must stay out of global stylesheets.
-const owners = [
-  { component: 'PlayerTabs.vue', privateClass: /\.(?:player-tabs|player-tab|tab-close)(?![\w-])/ },
-  { component: 'SettingsPanel.vue', privateClass: /\.(?:settings-panel|settings-backdrop|settings-shortcut|settings-actions|settings-hold|runtime-summary|diagnostic-table)(?![\w-])/ },
-  { component: 'RecentForm.vue', privateClass: /\.(?:recent-form|form-result)(?![\w-])/ },
-  { component: 'DesktopTitleBar.vue', privateClass: /\.(?:window-controls|window-control-error)(?![\w-])/ },
-  { component: 'AppIcon.vue', privateClass: /\.app-icon(?![\w-])/ },
-  { component: 'BrandIcon.vue', privateClass: /\.brand-mark(?![\w-])/ },
-  { component: 'GameIcon.vue', privateClass: /\.game-icon(?![\w-])/, sharedReferences: ['.sidebar-hero>span:not(.game-icon)'] },
-  { component: 'RankEmblem.vue', privateClass: /\.(?:rank-emblem|rank-placeholder)(?![\w-])/, sharedReferences: ['.sidebar-identity>span:not(.participant-avatar):not(.rank-emblem)'] },
-  { component: 'ChampionPortrait.vue', privateClass: /\.(?:hero-art|portrait-fallback)(?![\w-])/ },
-  { component: 'ChampionSplash.vue', privateClass: /\.(?:hero-splash|splash-fallback)(?![\w-])/ },
-  { component: 'RoleIcon.vue', privateClass: /\.role-icon(?![\w-])/ },
-  { component: 'QueueSwitch.vue', privateClass: /\.queue-switch(?![\w-])/ },
-  { component: 'ScoutRing.vue', privateClass: /\.(?:scout-ring-metric|scout-ring|scout-ring-center)(?![\w-])/ },
-];
 
 export function checkStyleOwnership(components, globalStyles) {
   const styles = new Map();
@@ -37,26 +20,33 @@ export function checkStyleOwnership(components, globalStyles) {
     }
     styles.set(file, descriptor.styles.map(style => style.content).join('\n'));
   }
-  for (const owner of owners) {
+  for (const owner of styleOwners.migratedComponents) {
     const file = [...styles.keys()].find(file => file.endsWith('/' + owner.component));
-    if (!file || !owner.privateClass.test(styles.get(file))) {
+    const defined = new Set();
+    if (file) postcss.parse(styles.get(file)).walkRules(rule => {
+      if (!keyframeStep(rule)) for (const selector of rule.selectors) for (const name of positiveClasses(selector)) defined.add(name);
+    });
+    if (!file || !owner.privateClasses.some(name => defined.has(name))) {
       throw new Error(`Missing component-owned styles: ${owner.component}`);
     }
   }
+  const uses = classUsage(components);
   for (const [file, source] of Object.entries(globalStyles)) {
     postcss.parse(source, { from: file }).walkRules(rule => {
-      for (const owner of owners) {
-        // These exact :not exclusions style a sidebar sibling, not the icon.
-        // Check each selector so a grouped private rule cannot hide behind one.
-        for (const selector of rule.selectors) {
-          if (owner.privateClass.test(selector) && !owner.sharedReferences?.includes(selector)) {
-            throw new Error(`Private ${owner.component} selector returned to ${file}: ${selector}`);
+      if (keyframeStep(rule)) return;
+      for (const selector of rule.selectors) {
+        for (const [name, owner] of privateReferences(selector, uses)) {
+          throw new Error(`Private ${owner} selector .${name} returned to ${file}: ${selector}`);
+        }
+        for (const name of positiveClasses(selector)) {
+          if (!uses.has(name) && !styleOwners.sharedUtilities.includes(name)) {
+            throw new Error(`Unowned global selector .${name} in ${file}: ${selector}`);
           }
         }
       }
     });
   }
-  return { components: styles.size, migratedFamilies: owners.length };
+  return { components: styles.size, migratedFamilies: styleOwners.migratedComponents.length };
 }
 
 function componentFiles(folder) {

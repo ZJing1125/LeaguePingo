@@ -122,6 +122,49 @@ onUnmounted(() => { alive = false; void nextTick(() => { if (opener instanceof H
   </div>
 </template>
 <style scoped>
+/* Scope inside :where and retain original specificity with :is; child boundaries use :deep. */
+:where(.theme-choices):is(.theme-choices) {
+  border: 0;
+  padding: 0;
+  margin: 8px 0 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+:where(.theme-choices):is(.theme-choices) :deep(legend) { font-weight: 600; margin-bottom: 12px; }
+:where(.theme-choices):is(.theme-choices) :deep(label) {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  cursor: pointer;
+}
+:where(.theme-choices):is(.theme-choices) :deep(label.selected) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+:where(.theme-choices):is(.theme-choices) :deep(input) { position: absolute; right: 9px; bottom: 30px; accent-color: var(--accent); }
+:where(.theme-choices):is(.theme-choices) :deep(strong) { font-size: 13px; }
+:where(.theme-choices):is(.theme-choices) :deep(small) { color: var(--muted); font-size: 11px; }
+:where(.theme-swatch):is(.theme-swatch) { position: relative; width: 100%; height: 76px; padding: 28px 8px 8px; display: flex; gap: 5px; background: #f2f1eb; border: 1px solid #8883; border-radius: 4px; }
+:where(.theme-swatch):is(.theme-swatch) :deep(i) { width: 24%; height: 100%; background: #d75530; border-radius: 2px; }
+:where(.theme-swatch):is(.theme-swatch) :deep(i+i) { background: #d6d9cd; }
+:where(.theme-swatch.dark):is(.theme-swatch.dark) { background: #1c1c1f; }
+:where(.theme-swatch.dark):is(.theme-swatch.dark) :deep(i) { background: #7145db; }
+:where(.theme-swatch.dark):is(.theme-swatch.dark) :deep(i+i) { background: #3b3b44; }
+:where(.theme-swatch.system):is(.theme-swatch.system) { background: linear-gradient(90deg, #f2f1eb 50%, #1c1c1f 50%); }
+:where(.theme-swatch.system):is(.theme-swatch.system) :deep(i) { background: #d75530; }
+:where(.theme-swatch.system):is(.theme-swatch.system) :deep(i+i) { background: #7145db; }
+:where(.theme-swatch):is(.theme-swatch)::before { content: ""; position: absolute; inset: 7px 8px auto; height: 12px; background: #dddeda; border-bottom: 2px solid #bf4724; }
+:where(.theme-swatch.dark):is(.theme-swatch.dark)::before { background: #29292e; border-bottom-color: #9876ff; }
+:where(.theme-swatch.system):is(.theme-swatch.system)::before { background: #a8a8b6; border-bottom-color: #7145db; }
+:where(.theme-swatch):is(.theme-swatch) :deep(i) { width: 33.333%; background: #e8e8e0; border: 1px solid #0002; }
+:where(.theme-swatch):is(.theme-swatch) :deep(i+i) { background: #e8e8e0; }
+:where(.theme-swatch.dark):is(.theme-swatch.dark) :deep(i) { background: #344052; border-color: #fff1; }
+</style>
+<style scoped>
 /* Component-owned rules, retaining foundation/style cascade order. */
 .settings-backdrop {
   position: fixed;

@@ -2,7 +2,7 @@
 
 U8：组件中文文案、提示、无障碍标签和动态格式统一从uiText读取，按共享/功能语义分组，不新增i18n依赖。本次迁移保留原文案；新增文案先加入目录，check-copy会扫描全部53个产品组件（含根应用）的脚本、模板和属性。Vue文本格式使用toDisplayString保留空值/对象显示，原JS模板保留原生转换；匹配片段/位置键/选择器需与使用方同步。资源名、已有TS表现层的数据映射和后端错误目录保持原归属，本批不重写取数或状态逻辑。
 
-Q6：所有产品Vue样式块使用scoped/module并沿用设计变量，check-styles门禁包含根应用。已迁移13组：PlayerTabs/SettingsPanel/RecentForm、DesktopTitleBar窗口控制/失败提示及AppIcon/BrandIcon/GameIcon/RankEmblem/ChampionPortrait/ChampionSplash/RoleIcon/QueueSwitch/ScoutRing；保持原级联/媒体条件，专属规则不再回流全局。settings-message、标题栏根布局/插槽及侧栏两条:not图标排除规则仍按共享归属保留；后两者约束相邻文字，不是图标外观，门禁逐选择器防止借共享排除规则夹带私有样式。其余存量逐组件迁移，不一次性搬完。
+Q6：全部53个产品Vue组件使用scoped/module并沿用设计变量。存量私有全局样式已分五批迁完，38组已迁组件在scripts/component-style-owners.json登记；七份全局CSS仅保留共享tokens、控件、语义工具类与公共宿主契约。check-styles使用锁定的开发依赖css-tree 3.2.1解析选择器，并从模板、绑定、class属性和过渡名称识别实际归属，新组件无需另补正则即可受到保护；私有和无人使用的正向class选择器禁止回流全局。负向/关系引用不代表被选元素归属，分组中的私有分支仍单独核验。:where中的作用域避免增加权重，:is保留旧复杂选择器权重，跨子组件路径使用:deep；声明、媒体条件及相对级联保持。PlayerView保留原公共select契约的局部副本以维持同权重的加载顺序；新增样式不继续复制该历史兼容规则。该治理不改取数、模板、脚本或交互。
 
 BUG-0113：AutomationView以独立loading及aria-busy标识Info读取，载入和保存期间冻结配置控件；失败可显式重新读取本机设置，没有自动重试或客户端写动作。post-game使用响应屏障测试重载持久值、失败重试与保存期间禁止被迟到响应覆盖的草稿；先等读取完成再断言真实开关，不能只等工作区挂载。组件文案现已由U8统一迁入uiText，原设置守卫不变。
 

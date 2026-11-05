@@ -1,0 +1,582 @@
+{
+  "schema": 1,
+  "sharedUtilities": [
+    "muted",
+    "warning-text",
+    "primary",
+    "secondary",
+    "icon-button",
+    "text-button",
+    "danger",
+    "sr-only",
+    "square",
+    "status-badge",
+    "inline-status",
+    "connection-light",
+    "positive",
+    "negative",
+    "warning",
+    "unknown",
+    "active",
+    "selected",
+    "online",
+    "compact",
+    "dark",
+    "light",
+    "won",
+    "lost",
+    "loss",
+    "ally",
+    "enemy",
+    "frozen",
+    "loading",
+    "no-sample",
+    "pending",
+    "complete"
+  ],
+  "publicScopes": [
+    "desktop-app",
+    "drawer-floating",
+    "overlay-shell"
+  ],
+  "migratedComponents": [
+    {
+      "component": "PlayerTabs.vue",
+      "privateClasses": [
+        "player-tabs",
+        "player-tab",
+        "tab-close"
+      ]
+    },
+    {
+      "component": "SettingsPanel.vue",
+      "privateClasses": [
+        "settings-backdrop",
+        "settings-panel",
+        "settings-tabs",
+        "settings-unsaved",
+        "settings-area",
+        "theme-choices",
+        "theme-swatch",
+        "settings-game",
+        "settings-group",
+        "settings-actions",
+        "settings-companion",
+        "settings-hold",
+        "settings-applied",
+        "settings-help",
+        "settings-validation",
+        "runtime-summary",
+        "diagnostic-table"
+      ]
+    },
+    {
+      "component": "RecentForm.vue",
+      "privateClasses": [
+        "recent-form",
+        "form-result"
+      ]
+    },
+    {
+      "component": "DesktopTitleBar.vue",
+      "privateClasses": [
+        "desktop-titlebar",
+        "app-toolbar",
+        "window-inactive",
+        "window-maximised",
+        "toolbar-content",
+        "window-control-error",
+        "window-controls",
+        "window-close"
+      ]
+    },
+    {
+      "component": "AppIcon.vue",
+      "privateClasses": [
+        "app-icon"
+      ]
+    },
+    {
+      "component": "BrandIcon.vue",
+      "privateClasses": [
+        "brand-mark"
+      ]
+    },
+    {
+      "component": "GameIcon.vue",
+      "privateClasses": [
+        "game-icon"
+      ]
+    },
+    {
+      "component": "RankEmblem.vue",
+      "privateClasses": [
+        "rank-emblem",
+        "rank-placeholder"
+      ]
+    },
+    {
+      "component": "ChampionPortrait.vue",
+      "privateClasses": [
+        "hero-art",
+        "portrait-fallback"
+      ]
+    },
+    {
+      "component": "ChampionSplash.vue",
+      "privateClasses": [
+        "hero-splash",
+        "splash-fallback"
+      ]
+    },
+    {
+      "component": "RoleIcon.vue",
+      "privateClasses": [
+        "role-icon"
+      ]
+    },
+    {
+      "component": "QueueSwitch.vue",
+      "privateClasses": [
+        "queue-switch"
+      ]
+    },
+    {
+      "component": "ScoutRing.vue",
+      "privateClasses": [
+        "scout-ring-metric",
+        "scout-ring",
+        "scout-ring-center"
+      ]
+    },
+    {
+      "component": "MatchSummary.vue",
+      "privateClasses": [
+        "match-personal",
+        "personal-heading",
+        "match-context-detail",
+        "early-end",
+        "personal-metrics",
+        "personal-loadout",
+        "personal-items",
+        "personal-spells",
+        "personal-runes",
+        "rune-path",
+        "keystone"
+      ]
+    },
+    {
+      "component": "PlayerProfileHeader.vue",
+      "privateClasses": [
+        "player-profile",
+        "profile-avatar",
+        "profile-identity",
+        "identity-title",
+        "profile-meta",
+        "privacy-unknown",
+        "profile-ranks",
+        "rank-card"
+      ]
+    },
+    {
+      "component": "MatchDetails.vue",
+      "privateClasses": [
+        "full-match-detail",
+        "analysis-tabs",
+        "analysis-tab-content",
+        "scoreboard-content",
+        "scoreboard-heading",
+        "detail-table-scroll",
+        "scoreboard-board",
+        "scoreboard-team",
+        "team-blue",
+        "team-summary",
+        "team-result",
+        "victory",
+        "defeat",
+        "objective-line",
+        "scoreboard-player",
+        "scoreboard-hero",
+        "scoreboard-systems",
+        "scoreboard-name",
+        "target-label",
+        "scoreboard-kda",
+        "damage-track",
+        "detail-loadout",
+        "scoreboard-note",
+        "scoreboard-loading",
+        "personal-content",
+        "analysis-load",
+        "detail-note"
+      ]
+    },
+    {
+      "component": "App.vue",
+      "privateClasses": [
+        "nav-wordmark",
+        "window-brand",
+        "workspace-nav",
+        "home",
+        "match",
+        "players",
+        "automation",
+        "nav-full",
+        "nav-short",
+        "global-search",
+        "theme-select",
+        "toolbar-status",
+        "automation-chip",
+        "settings-trigger",
+        "app-main",
+        "workspace-message",
+        "players-workspace",
+        "initial-empty",
+        "match-workspace",
+        "review-host",
+        "automation-host"
+      ]
+    },
+    {
+      "component": "PlayerView.vue",
+      "privateClasses": [
+        "player-view",
+        "analysis-layout",
+        "profile-collapsed",
+        "player-error",
+        "player-columns",
+        "analysis-sidebar",
+        "history-column",
+        "analysis-overview",
+        "analysis-sample-win",
+        "analysis-sample-kda",
+        "analysis-scope",
+        "overview-expand",
+        "history-toolbar",
+        "history-filter",
+        "history-count",
+        "history-actions",
+        "profile-toggle",
+        "toolbar-time",
+        "scout-explanation",
+        "compact-stats",
+        "browse-status",
+        "history-panel",
+        "history-scroll",
+        "history-pagination",
+        "page-controls",
+        "page-indicator",
+        "page-jump"
+      ]
+    },
+    {
+      "component": "MatchHistoryRow.vue",
+      "privateClasses": [
+        "match-card",
+        "remake",
+        "match-open",
+        "match-main",
+        "match-static",
+        "match-context",
+        "outcome",
+        "match-champion",
+        "match-hero",
+        "champion-level",
+        "match-spells",
+        "match-build-summary",
+        "match-performance",
+        "match-rune-icons",
+        "match-items",
+        "match-efficiency",
+        "match-role",
+        "match-facts",
+        "match-mini-roster",
+        "roster-team",
+        "enemy-roster",
+        "ally-roster",
+        "match-roster-missing",
+        "expand-indicator",
+        "match-expanded"
+      ]
+    },
+    {
+      "component": "HistoryNotice.vue",
+      "privateClasses": [
+        "history-notice"
+      ]
+    },
+    {
+      "component": "MatchRoster.vue",
+      "privateClasses": [
+        "team-columns",
+        "expanded-roster",
+        "party-roster",
+        "team-section",
+        "team-player-list",
+        "player-row",
+        "hero-card",
+        "team-empty"
+      ]
+    },
+    {
+      "component": "ParticipantAvatar.vue",
+      "privateClasses": [
+        "participant-avatar",
+        "participant-avatar-fallback"
+      ]
+    },
+    {
+      "component": "PlayerDrawer.vue",
+      "privateClasses": [
+        "drawer-shell",
+        "drawer-floating",
+        "player-drawer",
+        "drawer-fit"
+      ]
+    },
+    {
+      "component": "OverlayView.vue",
+      "privateClasses": [
+        "overlay-shell",
+        "hold-mode",
+        "hold",
+        "preview",
+        "preview-mode",
+        "overlay-head",
+        "overlay-title",
+        "overlay-controls",
+        "guide-switch",
+        "overlay-close",
+        "overlay-content",
+        "overlay-status",
+        "overlay-groups",
+        "overlay-player",
+        "unavailable",
+        "outdated",
+        "overlay-footer",
+        "preview-timer"
+      ]
+    },
+    {
+      "component": "HomeView.vue",
+      "privateClasses": [
+        "home-workspace",
+        "home-heading",
+        "home-hero",
+        "home-hero-art",
+        "home-account",
+        "home-avatar-empty",
+        "home-account-caption",
+        "home-privacy",
+        "home-form-summary",
+        "home-form-last",
+        "home-error",
+        "home-grid",
+        "home-ranks",
+        "home-panel",
+        "home-rank",
+        "home-session",
+        "home-panel-caption",
+        "home-analysis-main",
+        "home-recent",
+        "home-history-filters",
+        "home-browse-status",
+        "home-match-list",
+        "home-no-history",
+        "home-match",
+        "home-pagination",
+        "home-page-jump",
+        "home-sample-note",
+        "home-game-heading",
+        "home-game-content"
+      ]
+    },
+    {
+      "component": "RankPanel.vue",
+      "privateClasses": [
+        "rank-panel",
+        "rank-current",
+        "rank-record",
+        "rank-history"
+      ]
+    },
+    {
+      "component": "PlaystylePanel.vue",
+      "privateClasses": [
+        "playstyle-panel",
+        "style-roles",
+        "activity-heading",
+        "activity-hours",
+        "activity-axis"
+      ]
+    },
+    {
+      "component": "ChampionAnalysis.vue",
+      "privateClasses": [
+        "champion-analysis",
+        "champion-query",
+        "champion-table",
+        "hero-outcomes",
+        "champion-empty",
+        "champion-more",
+        "champion-scope"
+      ]
+    },
+    {
+      "component": "MasteryPanel.vue",
+      "privateClasses": [
+        "mastery-panel",
+        "mastery-heroes",
+        "mastery-empty"
+      ]
+    },
+    {
+      "component": "PlayerScoutCard.vue",
+      "privateClasses": [
+        "scout-identity",
+        "card-portrait",
+        "card-avatar",
+        "card-identity",
+        "scout-level",
+        "history-preparation",
+        "scout-retained"
+      ]
+    },
+    {
+      "component": "PlayerCardData.vue",
+      "privateClasses": [
+        "card-details",
+        "scout-data",
+        "scout-headline",
+        "scout-champion",
+        "card-pick",
+        "scout-kda",
+        "scout-no-kda",
+        "scout-hero-rate",
+        "scout-rank",
+        "scout-rank-heading",
+        "scout-queue-label",
+        "rank-line",
+        "scout-season",
+        "scout-stat-skeleton",
+        "scout-skeleton-rings",
+        "scout-skeleton-line",
+        "wide",
+        "overview-metrics",
+        "scout-rings",
+        "scout-position-cell",
+        "role-distribution",
+        "scout-scope",
+        "sample-size",
+        "scout-coverage-mark",
+        "scout-tags",
+        "recent-block",
+        "scout-tag",
+        "scout-empty-tags",
+        "rich-state",
+        "scout-state"
+      ]
+    },
+    {
+      "component": "MatchTimeline.vue",
+      "privateClasses": [
+        "match-timeline",
+        "timeline-controls",
+        "timeline-content",
+        "timeline-map-area",
+        "timeline-map",
+        "map-player",
+        "map-event",
+        "timeline-map-unavailable",
+        "timeline-events",
+        "timeline-event",
+        "timeline-empty",
+        "economy-chart",
+        "time-marker",
+        "timeline-slider"
+      ]
+    },
+    {
+      "component": "GuidePanel.vue",
+      "privateClasses": [
+        "guide-panel",
+        "brief",
+        "guide-heading",
+        "guide-loading",
+        "guide-filters",
+        "guide-status",
+        "guide-content",
+        "guide-builds",
+        "guide-build-row",
+        "guide-build-choice",
+        "guide-item-icons",
+        "guide-build-names",
+        "guide-build-rate",
+        "guide-runes",
+        "guide-skills",
+        "guide-tips",
+        "guide-more"
+      ]
+    },
+    {
+      "component": "OverviewPerformance.vue",
+      "privateClasses": [
+        "overview-performance",
+        "performance-body",
+        "performance-results",
+        "result-ring",
+        "ring-track",
+        "ring-unknown",
+        "ring-wins",
+        "average-kda",
+        "performance-heroes",
+        "performance-empty",
+        "performance-roles",
+        "role-columns"
+      ]
+    },
+    {
+      "component": "ClientSidebar.vue",
+      "privateClasses": [
+        "sidebar-rail",
+        "client-sidebar",
+        "sidebar-header",
+        "sidebar-heading",
+        "sidebar-tab",
+        "guide-tab",
+        "sidebar-players",
+        "sidebar-empty",
+        "sidebar-footer"
+      ]
+    },
+    {
+      "component": "SidebarPlayer.vue",
+      "privateClasses": [
+        "sidebar-player",
+        "sidebar-identity",
+        "sidebar-rank",
+        "sidebar-hero",
+        "sidebar-hero-title",
+        "sidebar-experience",
+        "sidebar-metrics",
+        "sidebar-coverage",
+        "sidebar-expanded"
+      ]
+    },
+    {
+      "component": "ReviewRoom.vue",
+      "privateClasses": [
+        "review-room",
+        "review-result",
+        "review-status"
+      ]
+    },
+    {
+      "component": "MatchRoom.vue",
+      "privateClasses": [
+        "match-room",
+        "match-room-nav",
+        "current-match"
+      ]
+    }
+  ]
+}

@@ -144,6 +144,122 @@ onUnmounted(() => {
   </header>
 </template>
 <style scoped>
+/* Scope inside :where and retain original specificity with :is; child boundaries use :deep. */
+:where(.desktop-titlebar):is(.desktop-titlebar) {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  background: #14171e;
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+  --wails-draggable: drag;
+}
+:where(.app-toolbar):is(.app-toolbar) {
+  height: 50px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid var(--border);
+  padding: 6px 20px;
+}
+:where(.app-toolbar):is(.app-toolbar) :deep(>strong) {
+  font-size: 14px;
+  white-space: nowrap;
+}
+@media (max-width: 1000px) {
+  :where(.app-toolbar):is(.app-toolbar) {
+    gap: 10px;
+  }
+}
+@media (max-width: 760px) {
+  :where(.app-toolbar):is(.app-toolbar) :deep(>strong) {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  :where(.app-toolbar):is(.app-toolbar) :deep(>.icon-button) {
+    padding: 7px;
+  }
+}
+@media (max-width: 760px) {
+  :where(.app-toolbar):is(.app-toolbar) :deep(>.icon-button>span) {
+    display: none;
+  }
+}
+:where(.desktop-titlebar):is(:root[data-theme="dark"] :is(.desktop-app,.drawer-floating) .desktop-titlebar) { border-color: var(--border); }
+:where(.app-toolbar):is(:root[data-theme="dark"] :is(.desktop-app,.drawer-floating) .app-toolbar) { border-color: var(--border); }
+@media (max-width: 1150px) {
+  :where(.toolbar-content):is(.toolbar-content) { gap: 10px; }
+}
+:where(.desktop-titlebar):is(:is(.desktop-app,.drawer-floating) .desktop-titlebar) { position: relative; height: 64px; border-bottom: 1px solid var(--border); }
+:where(.desktop-titlebar.app-toolbar):is(.desktop-titlebar.app-toolbar) {
+  height: 64px;
+  flex: none;
+}
+:where(.app-toolbar):is(.app-toolbar) {
+  height: 64px;
+  gap: 12px;
+  padding: 0 0 0 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+:where(.toolbar-content):is(.toolbar-content) {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 100%;
+  flex: 1;
+  min-width: 0;
+}
+:where(.toolbar-content):is(.toolbar-content) :deep(:is(nav,form,select,button,input,a)) {
+  --wails-draggable: no-drag;
+}
+:where(.toolbar-content):is(.toolbar-content) :deep(input) {
+  user-select: text;
+}
+:where(.toolbar-content):is(.toolbar-content) :deep(>.icon-button) {
+  font-size: 11px;
+  white-space: nowrap;
+  padding: 6px;
+  gap: 5px;
+  border: 0;
+}
+:where(.toolbar-content):is(.toolbar-content) :deep(>.small-control) {
+  display: none;
+}
+@media (max-width: 1150px) {
+  :where(.app-toolbar):is(.app-toolbar) {
+    padding: 0 0 0 20px;
+    gap: 8px;
+  }
+
+}
+@media (max-width: 1150px) {
+  :where(.toolbar-content):is(.toolbar-content) {
+    gap: 10px;
+  }
+
+}
+@media (max-width: 999px) {
+  :where(.app-toolbar):is(.app-toolbar) {
+    gap: 6px;
+    padding-inline: 12px 0;
+  }
+}
+@media (max-width: 999px) {
+  :where(.toolbar-content):is(.toolbar-content) {
+    gap: 7px;
+  }
+}
+@media (max-width: 999px) {
+  :where(.toolbar-content):is(.toolbar-content) :deep(>.icon-button span) {
+    display: none;
+  }
+}
+</style>
+<style scoped>
 /* Retain original global import order; shared controls and ancestor contexts stay in effect. */
 .window-control-error {
   margin-left: 20px;

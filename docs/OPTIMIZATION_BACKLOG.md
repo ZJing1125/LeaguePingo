@@ -11,9 +11,9 @@ suggested_repo_path: docs/OPTIMIZATION_BACKLOG.md
 
 # 1. 使用规则（agent 先读）
 
-执行记录（实施起始基线4d57e0b，附件审阅基线cc229e7）：Q1已实施并通过dev推送实跑，见下方记录；Q4安全工具链升级至Go 1.26.10并将staticcheck、govulncheck与npm audit接为强制quality，11项报告已降为0，Windows完整CI按PR核验；F1本地度量已实施，口径与验证见PERFORMANCE.md；F2已核实后端逐人发布链路并补齐前端骨架和逐卡替换回归；S3共享动作执行器已实施并接入自动接受/赛后流程，两个编排循环均小于60行；S4引擎Stage/Phase强类型与集中行为表已实施，对外快照字符串未变且远程Windows验证通过；S5攻略会话复用、功能开关、超时/缓存/原文降级已实施且远程Windows验证通过；S6战绩缓存字节上限、锁外编码、HMAC键、同轮重建、Rename重试与失败诊断已实施且远程Windows验证通过；S7页缓存TTL/LRU、锁外授权、独立并发上限及换号/首页变化迟到隔离已实施且远程Windows验证通过；Q3前端19项单测与类型检查已接入统一verify门禁且远程Windows验证通过；F3已核实首页/磁盘策略并补齐ID/选中玩家过期缓存先显及后台更新；F4统一退避抖动、并行成功隔离及长Retry-After保护已实施；S8入口与桌面依赖组装拆分已实施，本机目标staticcheck/portable通过，根包及桌面由Windows CI核验；Q5正则复用、缓存失败诊断与忽略错误/报告留存审阅已实施；S10依赖组更新配置与Actions SHA固定已准备，实际激活待正常进入默认分支；Q2生产超长函数全部拆分并接入AST门禁，Windows全包竞态及完整构建已通过，已结项；S2已完成十三批职责迁移，Engine由59降为26字段（18组件/依赖与8核心守卫，建议20未达），完整引擎竞态通过，超长函数已由Q2独立结项；U6已核实现有监听说明/冲突回滚和Windows自动回归，按已有证据结项；U5首页三步连接指引与首次离线/断线/重连/主题窄窗回归已实施；Q7当前架构/精简README/CHANGELOG与TESTING分工已完成并核对策略；U7两主题键盘主流程、共享焦点及浅色对比度修正已实施；S9已完成官方根候选研究与测试专用严格探针，国服链/名称核验后置，生产传输未改；U1错误码与中文提示、U2降级与有界恢复已实施，协议与验证分别见ERRORS.md、DATA_RECOVERY.md及本提交CI，R1实验性标注与分轮记录已准备，R3固定六项及空白结果表也已准备；用户已反馈A1/A2/P1/P2没有问题，后续确认跳过可用但继续/返回/开排链条失败，修复版与版本信息及其他项目待补，整体R1未完成；S1回调瘦身/备用入口核验/设置说明已实施，国服反作弊专项待实机；U3启动前依赖检查、静态版本检查、NSIS与证书存储签名代码链已实施，发布证书与干净Win10的I1–I6仍待人工；U4实验性说明、行为边界和一键停用已实施并由前端合成回归覆盖；Q6作用域/归属门禁及13组组件渐进迁移已实施，保留共享与历史全局样式；U8组件文案集中及检查门禁已实施。该清单是任务输入，原审阅统计与推断不能当作当前事实。其他任务仍按依赖逐项核实；未执行的Windows/国服检查保留未验证状态。
+执行记录（实施起始基线4d57e0b，附件审阅基线cc229e7）：Q1已实施并通过dev推送实跑，见下方记录；Q4安全工具链升级至Go 1.26.10并将staticcheck、govulncheck与npm audit接为强制quality，11项报告已降为0，Windows完整CI按PR核验；F1本地度量已实施，口径与验证见PERFORMANCE.md；F2已核实后端逐人发布链路并补齐前端骨架和逐卡替换回归；S3共享动作执行器已实施并接入自动接受/赛后流程，两个编排循环均小于60行；S4引擎Stage/Phase强类型与集中行为表已实施，对外快照字符串未变且远程Windows验证通过；S5攻略会话复用、功能开关、超时/缓存/原文降级已实施且远程Windows验证通过；S6战绩缓存字节上限、锁外编码、HMAC键、同轮重建、Rename重试与失败诊断已实施且远程Windows验证通过；S7页缓存TTL/LRU、锁外授权、独立并发上限及换号/首页变化迟到隔离已实施且远程Windows验证通过；Q3前端19项单测与类型检查已接入统一verify门禁且远程Windows验证通过；F3已核实首页/磁盘策略并补齐ID/选中玩家过期缓存先显及后台更新；F4统一退避抖动、并行成功隔离及长Retry-After保护已实施；S8入口与桌面依赖组装拆分已实施，本机目标staticcheck/portable通过，根包及桌面由Windows CI核验；Q5正则复用、缓存失败诊断与忽略错误/报告留存审阅已实施；S10依赖组更新配置与Actions SHA固定已完成，配置PR #3已合入默认分支，实际服务执行待核验；Q2生产超长函数全部拆分并接入AST门禁，Windows全包竞态及完整构建已通过，已结项；S2已完成十三批职责迁移，Engine由59降为26字段（18组件/依赖与8核心守卫，建议20未达），完整引擎竞态通过，超长函数已由Q2独立结项；U6已核实现有监听说明/冲突回滚和Windows自动回归，按已有证据结项；U5首页三步连接指引与首次离线/断线/重连/主题窄窗回归已实施；Q7当前架构/精简README/CHANGELOG与TESTING分工已完成并核对策略；U7两主题键盘主流程、共享焦点及浅色对比度修正已实施；S9已完成官方根候选研究与测试专用严格探针，国服链/名称核验后置，生产传输未改；U1错误码与中文提示、U2降级与有界恢复已实施，协议与验证分别见ERRORS.md、DATA_RECOVERY.md及本提交CI，R1实验性标注与分轮记录已准备，R3固定六项及空白结果表也已准备；用户已反馈A1/A2/P1/P2没有问题，后续确认跳过可用但继续/返回/开排链条失败，修复版与版本信息及其他项目待补，整体R1未完成；S1回调瘦身/备用入口核验/设置说明已实施，国服反作弊专项待实机；U3启动前依赖检查、静态版本检查、NSIS与证书存储签名代码链已实施，发布证书与干净Win10的I1–I6仍待人工；U4实验性说明、行为边界和一键停用已实施并由前端合成回归覆盖；Q6作用域/动态归属门禁及38组组件迁移已完成，存量私有与无人使用的全局布局已清理，只保留共享样式；U8组件文案集中及检查门禁已实施。该清单是任务输入，原审阅统计与推断不能当作当前事实。其他任务仍按依赖逐项核实；未执行的Windows/国服检查保留未验证状态。
 
-当前实施汇总（2026-11-05）：34项中25项已实施；S10默认分支仅配置PR #3已准备、待审阅合入及实际任务核验；8项人工工作按用户安排集中后置（S1/S9/Q8/U3/F5/R1/R2/R3）。S2按职责拆分结项但26字段未达到建议20，Q4安全工具链升级本机及PR扫描已清零，强制quality已配置，完整Windows CI按PR核验；不能将“已实施”理解为产品/合规/性能已验收。Q6的39134a0及U8的0077887均已通过Windows完整验证/构建；建议性staticcheck缺嵌入资源已按BUG-0127补自身job前置，修复后按CI明细核验，不能以job成功代替分析通过。
+当前实施汇总（2026-11-05）：34项中25项已实施；S10仅配置PR #3已合入默认分支，产品代码及CI治理已完成，实际更新任务仍待服务侧核验；8项人工工作按用户安排集中后置（S1/S9/Q8/U3/F5/R1/R2/R3）。S2按职责拆分结项但26字段未达到建议20，Q4安全工具链升级本机及PR扫描已清零，强制quality已配置，完整Windows CI按PR核验；不能将“已实施”理解为产品/合规/性能已验收。Q6的39134a0及U8的0077887均已通过Windows完整验证/构建；建议性staticcheck缺嵌入资源已按BUG-0127补自身job前置，修复后按CI明细核验，不能以job成功代替分析通过。
 
 Q1首次运行：[40856437383](https://github.com/ZJing1125/LeaguePingo/actions/runs/40856437383)，Linux成功，Windows原生Go检查通过，侧栏720px五卡高度回归失败。已根据日志修复摘要内边距，保留原验收断言。修复提交dd33476的[40857941063](https://github.com/ZJing1125/LeaguePingo/actions/runs/40857941063)两个job全部成功：Windows全包test/vet、绑定生成/一致性、九项浏览器回归、EXE编译及产物审计均通过。EXE只存在runner，未上传、部署或登记为用户已验收；截图保留7天。PR事件配置已做语法检查，未专门新建PR测试。默认分支仍为main，手动触发入口需工作流进入默认分支后才能使用；本批未修改main或默认分支。
 
@@ -424,10 +424,10 @@ id: S10
 title: 依赖治理
 priority: P2
 area: design
-status: activation-pr-ready
+status: configured-awaiting-service-verification
 confidence: verified-static
 needs_human: false
-problem: 自动更新配置与Actions提交固定已就绪；已准备仅含相同配置的默认分支PR #3，尚未合并；实际激活/更新任务及首个更新PR待正常合入后核对。
+problem: 自动更新配置与Actions提交固定已完成；PR #3已合入main且blob与dev一致；实际更新任务及首个更新PR仍待服务侧证据。
 evidence:
   - go.mod（wails/v3 v3.0.0-beta.29）
   - frontend/package.json
@@ -435,10 +435,10 @@ actions:
   - 已完成：Dependabot v2分别配置Go、产品npm、preview及Actions，周一上海10:00，PR指向dev
   - 已完成：产品Go/npm跨生态组共同审阅Wails前后端更新，既有版本一致性门禁保留
   - 已完成：五类官方Actions由API核验后固定40位SHA，策略测试拒绝浮动标签
-  - 已完成：默认分支仅配置PR #3，与dev逐字节相同，避免带入其余871文件的产品差异；未直接修改main或更改默认分支
+  - 已完成：仅配置PR #3已由仓库流程合入main，与dev逐字节相同，未带入其余产品差异；本批未直接修改main或更改默认分支
 acceptance:
   - 已完成：YAML/JSON Schema/策略回归验证配置，统一CI保护保留
-  - 待激活：PR #3正常进入默认分支后按DEPENDENCIES核对四个目录/生态任务与首个依赖PR，无更新时记录实际任务成功，不冒称已生成
+  - 待服务核验：尚无Dependabot更新PR/任务记录，依赖图返回0个manifest；安全更新API对当前集成403不能证明版本更新失败，按DEPENDENCIES核对实际任务，不冒称已执行
 depends_on: [Q1]
 verify:
   - bash scripts/verify.sh windows
@@ -597,25 +597,22 @@ status: implemented
 confidence: verified-static
 needs_human: false
 problem: >-
-  已接入全部53个产品Vue组件的scoped/module门禁，按组件渐进迁移；
-  首批PlayerTabs/SettingsPanel共30条规则，后续RecentForm和DesktopTitleBar窗口控制/失败提示共33条专属规则已迁入组件；后续批次从五份全局CSS减少129行。
-  基础视觉组件九组按图标、英雄/段位图片、模式切换/圆环分批迁移69条规则，七份全局CSS减少154行；保留两条侧栏相邻文字排除规则。
+  全部53个产品Vue组件已纳入scoped/module与动态归属门禁。
+  在前13组基础上分五批完成剩余27个组件的870个私有选择器分支迁移，合计38组登记组件；
+  清理90个无人使用的旧选择器字符串，七份全局CSS由3818行降至501行，仅保留共享契约。
 evidence:
-  - scripts/check-styles.mjs、scripts/check-styles.test.mjs
-  - frontend/src/components/PlayerTabs.vue、SettingsPanel.vue、RecentForm.vue、DesktopTitleBar.vue
-  - frontend/src/components/AppIcon.vue、BrandIcon.vue、GameIcon.vue、RankEmblem.vue、ChampionPortrait.vue、ChampionSplash.vue、RoleIcon.vue、QueueSwitch.vue、ScoutRing.vue
-  - BUGFIX_LOG.md BUG-0124、0130–0132
+  - scripts/check-styles.mjs、scripts/style-ownership.mjs、scripts/component-style-owners.json
+  - scripts/check-styles.test.mjs
+  - BUGFIX_LOG.md BUG-0124、0130–0132、0135
 actions:
-  - 已完成：作用域、13组私有选择器归属及主题/媒体回流检查，接入两平台verify/workflow回归
-  - 已完成：原级联顺序及媒体规则保留，共享settings-message继续由自动化页使用
-  - 已完成：基础视觉组件三组逐个迁移；侧栏相邻文字排除规则继续共享，QueueSwitch基础scoped选择器保留单class权重
+  - 已完成：模板/绑定/class属性/过渡名称及选择器AST归属识别，禁止私有和无归属正向class回流全局，接入两平台verify/workflow
+  - 已完成：五批迁移概览/查询、战绩/详情、玩家卡/名单、辅助窗/复盘、外壳/设置/攻略，原媒体/声明/相对级联保留
+  - 已完成：共享tokens、控件和语义工具类保留；PlayerView保留公共select的局部兼容副本，其他私有规则回归组件
 acceptance:
-  - 已完成：首批构建/portable及完整12组浏览器回归，39134a0的Windows完整CI已通过
-  - 后续两组件：20场景518组状态7850节点的35项计算样式零差异；19处窗口控制截图区域逐像素相同
-  - 后续20张全图中17张像素相同，3张有少量差异、原因未确认；PR #2的42032361321三项CI全部通过，已合入dev
-  - 基础视觉九组件：49场景670组状态226532节点的45项计算样式零差异，23变体工作台通过；主窗/侧栏/快览和详情原断言保留，新增280/320/420侧栏间距回归
-  - 基础视觉49张全图中34张相同，15张各不超过313像素差异、原因未确认；Windows按本批PR核验，不宣称全部逐像素一致
-  - 治理及首批渐进迁移完成，存量共享和历史全局样式仍存在
+  - 53个组件脚本/模板/既有局部样式字节未改，剩余全局声明/顺序/上下文经AST核对一致
+  - 全部870个迁移分支及一个共享契约副本经Vue实际编译后核对选择器权重一致
+  - 分批浏览器行为和计算样式核验通过，差异和最终累计验证见BUG-0135，不以合成回归冒充实机或全图逐像素一致
+  - 旧批次Windows完整CI已通过；本轮完整portable、十二组浏览器和23变体工作台及精确提交Windows CI分别记录
 depends_on: [Q1]
 verify:
   - node scripts/check-styles.mjs
