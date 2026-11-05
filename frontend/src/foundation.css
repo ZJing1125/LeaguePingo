@@ -1,5 +1,4 @@
 /* Shared desktop tokens. No animated surfaces or remote font dependencies. */
-.match-context-detail,
 .match-runes {
   display: flex;
   align-items: center;
@@ -15,15 +14,6 @@
   border: 1px solid var(--border);
   border-radius: 4px;
   color: var(--text);
-}
-.match-context-detail .early-end {
-  color: var(--warning);
-}
-.detail-loadout {
-  display: flex;
-  gap: 2px;
-  margin: 3px 0;
-  white-space: nowrap;
 }
 .profile-freshness {
   font-size: 11px;
@@ -449,139 +439,12 @@ small {
   line-height: 1.7;
   margin-top: 20px;
 }
-.match-card {
-  margin-bottom: 7px;
-  background: #1a1e27;
-  border: 1px solid #303642;
-  border-left: 3px solid #667386;
-  border-radius: 7px;
-  overflow: hidden;
-}
-.match-card.won {
-  background: #17252a;
-  border-color: #293c41;
-  border-left-color: var(--win);
-}
-.match-card.lost {
-  background: #291f2b;
-  border-color: #3c2e3b;
-  border-left-color: var(--loss);
-}
-.match-main {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  min-height: 74px;
-  line-height: 1.35;
-  padding: 8px 12px;
-  color: inherit;
-  text-align: left;
-  border: 0;
-  border-radius: 0;
-  background: none;
-}
-.match-main:hover {
-  background: #ffffff04;
-}
-.match-context {
-  width: 115px;
-  flex: none;
-  min-width: 0;
-}
-.match-context > strong {
-  display: block;
-  font-size: 12px;
-  font-weight: 600;
-}
-.match-context > small {
-  display: block;
-  margin-top: 5px;
-  color: var(--muted);
-  font-size: 11px;
-}
-.outcome {
-  display: block;
-  color: #b0baca;
-  font-size: 12px;
-  margin-top: 5px;
-}
-.won .outcome {
-  color: var(--win);
-}
-.lost .outcome {
-  color: var(--loss);
-}
-.outcome > span {
-  font-weight: 400;
-  color: var(--muted);
-  margin-left: 8px;
-  font-size: 11px;
-}
-.match-hero {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  min-width: 40px;
-  flex: none;
-}
-.match-hero small {
-  display: none;
-}
-.match-spells {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  flex: none;
-}
-.match-performance {
-  min-width: 120px;
-  flex: 1;
-}
-.match-performance > strong {
-  font-size: 16px;
-  font-weight: 650;
-  white-space: nowrap;
-  letter-spacing: 0.2px;
-}
-.match-performance > small {
-  display: block;
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 5px;
-  white-space: nowrap;
-}
-.match-items {
-  display: flex;
-  gap: 3px;
-  flex: none;
-}
-.expand-indicator {
-  color: var(--muted);
-  flex: none;
-}
-.match-main[aria-expanded="true"] .expand-indicator {
-  transform: rotate(90deg);
-}
-.match-expanded {
-  border-top: 1px solid #ffffff0e;
-  padding: 14px;
-  background: #10151d66;
-}
 .detail-metrics {
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
   color: #bec8d6;
   font-size: 12px;
-}
-.detail-note {
-  display: block;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.6;
-  margin-top: 12px;
 }
 .load-more {
   width: 100%;
@@ -812,41 +675,6 @@ small {
 .compact .profile-update {
   padding: 4px;
 }
-.compact .match-main {
-  display: grid;
-  grid-template-columns: 100px 34px 19px minmax(80px, 1fr);
-  gap: 8px;
-  min-height: 94px;
-  padding: 9px;
-}
-.compact .match-context {
-  width: auto;
-  grid-row: span 2;
-}
-.compact .match-hero {
-  grid-row: span 2;
-  min-width: 0;
-}
-.compact .match-spells {
-  grid-row: span 2;
-}
-.compact .match-performance {
-  min-width: 0;
-}
-.compact .match-performance > strong {
-  font-size: 13px;
-}
-.compact .match-performance > small:last-child {
-  display: none;
-}
-.compact .match-items {
-  grid-column: 4;
-  gap: 2px;
-  flex-wrap: wrap;
-}
-.compact .expand-indicator {
-  display: none;
-}
 .overlay-shell {
   height: 100dvh;
   display: flex;
@@ -992,33 +820,9 @@ small {
   overflow-wrap: anywhere;
   line-height: 1.7;
 }
-@media (min-width: 1300px) {
-  .match-main {
-    gap: 16px;
-  }
-  .match-hero small {
-    display: block;
-    max-width: 70px;
-    font-size: 10px;
-    color: var(--muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-}
 @media (max-width: 1180px) {
   .profile-update > span {
     display: none;
-  }
-  .match-items {
-    max-width: 108px;
-    flex-wrap: wrap;
-  }
-  .match-context {
-    width: 105px;
-  }
-  .match-main {
-    gap: 9px;
   }
 }
 @media (max-width: 1000px) {
@@ -1074,18 +878,6 @@ small {
   }
   .roster-toolbar h1 {
     font-size: 17px;
-  }
-  .match-main {
-    gap: 8px;
-  }
-  .match-performance {
-    min-width: 100px;
-  }
-  .match-performance > strong {
-    font-size: 14px;
-  }
-  .match-context {
-    width: 100px;
   }
 }
 @media (max-width: 440px) {

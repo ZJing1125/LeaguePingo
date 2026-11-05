@@ -15,7 +15,6 @@
 :is(.desktop-app, .drawer-floating) :is(.secondary, .icon-button):active:not(:disabled) { background: color-mix(in srgb, var(--accent) 15%, var(--panel)); }
 :is(.desktop-app, .drawer-floating, .overlay-shell) :where(button, input, select, textarea, summary, a[href], [tabindex="0"]):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* Keep focus visible where the history/scroll container clips outer outlines. */
-:is(.desktop-app, .drawer-floating, .overlay-shell) :is(.match-main, .timeline-event, .detail-table-scroll, .timeline-events):focus-visible { outline-offset: -3px; }
 :is(.desktop-app, .drawer-floating) :is(button, input, select):disabled { opacity: .75; cursor: not-allowed; }
 :is(.desktop-app, .drawer-floating) select { appearance: none; -webkit-appearance: none; border-radius: var(--control-radius); padding: 6px 28px 6px 10px; background-color: var(--raised); color: var(--text); border: 1px solid var(--border); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='m3 4.5 3 3 3-3' fill='none' stroke='%238d929e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 9px center; }
 :is(.desktop-app, .drawer-floating) select:hover:not(:disabled) { border-color: var(--muted); }
@@ -23,7 +22,6 @@
 :is(.desktop-app, .drawer-floating) input:not([type="checkbox"]) { border-radius: var(--control-radius); }
 :is(.desktop-app, .drawer-floating) input[type="checkbox"] { accent-color: var(--accent); }
 :is(.desktop-app, .drawer-floating) .desktop-titlebar { position: relative; height: 64px; border-bottom: 1px solid var(--border); }
-:is(.desktop-app, .drawer-floating) .player-view .match-items { max-width: none; flex-wrap: nowrap; }
 .scout-card .scout-queue-label { color: var(--scout-muted); font-size: 11px; line-height: 11px; }
 .scout-card .scout-rank { gap: 0; padding: 2px 4px; }
 .scout-card .scout-champion .card-pick small { overflow: hidden; text-overflow: ellipsis; }

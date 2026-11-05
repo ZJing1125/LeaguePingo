@@ -124,7 +124,24 @@ watch([key, canLoad, detail], ([requestKey, allowed, current]) => {
     <details class="detail-note"><summary>{{ uiText.common.statistics }}</summary><p>{{ uiText.matchDetails.matchStatistics(gameId) }}</p></details>
   </section>
 </template>
-
+<style scoped>
+/* Scope inside :where and retain original specificity with :is; child boundaries use :deep. */
+:where(.detail-loadout):is(.detail-loadout) {
+  display: flex;
+  gap: 2px;
+  margin: 3px 0;
+  white-space: nowrap;
+}
+:where(.detail-note):is(.detail-note) {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+  margin-top: 12px;
+}
+:where(:is(.detail-table-scroll):focus-visible):is(:is(.desktop-app,.drawer-floating,.overlay-shell) :is(.match-main,.timeline-event,.detail-table-scroll,.timeline-events):focus-visible) { outline-offset: -3px; }
+:where(.full-match-detail):is(.review-result .full-match-detail) {margin:0;}
+</style>
 <style scoped>
 .full-match-detail{min-width:0;}.scoreboard-content{padding:14px;}.scoreboard-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:12px;}.scoreboard-heading h3{font-size:15px;margin:0 0 4px;}.scoreboard-heading p{font-size:11px;color:var(--muted);margin:0;}.scoreboard-heading>span{font-size:12px;color:var(--muted);white-space:nowrap;}
 .detail-table-scroll{overflow-x:auto;border:1px solid var(--border);border-radius:6px;}.scoreboard-board{min-width:820px;}.scoreboard-team+.scoreboard-team{border-top:8px solid var(--ground);}.team-summary{display:grid;grid-template-columns:180px 1fr;align-items:center;gap:8px 20px;padding:9px 11px;background:color-mix(in srgb,var(--ally) 9%,var(--raised));border-left:3px solid var(--ally);}.team-red .team-summary{background:color-mix(in srgb,var(--enemy) 9%,var(--raised));border-left-color:var(--enemy);}.team-result{display:flex;align-items:baseline;gap:8px;font-size:12px;}.team-result b{font-size:13px;}.team-result strong{font-size:13px;}.team-result span{color:var(--muted);}.victory{color:var(--win);}.defeat{color:var(--loss);}.team-summary dl{display:grid;grid-template-columns:repeat(4,minmax(78px,1fr));gap:14px;margin:0;}.team-summary dl>div{display:flex;align-items:baseline;justify-content:flex-end;gap:6px;}.team-summary dt{font-size:11px;color:var(--muted);}.team-summary dd{font-size:13px;font-weight:600;margin:0;font-variant-numeric:tabular-nums;}.objective-line{grid-column:1/-1;display:flex;gap:15px;flex-wrap:wrap;margin:0;padding-top:7px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);}

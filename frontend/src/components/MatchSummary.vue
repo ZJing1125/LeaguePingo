@@ -26,6 +26,24 @@ const stats=computed(()=>[
   </section>
 </template>
 <style scoped>
+/* Scope inside :where and retain original specificity with :is; child boundaries use :deep. */
+:where(.match-context-detail):is(.match-context-detail) {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  font-size: 11px;
+  color: var(--muted);
+  margin: 8px 0;
+}
+:where(.early-end):is(.match-context-detail .early-end) {
+  color: var(--warning);
+}
+:where(.match-context-detail):is(.match-context-detail) {
+  color: var(--muted);
+}
+</style>
+<style scoped>
 .match-personal{min-width:0;}
 .personal-heading{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
 .personal-heading h3{font-size:14px;margin:0;}

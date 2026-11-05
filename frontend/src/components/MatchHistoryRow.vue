@@ -52,7 +52,317 @@ const role = computed(() => props.match.position || undefined);
     <div v-if="expanded" class="match-expanded"><slot name="details"><MatchSummary :match="match"/></slot></div>
   </article>
 </template>
-
+<style scoped>
+/* Scope inside :where and retain original specificity with :is; child boundaries use :deep. */
+:where(.match-card):is(.match-card) {
+  margin-bottom: 7px;
+  background: #1a1e27;
+  border: 1px solid #303642;
+  border-left: 3px solid #667386;
+  border-radius: 7px;
+  overflow: hidden;
+}
+:where(.match-card.won):is(.match-card.won) {
+  background: #17252a;
+  border-color: #293c41;
+  border-left-color: var(--win);
+}
+:where(.match-card.lost):is(.match-card.lost) {
+  background: #291f2b;
+  border-color: #3c2e3b;
+  border-left-color: var(--loss);
+}
+:where(.match-main):is(.match-main) {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 74px;
+  line-height: 1.35;
+  padding: 8px 12px;
+  color: inherit;
+  text-align: left;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+:where(.match-main:hover):is(.match-main:hover) {
+  background: #ffffff04;
+}
+:where(.match-context):is(.match-context) {
+  width: 115px;
+  flex: none;
+  min-width: 0;
+}
+:where(.match-context):is(.match-context) :deep(>strong) {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+}
+:where(.match-context):is(.match-context) :deep(>small) {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 11px;
+}
+:where(.outcome):is(.outcome) {
+  display: block;
+  color: #b0baca;
+  font-size: 12px;
+  margin-top: 5px;
+}
+:where(.outcome):is(.won .outcome) {
+  color: var(--win);
+}
+:where(.outcome):is(.lost .outcome) {
+  color: var(--loss);
+}
+:where(.outcome):is(.outcome) :deep(>span) {
+  font-weight: 400;
+  color: var(--muted);
+  margin-left: 8px;
+  font-size: 11px;
+}
+:where(.match-hero):is(.match-hero) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 40px;
+  flex: none;
+}
+:where(.match-hero):is(.match-hero) :deep(small) {
+  display: none;
+}
+:where(.match-spells):is(.match-spells) {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: none;
+}
+:where(.match-performance):is(.match-performance) {
+  min-width: 120px;
+  flex: 1;
+}
+:where(.match-performance):is(.match-performance) :deep(>strong) {
+  font-size: 16px;
+  font-weight: 650;
+  white-space: nowrap;
+  letter-spacing: 0.2px;
+}
+:where(.match-performance):is(.match-performance) :deep(>small) {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 5px;
+  white-space: nowrap;
+}
+:where(.match-items):is(.match-items) {
+  display: flex;
+  gap: 3px;
+  flex: none;
+}
+:where(.expand-indicator):is(.expand-indicator) {
+  color: var(--muted);
+  flex: none;
+}
+:where(.expand-indicator):is(.match-main[aria-expanded="true"] .expand-indicator) {
+  transform: rotate(90deg);
+}
+:where(.match-expanded):is(.match-expanded) {
+  border-top: 1px solid #ffffff0e;
+  padding: 14px;
+  background: #10151d66;
+}
+:where(.match-main):is(.compact .match-main) {
+  display: grid;
+  grid-template-columns: 100px 34px 19px minmax(80px, 1fr);
+  gap: 8px;
+  min-height: 94px;
+  padding: 9px;
+}
+:where(.match-context):is(.compact .match-context) {
+  width: auto;
+  grid-row: span 2;
+}
+:where(.match-hero):is(.compact .match-hero) {
+  grid-row: span 2;
+  min-width: 0;
+}
+:where(.match-spells):is(.compact .match-spells) {
+  grid-row: span 2;
+}
+:where(.match-performance):is(.compact .match-performance) {
+  min-width: 0;
+}
+:where(.match-performance):is(.compact .match-performance) :deep(>strong) {
+  font-size: 13px;
+}
+:where(.match-performance):is(.compact .match-performance) :deep(>small:last-child) {
+  display: none;
+}
+:where(.match-items):is(.compact .match-items) {
+  grid-column: 4;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+:where(.expand-indicator):is(.compact .expand-indicator) {
+  display: none;
+}
+@media (min-width: 1300px) {
+  :where(.match-main):is(.match-main) {
+    gap: 16px;
+  }
+}
+@media (min-width: 1300px) {
+  :where(.match-hero):is(.match-hero) :deep(small) {
+    display: block;
+    max-width: 70px;
+    font-size: 10px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+@media (max-width: 1180px) {
+  :where(.match-items):is(.match-items) {
+    max-width: 108px;
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 1180px) {
+  :where(.match-context):is(.match-context) {
+    width: 105px;
+  }
+}
+@media (max-width: 1180px) {
+  :where(.match-main):is(.match-main) {
+    gap: 9px;
+  }
+}
+@media (max-width: 760px) {
+  :where(.match-main):is(.match-main) {
+    gap: 8px;
+  }
+}
+@media (max-width: 760px) {
+  :where(.match-performance):is(.match-performance) {
+    min-width: 100px;
+  }
+}
+@media (max-width: 760px) {
+  :where(.match-performance):is(.match-performance) :deep(>strong) {
+    font-size: 14px;
+  }
+}
+@media (max-width: 760px) {
+  :where(.match-context):is(.match-context) {
+    width: 100px;
+  }
+}
+:where(.match-expanded):is(:root[data-theme="dark"] :is(.desktop-app,.drawer-floating) .match-expanded) { background: var(--panel); }
+:where(.match-card):is(:root[data-theme="dark"] :is(.desktop-app,.drawer-floating) .match-card) { border-bottom-color: var(--border); }
+:where(.match-main:hover):is(:root[data-theme="dark"] :is(.desktop-app,.drawer-floating) .match-main:hover) { background: #ffffff08; }
+:where(.match-expanded):is(:root[data-theme="dark"] :is(.desktop-app,.drawer-floating) .players-workspace .match-expanded) { border-left-color: var(--border); }
+:where(:is(.match-main):focus-visible):is(:is(.desktop-app,.drawer-floating,.overlay-shell) :is(.match-main,.timeline-event,.detail-table-scroll,.timeline-events):focus-visible) { outline-offset: -3px; }
+:where(.match-items):is(:is(.desktop-app,.drawer-floating) .player-view .match-items) { max-width: none; flex-wrap: nowrap; }
+:where(.match-card):is(.match-card) {
+  border-radius: 0;
+  border: 0;
+  border-bottom: 1px solid #1d282f18;
+  background: var(--match-bg);
+}
+:where(.match-card.won):is(.match-card.won) {
+  background: var(--win-bg);
+  border-left-color: var(--win);
+}
+:where(.match-card.lost):is(.match-card.lost) {
+  background: var(--loss-bg);
+  border-left-color: var(--loss);
+}
+:where(.match-card):is(.match-card) :deep(.match-row) {
+  padding: 8px 6px;
+}
+:where(.match-main):is(.player-drawer .compact .match-main) {
+  display: flex;
+  gap: 8px;
+  min-height: 60px;
+  padding: 6px 8px;
+}
+:where(.match-context):is(.player-drawer .compact .match-context) {
+  width: 100px;
+}
+:where(.match-hero):is(.player-drawer .compact .match-hero) {
+  grid-column: auto;
+  grid-row: auto;
+}
+:where(.match-spells):is(.player-drawer .compact .match-spells) {
+  grid-column: auto;
+  grid-row: auto;
+}
+:where(.match-performance):is(.player-drawer .compact .match-performance) {
+  grid-column: auto;
+  grid-row: auto;
+}
+:where(.match-items):is(.player-drawer .compact .match-items) {
+  grid-column: auto;
+  grid-row: auto;
+}
+:where(.match-performance):is(.player-drawer .compact .match-performance) {
+  min-width: 100px;
+  flex: 1;
+}
+:where(.match-items):is(.player-drawer .compact .match-items) {
+  display: flex;
+  flex-wrap: nowrap;
+  margin-left: auto;
+}
+:where(.match-spells):is(.player-drawer .compact .match-spells) {
+  display: flex;
+}
+:where(.match-expanded):is(.match-expanded) {
+  background: #f3f2e8;
+  border-color: #1d282f16;
+}
+:where(.match-main:hover):is(.match-main:hover) {
+  background: #ffffff44;
+}
+:where(.match-performance):is(.compact .match-performance) :deep(>small:last-child) {
+  display: none;
+}
+:where(.match-card):is(.players-workspace .match-card) {
+  margin-bottom: 0;
+}
+:where(.match-main):is(.players-workspace .match-main) {
+  min-height: 68px;
+  padding: 7px 10px;
+}
+:where(.match-context):is(.players-workspace .match-context) :deep(>small) {
+  margin-top: 3px;
+}
+:where(.outcome):is(.players-workspace .outcome) {
+  margin-top: 3px;
+}
+:where(.match-expanded):is(.players-workspace .match-expanded) {
+  border-left: 2px solid #9ba995;
+}
+:where(.match-card):is(.player-drawer .match-card) {
+  margin-bottom: 3px;
+}
+:where(.match-performance):is(.players-workspace .match-performance) :deep(>strong) {
+  font-size: 15px;
+  line-height: 1.2;
+}
+:where(.match-performance):is(.players-workspace .match-performance) :deep(>small) {
+  font-size: 10px;
+  line-height: 1.2;
+  margin-top: 3px;
+}
+:where(.match-main):is(.players-workspace .match-main) {
+  line-height: 1.25;
+}
+</style>
 <style scoped>
 .match-card{container-type:inline-size;min-width:0;border-left:3px solid var(--muted);border-bottom:1px solid var(--border);background:var(--match-bg);margin:0;}.match-card.won{border-left-color:var(--win);background:var(--win-bg);}.match-card.lost{border-left-color:var(--loss);background:var(--loss-bg);}.match-card.remake{border-left-color:var(--muted);background:var(--panel);}
 .match-card>.match-main{width:100%;display:grid;grid-template-columns:82px 67px minmax(160px,1fr) 124px 102px 16px;align-items:center;gap:9px;min-height:80px;padding:7px 10px;border:0;border-radius:0;text-align:left;background:none;color:var(--text);font-variant-numeric:tabular-nums;}.match-card>.match-main:hover:not(.match-static){background:color-mix(in srgb,var(--text) 4%,transparent);}.match-card>.match-main.match-static{cursor:default;grid-template-columns:82px 67px minmax(160px,1fr) 124px 102px;}.match-main>span{min-width:0;}

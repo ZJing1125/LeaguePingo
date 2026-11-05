@@ -59,7 +59,6 @@
 .review-empty {display:grid;place-content:center;text-align:center;gap:12px;min-height:300px;flex:1;color:var(--muted);}
 .review-empty h2 {font-size:22px;color:var(--text);margin:0;}
 .review-result {background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 16px;}
-.review-result .full-match-detail {margin:0;}
 .review-status {display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px;color:var(--muted);}
 .review-scope-switch {display:flex;gap:6px;}
 .review-scope-switch button {padding:5px 10px;font-size:12px;}
