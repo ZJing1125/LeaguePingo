@@ -12,6 +12,8 @@
 
 新增cmd/functioncheck及三项AST单测：精确100/101行、平台闭包、语法/原始字符串与测试排除；Git受管及未忽略的新生产Go均检查。portable/Windows verify强制执行，workflow变异回归防止移除；Windows新增CGO_ENABLED=1 go test -race ./...，要求PATH已有兼容MinGW-w64 GCC，缺失明确失败，不自动安装，产品CGO配置不变。portable及AST门禁通过；Windows全包竞态/原生回归/完整构建待本提交CI，Q2暂保持进行中。
 
+092eab6的[41995367430](https://github.com/ZJing1125/LeaguePingo/actions/runs/41995367430)三项CI全部通过，包含新增Windows全包竞态、原生计数器/自身进程CSV测试、窗口回归、完整构建及隔离安装卸载，Q2据此结项；国服/FPS等人工验收仍未执行。
+
 首轮来源竞态在原SGP重定向用例一秒超时断言失败；未改SGP请求或放宽时限，仅补状态码/转发数/脱敏标志，专项原时限连续三次和随后完整internal竞态通过，首轮原因未确认。首次Windows目标staticcheck还扫描到本地忽略目录中的旧Go证据，本机最终显式核验生产根包、internal及cmd，未删除旧证据；CI干净checkout继续按原全包范围检查。
 
 此前S2最终提交097fbe9的[41991787868](https://github.com/ZJing1125/LeaguePingo/actions/runs/41991787868)三项CI全部通过，含Windows完整验证/构建及隔离安装卸载；本批新增竞态门禁由后续提交单独确认，国服人工验收仍集中后置。

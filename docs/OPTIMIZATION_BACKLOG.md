@@ -11,7 +11,7 @@ suggested_repo_path: docs/OPTIMIZATION_BACKLOG.md
 
 # 1. 使用规则（agent 先读）
 
-执行记录（实施起始基线4d57e0b，附件审阅基线cc229e7）：Q1已实施并通过dev推送实跑，见下方记录；Q4建议性staticcheck、govulncheck与npm audit已实施，强制门禁等待Go标准库漏洞随依赖治理清零；F1本地度量已实施，口径与验证见PERFORMANCE.md；F2已核实后端逐人发布链路并补齐前端骨架和逐卡替换回归；S3共享动作执行器已实施并接入自动接受/赛后流程，两个编排循环均小于60行；S4引擎Stage/Phase强类型与集中行为表已实施，对外快照字符串未变且远程Windows验证通过；S5攻略会话复用、功能开关、超时/缓存/原文降级已实施且远程Windows验证通过；S6战绩缓存字节上限、锁外编码、HMAC键、同轮重建、Rename重试与失败诊断已实施且远程Windows验证通过；S7页缓存TTL/LRU、锁外授权、独立并发上限及换号/首页变化迟到隔离已实施且远程Windows验证通过；Q3前端19项单测与类型检查已接入统一verify门禁且远程Windows验证通过；F3已核实首页/磁盘策略并补齐ID/选中玩家过期缓存先显及后台更新；F4统一退避抖动、并行成功隔离及长Retry-After保护已实施；S8入口与桌面依赖组装拆分已实施，本机目标staticcheck/portable通过，根包及桌面由Windows CI核验；Q5正则复用、缓存失败诊断与忽略错误/报告留存审阅已实施；S10依赖组更新配置与Actions SHA固定已准备，实际激活待正常进入默认分支；Q2生产超长函数已全部拆分并接入AST门禁，待新增Windows全包竞态核验后结项；S2已完成十三批职责迁移，Engine由59降为26字段（18组件/依赖与8核心守卫，建议20未达），完整引擎竞态通过，超长函数仍归Q2；U6已核实现有监听说明/冲突回滚和Windows自动回归，按已有证据结项；U5首页三步连接指引与首次离线/断线/重连/主题窄窗回归已实施；Q7当前架构/精简README/CHANGELOG与TESTING分工已完成并核对策略；U7两主题键盘主流程、共享焦点及浅色对比度修正已实施；S9已完成官方根候选研究与测试专用严格探针，国服链/名称核验后置，生产传输未改；U1错误码与中文提示、U2降级与有界恢复已实施，协议与验证分别见ERRORS.md、DATA_RECOVERY.md及本提交CI，R1实验性标注与分轮记录已准备；用户已反馈A1/A2/P1/P2没有问题，后续确认跳过可用但继续/返回/开排链条失败，修复版与版本信息及其他项目待补，整体R1未完成；S1回调瘦身/备用入口核验/设置说明已实施，国服反作弊专项待实机；U3启动前依赖检查、静态版本检查、NSIS与证书存储签名代码链已实施，发布证书与干净Win10的I1–I6仍待人工；U4实验性说明、行为边界和一键停用已实施并由前端合成回归覆盖；其余任务尚未实施。该清单是任务输入，原审阅统计与推断不能当作当前事实。其他任务仍按依赖逐项核实；未执行的Windows/国服检查保留未验证状态。
+执行记录（实施起始基线4d57e0b，附件审阅基线cc229e7）：Q1已实施并通过dev推送实跑，见下方记录；Q4建议性staticcheck、govulncheck与npm audit已实施，强制门禁等待Go标准库漏洞随依赖治理清零；F1本地度量已实施，口径与验证见PERFORMANCE.md；F2已核实后端逐人发布链路并补齐前端骨架和逐卡替换回归；S3共享动作执行器已实施并接入自动接受/赛后流程，两个编排循环均小于60行；S4引擎Stage/Phase强类型与集中行为表已实施，对外快照字符串未变且远程Windows验证通过；S5攻略会话复用、功能开关、超时/缓存/原文降级已实施且远程Windows验证通过；S6战绩缓存字节上限、锁外编码、HMAC键、同轮重建、Rename重试与失败诊断已实施且远程Windows验证通过；S7页缓存TTL/LRU、锁外授权、独立并发上限及换号/首页变化迟到隔离已实施且远程Windows验证通过；Q3前端19项单测与类型检查已接入统一verify门禁且远程Windows验证通过；F3已核实首页/磁盘策略并补齐ID/选中玩家过期缓存先显及后台更新；F4统一退避抖动、并行成功隔离及长Retry-After保护已实施；S8入口与桌面依赖组装拆分已实施，本机目标staticcheck/portable通过，根包及桌面由Windows CI核验；Q5正则复用、缓存失败诊断与忽略错误/报告留存审阅已实施；S10依赖组更新配置与Actions SHA固定已准备，实际激活待正常进入默认分支；Q2生产超长函数全部拆分并接入AST门禁，Windows全包竞态及完整构建已通过，已结项；S2已完成十三批职责迁移，Engine由59降为26字段（18组件/依赖与8核心守卫，建议20未达），完整引擎竞态通过，超长函数仍归Q2；U6已核实现有监听说明/冲突回滚和Windows自动回归，按已有证据结项；U5首页三步连接指引与首次离线/断线/重连/主题窄窗回归已实施；Q7当前架构/精简README/CHANGELOG与TESTING分工已完成并核对策略；U7两主题键盘主流程、共享焦点及浅色对比度修正已实施；S9已完成官方根候选研究与测试专用严格探针，国服链/名称核验后置，生产传输未改；U1错误码与中文提示、U2降级与有界恢复已实施，协议与验证分别见ERRORS.md、DATA_RECOVERY.md及本提交CI，R1实验性标注与分轮记录已准备；用户已反馈A1/A2/P1/P2没有问题，后续确认跳过可用但继续/返回/开排链条失败，修复版与版本信息及其他项目待补，整体R1未完成；S1回调瘦身/备用入口核验/设置说明已实施，国服反作弊专项待实机；U3启动前依赖检查、静态版本检查、NSIS与证书存储签名代码链已实施，发布证书与干净Win10的I1–I6仍待人工；U4实验性说明、行为边界和一键停用已实施并由前端合成回归覆盖；其余任务尚未实施。该清单是任务输入，原审阅统计与推断不能当作当前事实。其他任务仍按依赖逐项核实；未执行的Windows/国服检查保留未验证状态。
 
 Q1首次运行：[40856437383](https://github.com/ZJing1125/LeaguePingo/actions/runs/40856437383)，Linux成功，Windows原生Go检查通过，侧栏720px五卡高度回归失败。已根据日志修复摘要内边距，保留原验收断言。修复提交dd33476的[40857941063](https://github.com/ZJing1125/LeaguePingo/actions/runs/40857941063)两个job全部成功：Windows全包test/vet、绑定生成/一致性、九项浏览器回归、EXE编译及产物审计均通过。EXE只存在runner，未上传、部署或登记为用户已验收；截图保留7天。PR事件配置已做语法检查，未专门新建PR测试。默认分支仍为main，手动触发入口需工作流进入默认分支后才能使用；本批未修改main或默认分支。
 
@@ -477,12 +477,12 @@ id: Q2
 title: 拆分超长函数
 priority: P1
 area: quality
-status: in-progress
+status: implemented
 confidence: verified-static
 needs_human: false
 problem: >-
   097fbe9基线实际有10个生产函数及其中1个闭包超过100行，现全部按职责拆分至100行内。
-  AST门禁、internal竞态与Windows目标staticcheck已通过；Windows全包竞态新增门禁待本提交CI执行，任务暂不结项。
+  AST门禁、internal竞态与Windows目标staticcheck已通过；092eab6的CI41995367430完成Windows全包竞态/原生回归/构建，任务结项。
 evidence:
   - internal/engine/engine.go、scouting.go（poll/replaceLocked/runScoutCursor首批已拆分）
   - internal/source/ranked.go、internal/core/timeline.go、scouting.go
@@ -493,9 +493,9 @@ actions:
   - 已完成：runSession/runTask随S3、main随S8；首批poll/名单写回及游标页归并/报告按职责分开，完整引擎竞态通过
   - 已完成代码：段位合并/时间线schema/英雄汇总、攻略选择/加载归并、同UI dispatch侧栏/预览核验及性能采样循环，保留原边界
   - 已完成：AST长度门禁/边界与闭包单测、workflow变异防移除、Windows全包竞态入口；性能工具新增只读自身进程CSV/复用PID拒绝回归
-  - 待确认：本提交Windows全包竞态、原生窗口回归与完整构建
+  - 已完成：092eab6的Windows全包竞态、原生窗口回归、完整构建及隔离安装卸载（CI41995367430）
 acceptance:
-  - 已完成AST审计：没有超过100物理行的生产声明或闭包，原回归保留；Windows原生测试/新增全包竞态仍待CI确认
+  - 已完成AST审计：没有超过100物理行的生产声明或闭包，原回归保留；Windows原生测试/新增全包竞态及完整构建通过
 depends_on: [Q1, S3, S8]
 verify:
   - go test -race ./...
