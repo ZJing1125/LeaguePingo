@@ -48,45 +48,48 @@ type MatchTimeline struct {
 	Detail       *MatchDetail    `json:"detail,omitempty"`
 }
 
+// Wire format stays separate from the verified timeline model.
+type matchTimelineResponse struct {
+	GameID int64 `json:"gameId"`
+	Frames []struct {
+		Timestamp    *int64 `json:"timestamp"`
+		Participants map[string]struct {
+			ID       int  `json:"participantId"`
+			Gold     *int `json:"totalGold"`
+			Minions  *int `json:"minionsKilled"`
+			Jungle   *int `json:"jungleMinionsKilled"`
+			Level    *int `json:"level"`
+			Position *struct {
+				X *int `json:"x"`
+				Y *int `json:"y"`
+			} `json:"position"`
+		} `json:"participantFrames"`
+		Events []struct {
+			Timestamp     *int64 `json:"timestamp"`
+			Type          string `json:"type"`
+			ParticipantID int    `json:"participantId"`
+			KillerID      int    `json:"killerId"`
+			VictimID      int    `json:"victimId"`
+			TeamID        int    `json:"teamId"`
+			KillerTeamID  int    `json:"killerTeamId"`
+			ItemID        int    `json:"itemId"`
+			BeforeID      int    `json:"beforeId"`
+			AfterID       int    `json:"afterId"`
+			SkillSlot     int    `json:"skillSlot"`
+			Monster       string `json:"monsterType"`
+			Building      string `json:"buildingType"`
+			Position      *struct {
+				X *int `json:"x"`
+				Y *int `json:"y"`
+			} `json:"position"`
+		} `json:"events"`
+	} `json:"frames"`
+}
+
 // Processes actual timeline frames; never synthesizes a route or economy curve
 // from the final scoreboard. Participant IDs must belong to the verified game.
 func ParseMatchTimeline(raw []byte, detail MatchDetail) (MatchTimeline, error) {
-	var data struct {
-		GameID int64 `json:"gameId"`
-		Frames []struct {
-			Timestamp    *int64 `json:"timestamp"`
-			Participants map[string]struct {
-				ID       int  `json:"participantId"`
-				Gold     *int `json:"totalGold"`
-				Minions  *int `json:"minionsKilled"`
-				Jungle   *int `json:"jungleMinionsKilled"`
-				Level    *int `json:"level"`
-				Position *struct {
-					X *int `json:"x"`
-					Y *int `json:"y"`
-				} `json:"position"`
-			} `json:"participantFrames"`
-			Events []struct {
-				Timestamp     *int64 `json:"timestamp"`
-				Type          string `json:"type"`
-				ParticipantID int    `json:"participantId"`
-				KillerID      int    `json:"killerId"`
-				VictimID      int    `json:"victimId"`
-				TeamID        int    `json:"teamId"`
-				KillerTeamID  int    `json:"killerTeamId"`
-				ItemID        int    `json:"itemId"`
-				BeforeID      int    `json:"beforeId"`
-				AfterID       int    `json:"afterId"`
-				SkillSlot     int    `json:"skillSlot"`
-				Monster       string `json:"monsterType"`
-				Building      string `json:"buildingType"`
-				Position      *struct {
-					X *int `json:"x"`
-					Y *int `json:"y"`
-				} `json:"position"`
-			} `json:"events"`
-		} `json:"frames"`
-	}
+	var data matchTimelineResponse
 	if len(raw) > 8<<20 || detail.GameID <= 0 || len(detail.Players) == 0 || json.Unmarshal(raw, &data) != nil || data.Frames == nil || len(data.Frames) == 0 || len(data.Frames) > 720 || (data.GameID != 0 && data.GameID != detail.GameID) {
 		return MatchTimeline{}, errors.New("时间线格式或对局编号无法核验")
 	}

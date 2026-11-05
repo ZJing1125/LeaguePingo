@@ -89,6 +89,8 @@ export function checkWorkflow(read) {
   requireText('scripts/verify.sh', 'scripts/app-icons.test.mjs');
   requireText('scripts/verify.sh', 'scripts/version.test.mjs');
   requireText('scripts/verify.sh', 'npm --prefix frontend run test:unit');
+  requireText('scripts/verify.sh', 'go run ./cmd/functioncheck');
+  requireText('scripts/verify.sh', 'CGO_ENABLED=1 go test -race ./...');
   if (JSON.parse(contents['frontend/package.json']).scripts['test:unit'] !== 'vue-tsc --project tsconfig.unit.json && vitest run') throw new Error('Frontend unit tests must remain a type-checked non-browser gate');
   for (const text of ['source "$task_root/scripts/env.sh"', 'go env GOHOSTOS', 'go env GOHOSTARCH',
     'LEAGUEPINGO_LIVE_DATA_AUDIT=1', "-run '^TestLivePlayerDataAudit$' -count=1 -v"]) requireText('scripts/audit-player-data.sh', text);

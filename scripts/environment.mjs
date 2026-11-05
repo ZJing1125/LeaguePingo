@@ -54,7 +54,7 @@ export function findNSIS(env = process.env, platform = process.platform, exists 
 }
 
 export function describeEnvironment(env = process.env, platform = process.platform, arch = process.arch) {
-  const tools = Object.fromEntries(['bash', 'go', 'node', 'npm', 'wails3'].map(n => [n, Boolean(findTool(n, env, platform))]));
+  const tools = Object.fromEntries(['bash', 'go', 'node', 'npm', 'wails3', 'gcc'].map(n => [n, Boolean(findTool(n, env, platform))]));
   let browser = false;
   try { browser = Boolean(findBrowser(env, platform)); } catch { /* Report unavailable, not successful verification. */ }
   let nsis = false;

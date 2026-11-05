@@ -201,40 +201,9 @@ func decodeRankedStats(raw []byte, puuid, source string) ([]core.Rank, error) {
 			}
 		}
 		if old, ok := byQueue[q.Queue]; ok {
-			// Some client versions include both queues and queueMap. Fill truly
-			// missing fields, but do not let container order choose conflicting
-			// counters (in particular 0 losses versus a nonzero second value).
-			merge := func(next **int, previous *int) {
-				if *next == nil {
-					*next = previous
-				} else if previous != nil && **next != *previous {
-					conflicts[q.Queue] = true
-				}
-			}
-			merge(&rank.LP, old.LP)
-			merge(&rank.Wins, old.Wins)
-			merge(&rank.Losses, old.Losses)
-			if rank.Division == "" {
-				rank.Division = old.Division
-			}
-			// queueMap may only supplement current counters. Keep history from
-			// the same response instead of erasing it with an absent field.
-			if rank.HighestTier == "" {
-				rank.HighestTier, rank.HighestDivision = old.HighestTier, old.HighestDivision
-			} else if rank.HighestTier == old.HighestTier && rank.HighestDivision == "" {
-				rank.HighestDivision = old.HighestDivision
-			}
-			if rank.PreviousHighestTier == "" {
-				rank.PreviousHighestTier, rank.PreviousHighestDivision = old.PreviousHighestTier, old.PreviousHighestDivision
-			} else if rank.PreviousHighestTier == old.PreviousHighestTier && rank.PreviousHighestDivision == "" {
-				rank.PreviousHighestDivision = old.PreviousHighestDivision
-			}
-			if rank.PreviousTier == "" {
-				rank.PreviousTier, rank.PreviousDivision = old.PreviousTier, old.PreviousDivision
-			} else if rank.PreviousTier == old.PreviousTier && rank.PreviousDivision == "" {
-				rank.PreviousDivision = old.PreviousDivision
-			}
-			if rank.Tier != old.Tier || (old.Division != "" && rank.Division != old.Division) {
+			var conflict bool
+			rank, conflict = mergeRankedQueue(rank, old)
+			if conflict {
 				conflicts[q.Queue] = true
 			}
 		}
@@ -247,4 +216,45 @@ func decodeRankedStats(raw []byte, puuid, source string) ([]core.Rank, error) {
 		}
 	}
 	return out, nil
+}
+
+func mergeRankedQueue(rank, old core.Rank) (core.Rank, bool) {
+	conflict := false
+	// Some client versions include both queues and queueMap. Fill truly
+	// missing fields, but do not let container order choose conflicting
+	// counters (in particular 0 losses versus a nonzero second value).
+	merge := func(next **int, previous *int) {
+		if *next == nil {
+			*next = previous
+		} else if previous != nil && **next != *previous {
+			conflict = true
+		}
+	}
+	merge(&rank.LP, old.LP)
+	merge(&rank.Wins, old.Wins)
+	merge(&rank.Losses, old.Losses)
+	if rank.Division == "" {
+		rank.Division = old.Division
+	}
+	// queueMap may only supplement current counters. Keep history from
+	// the same response instead of erasing it with an absent field.
+	if rank.HighestTier == "" {
+		rank.HighestTier, rank.HighestDivision = old.HighestTier, old.HighestDivision
+	} else if rank.HighestTier == old.HighestTier && rank.HighestDivision == "" {
+		rank.HighestDivision = old.HighestDivision
+	}
+	if rank.PreviousHighestTier == "" {
+		rank.PreviousHighestTier, rank.PreviousHighestDivision = old.PreviousHighestTier, old.PreviousHighestDivision
+	} else if rank.PreviousHighestTier == old.PreviousHighestTier && rank.PreviousHighestDivision == "" {
+		rank.PreviousHighestDivision = old.PreviousHighestDivision
+	}
+	if rank.PreviousTier == "" {
+		rank.PreviousTier, rank.PreviousDivision = old.PreviousTier, old.PreviousDivision
+	} else if rank.PreviousTier == old.PreviousTier && rank.PreviousDivision == "" {
+		rank.PreviousDivision = old.PreviousDivision
+	}
+	if rank.Tier != old.Tier || (old.Division != "" && rank.Division != old.Division) {
+		conflict = true
+	}
+	return rank, conflict
 }

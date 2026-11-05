@@ -263,7 +263,7 @@ func TestSGPRejectsRedirectsAndRedactsErrors(t *testing.T) {
 	gate := &serviceGate{}
 	_, status, err := r.getAuthorized(context.Background(), r.origin, "/test?puuid=sensitive", r.token, "/sgp-history", gate)
 	if err == nil || status != 302 || requests != 0 || strings.Contains(err.Error(), "sensitive") || strings.Contains(err.Error(), "secret") || strings.Contains(err.Error(), server.URL) {
-		t.Fatal("redirect followed or sensitive error exposed")
+		t.Fatalf("redirect check failed: status=%d forwarded=%d error=%v identityExposed=%v tokenExposed=%v originExposed=%v", status, requests, err != nil, err != nil && strings.Contains(err.Error(), "sensitive"), err != nil && strings.Contains(err.Error(), "secret"), err != nil && strings.Contains(err.Error(), server.URL))
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

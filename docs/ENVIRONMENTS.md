@@ -33,6 +33,8 @@ node scripts/environment.mjs doctor
 
 doctor 仅报告当前主机与必要工具存在性，不证明依赖已安装正确、测试通过或远端可访问；不输出任意环境变量或证书 thumbprint。Go 1.25+、Node 22+、锁定的 Wails CLI beta.29 及前端依赖仍需事先配置。NSIS 只在 Windows 安装器任务中必需，签名还需维护者提供证书；项目不会自动安装工具或导入证书。审批/安装权限沿用用户要求。
 
+Windows完整验证还需要PATH已有兼容Go Windows竞态运行库的MinGW-w64 GCC，用于单条`CGO_ENABLED=1 go test -race ./...`；doctor报告gcc存在性，verify缺失明确失败，不静默安装。正式产品编译沿用原CGO设置，portable不因此要求Windows编译器。Go AST长度门禁在两种verify范围均执行，详情见[TESTING.md](TESTING.md)。
+
 ## 明确的验证范围
 
 | 命令 | 执行范围 | 不代表 |

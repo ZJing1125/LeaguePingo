@@ -94,12 +94,50 @@ func run() error {
 	if err = writer.Write([]string{"scenario", "elapsedSeconds", "processCount", "cpuPercentMachine", "cpuPercentOneCore", "privateMiB", "workingSetSumMiB"}); err != nil {
 		return err
 	}
+	metrics, err := sampleProcessTree(root, identity, *seconds, *scenario, writer)
+	if err != nil {
+		return err
+	}
+	writer.Flush()
+	if err = writer.Error(); err != nil {
+		return err
+	}
+	if metrics.samples < 2 {
+		return errors.New("insufficient samples")
+	}
+	if done != nil {
+		select {
+		case err := <-done:
+			if err != nil {
+				return err
+			}
+		case <-time.After(20 * time.Second):
+			return errors.New("isolated probe did not self-exit; no process was stopped")
+		}
+	}
+	return json.NewEncoder(os.Stdout).Encode(struct {
+		Scenario          string  `json:"scenario"`
+		Samples           int     `json:"samples"`
+		LogicalProcessors int     `json:"logicalProcessors"`
+		AverageCPU        float64 `json:"averageCPUPercentMachine"`
+		PeakPrivate       float64 `json:"peakPrivateMiB"`
+		PeakWorking       float64 `json:"peakWorkingSetSumMiB"`
+		Limitations       string  `json:"limitations"`
+	}{*scenario, metrics.samples, runtime.NumCPU(), metrics.sumCPU / float64(metrics.samples), metrics.peakPrivate, metrics.peakWS, "Includes readable descendant WebView2 counters. Working sets may double-count shared pages; one-second samples miss short-lived processes. No FPS, ping or game A/B measured."})
+}
+
+type probeSamples struct {
+	sumCPU, peakPrivate, peakWS float64
+	samples                     int
+}
+
+func sampleProcessTree(root uint32, identity counters, seconds int, scenario string, writer *csv.Writer) (probeSamples, error) {
 	previous := map[string]float64{}
 	start := time.Now()
 	last := start
 	var sumCPU, peakPrivate, peakWS float64
 	var samples int
-	for i := 0; i <= *seconds; i++ {
+	for i := 0; i <= seconds; i++ {
 		if i > 0 {
 			time.Sleep(time.Second)
 		}
@@ -109,7 +147,7 @@ func run() error {
 		}
 		members, err := descendants(root)
 		if err != nil {
-			return err
+			return probeSamples{}, err
 		}
 		var delta float64
 		var private, ws uint64
@@ -143,37 +181,13 @@ func run() error {
 		peakWS = max(peakWS, working)
 		samples++
 		f := func(n float64) string { return strconv.FormatFloat(n, 'f', 3, 64) }
-		if err = writer.Write([]string{*scenario, f(now.Sub(start).Seconds()), strconv.Itoa(count), f(machine), f(oneCore), f(priv), f(working)}); err != nil {
-			return err
+		if err = writer.Write([]string{scenario, f(now.Sub(start).Seconds()), strconv.Itoa(count), f(machine), f(oneCore), f(priv), f(working)}); err != nil {
+			return probeSamples{}, err
 		}
 	}
-	writer.Flush()
-	if err = writer.Error(); err != nil {
-		return err
-	}
-	if samples < 2 {
-		return errors.New("insufficient samples")
-	}
-	if done != nil {
-		select {
-		case err := <-done:
-			if err != nil {
-				return err
-			}
-		case <-time.After(20 * time.Second):
-			return errors.New("isolated probe did not self-exit; no process was stopped")
-		}
-	}
-	return json.NewEncoder(os.Stdout).Encode(struct {
-		Scenario          string  `json:"scenario"`
-		Samples           int     `json:"samples"`
-		LogicalProcessors int     `json:"logicalProcessors"`
-		AverageCPU        float64 `json:"averageCPUPercentMachine"`
-		PeakPrivate       float64 `json:"peakPrivateMiB"`
-		PeakWorking       float64 `json:"peakWorkingSetSumMiB"`
-		Limitations       string  `json:"limitations"`
-	}{*scenario, samples, runtime.NumCPU(), sumCPU / float64(samples), peakPrivate, peakWS, "Includes readable descendant WebView2 counters. Working sets may double-count shared pages; one-second samples miss short-lived processes. No FPS, ping or game A/B measured."})
+	return probeSamples{sumCPU: sumCPU, peakPrivate: peakPrivate, peakWS: peakWS, samples: samples}, nil
 }
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)

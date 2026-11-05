@@ -94,43 +94,7 @@ func BuildScoutReport(matches []Match, masteries []ChampionMastery, season *Scou
 	}
 	sort.Ints(ordered)
 	for _, id := range ordered {
-		h := ScoutChampion{ChampionID: id, Queues: []ScoutHeroQueue{}}
-		if mastery, ok := masteryByID[id]; ok {
-			copy := mastery
-			h.Mastery = &copy
-		}
-		all := []Match{}
-		for _, m := range seasonal {
-			if m.ChampionID == id {
-				all = append(all, m)
-			}
-		}
-		if len(all) > 0 || r.Complete {
-			n := len(all)
-			h.Games = &n
-		}
-		for _, q := range []int{420, 440} {
-			selected := []Match{}
-			var k, d, a float64
-			for _, m := range all {
-				if m.QueueID == q {
-					selected = append(selected, m)
-					if !IsRemake(m) && m.Kills != nil && m.Deaths != nil && m.Assists != nil {
-						k += float64(*m.Kills)
-						d += float64(*m.Deaths)
-						a += float64(*m.Assists)
-					}
-				}
-			}
-			stats := CalculateStats(selected)
-			average := []float64{}
-			if stats.KDAGames > 0 {
-				n := float64(stats.KDAGames)
-				average = []float64{k / n, d / n, a / n}
-			}
-			h.Queues = append(h.Queues, ScoutHeroQueue{QueueID: q, Stats: stats, Average: average})
-		}
-		r.Champions = append(r.Champions, h)
+		r.Champions = append(r.Champions, buildScoutChampion(id, seasonal, masteryByID, r.Complete))
 	}
 	for _, q := range []int{420, 440} {
 		s, tw, month := []Match{}, []Match{}, []Match{}
@@ -170,4 +134,44 @@ func BuildScoutReport(matches []Match, masteries []ChampionMastery, season *Scou
 		r.Queues = append(r.Queues, ScoutQueue{QueueID: q, Season: CalculateStats(s), Twelve: CalculateStats(tw), Month: CalculateStats(month), Positions: p})
 	}
 	return r
+}
+
+func buildScoutChampion(id int, seasonal []Match, masteryByID map[int]ChampionMastery, complete bool) ScoutChampion {
+	h := ScoutChampion{ChampionID: id, Queues: []ScoutHeroQueue{}}
+	if mastery, ok := masteryByID[id]; ok {
+		copy := mastery
+		h.Mastery = &copy
+	}
+	all := []Match{}
+	for _, m := range seasonal {
+		if m.ChampionID == id {
+			all = append(all, m)
+		}
+	}
+	if len(all) > 0 || complete {
+		n := len(all)
+		h.Games = &n
+	}
+	for _, q := range []int{420, 440} {
+		selected := []Match{}
+		var k, d, a float64
+		for _, m := range all {
+			if m.QueueID == q {
+				selected = append(selected, m)
+				if !IsRemake(m) && m.Kills != nil && m.Deaths != nil && m.Assists != nil {
+					k += float64(*m.Kills)
+					d += float64(*m.Deaths)
+					a += float64(*m.Assists)
+				}
+			}
+		}
+		stats := CalculateStats(selected)
+		average := []float64{}
+		if stats.KDAGames > 0 {
+			n := float64(stats.KDAGames)
+			average = []float64{k / n, d / n, a / n}
+		}
+		h.Queues = append(h.Queues, ScoutHeroQueue{QueueID: q, Stats: stats, Average: average})
+	}
+	return h
 }

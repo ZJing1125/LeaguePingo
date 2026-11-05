@@ -127,7 +127,15 @@ func (s *Service) Candidates(scope string, champion int, ids []int) (State, erro
 	s.publish()
 	return s.state, nil
 }
-func (s *Service) update(force bool) {
+
+type guideSelection struct {
+	query                        Query
+	self                         core.Participant
+	mode, label                  string
+	reference, enabled, explicit bool
+}
+
+func (s *Service) selectionLocked() guideSelection {
 	snapshot := s.snapshot
 	modeName, label, reference := mode(snapshot)
 	var self core.Participant
@@ -181,6 +189,14 @@ func (s *Service) update(force bool) {
 	if !noLane(modeName) && !explicit {
 		q.Position = ""
 	}
+	return guideSelection{query: q, self: self, mode: modeName, label: label, reference: reference, enabled: enabled, explicit: explicit}
+}
+
+func (s *Service) update(force bool) {
+	selection := s.selectionLocked()
+	q, self := selection.query, selection.self
+	modeName, label, reference := selection.mode, selection.label, selection.reference
+	enabled, explicit := selection.enabled, selection.explicit
 	status, message := "loading", "正在准备 OP.GG 攻略"
 	if !s.enabled {
 		status = "disabled"
@@ -294,40 +310,9 @@ func (s *Service) load(ctx context.Context, token uint64, base, q Query, force b
 			return
 		}
 		if err != nil {
-			if len(s.failures) >= 128 {
-				oldKey := ""
-				var oldest time.Time
-				for k, at := range s.failures {
-					if oldest.IsZero() || at.Before(oldest) {
-						oldKey = k
-						oldest = at
-					}
-				}
-				delete(s.failures, oldKey)
-			}
-			s.failures[key] = time.Now()
-			lastError = apperrors.UserMessage(err, apperrors.GuideUnavailable)
+			lastError = s.recordFailureLocked(key, err)
 		} else {
-			if g.Notice != "" {
-				s.failures[key] = time.Now()
-			}
-			s.cache[key] = g
-			s.save(key, g)
-			if query.Opponent == 0 {
-				s.state.Base = g
-				ids := s.state.Candidates
-				s.state.Candidates = nil
-				for _, id := range ids {
-					for _, a := range g.Augments {
-						if a.ID == id {
-							s.state.Candidates = append(s.state.Candidates, id)
-							break
-						}
-					}
-				}
-			} else {
-				s.state.Matchup = g
-			}
+			s.acceptGuideLocked(query, key, g)
 		}
 		s.updateFreshness()
 		s.publish()
@@ -355,6 +340,45 @@ func (s *Service) load(ctx context.Context, token uint64, base, q Query, force b
 	s.updateFreshness()
 	s.publish()
 }
+func (s *Service) recordFailureLocked(key string, err error) string {
+	if len(s.failures) >= 128 {
+		oldKey := ""
+		var oldest time.Time
+		for k, at := range s.failures {
+			if oldest.IsZero() || at.Before(oldest) {
+				oldKey = k
+				oldest = at
+			}
+		}
+		delete(s.failures, oldKey)
+	}
+	s.failures[key] = time.Now()
+	return apperrors.UserMessage(err, apperrors.GuideUnavailable)
+}
+
+func (s *Service) acceptGuideLocked(query Query, key string, g *Guide) {
+	if g.Notice != "" {
+		s.failures[key] = time.Now()
+	}
+	s.cache[key] = g
+	s.save(key, g)
+	if query.Opponent == 0 {
+		s.state.Base = g
+		ids := s.state.Candidates
+		s.state.Candidates = nil
+		for _, id := range ids {
+			for _, a := range g.Augments {
+				if a.ID == id {
+					s.state.Candidates = append(s.state.Candidates, id)
+					break
+				}
+			}
+		}
+	} else {
+		s.state.Matchup = g
+	}
+}
+
 func cacheKey(q Query) string {
 	raw, _ := json.Marshal(q)
 	return fmt.Sprintf("%x", sha256.Sum256(raw))

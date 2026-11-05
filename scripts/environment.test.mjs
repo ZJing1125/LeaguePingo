@@ -32,6 +32,7 @@ test('capability report distinguishes host from product and does not reveal secr
   const report = describeEnvironment({ PATH: '', PRIVATE_TOKEN: 'do-not-print' }, 'linux', 'arm64');
   assert.equal(report.windowsDeliveryHost, false);
   assert.equal(report.portableToolsPresent, false);
+  assert.equal(report.tools.gcc, false);
   assert.ok(!JSON.stringify(report).includes('do-not-print'));
 });
 test('optional local environment loads explicitly through the shell bootstrap', t => {

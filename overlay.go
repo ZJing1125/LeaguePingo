@@ -268,39 +268,7 @@ func (o *overlayController) reconcileCompanion(s core.Snapshot, frame clientFram
 		}
 		defer publish()
 		if companion.Pregame(s) && o.state.SidebarEnabled {
-			if !frame.Active {
-				if o.state.Visible {
-					o.hideOnUI()
-				}
-				return
-			}
-			scale := frame.Scale
-			if scale <= 0 {
-				scale = 1
-			}
-			p := companion.Place(frame.Client, frame.Work, int(float64(o.state.SidebarWidth)*scale), int(28*scale), int(6*scale), o.state.Collapsed, o.expanded)
-			mode := "sidebar"
-			if p.Rail {
-				mode = "rail"
-			}
-			if o.window == nil && o.create != nil {
-				o.state.Mode, o.state.SidebarSide = mode, p.Side
-				o.window = o.create()
-			}
-			if o.window == nil || (o.readyRequired && !o.ready) {
-				return
-			}
-			if o.state.Mode != mode || !o.state.Visible || o.lastPlacement != p.Bounds {
-				if w, ok := o.window.(interface{ showSidebar(settings.Rect) error }); ok {
-					if err := w.showSidebar(p.Bounds); err != nil {
-						o.state.Warning = apperrors.UserMessage(err, apperrors.OverlayUnavailable)
-						o.hideOnUI()
-						return
-					}
-				}
-				o.state.Mode, o.state.Visible, o.state.SidebarSide = mode, true, p.Side
-				o.lastPlacement = p.Bounds
-			}
+			o.reconcileSidebarOnUI(frame)
 			return
 		}
 		if o.state.Mode == "sidebar" || o.state.Mode == "rail" {
@@ -344,14 +312,8 @@ func (o *overlayController) reconcileCompanion(s core.Snapshot, frame clientFram
 		if o.window == nil || (o.readyRequired && !o.ready) {
 			return
 		}
-		if o.gameForeground != nil && !o.gameForeground() {
+		if !o.previewContextCurrentOnUI(s) {
 			return
-		}
-		if o.currentSnapshot != nil {
-			current := o.currentSnapshot()
-			if !companion.InGame(current) || current.GameID != s.GameID || current.Region != s.Region {
-				return
-			}
 		}
 		w, ok := o.window.(interface{ showHold() error })
 		if !ok {
@@ -363,16 +325,9 @@ func (o *overlayController) reconcileCompanion(s core.Snapshot, frame clientFram
 			o.hideOnUI()
 			return
 		}
-		if o.gameForeground != nil && !o.gameForeground() {
+		if !o.previewContextCurrentOnUI(s) {
 			o.hideOnUI()
 			return
-		}
-		if o.currentSnapshot != nil {
-			current := o.currentSnapshot()
-			if !companion.InGame(current) || current.GameID != s.GameID || current.Region != s.Region {
-				o.hideOnUI()
-				return
-			}
 		}
 		shownAt := now
 		if o.clock != nil {
@@ -382,6 +337,59 @@ func (o *overlayController) reconcileCompanion(s core.Snapshot, frame clientFram
 		o.state.Mode, o.state.Visible = "preview", true
 		o.state.HoldWarning = ""
 	})
+}
+
+// Recheck both before and after showing, preserving the original foreground
+// and game/region checks on the same UI dispatch.
+func (o *overlayController) previewContextCurrentOnUI(s core.Snapshot) bool {
+	if o.gameForeground != nil && !o.gameForeground() {
+		return false
+	}
+	if o.currentSnapshot != nil {
+		current := o.currentSnapshot()
+		if !companion.InGame(current) || current.GameID != s.GameID || current.Region != s.Region {
+			return false
+		}
+	}
+	return true
+}
+
+// Called only inside reconcileCompanion's single Wails UI dispatch. The caller
+// retains the before/after publication, including every early-return path.
+func (o *overlayController) reconcileSidebarOnUI(frame clientFrame) {
+	if !frame.Active {
+		if o.state.Visible {
+			o.hideOnUI()
+		}
+		return
+	}
+	scale := frame.Scale
+	if scale <= 0 {
+		scale = 1
+	}
+	p := companion.Place(frame.Client, frame.Work, int(float64(o.state.SidebarWidth)*scale), int(28*scale), int(6*scale), o.state.Collapsed, o.expanded)
+	mode := "sidebar"
+	if p.Rail {
+		mode = "rail"
+	}
+	if o.window == nil && o.create != nil {
+		o.state.Mode, o.state.SidebarSide = mode, p.Side
+		o.window = o.create()
+	}
+	if o.window == nil || (o.readyRequired && !o.ready) {
+		return
+	}
+	if o.state.Mode != mode || !o.state.Visible || o.lastPlacement != p.Bounds {
+		if w, ok := o.window.(interface{ showSidebar(settings.Rect) error }); ok {
+			if err := w.showSidebar(p.Bounds); err != nil {
+				o.state.Warning = apperrors.UserMessage(err, apperrors.OverlayUnavailable)
+				o.hideOnUI()
+				return
+			}
+		}
+		o.state.Mode, o.state.Visible, o.state.SidebarSide = mode, true, p.Side
+		o.lastPlacement = p.Bounds
+	}
 }
 
 // No identities, game IDs, geometry, paths or request payloads in diagnostics.

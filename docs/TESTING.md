@@ -6,14 +6,17 @@
 
 | 入口 | 范围 |
 | --- | --- |
-| `bash scripts/verify.sh portable` | 策略/工具脚本、前端类型/19 项纯逻辑单测与生产构建、internal Go test/vet、diff |
-| `bash scripts/verify.sh windows` | Windows amd64 完整验证，含绑定生成/一致性、原生 Go、前端浏览器回归 |
+| `bash scripts/verify.sh portable` | 策略/工具脚本、Go AST函数长度、前端类型/19 项纯逻辑单测与生产构建、internal Go test/vet、diff |
+| `bash scripts/verify.sh windows` | Windows amd64 完整验证，含绑定生成/一致性、原生 Go test/vet及全包竞态、前端浏览器回归 |
+| `go run ./cmd/functioncheck` | 检查Git受管及未忽略的新生产Go声明/闭包不超过100物理行；包含平台专用文件，排除测试 |
 | `bash scripts/build.sh` | 唯一 Windows 交付入口，内含完整验证、编译、登记、留存清理及只读审计 |
 | `npm --prefix frontend run test:unit` | Vue 实际模块的 Node 环境纯逻辑测试，无浏览器/游戏 |
 | `npm --prefix frontend run test:smoke` | 合成桥接的浏览器交互、错误/缓存/身份隔离和布局；先构建 frontend 并设置 `BROWSER_EXECUTABLE` |
 | `node scripts/workflow.mjs check` | 构建/CI/依赖配置等工程策略 |
 
 CI 位于 `.github/workflows/ci.yml`：Linux portable 成功后执行 Windows 统一构建；建议性分析单独产生结果。具体结果核对提交号和 [Actions](https://github.com/ZJing1125/LeaguePingo/actions)，不能把另一个提交的成功套用到当前改动。静态分析现有漏洞和工具链更新见 [DEPENDENCIES.md](DEPENDENCIES.md)。
+
+Windows全包竞态通过`CGO_ENABLED=1 go test -race ./...`执行，需要本机PATH已有兼容Go竞态运行库的MinGW-w64 GCC；缺失明确失败，不自动安装。该CGO设置只作用于竞态命令，正式产品仍沿用原构建设置。perfprobe两项Windows测试只采样测试进程自身并校验CSV/进程身份，不连接客户端，不代表F5整局性能实测。
 
 浏览器使用现有 Edge/Chromium，通过 `BROWSER_EXECUTABLE` 指定；也可用 `PLAYWRIGHT_MODULE` 指向现有包。测试只生成合成账号；截图可显式设置 `UI_SCREENSHOT_PREFIX` / `WORKSPACE_SCREENSHOT`，不提交图片或程序。正式构建的证据登记见 [ARTIFACTS.md](ARTIFACTS.md)。组件工作台入口和限制见 [FRONTEND_GUIDE.md](FRONTEND_GUIDE.md)。
 
