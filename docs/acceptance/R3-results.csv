@@ -1,0 +1,7 @@
+case,status,tested_at,assistant_commit,exe_sha256,windows_build,client_version,window_mode,dpi,observed,evidence
+R3-01,NOT_RUN,,,,,,,,,
+R3-02,NOT_RUN,,,,,,,,,
+R3-03,NOT_RUN,,,,,,,,,
+R3-04,NOT_RUN,,,,,,,,,
+R3-05,NOT_RUN,,,,,,,,,
+R3-06,NOT_RUN,,,,,,,,,

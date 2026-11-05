@@ -55,4 +55,6 @@ S9严格证书候选使用[LCU_TLS.md](LCU_TLS.md)的显式测试，仅阶段HTT
 
 ## 人工验收集中后置
 
+每次发版的基础步骤和空白结果表见[R3固定回归](RELEASE_REGRESSION.md)。六项模板均为NOT_RUN；只有同候选的R1及实际步骤完成后才能记录R3通过。
+
 按用户安排，当前优先完成非人工任务；[ACCEPTANCE.md](ACCEPTANCE.md)、[HOLD_INPUT.md](HOLD_INPUT.md)、[INSTALLATION.md](INSTALLATION.md)与[性能记录](PERFORMANCE.md)中的整局、焦点/DPI/反作弊、干净 Win10、发布证书及 FPS/延迟检查保留待验收。CI、单账号只读成功或离线资源采样均不能替代这些结论。

@@ -1,5 +1,7 @@
 # 国服实机验收
 
+R3每次发版的六项基础回归已固定到[RELEASE_REGRESSION.md](RELEASE_REGRESSION.md)，附独立空白结果表；覆盖首次启动、断线/重启、快捷键冲突、缺WebView2及托盘退出。模板准备不等于执行通过，实际结果继续集中后置。
+
 ## S9 严格TLS候选核验（后置，未执行）
 
 公开根来源/指纹与测试专用只读探针已准备，见[LCU_TLS.md](LCU_TLS.md)和空白[结果CSV](acceptance/S9-results.csv)。候选来自Riot的Game Client文档，不能推断适用于国服LCU；HTTP与定向WSS都必须由游戏电脑核验。当前生产连接方式未改，S9未完成；本步骤随其他人工验收集中执行，不为它中断非人工任务。
