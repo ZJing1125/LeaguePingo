@@ -54,11 +54,11 @@ jobs:
       - name: Portable verification
         run: bash scripts/verify.sh portable
 
-  # 建议性质量门：先持续暴露存量问题，待告警清零后再改为阻断。
+  # 三项质量检查全部成功后才允许 Windows 验证和构建。
   # 目标仍按 Windows 构建解析；工具固定在兼容 go.mod Go 1.26 的版本，
   # GOTOOLCHAIN=local 防止分析器静默下载另一套 Go。
-  advisory:
-    name: Advisory static analysis
+  quality:
+    name: Quality checks
     needs: portable
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -81,58 +81,61 @@ jobs:
       # Each job has its own checkout. Go embeds frontend/dist from this job,
       # so the portable job's build cannot supply staticcheck's inputs.
       - name: Prepare embedded frontend for analyzers
+        id: frontend
         run: |
           npm --prefix frontend ci
           npm --prefix frontend run build
 
       - name: Install pinned analyzers
+        id: analyzers
         run: |
-          tool_bin="$RUNNER_TEMP/advisory-bin"
+          tool_bin="$RUNNER_TEMP/quality-bin"
           GOBIN="$tool_bin" go install honnef.co/go/tools/cmd/staticcheck@v0.8.2
           GOBIN="$tool_bin" go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
           echo "$tool_bin" >> "$GITHUB_PATH"
 
-      - name: Staticcheck (advisory)
+      - name: Staticcheck
         id: staticcheck
-        continue-on-error: true
+        if: ${{ !cancelled() && steps.frontend.outcome == 'success' && steps.analyzers.outcome == 'success' }}
         env:
           GOOS: windows
           GOARCH: amd64
           CGO_ENABLED: "0"
         run: staticcheck ./...
 
-      - name: Govulncheck (advisory)
+      - name: Govulncheck
         id: govulncheck
-        continue-on-error: true
+        if: ${{ !cancelled() && steps.frontend.outcome == 'success' && steps.analyzers.outcome == 'success' }}
         env:
           GOOS: windows
           GOARCH: amd64
           CGO_ENABLED: "0"
         run: govulncheck ./...
 
-      - name: npm audit (advisory)
+      - name: npm audit
         id: npm_audit
-        continue-on-error: true
+        if: ${{ !cancelled() && steps.frontend.outcome == 'success' }}
         run: npm --prefix frontend audit --audit-level=high
 
-      - name: Publish advisory summary
+      - name: Publish quality summary
+        id: summary
         if: always()
         run: |
           {
-            echo "### Advisory static analysis"
+            echo "### Required quality checks"
             echo "| Check | Outcome |"
             echo "| --- | --- |"
             echo "| staticcheck | ${{ steps.staticcheck.outcome }} |"
             echo "| govulncheck | ${{ steps.govulncheck.outcome }} |"
             echo "| npm audit | ${{ steps.npm_audit.outcome }} |"
             echo
-            echo "These checks are visible but do not block CI until the recorded findings are resolved."
+            echo "All three checks must succeed before Windows verification and build."
           } >> "$GITHUB_STEP_SUMMARY"
 
   # 第二关：Windows 完整验证 + 编译。只验证自动化部分，不等于真实国服客户端验收。
   windows:
     name: Windows verify and build
-    needs: portable
+    needs: [portable, quality]
     runs-on: windows-latest
     timeout-minutes: 30
     defaults:
