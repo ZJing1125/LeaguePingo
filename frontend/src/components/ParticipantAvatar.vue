@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiText } from "../uiText";
 import { computed, ref, watch } from "vue";
 import type { Participant } from "../../bindings/leaguepingo/internal/core/models";
 import { gameAsset } from "../gameAssets";
@@ -21,13 +22,13 @@ const hasChampion = computed(
 const status = computed(() =>
   props.account
     ? props.player.profile?.profileIconData && !broken.value
-      ? "玩家账号头像"
-      : "账号头像暂缺"
+      ? uiText.participantAvatar.account
+      : uiText.participantAvatar.missingAccount
     : props.player.championId
-    ? `英雄图标暂不可用（#${props.player.championId}）`
+    ? uiText.participantAvatar.missingChampion(props.player.championId)
     : props.player.championState === "unselected"
-      ? "暂未选择英雄"
-      : "英雄信息暂不可用",
+      ? uiText.participantAvatar.unselected
+      : uiText.participantAvatar.unknownChampion,
 );
 </script>
 <template>
@@ -40,7 +41,7 @@ const status = computed(() =>
       :id="player.championId"
       :size="size"
       :title="
-        player.championState === 'intent' ? '预选英雄（尚未确认）' : undefined
+        player.championState === 'intent' ? uiText.participantAvatar.intent : undefined
       "
     />
     <span

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiText } from "../uiText";
 import { onMounted, onUnmounted, ref } from "vue";
 import { Events, Window } from "@wailsio/runtime";
 import AppIcon from "./AppIcon.vue";
@@ -32,7 +33,7 @@ async function control(action: "Minimise" | "ToggleMaximise" | "Close") {
     await Window[action]();
     if (action === "ToggleMaximise") await syncMaximised();
   } catch {
-    if (alive) error.value = "窗口操作未完成，请重试";
+    if (alive) error.value = uiText.common.actionFailed;
   } finally {
     if (alive) busy.value = false;
   }
@@ -90,7 +91,7 @@ onUnmounted(() => {
   <header
     class="desktop-titlebar app-toolbar"
     :class="{ 'window-inactive': !focused, 'window-maximised': maximised }"
-    aria-label="LeaguePingo 窗口标题栏"
+    :aria-label="uiText.desktopTitleBar.title"
     @dblclick="doubleClick"
   >
     <div class="toolbar-content" :inert="modalOpen">
@@ -102,13 +103,13 @@ onUnmounted(() => {
     <div
       class="window-controls"
       role="group"
-      aria-label="窗口控制"
+      :aria-label="uiText.desktopTitleBar.controls"
       :aria-busy="busy"
     >
       <button
         type="button"
-        aria-label="最小化窗口"
-        title="最小化"
+        :aria-label="uiText.desktopTitleBar.minimizeLabel"
+        :title="uiText.desktopTitleBar.minimize"
         :tabindex="modalOpen ? -1 : 0"
         :aria-disabled="busy"
         @mousedown.prevent
@@ -118,8 +119,8 @@ onUnmounted(() => {
       </button>
       <button
         type="button"
-        :aria-label="maximised ? '还原窗口' : '最大化窗口'"
-        :title="maximised ? '还原' : '最大化'"
+        :aria-label="maximised ? uiText.desktopTitleBar.restoreLabel : uiText.desktopTitleBar.maximizeLabel"
+        :title="maximised ? uiText.desktopTitleBar.restore : uiText.desktopTitleBar.maximize"
         :tabindex="modalOpen ? -1 : 0"
         :aria-disabled="busy"
         @mousedown.prevent
@@ -130,8 +131,8 @@ onUnmounted(() => {
       <button
         type="button"
         class="window-close"
-        aria-label="关闭窗口并收起到托盘"
-        title="关闭到托盘 · 可从托盘重新打开"
+        :aria-label="uiText.desktopTitleBar.closeLabel"
+        :title="uiText.desktopTitleBar.closeHint"
         :tabindex="modalOpen ? -1 : 0"
         :aria-disabled="busy"
         @mousedown.prevent

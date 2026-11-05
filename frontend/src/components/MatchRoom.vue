@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiText } from "../uiText";
 import { computed, reactive, ref, watch } from 'vue';
 import * as Service from '../../bindings/leaguepingo/appservice';
 import type { Participant, Snapshot } from '../../bindings/leaguepingo/internal/core/models';
@@ -33,12 +34,12 @@ const currentKey = computed(() => {
 const reviewKey = computed(() => `${props.snapshot?.review?.connectionId}:${props.snapshot?.review?.gameId}`);
 const selected = computed(() => players.value.find(p => p.key === selectedKey.value) ?? null);
 const subtitle = computed(() => {
-  if (!props.snapshot?.connected) return '连接中断 · 保留已准备资料';
-  if (party.value) return '房间成员 · 进入选人后展示英雄表现';
-  if (props.snapshot?.phase === 'ChampSelect') return '选人阶段 · 我方玩家资料';
-  if (props.snapshot?.phase === 'GameStart') return '对局载入 · 已返回玩家资料';
-  if (props.snapshot?.phase === 'Reconnect') return '游戏重连中 · 保留本局资料';
-  return '对局进行中 · 查看双方赛前表现';
+  if (!props.snapshot?.connected) return uiText.matchRoom.disconnected;
+  if (party.value) return uiText.matchRoom.party;
+  if (props.snapshot?.phase === 'ChampSelect') return uiText.matchRoom.selection;
+  if (props.snapshot?.phase === 'GameStart') return uiText.matchRoom.loading;
+  if (props.snapshot?.phase === 'Reconnect') return uiText.matchRoom.reconnecting;
+  return uiText.matchRoom.inGame;
 });
 watch([currentKey, reviewKey], ([current, review], previous) => {
   if (!previous || current !== previous[0] || !currentAvailable.value && review !== previous[1]) {
@@ -70,26 +71,26 @@ async function changeQueue(value: number) {
 </script>
 
 <template>
-  <section class="match-room" aria-label="对局室">
-    <nav class="match-room-nav review-scope-switch" aria-label="对局室内容">
-      <button class="secondary" :aria-pressed="scope === 'current'" @click="scope = 'current'">当前对局</button>
-      <button class="secondary" :aria-pressed="scope === 'review'" @click="scope = 'review'">最近复盘</button>
+  <section class="match-room" :aria-label="uiText.common.matchRoom">
+    <nav class="match-room-nav review-scope-switch" :aria-label="uiText.matchRoom.content">
+      <button class="secondary" :aria-pressed="scope === 'current'" @click="scope = 'current'">{{ uiText.matchRoom.current }}</button>
+      <button class="secondary" :aria-pressed="scope === 'review'" @click="scope = 'review'">{{ uiText.matchRoom.review }}</button>
     </nav>
-    <section v-show="scope === 'current'" class="current-match" aria-label="当前对局资料">
-      <header class="review-heading"><div><h1>当前对局</h1><p>{{ currentAvailable ? subtitle : '进入房间或选人后，在这里查看当前玩家资料。' }}<span v-if="currentAvailable && snapshot?.queueId"> · {{ queueName(snapshot.queueId) }}</span></p></div><button v-if="currentAvailable && snapshot?.connected && snapshot.phase !== 'Reconnect'" class="secondary" @click="$emit('companion')">{{ inGame ? '显示局内快览' : '展开客户端侧栏' }}</button></header>
+    <section v-show="scope === 'current'" class="current-match" :aria-label="uiText.matchRoom.currentData">
+      <header class="review-heading"><div><h1>{{ uiText.matchRoom.current }}</h1><p>{{ currentAvailable ? subtitle : uiText.matchRoom.waitingDescription }}<span v-if="currentAvailable && snapshot?.queueId"> · {{ queueName(snapshot.queueId) }}</span></p></div><button v-if="currentAvailable && snapshot?.connected && snapshot.phase !== 'Reconnect'" class="secondary" @click="$emit('companion')">{{ inGame ? uiText.matchRoom.showPreview : uiText.clientSidebar.expand }}</button></header>
       <template v-if="currentAvailable">
-        <div class="review-section-title"><h2>{{ party ? '房间成员' : '赛前资料' }}</h2><QueueSwitch :value="queue" :busy="changingQueue || !snapshot?.connected" @change="changeQueue"/></div>
+        <div class="review-section-title"><h2>{{ party ? uiText.common.party : uiText.common.pregame }}</h2><QueueSwitch :value="queue" :busy="changingQueue || !snapshot?.connected" @change="changeQueue"/></div>
         <p v-if="error || snapshot?.rosterError" class="quality-warning" role="status">{{ error || snapshot?.rosterError }}</p>
         <GuidePanel :snapshot="snapshot"/>
-        <p v-if="inGame && snapshot?.groupCoverage" class="review-note">分组标识已返回 {{snapshot.groupCoverage}} / {{players.length}} 人 · 国服组队规则待实机核验</p>
+        <p v-if="inGame && snapshot?.groupCoverage" class="review-note">{{ uiText.matchRoom.groupCoverage(snapshot.groupCoverage, players.length) }}</p>
         <RosterProgress v-if="players.length" :players="players" :queue="queue"/>
         <MatchRoster v-if="players.length" :players="players" :selected-key="selectedKey" :party="party" :allies-only="!inGame" :frozen="snapshot?.frozen" :queue="queue" @select="selectedKey = $event.key"/>
-        <div v-else class="review-empty"><AppIcon name="match" :size="36"/><h2>等待当前名单</h2><p>{{ inGame ? '客户端返回玩家身份后会在这里展示。' : '客户端返回我方成员后会在这里展示。' }}</p></div>
+        <div v-else class="review-empty"><AppIcon name="match" :size="36"/><h2>{{ uiText.matchRoom.waitingRoster }}</h2><p>{{ inGame ? uiText.matchRoom.identityHint : uiText.matchRoom.partyHint }}</p></div>
       </template>
-      <div v-else class="review-empty"><AppIcon name="match" :size="36"/><h2>当前没有进行中的对局</h2><p>已结束的比赛可在“最近复盘”中查看。</p></div>
+      <div v-else class="review-empty"><AppIcon name="match" :size="36"/><h2>{{ uiText.matchRoom.noMatch }}</h2><p>{{ uiText.matchRoom.reviewHint }}</p></div>
       <PlayerDrawer v-if="selected" :player-key="selected.key" modal :active="active && scope === 'current'" @close="selectedKey = ''">
-        <div class="drawer-toolbar"><button class="text-button" :disabled="!snapshot?.connected || !selected.displayName.includes('#')" @click="$emit('query', selected)">查询最新战绩 ↗</button><span class="drawer-player-switch"><button class="text-button" aria-label="上一位玩家" @click="adjacent(-1)">← 上一位</button><button class="text-button" aria-label="下一位玩家" @click="adjacent(1)">下一位 →</button></span><button class="icon-button" aria-label="关闭玩家详情" @click="selectedKey = ''"><AppIcon name="close"/></button></div>
-        <p class="review-note">本局已准备资料 · 查询最新战绩将在玩家战绩页打开</p>
+        <div class="drawer-toolbar"><button class="text-button" :disabled="!snapshot?.connected || !selected.displayName.includes('#')" @click="$emit('query', selected)">{{ uiText.matchRoom.latestHistory }}</button><span class="drawer-player-switch"><button class="text-button" :aria-label="uiText.matchRoom.previousPlayer" @click="adjacent(-1)">{{ uiText.matchRoom.previous }}</button><button class="text-button" :aria-label="uiText.matchRoom.nextPlayer" @click="adjacent(1)">{{ uiText.matchRoom.next }}</button></span><button class="icon-button" :aria-label="uiText.matchRoom.closePlayer" @click="selectedKey = ''"><AppIcon name="close"/></button></div>
+        <p class="review-note">{{ uiText.matchRoom.capturedHint }}</p>
         <PlayerView :player="selected" :state="stateFor(selected.key)" :scout-queue="queue" :connected="false" :active="active && scope === 'current'" compact prepared/>
       </PlayerDrawer>
     </section>

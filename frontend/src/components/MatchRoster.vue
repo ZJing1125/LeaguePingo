@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiText } from "../uiText";
 import { computed } from "vue";
 import type { Participant } from "../../bindings/leaguepingo/internal/core/models";
 import PlayerScoutCard from "./PlayerScoutCard.vue";
@@ -19,11 +20,11 @@ const teams = computed(() =>
     key,
     label: props.party
       ? key === "ally"
-        ? "房间成员"
-        : "对手未确定"
+        ? uiText.common.party
+        : uiText.matchRoster.noOpponent
       : key === "ally"
-        ? "我方"
-        : "对方",
+        ? uiText.common.ally
+        : uiText.common.enemy,
     players: props.players.filter((player) => player.team === key),
   })),
 );
@@ -35,7 +36,7 @@ const teams = computed(() =>
       'expanded-roster': teams.some((team) => team.players.length > 5),
       'party-roster': party,
     }"
-    aria-label="双方名单"
+    :aria-label="uiText.matchRoster.title"
   >
     <section
       v-for="team in teams"
@@ -45,7 +46,7 @@ const teams = computed(() =>
     >
       <h2>
         <span>{{ team.label }}</span
-        ><small><ExperimentalBadge v-if="team.players.some(p => p.premadeGroup && (p.premadeSize || 0) > 1)" feature="双方同组标识" label="同组实验性"/> {{ team.players.length }} 人</small>
+        ><small><ExperimentalBadge v-if="team.players.some(p => p.premadeGroup && (p.premadeSize || 0) > 1)" :feature="uiText.clientSidebar.groups" :label="uiText.clientSidebar.groupExperimental"/>{{ uiText.matchRoster.members(team.players.length) }}</small>
       </h2>
       <div class="team-player-list">
         <button
@@ -63,8 +64,8 @@ const teams = computed(() =>
       <p v-if="!team.players.length" class="team-empty">
         {{
           party && team.key === "enemy"
-            ? "组队阶段尚未确定对手"
-            : "等待客户端提供名单"
+            ? uiText.matchRoster.partyOpponent
+            : uiText.matchRoster.waitingRoster
         }}
       </p>
     </section>

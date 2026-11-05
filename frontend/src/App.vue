@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiText } from "./uiText";
 import { useGuide } from "./useGuide";
 import AutoAcceptNotice from "./components/AutoAcceptNotice.vue";
 import PostGameNotice from "./components/PostGameNotice.vue";
@@ -78,7 +79,7 @@ function submitSearch() {
   if (homeLoading.value && !manualBusy.value && /^[^#]+#[^#]+$/.test(normalizeRiotIDInput(query.value))) {
     queuedSearch.value = true;
     queuedConnection = snapshot.value?.connectionId ?? 0;
-    setMessage("search", "查询已排队，首页资料准备完成后自动开始；再次点击可取消等待。");
+    setMessage("search", uiText.app.queuedSearch);
     return;
   }
   void search();
@@ -107,7 +108,7 @@ const {
 } = useOverlayControls();
 async function showCompanion() {
   if (['Lobby','Matchmaking','ReadyCheck','ChampSelect'].includes(snapshot.value?.phase || '')) {
-    if (overlay.value?.sidebarEnabled === false) {setMessage('search','客户端侧栏已关闭，可在游戏辅助设置中启用。');return;}
+    if (overlay.value?.sidebarEnabled === false) {setMessage('search',uiText.app.sidebarDisabled);return;}
     try {acceptOverlay(await Service.SetSidebarCollapsed(false));}
     catch (reason) {setMessage('search',errorMessage(reason));}
   } else await toggleOverlay();
@@ -179,50 +180,47 @@ onUnmounted(() => {
         <span class="nav-wordmark window-brand"
           ><BrandIcon />League<span>Pingo</span></span
         >
-        <nav class="workspace-nav" aria-label="工作区">
+        <nav class="workspace-nav" :aria-label="uiText.app.workspace">
           <button
             :class="{ active: view === 'home' }"
             :aria-current="view === 'home' ? 'page' : undefined"
-            aria-label="首页"
+            :aria-label="uiText.common.home"
             @click="view = 'home'"
-          >首页</button>
+          >{{ uiText.common.home }}</button>
           <button
             :class="{ active: view === 'match' }"
             :aria-current="view === 'match' ? 'page' : undefined"
-            aria-label="对局室"
+            :aria-label="uiText.common.matchRoom"
             @click="view = 'match'"
-          >
-            对局室</button
+          >{{ uiText.app.matchRoomNav }}</button
           ><button
             :class="{ active: view === 'players' }"
             :aria-current="view === 'players' ? 'page' : undefined"
-            aria-label="玩家战绩"
+            :aria-label="uiText.common.playerHistory"
             @click="view = 'players'"
-          >
-            玩家战绩
-          </button
+          >{{ uiText.app.playerHistoryNav }}</button
           ><button
             :class="{ active: view === 'automation' }"
             :aria-current="view === 'automation' ? 'page' : undefined"
-            aria-label="游戏辅助"
+            :aria-label="uiText.common.automation"
             @click="view = 'automation'"
           >
-            <span class="nav-full">游戏辅助</span><span class="nav-short">辅助</span>
+            <span class="nav-full">{{ uiText.common.automation }}</span><span class="nav-short">{{ uiText.app.automationShort }}</span>
           </button>
         </nav>
-        <form class="global-search" @submit.prevent="submitSearch()" :aria-busy="searching || queuedSearch" :title="queuedSearch ? '等待首页资料完成后查询；点击取消等待' : manualBusy && !searching ? '正在完成当前操作，请稍候再查询' : '输入玩家名#标签，按 Enter 查询'">
+        <form class="global-search" @submit.prevent="submitSearch()" :aria-busy="searching || queuedSearch" :title="queuedSearch ? uiText.app.queuedSearchHint : manualBusy && !searching ? uiText.app.busySearchHint : uiText.app.searchHint">
           <AppIcon name="search" :size="16" />
           <input
             v-model="query"
-            aria-label="玩家完整 ID"
-            placeholder="搜索 玩家名#标签"
+            :aria-label="uiText.common.playerId"
+            :placeholder="uiText.app.searchPlaceholder"
             autocomplete="off"
           /><button class="primary" :disabled="manualBusy && !queuedSearch">
-            {{ searching ? "查询中…" : queuedSearch ? "取消等待" : manualBusy ? "请稍候…" : "查询战绩" }}
+            {{ searching ? uiText.common.searching : queuedSearch ? uiText.app.cancelWait : manualBusy ? uiText.app.pleaseWait : uiText.common.search }}
           </button>
         </form>
-        <select class="theme-select" aria-label="界面主题" :value="themePreference" @change="setTheme(($event.target as HTMLSelectElement).value as ThemePreference)">
-          <option value="light">浅色</option><option value="dark">深色</option><option value="system">跟随系统</option>
+        <select class="theme-select" :aria-label="uiText.common.theme" :value="themePreference" @change="setTheme(($event.target as HTMLSelectElement).value as ThemePreference)">
+          <option value="light">{{ uiText.common.light }}</option><option value="dark">{{ uiText.common.dark }}</option><option value="system">{{ uiText.common.system }}</option>
         </select>
         <span class="toolbar-status" :title="status"
           ><span
@@ -235,24 +233,23 @@ onUnmounted(() => {
           v-if="automationCount > 0"
           class="automation-chip"
           :class="{ warn: automationWarning }"
-          :aria-label="`游戏辅助：${automationCount} 项开启，打开游戏辅助页`"
-          :title="automationWarning ? '游戏辅助有需要处理的状态' : '游戏辅助已开启'"
+          :aria-label="uiText.app.automationEnabledHint(automationCount)"
+          :title="automationWarning ? uiText.app.automationWarning : uiText.app.automationEnabled"
           @click="view = 'automation'"
         >
-          <span class="dot" />自动 {{ automationCount }} 项
-        </button>
+          <span class="dot" />{{ uiText.app.automationCount(automationCount) }}</button>
         <button
           class="icon-button settings-trigger"
-          aria-label="设置与诊断"
-          title="设置与诊断"
+          :aria-label="uiText.common.settings"
+          :title="uiText.common.settings"
           @click="settingsOpen = true"
         >
           <AppIcon name="settings" />
         </button>
         <button
           class="icon-button"
-          aria-label="显示／收起游戏助手"
-          title="显示／收起游戏助手"
+          :aria-label="uiText.common.toggleAssistant"
+          :title="uiText.common.toggleAssistant"
           @click="toggleOverlay"
         >
           <AppIcon name="panel" />
@@ -323,11 +320,9 @@ onUnmounted(() => {
         />
         <div v-else class="empty-state initial-empty">
           <AppIcon name="search" :size="42" />
-          <h1>查看玩家近期表现</h1>
-          <p>输入完整 ID 查询战绩，或从当前对局中选择玩家。</p>
-          <button class="secondary" @click="view = 'match'">
-            查看对局室
-          </button>
+          <h1>{{ uiText.app.playerOverview }}</h1>
+          <p>{{ uiText.app.emptyWorkspace }}</p>
+          <button class="secondary" @click="view = 'match'">{{ uiText.app.openMatchRoom }}</button>
         </div>
       </section>
       <section v-show="view === 'match'" class="match-workspace review-host">

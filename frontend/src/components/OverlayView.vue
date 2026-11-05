@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiText } from "../uiText";
 import GuidePanel from "./GuidePanel.vue";
 import { useGuide } from "../useGuide";
 import { computed, ref, watch } from "vue";
@@ -27,9 +28,9 @@ const players = computed(() => props.snapshot?.participants ?? []);
 const reports = computed(() => scoutStatus(players.value, props.snapshot?.scoutQueue ?? 420));
 const reportTime = computed(() => {
   const p = reports.value;
-  if (!p.earliest) return "统计时间待确认";
+  if (!p.earliest) return uiText.overlayView.unknownTime;
   const first = date(p.earliest), last = date(p.latest);
-  return `统计截至 ${first}${last !== first ? `–${last}` : ''}${p.untimed ? ' · 部分待确认' : ''}`;
+  return uiText.overlayView.cutoff(first, last !== first ? `–${last}` : '', p.untimed ? uiText.overlayView.partial : '');
 });
 defineEmits<{ hide: []; pin: [] }>();
 </script>
@@ -38,21 +39,21 @@ defineEmits<{ hide: []; pin: [] }>();
     <header class="overlay-head">
       <div class="overlay-title">
         <BrandIcon />
-        <div><strong>LeaguePingo</strong><small>对局快览</small></div>
+        <div><strong>LeaguePingo</strong><small>{{ uiText.overlayView.title }}</small></div>
       </div>
       <div v-if="!['hold','preview'].includes(state?.mode || '')" class="overlay-controls">
-        <button class="guide-switch" v-if="hasGuide" :aria-pressed="displayGuide" @click="guideOpen=!guideOpen">{{displayGuide?'双方资料':'本局攻略'}}</button>
+        <button class="guide-switch" v-if="hasGuide" :aria-pressed="displayGuide" @click="guideOpen=!guideOpen">{{displayGuide?uiText.overlayView.players:uiText.clientSidebar.guide}}</button>
         <button
           :disabled="busy || !state"
-          :aria-label="state?.pinned ? '取消置顶' : '置顶'"
-          :title="state?.pinned ? '取消置顶' : '置顶'"
+          :aria-label="state?.pinned ? uiText.overlayView.unpin : uiText.overlayView.pin"
+          :title="state?.pinned ? uiText.overlayView.unpin : uiText.overlayView.pin"
           :aria-pressed="state?.pinned"
           @click="$emit('pin')"
         >
           <AppIcon name="pin" :size="16" /></button
         ><button
           class="overlay-close"
-          aria-label="关闭对局快览"
+          :aria-label="uiText.overlayView.close"
           :disabled="busy"
           @click="$emit('hide')"
         >
@@ -67,7 +68,7 @@ defineEmits<{ hide: []; pin: [] }>();
           :class="{ online: snapshot?.connected }"
         ></span
         >{{ status }} · {{ rankedMode(snapshot?.scoutQueue ?? 420) }}
-        <ExperimentalBadge v-if="players.some(p => p.premadeGroup && (p.premadeSize || 0) > 1)" feature="双方同组标识" label="同组实验性"/>
+        <ExperimentalBadge v-if="players.some(p => p.premadeGroup && (p.premadeSize || 0) > 1)" :feature="uiText.clientSidebar.groups" :label="uiText.clientSidebar.groupExperimental"/>
       </div>
       <p v-if="state?.warning || error" class="error-banner" role="status">
         {{ error || state?.warning }}
@@ -76,7 +77,7 @@ defineEmits<{ hide: []; pin: [] }>();
       <RosterProgress v-if="players.length && !displayGuide" :players="players" :queue="snapshot?.scoutQueue ?? 420" compact />
       <div v-if="!players.length" class="empty-state">
         <AppIcon name="match" :size="30" />
-        <p>等待本局名单</p>
+        <p>{{ uiText.overlayView.waitingRoster }}</p>
       </div>
       <div v-else-if="!displayGuide" class="overlay-groups">
         <section v-for="team in ['ally', 'enemy']" :key="team">
@@ -84,11 +85,11 @@ defineEmits<{ hide: []; pin: [] }>();
             {{
               snapshot?.stage === "party"
                 ? team === "ally"
-                  ? "房间成员"
-                  : "对手未确定"
+                  ? uiText.common.party
+                  : uiText.matchRoster.noOpponent
                 : team === "ally"
-                  ? "我方"
-                  : "对方"
+                  ? uiText.common.ally
+                  : uiText.common.enemy
             }}<span>{{ players.filter((p) => p.team === team).length }}</span>
           </h2>
           <div
@@ -107,15 +108,12 @@ defineEmits<{ hide: []; pin: [] }>();
       </div>
     </div>
     <footer class="overlay-footer">
-      <span v-if="state?.mode==='preview'">{{ snapshot?.phase==='GameStart' ? '载入快览' : '开局快览' }} · 6 秒后收起 · {{ state?.holdEnabled && state?.holdAvailable ? `按住 ${state?.holdKey==='Backquote'?'~':state?.holdKey || '~'} 随时查看` : state?.shortcutAvailable ? `${state.shortcut} 调出` : '可在主程序调出' }}</span>
+      <span v-if="state?.mode==='preview'">{{ uiText.overlayView.autoHide(snapshot?.phase==='GameStart' ? uiText.overlayView.loadingPreview : uiText.overlayView.startPreview, state?.holdEnabled && state?.holdAvailable ? uiText.overlayView.hold(state?.holdKey==='Backquote'?'~':state?.holdKey || '~') : state?.shortcutAvailable ? uiText.overlayView.shortcut(state.shortcut) : uiText.overlayView.manualPreview) }}</span>
       <span v-else-if="state?.mode === 'hold'"
-        >松开 {{ state?.holdKey === "Backquote" ? "~" : state?.holdKey }} 隐藏 ·
-        鼠标操作传给游戏</span
+        >{{ uiText.overlayView.holdHelp(state?.holdKey === "Backquote" ? "~" : state?.holdKey) }}</span
       ><span v-else
-        >{{ state?.shortcut || "Ctrl+Shift+P" }}
-        {{ state?.shortcutAvailable === false ? "未注册" : "显隐" }} · Esc
-        隐藏</span
-      ><span :title="'独立排位统计的截止时间；各玩家段位以其资料时间为准'"
+        >{{ uiText.overlayView.manualHelp(state?.shortcut || "Ctrl+Shift+P", state?.shortcutAvailable === false ? uiText.overlayView.unregistered : uiText.overlayView.visibility) }}</span
+      ><span :title="uiText.overlayView.cutoffHint"
         >{{ reportTime }}</span
       >
     </footer>

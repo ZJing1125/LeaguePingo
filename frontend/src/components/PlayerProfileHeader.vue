@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiText } from "../uiText";
 import { computed, ref, watch } from "vue";
 import type { Participant } from "../../bindings/leaguepingo/internal/core/models";
 import { date, playerName } from "../presentation";
@@ -29,14 +30,14 @@ watch(
 );
 function fieldTitle(field: string) {
   const meta = props.player.profile?.fields?.[field];
-  return `${meta?.state === "retained" ? "本次未更新，保留旧值" : "资料获取时间"} · ${date(meta?.fetchedAt)}`;
+  return `${meta?.state === "retained" ? uiText.playerProfileHeader.staleWarning : uiText.playerProfileHeader.fetchedAt} · ${date(meta?.fetchedAt)}`;
 }
 async function copyID() {
   try {
     await navigator.clipboard.writeText(props.player.displayName);
-    copyNotice.value = "已复制完整 ID";
+    copyNotice.value = uiText.playerProfileHeader.copied;
   } catch {
-    copyNotice.value = "复制未成功，可选中名称手动复制";
+    copyNotice.value = uiText.playerProfileHeader.copyFailed;
   }
 }
 </script>
@@ -47,13 +48,13 @@ async function copyID() {
       :title="
         player.profile?.profileIconData
           ? fieldTitle('avatar')
-          : '玩家头像尚未获取'
+          : uiText.playerProfileHeader.missingAvatar
       "
     >
       <img
         v-if="player.profile?.profileIconData && !avatarBroken"
         :src="player.profile.profileIconData"
-        alt="玩家头像"
+        :alt="uiText.playerProfileHeader.avatar"
         @error="avatarBroken = true"
       />
       <AppIcon v-else name="user" :size="26" />
@@ -63,8 +64,8 @@ async function copyID() {
         <h1 :title="playerName(player)">{{ playerName(player) }}</h1>
         <button
           class="icon-button square"
-          aria-label="复制玩家完整 ID"
-          title="复制完整 ID"
+          :aria-label="uiText.playerProfileHeader.copyLabel"
+          :title="uiText.playerProfileHeader.copy"
           :disabled="
             !hasPlayerName(player) || !player.displayName.includes('#')
           "
@@ -77,39 +78,36 @@ async function copyID() {
         <span :title="fieldTitle('level')"
           >{{
             player.profile?.level != null
-              ? `等级 ${player.profile.level}`
-              : "等级 —"
+              ? uiText.playerProfileHeader.level(player.profile.level)
+              : uiText.playerProfileHeader.missingLevel
           }}<small
             v-if="player.profile?.fields?.level?.state === 'retained'"
             class="warning-text"
-          >
-            · 旧</small
+          >{{ uiText.playerProfileHeader.old }}</small
           ></span
-        ><span v-if="player.stale" class="status-badge warning">旧资料</span
-        ><span v-else-if="player.cached">缓存资料</span
+        ><span v-if="player.stale" class="status-badge warning">{{ uiText.playerProfileHeader.stale }}</span
+        ><span v-else-if="player.cached">{{ uiText.playerProfileHeader.cached }}</span
         ><span
           v-if="player.privacyState === 'private'"
           class="status-badge"
           :title="fieldTitle('privacy')"
-          >生涯不公开<small
+          >{{ uiText.common.privateCareer }}<small
             v-if="player.profile?.fields?.privacy?.state === 'retained'"
             class="warning-text"
-          >
-            · 旧</small
+          >{{ uiText.playerProfileHeader.old }}</small
           ></span
         ><span
           v-else-if="player.privacyState === 'unknown'"
           class="privacy-unknown"
-          >隐私未核验</span
+          >{{ uiText.playerProfileHeader.uncheckedPrivacy }}</span
         >
         <span
           v-if="player.privacyState === 'public'"
           :title="fieldTitle('privacy')"
-          >生涯公开<small
+          >{{ uiText.playerProfileHeader.public }}<small
             v-if="player.profile?.fields?.privacy?.state === 'retained'"
             class="warning-text"
-          >
-            · 旧</small
+          >{{ uiText.playerProfileHeader.old }}</small
           ></span
         >
       </div>
@@ -124,16 +122,16 @@ async function copyID() {
         <RankEmblem :tier="item.rank?.tier" />
         <div>
           <small>{{
-            item.queue === "RANKED_SOLO_5x5" ? "单双排" : "灵活排位"
+            item.queue === "RANKED_SOLO_5x5" ? uiText.common.solo : uiText.common.flex
           }}</small>
           <strong :class="{ muted: !item.rank }"
             >{{ item.label
             }}<small v-if="item.retained" class="warning-text"
-              >旧段位</small
+              >{{ uiText.playerProfileHeader.staleRank }}</small
             ></strong
           >
           <small v-if="item.rank && !compact" :title="item.record?.title"
-            >{{ item.record ? `${item.record.scope} ${item.record.wins} 胜 / ${item.record.losses} 负` : '胜负待确认' }}</small
+            >{{ item.record ? uiText.playerProfileHeader.outcomes(item.record.scope, item.record.wins, item.record.losses) : uiText.common.pendingOutcome }}</small
           >
         </div>
       </div>

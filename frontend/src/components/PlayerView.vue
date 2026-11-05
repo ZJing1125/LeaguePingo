@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiText } from "../uiText";
 import { computed, ref } from "vue";
 import type { Participant } from "../../bindings/leaguepingo/internal/core/models";
 import {
@@ -51,6 +52,8 @@ const emit = defineEmits<{
 const historyScroll = ref<HTMLElement | null>(null);
 const profileCollapsed = ref(false);
 const scouting = computed(() => scoutStats(props.player, props.scoutQueue ?? 420));
+const roleDistribution = computed(() => scouting.value.role.positions
+  .map(p => uiText.playerCardData.roleCount(roleNames[p.position], p.games)).join('、') || uiText.playerView.noValidRecords);
 const {
   allMatches,
   matches,
@@ -98,20 +101,20 @@ function toggle(id: number) {
         <MasteryPanel :player="player"/>
       </aside>
       <div class="history-column">
-        <details v-if="!compact" class="analysis-overview"><summary><strong>近期分析</strong><span>{{stats.outcomeGames?`${stats.wins} 胜 ${stats.losses} 负`:'胜负待获取'}} <b class="analysis-sample-win">{{percent(stats.winRate)}}</b></span><span>KDA <b class="analysis-sample-kda">{{decimal(stats.kda)}}</b></span><small class="analysis-scope">{{sampleLabel}}</small><span class="overview-expand">展开分析</span></summary><OverviewPerformance :matches="analysisMatches" :scope="sampleLabel"/></details>
+        <details v-if="!compact" class="analysis-overview"><summary><strong>{{ uiText.playerView.recentAnalysis }}</strong><span>{{stats.outcomeGames?uiText.playerView.outcomes(stats.wins, stats.losses):uiText.playerView.pendingOutcome}} <b class="analysis-sample-win">{{percent(stats.winRate)}}</b></span><span>KDA <b class="analysis-sample-kda">{{decimal(stats.kda)}}</b></span><small class="analysis-scope">{{sampleLabel}}</small><span class="overview-expand">{{ uiText.playerView.expandAnalysis }}</span></summary><OverviewPerformance :matches="analysisMatches" :scope="sampleLabel"/></details>
         <div class="history-toolbar">
           <div class="history-filter">
             <strong class="history-count"
-              >战绩 <span>{{ matches.length }}</span></strong
+              >{{ uiText.playerView.historyHeading }}<span>{{ matches.length }}</span></strong
             ><label
-              ><span class="sr-only">模式</span
+              ><span class="sr-only">{{ uiText.playerView.mode }}</span
               ><select
                 v-model="state.queue"
-                aria-label="战绩模式筛选"
+                :aria-label="uiText.playerView.modeFilter"
                 :disabled="busy"
                 @change="changeCriteria"
               >
-                <option value="all">全部模式</option>
+                <option value="all">{{ uiText.common.allModes }}</option>
                 <option
                   v-if="
                     state.queue !== 'all' &&
@@ -119,8 +122,7 @@ function toggle(id: number) {
                   "
                   :value="state.queue"
                 >
-                  {{ queueName(Number(state.queue)) }}（无记录）
-                </option>
+                  {{ uiText.playerView.emptyMode(queueName(Number(state.queue))) }}</option>
                 <option v-for="mode in modes" :key="mode" :value="String(mode)">
                   {{ queueName(mode) }}
                 </option>
@@ -128,20 +130,18 @@ function toggle(id: number) {
             >
             <select
               v-model.number="state.sampleSize"
-              aria-label="分析样本场数"
+              :aria-label="uiText.playerView.sampleSize"
               :disabled="busy"
               @change="changeCriteria"
             >
-              <option v-for="size in SAMPLE_SIZES" :key="size" :value="size">
-                最近 {{ size }} 场
-              </option>
+              <option v-for="size in SAMPLE_SIZES" :key="size" :value="size">{{ uiText.playerView.recentGames(size) }}</option>
             </select>
           </div>
           <div class="history-actions">
-            <button v-if="!compact" class="text-button profile-toggle" :aria-expanded="!profileCollapsed" @click="profileCollapsed = !profileCollapsed">{{ profileCollapsed ? '展开资料' : '收起资料' }}</button>
+            <button v-if="!compact" class="text-button profile-toggle" :aria-expanded="!profileCollapsed" @click="profileCollapsed = !profileCollapsed">{{ profileCollapsed ? uiText.playerView.expandProfile : uiText.playerView.collapseProfile }}</button>
             <span
               class="toolbar-time"
-              :title="`战绩获取于 ${date(player.historyMeta?.fetchedAt)}`"
+              :title="uiText.playerView.fetchedAt(date(player.historyMeta?.fetchedAt))"
               ><HistoryServiceStatus inline readonly :player="player"/></span
             ><button
               class="secondary"
@@ -149,37 +149,32 @@ function toggle(id: number) {
               @click="emit('refresh', player)"
             >
               <AppIcon name="refresh" :size="14" />{{
-                refreshing ? "刷新中…" : "刷新数据"
+                refreshing ? uiText.common.refreshing : uiText.common.refresh
               }}
             </button>
           </div>
         </div>
         <HistoryServiceStatus :player="player" :connected="connected" :busy="busy || state.pageBusy || state.warmBusy" :readonly="compact || captured || prepared" :automatic="automaticHistory && active!==false && state.expanded.length===0 && (state.page??1)===1" @recovered="emit('recovered',$event)" @retry="emit('refresh',player)"/>
         <details v-if="compact && player.scout" class="scout-explanation">
-          <summary>本局统计说明 · {{ scouting.queueLabel }}</summary>
-          <p v-if="scouting.hero?.games != null && scouting.report?.season">{{ scouting.report.season.name }} · 本英雄{{ scouting.report.complete ? '全部模式' : '已读全模式' }} {{ scouting.hero.games }} 场。</p>
-          <p v-if="scouting.hero?.mastery">英雄熟练度 {{ scouting.hero.mastery.level }} 级 · {{ scouting.hero.mastery.points.toLocaleString() }} 分，独立于赛季场次。</p>
-          <p>排位统计截至 {{ date(scouting.report?.fetchedAt) }}{{ scouting.report?.retained ? '，本次保留上次结果' : '' }}。近30天胜负有效 {{ scouting.overall.outcomeGames ?? 0 }} 场，KDA 有效 {{ scouting.overall.kdaGames ?? 0 }} 场。{{ scouting.report?.complete30 ? '' : '当前为已读范围。' }}</p>
-          <p>近30天位置：{{ scouting.role.positions.map(p => `${roleNames[p.position]} ${p.games} 场`).join('、') || '暂无有效记录' }}；不代表本局分路。</p>
+          <summary>{{ uiText.playerView.statistics(scouting.queueLabel) }}</summary>
+          <p v-if="scouting.hero?.games != null && scouting.report?.season">{{ uiText.playerView.championRecords(scouting.report.season.name, scouting.report.complete ? uiText.common.allModes : uiText.playerView.allModes, scouting.hero.games) }}</p>
+          <p v-if="scouting.hero?.mastery">{{ uiText.playerView.mastery(scouting.hero.mastery.level, scouting.hero.mastery.points.toLocaleString()) }}</p>
+          <p>{{ uiText.playerView.rankedCutoff(date(scouting.report?.fetchedAt), scouting.report?.retained ? uiText.playerView.retained : '', scouting.overall.outcomeGames ?? 0, scouting.overall.kdaGames ?? 0, scouting.report?.complete30 ? '' : uiText.playerView.readRange) }}</p>
+          <p>{{ uiText.playerView.role(roleDistribution) }}</p>
         </details>
         <details
           v-if="noticePlayer.historyMeta?.excluded"
           class="quality-warning"
         >
           <summary>
-            {{ noticePlayer.historyMeta.excluded }} 条记录未纳入统计
-            <span>查看原因</span>
+            {{ uiText.playerView.excludedRecords(noticePlayer.historyMeta.excluded) }}<span>{{ uiText.playerView.reason }}</span>
           </summary>
-          <p>
-            数据不完整：{{ noticePlayer.historyMeta.returned }} 条中核验
-            {{ noticePlayer.historyMeta.parsed }} 场，排除或去重
-            {{ noticePlayer.historyMeta.excluded }} 条。统计只使用已核验记录。
-          </p>
+          <p>{{ uiText.playerView.incomplete(noticePlayer.historyMeta.returned, noticePlayer.historyMeta.parsed, noticePlayer.historyMeta.excluded) }}</p>
         </details>
         <div v-if="compact" class="compact-stats">
-          <span>{{ stats.games }} / {{ state.sampleSize }} 场</span
+          <span>{{ uiText.homeView.sampleCount(stats.games, state.sampleSize) }}</span
           ><span
-            >胜率 <b>{{ percent(stats.winRate) }}</b></span
+            >{{ uiText.playerView.winRate }}<b>{{ percent(stats.winRate) }}</b></span
           ><span
             >KDA <b>{{ decimal(stats.kda) }}</b></span
           >
@@ -196,20 +191,16 @@ function toggle(id: number) {
           role="status"
         >
           <span v-if="state.pageBusy"
-            >正在查找{{
-              state.queue === "all" ? "战绩" : queueName(Number(state.queue))
-            }}{{
-              (state.browseTarget ?? 1) > 1
-                ? `第 ${state.browseTarget} 页`
-                : ""
-            }}，已找到 {{ matches.length }} 场…</span
+            >{{ uiText.playerView.searching(state.queue === "all" ? uiText.playerView.history : queueName(Number(state.queue)), (state.browseTarget ?? 1) > 1
+                ? uiText.playerView.page(state.browseTarget)
+                : "", matches.length) }}</span
           >
-          <span v-else-if="state.warmBusy">正在后台准备单双排与灵活数据；当前资料可正常浏览和操作。</span>
+          <span v-else-if="state.warmBusy">{{ uiText.playerView.backgroundRanked }}</span>
           <span v-else-if="state.pageError" class="warning-text"
-            >{{ state.pageError }} · 已有记录保留</span
+            >{{ uiText.playerView.retainedRecords(state.pageError) }}</span
           >
           <span v-else>{{
-            prepared ? "当前为本局已准备战绩，查询最新战绩可获取更多记录。" : captured ? "当前为赛前保留战绩，查询最新战绩可获取更多记录。" : state.browseNotice || "当前样本尚未补齐，可按需继续获取。"
+            prepared ? uiText.playerView.capturedHistory : captured ? uiText.playerView.archivedHistory : state.browseNotice || uiText.playerView.incompleteSample
           }}</span>
           <button
             v-if="state.pageBusy"
@@ -217,7 +208,7 @@ function toggle(id: number) {
             :disabled="state.stopRequested"
             @click="state.stopRequested = true"
           >
-            {{ state.stopRequested ? "正在停止…" : "停止查找" }}
+            {{ state.stopRequested ? uiText.playerView.stopping : uiText.playerView.stop }}
           </button>
           <button
             v-else-if="!state.warmBusy && state.hasMore && canFetch"
@@ -227,10 +218,10 @@ function toggle(id: number) {
           >
             {{
               state.pageError
-                ? "重试"
+                ? uiText.common.retryAction
                 : state.browseNotice
-                  ? "继续查找"
-                  : "补齐样本"
+                  ? uiText.homeView.continueSearch
+                  : uiText.playerView.completeSample
             }}
           </button>
         </div>
@@ -239,18 +230,18 @@ function toggle(id: number) {
             <div v-if="!matches.length" class="empty-state">
               <AppIcon name="history" :size="32" /><strong>{{
                 ["pending", "failed", "loading"].includes(player.historyState)
-                  ? captured ? "赛前战绩未完整保留" : "资料尚未准备完成"
+                  ? captured ? uiText.playerView.incompleteArchive : uiText.playerView.pendingProfile
                   : state.pageError || state.sourceLimit
-                    ? "尚未取得该模式的战绩"
-                    : "当前没有可展示的战绩"
+                    ? uiText.playerView.missingMode
+                    : uiText.playerView.empty
               }}</strong>
               <p>
                 {{
                   player.identityState === "known"
                     ? state.pageError || state.sourceLimit
-                      ? "数据获取受限，不能据此判断该玩家没有此模式战绩。"
-                      : prepared ? "本局已准备记录中暂无对应模式战绩，可查询最新战绩。" : captured ? "保留记录中暂无对应模式战绩，可查询最新战绩。" : "可以刷新战绩，或切换模式筛选。"
-                    : "客户端尚未提供有效身份。"
+                      ? uiText.playerView.restricted
+                      : prepared ? uiText.playerView.capturedModeEmpty : captured ? uiText.playerView.archivedModeEmpty : uiText.playerView.emptyHelp
+                    : uiText.playerView.missingIdentity
                 }}
               </p>
             </div>
@@ -277,27 +268,25 @@ function toggle(id: number) {
               :filtered="state.queue !== 'all'"
             />
           </div>
-          <nav class="history-pagination" aria-label="战绩分页">
+          <nav class="history-pagination" :aria-label="uiText.playerView.pagination">
             <span
               >{{
                 pageMatches.length
-                  ? `${((state.page ?? 1) - 1) * HISTORY_PAGE_SIZE + 1}–${((state.page ?? 1) - 1) * HISTORY_PAGE_SIZE + pageMatches.length} 场`
-                  : "暂无记录"
-              }}<small>每页 {{ HISTORY_PAGE_SIZE }} 场</small></span
+                  ? uiText.playerView.gameRange(((state.page ?? 1) - 1) * HISTORY_PAGE_SIZE + 1, ((state.page ?? 1) - 1) * HISTORY_PAGE_SIZE + pageMatches.length)
+                  : uiText.common.noRecords
+              }}<small>{{ uiText.playerView.pageSize(HISTORY_PAGE_SIZE) }}</small></span
             >
             <div class="page-controls">
               <button
                 class="secondary"
                 :disabled="busy || state.pageBusy || (state.page ?? 1) <= 1"
                 @click="goPage((state.page ?? 1) - 1)"
-              >
-                上一页
-              </button>
+              >{{ uiText.playerView.previous }}</button>
               <span class="page-indicator"
-                >第 {{ state.page ?? 1 }} 页<small>{{
+                >{{ uiText.common.page(state.page ?? 1) }}<small>{{
                   state.hasMore || state.sourceLimit
-                    ? `已找到 ${knownPages} 页`
-                    : `共 ${knownPages} 页`
+                    ? uiText.playerView.foundPages(knownPages)
+                    : uiText.playerView.totalPages(knownPages)
                 }}</small></span
               >
               <button
@@ -309,27 +298,21 @@ function toggle(id: number) {
                     (!state.hasMore || !canFetch))
                 "
                 @click="goPage((state.page ?? 1) + 1)"
-              >
-                下一页
-              </button>
+              >{{ uiText.playerView.next }}</button>
             </div>
             <form class="page-jump" @submit.prevent="jumpPage" novalidate>
               <label
-                >到第
-                <input
+                >{{ uiText.playerView.goTo }}<input
                   v-model="jumpDraft"
-                  aria-label="跳转页码"
+                  :aria-label="uiText.playerView.jumpLabel"
                   :aria-invalid="!!jumpError"
-                  :title="`可输入 1–${maxJumpPage} 页；未获取的页按需查找`"
+                  :title="uiText.playerView.pageRange(maxJumpPage)"
                   inputmode="numeric"
                   autocomplete="off"
                   maxlength="3"
                   :disabled="busy || state.pageBusy"
-                />页
-              </label>
-              <button class="secondary" :disabled="busy || state.pageBusy">
-                跳转
-              </button>
+                />{{ uiText.playerView.pageUnit }}</label>
+              <button class="secondary" :disabled="busy || state.pageBusy">{{ uiText.playerView.jump }}</button>
             </form>
             <p v-if="jumpError" class="page-jump-error" role="alert">
               {{ jumpError }}

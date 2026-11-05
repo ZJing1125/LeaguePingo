@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiText } from "../uiText";
 import { computed } from "vue";
 import { gameAsset, iconStyle, type AssetKind } from "../gameAssets";
 const props = withDefaults(
@@ -9,7 +10,7 @@ const entry = computed(() => gameAsset(props.kind, props.id));
 const label = computed(
   () =>
     entry.value?.name ??
-    (props.id === 0 ? "空槽位" : props.id ? `未知资源 #${props.id}` : "未知"),
+    (props.id === 0 ? uiText.gameIcon.empty : props.id ? uiText.gameIcon.unknownResource(props.id) : uiText.common.unknown),
 );
 </script>
 <template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiText } from "../uiText";
 // Same rule as the accept notice: no static "已开启" banner, only a step that is
 // running, counting down, or waiting for the player.
 import { useAutomation } from '../composables/useAutomation';
@@ -9,7 +10,7 @@ const cancelable = ['honor-countdown', 'waiting-honor', 'return-countdown', 'que
 <template>
   <div v-if="postVisible" class="post-game-notice" :class="{ compact }" :data-status="post?.status">
     <span role="status">{{ error || postText }}</span>
-    <button v-if="cancelable.includes(post?.status ?? '')" class="secondary" :disabled="busy" @click="cancelPost">取消本次</button>
+    <button v-if="cancelable.includes(post?.status ?? '')" class="secondary" :disabled="busy" @click="cancelPost">{{ uiText.automationView.cancelOnce }}</button>
   </div>
 </template>
 <style scoped>

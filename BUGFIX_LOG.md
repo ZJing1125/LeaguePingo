@@ -4,9 +4,17 @@
 
 历史条目描述当时行为；如后续需求调整，以较新条目为准。当前局内请求边界见 BUG-0043；BUG-0045 仅为临时按住快览恢复鼠标穿透，手动模式保持可交互。
 
+## BUG-0125 / U8产品组件文案集中与守卫
+
+2026-11-05。44个含文案的产品组件将766项字面量/格式函数迁入uiText，复用原automationState/connectionGuide；语义英文键按共享和功能分组，无新i18n或其他依赖。保持原文案、标点、空格及插值顺序；137个格式函数区分Vue文本toDisplayString（空值/结构数据）与原JavaScript模板转换，不把所有值强行String化。PlayerView仅将原位置描述表达式移入computed以满足模板类型检查，数据来源与计算不变。
+
+check-copy覆盖含根应用的53个产品Vue，检查脚本字面量/嵌套模板、模板文本/属性/无障碍标签/事件和Unicode或HTML实体转义，注释不是文案；五项扫描器回归和workflow变异保护纳入portable/Windows verify。新增三项显示转换/原生转换/多参数顺序回归，前端单测总22项。对照39134a0的原始片段，766项/1177组字面量和格式输入零差异；原资源名、TS表现层映射、后端错误目录保持原归属，没有修改取数、模型、绑定或自动化动作。
+
+生产构建、22项前端类型/单测、portable、十二组完整浏览器回归及5组23变体组件工作台已通过；44个改动组件的32个样式块与前一提交完全相同。Windows CI按本提交继续核验，国服人工验收仍集中后置。Q6提交39134a0的[42000623878](https://github.com/ZJing1125/LeaguePingo/actions/runs/42000623878)三项CI全部通过，含Windows全包竞态、原生回归、完整构建及隔离安装卸载；该结果不覆盖本批后续文案迁移。
+
 ## BUG-0124 / Q6组件样式归属与渐进迁移
 
-2026-11-05。PlayerTabs与SettingsPanel的30条专属规则保留原foundation→style级联和媒体条件，迁到各自scoped样式；全局两文件合计3709→3555行。共享主题/控件和被AutomationView使用的settings-message仍在全局，未一次性迁移存量或调整产品布局、文案、数据/请求行为。
+2026-11-05。PlayerTabs与SettingsPanel的30条专属规则保留原foundation→style级联和媒体条件，迁到各自scoped样式；全局两文件合计3709→3553行。共享主题/控件和被AutomationView使用的settings-message仍在全局，未一次性迁移存量或调整产品布局、文案、数据/请求行为。
 
 新增check-styles门禁，检查包含根应用的53个产品组件：已有样式块必须scoped/module，两组已迁移的专属选择器不得回流全局（含主题和媒体规则），且对应组件保留其自身样式。四项脚本回归和workflow变异保护已接入portable/Windows verify，复用现有Vue/PostCSS依赖，没有新增包。
 

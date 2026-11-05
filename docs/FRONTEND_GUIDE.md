@@ -1,12 +1,14 @@
 # 前端迭代与组件预览
 
+U8：组件中文文案、提示、无障碍标签和动态格式统一从uiText读取，按共享/功能语义分组，不新增i18n依赖。本次迁移保留原文案；新增文案先加入目录，check-copy会扫描全部53个产品组件（含根应用）的脚本、模板和属性。Vue文本格式使用toDisplayString保留空值/对象显示，原JS模板保留原生转换；匹配片段/位置键/选择器需与使用方同步。资源名、已有TS表现层的数据映射和后端错误目录保持原归属，本批不重写取数或状态逻辑。
+
 Q6：所有产品Vue样式块使用scoped/module并沿用设计变量，check-styles门禁包含根应用。PlayerTabs/SettingsPanel专属规则已迁入组件，保持原级联/媒体条件，不再回流全局；settings-message由自动化页共享，仍保留全局。其余存量逐组件迁移，不一次性搬完。
 
-BUG-0113：AutomationView以独立loading及aria-busy标识Info读取，载入和保存期间冻结配置控件；失败可显式重新读取本机设置，没有自动重试或客户端写动作。post-game使用响应屏障测试重载持久值、失败重试与保存期间禁止被迟到响应覆盖的草稿；先等读取完成再断言真实开关，不能只等工作区挂载。新增短文案仍在uiText，U8全量迁移未完成。
+BUG-0113：AutomationView以独立loading及aria-busy标识Info读取，载入和保存期间冻结配置控件；失败可显式重新读取本机设置，没有自动重试或客户端写动作。post-game使用响应屏障测试重载持久值、失败重试与保存期间禁止被迟到响应覆盖的草稿；先等读取完成再断言真实开关，不能只等工作区挂载。组件文案现已由U8统一迁入uiText，原设置守卫不变。
 
 U7：player-analysis末尾复用keyboard-access的真实按键路径，不改变test:smoke入口；覆盖两主题的首页/资料展开、详情、搜索、战绩筛选、分析标签、设置和工作区导航。只有Tab/Shift+Tab/回车/空格/方向键及Esc驱动操作，并核对焦点返回、可见边框、原有减少动态效果与核心语义色对比度。该检查不替代屏幕阅读器或Windows原生窗口验收。
 
-U5：ConnectionGuide在首页未连接时显示启动国服客户端、完成登录、保持助手运行三步；使用原主题、局部样式及uiText文案，无弹窗、焦点或网络副作用。home-theme覆盖首次离线启动、断线旧资料、重连收起、亮暗主题及880/1280宽度；只读指引不改变后台查询策略。uiText仅开始集中新增文案，U8仍待全量处理。
+U5：ConnectionGuide在首页未连接时显示启动国服客户端、完成登录、保持助手运行三步；使用原主题、局部样式及uiText文案，无弹窗、焦点或网络副作用。home-theme覆盖首次离线启动、断线旧资料、重连收起、亮暗主题及880/1280宽度；只读指引不改变后台查询策略。uiText已由U8覆盖全部产品组件文案。
 
 Q3：`npm --prefix frontend run test:unit`先以tsconfig.unit.json检查测试类型，再通过固定Vitest 5.1.0在Node环境运行tests/unit。当前19项测试覆盖historyBrowser的实际Vue生命周期/缓存/扫描/迟到隔离和presentation的缺失值/统计/输入/错误展示；只模拟Wails桥接，不连接游戏，不需要浏览器。scripts/verify.sh在portable及Windows路径都强制执行，workflow策略拒绝移除。生产test:smoke仍负责浏览器交互和布局，两者不代替国服验收。
 

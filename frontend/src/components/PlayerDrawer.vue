@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiText } from "../uiText";
 import { nextTick, onBeforeUnmount, ref, watch } from "vue";
 const props = defineProps<{
   modal: boolean;
@@ -56,7 +57,7 @@ function restoreFocus() {
         '.players-workspace [role="tab"][aria-selected="true"]',
       ),
       document.querySelector<HTMLElement>(".roster-toolbar button"),
-      document.querySelector<HTMLElement>('[aria-label="玩家完整 ID"]'),
+      document.querySelector<HTMLElement>(uiText.playerDrawer.playerIdSelector),
     ].find(
       (element) =>
         element?.isConnected &&
@@ -111,7 +112,7 @@ onBeforeUnmount(() => {
         :class="{'drawer-fit':fit}"
         :role="modal ? 'dialog' : 'complementary'"
         :aria-modal="modal ? true : undefined"
-        :aria-label="label || '玩家详情'"
+        :aria-label="label || uiText.playerDrawer.title"
         tabindex="-1"
         @keydown="trapFocus"
         @keydown.esc.stop="emit('close')"

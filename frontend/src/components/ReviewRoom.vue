@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiText } from "../uiText";
 import { computed, reactive, ref, watch } from 'vue';
 import * as Service from '../../bindings/leaguepingo/appservice';
 import type { MatchReview,Participant,Snapshot } from '../../bindings/leaguepingo/internal/core/models';
@@ -25,26 +26,26 @@ function adjacent(direction:number){const ps=props.review?.participants ?? [];co
 async function refresh(){if(busy.value || !props.review)return;busy.value=true;error.value='';try{emit('snapshot',await Service.RefreshReview(props.review.gameId));}catch(reason){error.value=errorMessage(reason);}finally{busy.value=false;}}
 </script>
 <template>
-  <section class="review-room" aria-label="赛后分析">
-    <header class="review-heading"><div><h1>赛后分析</h1><p v-if="review">{{ queueName(review.queueId) }} · 对局 #{{ review.gameId }} · {{ date(review.capturedAt) }}</p><p v-else>结束一局后，在这里查看双方表现与赛前资料快照。</p></div></header>
-    <div v-if="!review" class="review-empty"><AppIcon name="history" :size="36"/><h2>尚无赛后记录</h2><p>房间、选人和游戏中的资料可在“当前对局”查看。</p><p class="review-note">本次运行保留最近一局，结束后自动整理。</p></div>
+  <section class="review-room" :aria-label="uiText.common.review">
+    <header class="review-heading"><div><h1>{{ uiText.common.review }}</h1><p v-if="review">{{ uiText.reviewRoom.context(queueName(review.queueId), review.gameId, date(review.capturedAt)) }}</p><p v-else>{{ uiText.reviewRoom.emptyHelp }}</p></div></header>
+    <div v-if="!review" class="review-empty"><AppIcon name="history" :size="36"/><h2>{{ uiText.reviewRoom.empty }}</h2><p>{{ uiText.reviewRoom.liveHelp }}</p><p class="review-note">{{ uiText.reviewRoom.retention }}</p></div>
     <template v-else>
-      <div class="review-section-title"><div class="review-scope-switch" role="group" aria-label="复盘内容"><button class="secondary" :aria-pressed="scope==='result'" @click="scope='result'">本局结果</button><button class="secondary" :aria-pressed="scope==='pregame'" @click="scope='pregame'">赛前资料快照</button></div><p class="review-note">仅本次运行保留 · 新房间不会覆盖</p></div>
-      <section v-show="scope==='result'" class="review-result" aria-label="本局结算">
-        <div class="review-status"><span>{{ review.state==='waiting'?'正在同步本局结算…':review.state==='ready'?'本局结果已同步':review.state==='partial'?'结算资料部分返回':'结算尚未同步，可保留赛前资料稍后重试' }}</span><button class="secondary" :disabled="busy || !connected || inGame || review.state==='waiting'" @click="refresh">{{ busy?'同步中…':'同步结算' }}</button></div>
+      <div class="review-section-title"><div class="review-scope-switch" role="group" :aria-label="uiText.reviewRoom.content"><button class="secondary" :aria-pressed="scope==='result'" @click="scope='result'">{{ uiText.reviewRoom.result }}</button><button class="secondary" :aria-pressed="scope==='pregame'" @click="scope='pregame'">{{ uiText.reviewRoom.pregame }}</button></div><p class="review-note">{{ uiText.reviewRoom.retentionHint }}</p></div>
+      <section v-show="scope==='result'" class="review-result" :aria-label="uiText.reviewRoom.settlement">
+        <div class="review-status"><span>{{ review.state==='waiting'?uiText.reviewRoom.syncing:review.state==='ready'?uiText.reviewRoom.synced:review.state==='partial'?uiText.reviewRoom.partial:uiText.reviewRoom.notSynced }}</span><button class="secondary" :disabled="busy || !connected || inGame || review.state==='waiting'" @click="refresh">{{ busy?uiText.common.syncingShort:uiText.reviewRoom.sync }}</button></div>
         <p v-if="error" class="quality-warning" role="status">{{ error }}</p>
         <MatchDetails v-if="review.result && target" :player="target" :game-id="review.gameId" :provided="review.result" :connected="false"/>
-        <p v-else class="review-note">本局胜负、KDA 和装备以结算结果为准，赛前统计可在“赛前资料快照”中查看。</p>
+        <p v-else class="review-note">{{ uiText.reviewRoom.settlementHelp }}</p>
       </section>
       <template v-if="scope==='pregame'">
-        <div class="review-section-title"><h2>赛前资料快照</h2><QueueSwitch :value="queue" @change="queue=$event"/></div>
-        <p class="review-note">各玩家统计时间以卡片记录为准；这里的历史表现不代表本局结果。点击玩家查看已保留战绩。</p>
+        <div class="review-section-title"><h2>{{ uiText.reviewRoom.pregame }}</h2><QueueSwitch :value="queue" @change="queue=$event"/></div>
+        <p class="review-note">{{ uiText.reviewRoom.capturedHelp }}</p>
         <MatchRoster :players="review.participants ?? []" :selected-key="selectedKey" :queue="queue" frozen captured @select="selectedKey=$event.key"/>
       </template>
     </template>
     <PlayerDrawer v-if="selected" :player-key="selected.key" modal :active="active" @close="selectedKey=''">
-      <div class="drawer-toolbar"><button class="text-button" :disabled="!connected || !selected.displayName.includes('#')" @click="$emit('query',selected)">查询最新战绩 ↗</button><span class="drawer-player-switch"><button class="text-button" aria-label="上一位玩家" @click="adjacent(-1)">← 上一位</button><button class="text-button" aria-label="下一位玩家" @click="adjacent(1)">下一位 →</button></span><button class="icon-button" aria-label="关闭玩家详情" @click="selectedKey=''"><AppIcon name="close"/></button></div>
-      <p class="review-note">赛前已保留战绩 · 查询最新战绩将在玩家战绩页打开</p>
+      <div class="drawer-toolbar"><button class="text-button" :disabled="!connected || !selected.displayName.includes('#')" @click="$emit('query',selected)">{{ uiText.matchRoom.latestHistory }}</button><span class="drawer-player-switch"><button class="text-button" :aria-label="uiText.matchRoom.previousPlayer" @click="adjacent(-1)">{{ uiText.matchRoom.previous }}</button><button class="text-button" :aria-label="uiText.matchRoom.nextPlayer" @click="adjacent(1)">{{ uiText.matchRoom.next }}</button></span><button class="icon-button" :aria-label="uiText.matchRoom.closePlayer" @click="selectedKey=''"><AppIcon name="close"/></button></div>
+      <p class="review-note">{{ uiText.reviewRoom.playerHint }}</p>
       <PlayerView :player="selected" :state="stateFor(selected.key)" :scout-queue="queue" :connected="false" :active="active" compact captured/>
     </PlayerDrawer>
   </section>

@@ -100,13 +100,13 @@ async function persist(target: AutomationDraft, successMessage: string) {
   } catch (reason) {
     // Reflect any first call that succeeded instead of restoring stale drafts.
     if (applied) apply(latest);
-    error.value = `${applied ? "部分设置已生效；" : ""}${errorMessage(reason)}`;
+    error.value = `${applied ? uiText.common.partiallyApplied : ""}${errorMessage(reason)}`;
     await live.refresh();
   } finally { busy.value = false; }
 }
 async function save() {
   if (!dirty.value) return;
-  await persist(currentDraft(), "自动化设置已保存。");
+  await persist(currentDraft(), uiText.automationView.saved);
 }
 async function disableAll() {
   const target = currentDraft();
@@ -114,67 +114,65 @@ async function disableAll() {
   target.skipHonor = false;
   target.returnEnabled = false;
   target.queueEnabled = false;
-  await persist(target, "全部自动化已停用。");
+  await persist(target, uiText.automationView.disabledAll);
 }
 onMounted(() => { void load(); });
 </script>
 <template>
-  <section class="automation-workspace" aria-label="游戏辅助" :aria-busy="loading || busy">
+  <section class="automation-workspace" :aria-label="uiText.common.automation" :aria-busy="loading || busy">
     <header class="automation-head">
       <div>
-        <h1>游戏辅助</h1>
-        <p class="muted">自动接受、赛后点赞与返回排队。开关默认关闭，保存成功后才会生效。</p>
-        <p class="automation-boundary">所有功能均为实验性；不会发送拒绝、不模拟鼠标或键盘，也不会替你选择英雄、点赞对象或奖励。</p>
+        <h1>{{ uiText.common.automation }}</h1>
+        <p class="muted">{{ uiText.automationView.introduction }}</p>
+        <p class="automation-boundary">{{ uiText.automationView.boundaries }}</p>
       </div>
       <span class="automation-state" :class="{ busy: activeCount > 0, warn: warning }">
-        <span class="dot" />{{ activeCount ? `${activeCount} 项开启` : '全部关闭' }}
+        <span class="dot" />{{ activeCount ? uiText.automationView.enabledCount(activeCount) : uiText.automationView.allDisabled }}
       </span>
     </header>
 
     <article class="automation-card" :class="{ on: acceptEnabled }">
       <header>
-        <h2>自动接受对局 <ExperimentalBadge feature="自动接受对局" /></h2>
-        <label class="automation-switch"><input v-model="acceptEnabled" type="checkbox" aria-label="启用自动接受对局" :disabled="unavailable" />启用</label>
+        <h2>{{ uiText.automationView.acceptHeading }}<ExperimentalBadge :feature="uiText.automationView.acceptTitle" /></h2>
+        <label class="automation-switch"><input v-model="acceptEnabled" type="checkbox" :aria-label="uiText.automationView.acceptEnabled" :disabled="unavailable" />{{ uiText.common.enable }}</label>
       </header>
-      <p class="muted">按设定延迟接受对局；可跳过本次，不发送拒绝、不模拟点击。</p>
-      <label class="automation-field">接受延迟
-        <select v-model.number="acceptDelay" aria-label="自动接受延迟" :disabled="unavailable">
-          <option v-for="seconds in [0, 1, 3, 5]" :key="seconds" :value="seconds">{{ seconds ? `${seconds} 秒` : '立即' }}</option>
+      <p class="muted">{{ uiText.automationView.acceptHelp }}</p>
+      <label class="automation-field">{{ uiText.automationView.acceptDelayLabel }}<select v-model.number="acceptDelay" :aria-label="uiText.automationView.acceptDelay" :disabled="unavailable">
+          <option v-for="seconds in [0, 1, 3, 5]" :key="seconds" :value="seconds">{{ seconds ? uiText.common.seconds(seconds) : uiText.automationView.immediately }}</option>
         </select>
       </label>
       <p v-if="acceptEnabled && acceptVisible" class="automation-live" data-live="accept">
         <span>{{ liveError || acceptText }}</span>
-        <button v-if="accept?.status === 'countdown'" class="secondary" :disabled="busy" @click="skipAccept">跳过本次</button>
+        <button v-if="accept?.status === 'countdown'" class="secondary" :disabled="busy" @click="skipAccept">{{ uiText.common.skipOnce }}</button>
       </p>
     </article>
 
     <article class="automation-card" :class="{ on: skipHonor || returnEnabled || queueEnabled }">
       <header>
-        <h2>赛后流程 <ExperimentalBadge feature="赛后返回与自动排队" /></h2>
+        <h2>{{ uiText.automationView.postgameHeading }}<ExperimentalBadge :feature="uiText.automationView.postgameTitle" /></h2>
       </header>
       <div class="automation-rows">
-        <label class="automation-switch"><input v-model="skipHonor" type="checkbox" aria-label="自动跳过点赞" :disabled="unavailable" />自动跳过点赞</label>
-        <small class="muted">可单独开启，3 秒倒计时内可取消；不会替你选择点赞对象。</small>
-        <label class="automation-switch"><input v-model="returnEnabled" type="checkbox" aria-label="赛后自动返回房间" :disabled="unavailable" />赛后自动返回房间</label>
-        <label class="automation-switch"><input v-model="queueEnabled" type="checkbox" aria-label="返回后自动排队" :disabled="unavailable" />返回后自动排队</label>
-        <label class="automation-field">排队倒计时
-          <select v-model.number="queueDelay" aria-label="自动排队倒计时" :disabled="unavailable">
-            <option v-for="seconds in [5, 10, 15, 20]" :key="seconds" :value="seconds">{{ seconds }} 秒</option>
+        <label class="automation-switch"><input v-model="skipHonor" type="checkbox" :aria-label="uiText.automationView.skipHonor" :disabled="unavailable" />{{ uiText.automationView.skipHonor }}</label>
+        <small class="muted">{{ uiText.automationView.skipHonorHelp }}</small>
+        <label class="automation-switch"><input v-model="returnEnabled" type="checkbox" :aria-label="uiText.automationView.returnLobby" :disabled="unavailable" />{{ uiText.automationView.returnLobby }}</label>
+        <label class="automation-switch"><input v-model="queueEnabled" type="checkbox" :aria-label="uiText.automationView.queueAfterReturn" :disabled="unavailable" />{{ uiText.automationView.queueAfterReturn }}</label>
+        <label class="automation-field">{{ uiText.automationView.queueDelayLabel }}<select v-model.number="queueDelay" :aria-label="uiText.automationView.queueDelay" :disabled="unavailable">
+            <option v-for="seconds in [5, 10, 15, 20]" :key="seconds" :value="seconds">{{ uiText.automationView.secondsText(seconds) }}</option>
           </select>
         </label>
-        <small v-if="queueEnabled && !returnEnabled" class="muted">手动返回房间后，才会开始排队倒计时。</small>
+        <small v-if="queueEnabled && !returnEnabled" class="muted">{{ uiText.automationView.manualReturnHelp }}</small>
       </div>
       <p v-if="(skipHonor || returnEnabled || queueEnabled) && postVisible" class="automation-live" data-live="post">
         <span>{{ liveError || postText }}</span>
-        <button v-if="['honor-countdown','waiting-honor','return-countdown','queue-countdown','waiting-result','waiting-return','waiting-ready','waiting-postgame','continuing-postgame'].includes(post?.status ?? '')" class="secondary" :disabled="busy" @click="cancelPost">取消本次</button>
+        <button v-if="['honor-countdown','waiting-honor','return-countdown','queue-countdown','waiting-result','waiting-return','waiting-ready','waiting-postgame','continuing-postgame'].includes(post?.status ?? '')" class="secondary" :disabled="busy" @click="cancelPost">{{ uiText.automationView.cancelOnce }}</button>
       </p>
     </article>
 
     <footer class="automation-actions">
-      <button class="secondary" type="button" @click="emit('settings')"><AppIcon name="settings" :size="14" /> 其他设置</button>
-      <button class="secondary stop-all" type="button" :disabled="unavailable || !anyEnabled" @click="disableAll">停用全部自动化</button>
-      <span class="muted">{{ loading ? text.loading : !info ? text.unavailable : dirty ? '有未保存修改' : '设置已同步' }}</span>
-      <button class="primary" type="button" :disabled="unavailable || !dirty" @click="save">{{ busy ? '保存中…' : '保存自动化设置' }}</button>
+      <button class="secondary" type="button" @click="emit('settings')"><AppIcon name="settings" :size="14" />{{ uiText.automationView.otherSettings }}</button>
+      <button class="secondary stop-all" type="button" :disabled="unavailable || !anyEnabled" @click="disableAll">{{ uiText.automationView.stopAll }}</button>
+      <span class="muted">{{ loading ? text.loading : !info ? text.unavailable : dirty ? uiText.common.unsaved : uiText.common.synced }}</span>
+      <button class="primary" type="button" :disabled="unavailable || !dirty" @click="save">{{ busy ? uiText.common.saving : uiText.automationView.save }}</button>
     </footer>
     <p v-if="error" class="error-banner" role="alert">{{ error }}</p>
     <p v-else-if="message" class="settings-message" role="status">{{ message }}</p>

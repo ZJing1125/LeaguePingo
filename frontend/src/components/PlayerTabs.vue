@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiText } from "../uiText";
 import { nextTick, ref, watch } from "vue";
 import type { Participant } from "../../bindings/leaguepingo/internal/core/models";
 import { playerTabId } from "../playerState";
@@ -70,7 +71,7 @@ function navigate(event: KeyboardEvent, index: number) {
     ref="tablist"
     class="player-tabs"
     role="tablist"
-    aria-label="已查看玩家"
+    :aria-label="uiText.playerTabs.title"
     aria-orientation="horizontal"
   >
     <div
@@ -93,7 +94,7 @@ function navigate(event: KeyboardEvent, index: number) {
       </button>
       <button
         class="tab-close"
-        :aria-label="`关闭 ${playerName(player, index + 1)}`"
+        :aria-label="uiText.playerTabs.close(playerName(player, index + 1))"
         :tabindex="activeKey === player.key ? 0 : -1"
         @click="close(player.key)"
       >

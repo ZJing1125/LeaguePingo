@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiText } from "../uiText";
 import { computed, ref } from 'vue';
 import * as Service from '../../bindings/leaguepingo/appservice';
 import type { Snapshot } from '../../bindings/leaguepingo/internal/core/models';
@@ -17,38 +18,38 @@ const relevant=computed(()=>state.value?.query.champion===self.value?.championId
 const current=computed(()=>relevant.value?state.value:null);
 const guide=computed(()=>current.value?.matchup??current.value?.base);
 const enemies=computed(()=>props.snapshot?.participants?.filter(p=>p.team==='enemy'&&p.championId)||[]);
-const sections=computed(()=>guide.value?.builds?.filter(s=>!condensed.value||s.label==='核心装备')||[]);
+const sections=computed(()=>guide.value?.builds?.filter(s=>!condensed.value||s.label===uiText.guidePanel.coreItems)||[]);
 const tips=computed(()=>guide.value?.tips?.slice(0,condensed.value?2:undefined)||[]);
 const shown=computed(()=>current.value?.status!=='disabled'&&(!props.summary||!!guide.value)&&!!self.value?.championId&&['ChampSelect','GameStart','InProgress','Reconnect'].includes(props.snapshot?.phase||''));
 async function select(position:string,opponent:number,retry=false){if(busy.value)return;error.value='';busy.value=true;try{acceptGuide(await Service.SelectGuide(position,opponent,retry));}catch(e){error.value=errorMessage(e);}finally{busy.value=false;}}
-function missingBuildIcon(ids:number[]|null,section:string){return (ids||[]).some(id=>!gameAsset(section==='召唤师技能'?'spells':'items',id));}
+function missingBuildIcon(ids:number[]|null,section:string){return (ids||[]).some(id=>!gameAsset(section===uiText.common.spells?'spells':'items',id));}
 function changePosition(event:Event){void select((event.target as HTMLSelectElement).value,0);}
 function changeOpponent(event:Event){void select(current.value?.query.position||'',Number((event.target as HTMLSelectElement).value));}
 </script>
 <template>
- <section v-if="shown" class="guide-panel" :class="{compact,summary,brief:condensed}" aria-label="本局英雄攻略">
-  <header class="guide-heading"><div><h2>{{summary?'本局攻略':'英雄攻略'}} <small>{{current?.modeLabel}}</small> <ExperimentalBadge feature="英雄攻略与模式适配"/></h2><p>{{championName(self?.championId||0)}}<template v-if="current?.query.opponent"> <span>对阵</span> {{championName(current.query.opponent)}}</template></p></div><span v-if="current?.status==='loading'" class="guide-loading" role="status">准备中</span><button v-if="!compact&&!summary&&guide" class="text-button" :aria-expanded="showDetail" @click="showDetail=!showDetail">{{showDetail?'收起完整攻略':'展开完整攻略'}}</button></header>
+ <section v-if="shown" class="guide-panel" :class="{compact,summary,brief:condensed}" :aria-label="uiText.guidePanel.liveTitle">
+  <header class="guide-heading"><div><h2>{{summary?uiText.clientSidebar.guide:uiText.common.guide}} <small>{{current?.modeLabel}}</small> <ExperimentalBadge :feature="uiText.guidePanel.label"/></h2><p>{{championName(self?.championId||0)}}<template v-if="current?.query.opponent"> <span>{{ uiText.guidePanel.versus }}</span> {{championName(current.query.opponent)}}</template></p></div><span v-if="current?.status==='loading'" class="guide-loading" role="status">{{ uiText.common.preparing }}</span><button v-if="!compact&&!summary&&guide" class="text-button" :aria-expanded="showDetail" @click="showDetail=!showDetail">{{showDetail?uiText.guidePanel.collapse:uiText.guidePanel.expand}}</button></header>
   <div v-if="!summary && current && !['idle','unsupported'].includes(current.status)" class="guide-filters">
-   <label v-if="['ranked','flex'].includes(current.query.mode)">本局位置<select aria-label="攻略分路" :disabled="busy" :value="current.positionExplicit?current.query.position:''" @change="changePosition"><option value="">请选择位置</option><option value="top">上路</option><option value="jungle">打野</option><option value="mid">中路</option><option value="adc">下路</option><option value="support">辅助</option></select></label>
-   <label v-if="current.query.mode==='ranked'&&!current.reference&&current.query.position">对位英雄<select aria-label="攻略对位英雄" :value="current.query.opponent" :disabled="busy" @change="changeOpponent"><option :value="0">按明确分路 / 英雄通用</option><option v-for="p in enemies" :key="p.key" :value="p.championId">{{championName(p.championId||0)}}</option></select></label>
-   <button class="text-button" :disabled="busy||current.status==='loading'" @click="select(current.query.position,current.query.opponent,true)">刷新攻略</button>
+   <label v-if="['ranked','flex'].includes(current.query.mode)">{{ uiText.guidePanel.currentRole }}<select :aria-label="uiText.guidePanel.guideRole" :disabled="busy" :value="current.positionExplicit?current.query.position:''" @change="changePosition"><option value="">{{ uiText.guidePanel.chooseRole }}</option><option value="top">{{ uiText.common.top }}</option><option value="jungle">{{ uiText.common.jungle }}</option><option value="mid">{{ uiText.common.middle }}</option><option value="adc">{{ uiText.common.bottom }}</option><option value="support">{{ uiText.app.automationShort }}</option></select></label>
+   <label v-if="current.query.mode==='ranked'&&!current.reference&&current.query.position">{{ uiText.guidePanel.opponent }}<select :aria-label="uiText.guidePanel.opponentLabel" :value="current.query.opponent" :disabled="busy" @change="changeOpponent"><option :value="0">{{ uiText.guidePanel.genericOpponent }}</option><option v-for="p in enemies" :key="p.key" :value="p.championId">{{championName(p.championId||0)}}</option></select></label>
+   <button class="text-button" :disabled="busy||current.status==='loading'" @click="select(current.query.position,current.query.opponent,true)">{{ uiText.guidePanel.refresh }}</button>
   </div>
   <p v-if="error||current?.message" class="guide-status" role="status">{{error||current?.message}}</p>
-  <p v-if="current?.reference" class="guide-status">参考 OP.GG 排位数据，适用于峡谷玩法参考。</p>
-  <p v-if="current?.stale||current?.versionMismatch" class="guide-status">{{current.versionMismatch?'来源数据版本与当前客户端不同，请结合版本调整。':'显示已缓存攻略，可稍后重试更新。'}}</p>
+  <p v-if="current?.reference" class="guide-status">{{ uiText.guidePanel.rankedReference }}</p>
+  <p v-if="current?.stale||current?.versionMismatch" class="guide-status">{{current.versionMismatch?uiText.guidePanel.versionMismatch:uiText.guidePanel.cached}}</p>
   <div v-if="guide" class="guide-content">
    <MayhemAugments v-if="['aram-mayhem','arena'].includes(current?.query.mode||'') && current?.base?.augments?.length" :key="`${current.scope}:${current.query.champion}`" :state="current" :compact="compact" :summary="summary"/>
    <p v-if="guide.referenceNote" class="guide-status">{{guide.referenceNote}}</p>
    <p v-if="guide.notice && current?.message!==guide.notice" class="guide-status">{{guide.notice}}</p>
-   <div class="guide-builds"><section v-for="section in sections" :key="section.label"><h3>{{section.label}}</h3><div v-for="(build,n) in (section.options||[]).slice(0,expanded&&!condensed?3:1)" :key="n" class="guide-build-row"><span class="guide-build-choice"><span class="guide-item-icons"><GameIcon v-for="(id,i) in build.ids" :key="i" :id="id" :kind="section.label==='召唤师技能'?'spells':'items'" :size="compact||summary?26:32" :title="build.names?.[i]||''"/></span><small v-if="missingBuildIcon(build.ids,section.label)" class="guide-build-names">{{(build.ids||[]).map((id,i)=>build.names?.[i]||`#${id}`).join(' · ')}}</small></span><span v-if="!summary" class="guide-build-rate"><b>{{build.winRate==null?'—':`${build.winRate.toFixed(1)}%`}}</b><small>{{build.games?`${build.games.toLocaleString()} 场`:'样本未提供'}}</small></span></div></section></div>
-   <section v-if="guide.runes?.length" class="guide-runes"><h3>符文配置</h3><div><RuneIcon v-for="(id,i) in guide.runes" :key="i" :id="id" :size="26" :title="guide.runeNames?.[i]||''"/></div><p v-if="!condensed">{{guide.runeNames?.join(' · ')}}</p></section>
-   <section v-if="guide.skills?.length&&!condensed"><h3>技能加点</h3><ol class="guide-skills"><li v-for="(skill,i) in guide.skills" :key="i"><small>{{i+1}}</small><b>{{skill}}</b></li></ol></section>
-   <section v-if="tips.length" class="guide-tips"><h3>{{current?.query.mode==='arena'?'搭档组合':'对位要点'}} <small>{{current?.query.mode==='arena'?'竞技场来源':'峡谷分路参考'}}</small></h3><div v-for="tip in tips" :key="tip.label"><h4>{{tip.label}}</h4><p>{{tip.text}}</p></div></section>
-   <button v-if="!condensed" class="text-button guide-more" @click="expanded=!expanded">{{expanded?'收起备选方案':'查看备选方案'}}</button>
-   <footer><span>来源 OP.GG · {{guide.version?`${['aram-mayhem','arena','urf','nexus-blitz'].includes(current?.query.mode||'')?'来源页版本':'版本'} ${guide.version}`:'版本未提供'}} · {{new Date(guide.fetchedAt).toLocaleString()}}</span><a v-if="!summary" :href="guide.sourceUrl" target="_blank" rel="noopener noreferrer">查看原文 ↗</a></footer>
+   <div class="guide-builds"><section v-for="section in sections" :key="section.label"><h3>{{section.label}}</h3><div v-for="(build,n) in (section.options||[]).slice(0,expanded&&!condensed?3:1)" :key="n" class="guide-build-row"><span class="guide-build-choice"><span class="guide-item-icons"><GameIcon v-for="(id,i) in build.ids" :key="i" :id="id" :kind="section.label===uiText.common.spells?'spells':'items'" :size="compact||summary?26:32" :title="build.names?.[i]||''"/></span><small v-if="missingBuildIcon(build.ids,section.label)" class="guide-build-names">{{(build.ids||[]).map((id,i)=>build.names?.[i]||`#${id}`).join(' · ')}}</small></span><span v-if="!summary" class="guide-build-rate"><b>{{build.winRate==null?'—':`${build.winRate.toFixed(1)}%`}}</b><small>{{build.games?uiText.common.gamesNative(build.games.toLocaleString()):uiText.guidePanel.noSample}}</small></span></div></section></div>
+   <section v-if="guide.runes?.length" class="guide-runes"><h3>{{ uiText.common.runes }}</h3><div><RuneIcon v-for="(id,i) in guide.runes" :key="i" :id="id" :size="26" :title="guide.runeNames?.[i]||''"/></div><p v-if="!condensed">{{guide.runeNames?.join(' · ')}}</p></section>
+   <section v-if="guide.skills?.length&&!condensed"><h3>{{ uiText.guidePanel.skillOrder }}</h3><ol class="guide-skills"><li v-for="(skill,i) in guide.skills" :key="i"><small>{{i+1}}</small><b>{{skill}}</b></li></ol></section>
+   <section v-if="tips.length" class="guide-tips"><h3>{{current?.query.mode==='arena'?uiText.guidePanel.partners:uiText.guidePanel.matchup}} <small>{{current?.query.mode==='arena'?uiText.guidePanel.arenaSource:uiText.guidePanel.riftReference}}</small></h3><div v-for="tip in tips" :key="tip.label"><h4>{{tip.label}}</h4><p>{{tip.text}}</p></div></section>
+   <button v-if="!condensed" class="text-button guide-more" @click="expanded=!expanded">{{expanded?uiText.guidePanel.collapseAlternatives:uiText.guidePanel.expandAlternatives}}</button>
+   <footer><span>{{ uiText.guidePanel.attribution(guide.version?`${['aram-mayhem','arena','urf','nexus-blitz'].includes(current?.query.mode||'')?uiText.guidePanel.sourceVersion:uiText.common.version} ${guide.version}`:uiText.guidePanel.noVersion, new Date(guide.fetchedAt).toLocaleString()) }}</span><a v-if="!summary" :href="guide.sourceUrl" target="_blank" rel="noopener noreferrer">{{ uiText.guidePanel.sourceLink }}</a></footer>
   </div>
-  <p v-if="current?.sourceUrl && !guide" class="guide-status"><a :href="current.sourceUrl" target="_blank" rel="noopener noreferrer">查看当前英雄的 OP.GG 攻略 ↗</a></p>
-  <p v-else-if="!current" class="guide-status">正在同步本局攻略…</p>
+  <p v-if="current?.sourceUrl && !guide" class="guide-status"><a :href="current.sourceUrl" target="_blank" rel="noopener noreferrer">{{ uiText.guidePanel.championLink }}</a></p>
+  <p v-else-if="!current" class="guide-status">{{ uiText.guidePanel.syncing }}</p>
  </section>
 </template>
 <style scoped>

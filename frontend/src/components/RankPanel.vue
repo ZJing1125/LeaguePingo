@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiText } from "../uiText";
 import { computed } from 'vue';
 import type { Participant, Rank } from '../../bindings/leaguepingo/internal/core/models';
 import { rankPresentation } from '../rankPresentation';
@@ -7,13 +8,13 @@ import RankEmblem from './RankEmblem.vue';
 
 const props = withDefaults(defineProps<{ player: Participant; queue?: string }>(), { queue: 'RANKED_SOLO_5x5' });
 const data = computed(() => rankPresentation(props.player, props.queue));
-const label = computed(() => props.queue === 'RANKED_FLEX_SR' ? '灵活组排' : '单双排');
+const label = computed(() => props.queue === 'RANKED_FLEX_SR' ? uiText.queueSwitch.flex : uiText.common.solo);
 const tierOrder: Record<string, number> = { NONE: 0, UNRANKED: 0, IRON: 1, BRONZE: 2, SILVER: 3, GOLD: 4, PLATINUM: 5, EMERALD: 6, DIAMOND: 7, MASTER: 8, GRANDMASTER: 9, CHALLENGER: 10 };
 const divisionOrder: Record<string, number> = { IV: 1, III: 2, II: 3, I: 4 };
 
 type RankRecord = { label: string; tier?: string; division?: string; title?: string };
 const title = (tier: string, division?: string) => ['NONE', 'UNRANKED'].includes(tier)
-  ? '未定级'
+  ? uiText.common.unranked
   : `${tierName(tier)} ${['MASTER', 'GRANDMASTER', 'CHALLENGER'].includes(tier) ? '' : division ?? ''}`.trim();
 const score = (record: RankRecord) => (tierOrder[record.tier ?? ''] ?? -1) * 10 + (divisionOrder[record.division ?? ''] ?? 0);
 const valid = (record: RankRecord) => !!record.tier && !['NONE', 'UNRANKED'].includes(record.tier);
@@ -22,39 +23,39 @@ const sourceRecords = computed<RankRecord[]>(() => {
   const rank: Rank | undefined = data.value.rank;
   if (!rank) return [];
   return [
-    { label: '本赛季最高', tier: rank.highestTier, division: rank.highestDivision },
-    { label: '上赛季最高', tier: rank.previousHighestTier, division: rank.previousHighestDivision },
-    { label: '上赛季结算', tier: rank.previousTier, division: rank.previousDivision },
+    { label: uiText.rankPanel.seasonPeak, tier: rank.highestTier, division: rank.highestDivision },
+    { label: uiText.rankPanel.previousPeak, tier: rank.previousHighestTier, division: rank.previousHighestDivision },
+    { label: uiText.rankPanel.previousFinal, tier: rank.previousTier, division: rank.previousDivision },
   ].filter(valid);
 });
 const knownBest = computed<RankRecord | undefined>(() => {
   const current = data.value.rank;
   const candidates = [
     ...sourceRecords.value,
-    { label: '当前段位', tier: current?.tier, division: current?.division },
+    { label: uiText.rankPanel.current, tier: current?.tier, division: current?.division },
   ].filter(valid);
   return candidates.sort((a, b) => score(b) - score(a))[0];
 });
 const history = computed<RankRecord[]>(() => [
-  ...(knownBest.value ? [{ ...knownBest.value, label: '已记录历史最高', title: '按客户端明确返回的本赛季与上赛季记录计算，不代表完整生涯。' }] : []),
+  ...(knownBest.value ? [{ ...knownBest.value, label: uiText.rankPanel.historyPeak, title: uiText.rankPanel.historyHint }] : []),
   ...sourceRecords.value,
 ]);
 </script>
 
 <template>
   <section class="rank-panel" :title="data.title">
-    <header><h2>{{ label }}</h2><span v-if="data.retained">旧资料</span></header>
+    <header><h2>{{ label }}</h2><span v-if="data.retained">{{ uiText.playerProfileHeader.stale }}</span></header>
     <div class="rank-current">
       <RankEmblem :tier="data.rank?.tier" />
       <div><strong>{{ data.rank ? title(data.rank.tier, data.rank.division) : data.label }}</strong><span>{{ data.rank?.lp != null ? `${data.rank.lp.toLocaleString()} LP` : '—' }}</span></div>
-      <div class="rank-record" :title="data.record?.title"><b>{{ percent(data.record?.rate) }}</b><small>{{ data.record ? `${data.record.wins.toLocaleString()} 胜 / ${data.record.losses.toLocaleString()} 负` : '胜负待确认' }}</small></div>
+      <div class="rank-record" :title="data.record?.title"><b>{{ percent(data.record?.rate) }}</b><small>{{ data.record ? uiText.rankPanel.outcomes(data.record.wins.toLocaleString(), data.record.losses.toLocaleString()) : uiText.common.pendingOutcome }}</small></div>
     </div>
     <details v-if="history.length" class="rank-history">
-      <summary>段位记录 <span>{{ knownBest?.tier ? title(knownBest.tier, knownBest.division) : '' }}</span></summary>
+      <summary>{{ uiText.rankPanel.records }}<span>{{ knownBest?.tier ? title(knownBest.tier, knownBest.division) : '' }}</span></summary>
       <div v-for="row in history" :key="row.label" :title="row.title">
         <span>{{ row.label }}</span><RankEmblem :tier="row.tier" /><b>{{ title(row.tier!, row.division) }}</b>
       </div>
-      <p>历史最高按客户端明确返回的本赛季与上赛季记录计算。</p>
+      <p>{{ uiText.rankPanel.historyHelp }}</p>
     </details>
   </section>
 </template>

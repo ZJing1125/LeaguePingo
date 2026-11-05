@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiText } from "../uiText";
 import AutoAcceptNotice from "./AutoAcceptNotice.vue";
 import PostGameNotice from "./PostGameNotice.vue";
 import { computed, ref } from 'vue';
@@ -19,21 +20,21 @@ const picking=computed(()=>props.snapshot?.phase==='ChampSelect');
 </script>
 <template>
   <main v-if="state?.mode==='rail'" class="sidebar-rail desktop-app">
-    <button aria-label="展开客户端侧栏" title="展开客户端侧栏" @click="$emit('collapse',false)"><BrandIcon/><span>{{ picking?'选人资料':'房间成员' }}</span><b>{{ players.length }}</b><AppIcon name="panel" :size="14"/></button>
+    <button :aria-label="uiText.clientSidebar.expand" :title="uiText.clientSidebar.expand" @click="$emit('collapse',false)"><BrandIcon/><span>{{ picking?uiText.clientSidebar.selection:uiText.common.party }}</span><b>{{ players.length }}</b><AppIcon name="panel" :size="14"/></button>
   </main>
-  <main v-else class="client-sidebar desktop-app" :data-side="state?.sidebarSide" aria-label="客户端玩家侧栏">
-    <header class="sidebar-header"><BrandIcon/><strong>LeaguePingo</strong><button class="icon-button" aria-label="收起客户端侧栏" title="收起侧栏" @click="$emit('collapse',true)"><AppIcon name="minimise" :size="17"/></button></header>
-    <div class="sidebar-heading"><div><h1><button class="sidebar-tab" aria-label="玩家资料" :aria-pressed="tab==='players'" @click="tab='players'">{{ picking?'我方阵容':'房间成员' }}</button></h1><button class="sidebar-tab guide-tab" :aria-pressed="tab==='guide'" @click="tab='guide'">本局攻略</button><small><ExperimentalBadge v-if="hasGroups" feature="双方同组标识" label="同组实验性"/><template v-else>{{ status.split(' · ')[0] }}</template> · {{ players.length }} 人</small></div><QueueSwitch :value="snapshot?.scoutQueue ?? 420" compact @change="$emit('queue',$event)"/></div>
+  <main v-else class="client-sidebar desktop-app" :data-side="state?.sidebarSide" :aria-label="uiText.clientSidebar.label">
+    <header class="sidebar-header"><BrandIcon/><strong>LeaguePingo</strong><button class="icon-button" :aria-label="uiText.clientSidebar.collapse" :title="uiText.clientSidebar.collapseShort" @click="$emit('collapse',true)"><AppIcon name="minimise" :size="17"/></button></header>
+    <div class="sidebar-heading"><div><h1><button class="sidebar-tab" :aria-label="uiText.clientSidebar.playerData" :aria-pressed="tab==='players'" @click="tab='players'">{{ picking?uiText.common.allies:uiText.common.party }}</button></h1><button class="sidebar-tab guide-tab" :aria-pressed="tab==='guide'" @click="tab='guide'">{{ uiText.clientSidebar.guide }}</button><small><ExperimentalBadge v-if="hasGroups" :feature="uiText.clientSidebar.groups" :label="uiText.clientSidebar.groupExperimental"/><template v-else>{{ status.split(' · ')[0] }}</template>{{ uiText.clientSidebar.members(players.length) }}</small></div><QueueSwitch :value="snapshot?.scoutQueue ?? 420" compact @change="$emit('queue',$event)"/></div>
     <p v-if="error || state?.warning || snapshot?.rosterError" class="quality-warning" role="status">{{ error || state?.warning || snapshot?.rosterError }}</p>
     <AutoAcceptNotice compact />
     <PostGameNotice compact />
 
     <GuidePanel v-show="tab==='guide'" :snapshot="snapshot" compact/>
-    <section v-show="tab==='players'" class="sidebar-players" aria-label="我方玩家资料">
+    <section v-show="tab==='players'" class="sidebar-players" :aria-label="uiText.clientSidebar.alliesLabel">
       <SidebarPlayer v-for="p in players" :key="p.key" :player="p" :queue="snapshot?.scoutQueue ?? 420" :picking="picking"/>
-      <p v-if="!players.length" class="sidebar-empty">{{ picking?'正在读取我方名单…':'等待房间成员…' }}</p>
+      <p v-if="!players.length" class="sidebar-empty">{{ picking?uiText.clientSidebar.loadingAllies:uiText.clientSidebar.waitingParty }}</p>
     </section>
-    <footer class="sidebar-footer"><span>{{ picking?'点击玩家展开完整统计':'进入选人后展示英雄表现' }}</span><small>{{ state?.holdEnabled && state?.holdAvailable ? `局内按住 ${state?.holdKey==='Backquote'?'~':state?.holdKey || '~'} 查看双方` : state?.shortcutAvailable ? `${state.shortcut} 显示局内快览` : '局内快览可在主程序调出' }}</small></footer>
+    <footer class="sidebar-footer"><span>{{ picking?uiText.clientSidebar.expandHelp:uiText.clientSidebar.selectionHelp }}</span><small>{{ state?.holdEnabled && state?.holdAvailable ? uiText.clientSidebar.holdHelp(state?.holdKey==='Backquote'?'~':state?.holdKey || '~') : state?.shortcutAvailable ? uiText.clientSidebar.shortcutHelp(state.shortcut) : uiText.clientSidebar.previewHelp }}</small></footer>
   </main>
 </template>
 

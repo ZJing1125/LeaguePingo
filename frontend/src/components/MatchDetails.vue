@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiText } from "../uiText";
 import { computed, getCurrentInstance, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import * as Service from '../../bindings/leaguepingo/appservice';
 import type { Match, MatchDetail, MatchTimeline as Timeline, Participant } from '../../bindings/leaguepingo/internal/core/models';
@@ -19,7 +20,7 @@ const loaded = ref<MatchDetail | null>(null), timeline = ref<Timeline | null>(nu
 const tab = ref('overview');
 const scopeId = `analysis-${getCurrentInstance()!.uid}`;
 const root = ref<HTMLElement | null>(null);
-const tabs = [{ key: 'overview', label: '对局概览' }, { key: 'team', label: '团队分析' }, { key: 'timeline', label: '时间线' }, { key: 'build', label: '出装符文' }];
+const tabs = [{ key: 'overview', label: uiText.common.matchOverview }, { key: 'team', label: uiText.common.teamAnalysis }, { key: 'timeline', label: uiText.common.timeline }, { key: 'build', label: uiText.common.buildRunes }];
 const key = computed(() => `${props.player.connectionId}:${props.player.key}:${props.gameId}`);
 let revision = 0, autoRequested = '';
 const detail = computed(() => props.provided ?? loaded.value);
@@ -27,13 +28,13 @@ const match = computed(() => targetPlayer(detail.value)?.summary ?? props.match 
 const target = computed(() => targetPlayer(detail.value));
 const canLoad = computed(() => !!props.connected && !props.player.stale && !props.provided);
 const teams = computed(() => [...new Set((detail.value?.players ?? []).map(p => p.teamId))].sort());
-const teamName = (id: number) => id === 100 ? '蓝方' : id === 200 ? '红方' : `队伍 ${id}`;
+const teamName = (id: number) => id === 100 ? uiText.common.blue : id === 200 ? uiText.common.red : uiText.matchDetails.team(id);
 const teamPlayers = (id: number) => (detail.value?.players ?? []).filter(p => p.teamId === id);
 const teamResult = (id: number) => {
   const players = teamPlayers(id);
-  if (players.some(p => isRemake(p.summary))) return '重开';
+  if (players.some(p => isRemake(p.summary))) return uiText.common.remake;
   const values = players.map(p => p.summary.win).filter(v => v != null);
-  return values.length && values.every(v => v === values[0]) ? (values[0] ? '胜利' : '失败') : '';
+  return values.length && values.every(v => v === values[0]) ? (values[0] ? uiText.common.win : uiText.common.loss) : '';
 };
 type TeamMetric = 'kills' | 'gold' | 'damage' | 'damageTaken' | 'cs' | 'visionScore';
 function teamTotal(id: number, field: TeamMetric) {
@@ -42,7 +43,7 @@ function teamTotal(id: number, field: TeamMetric) {
 }
 const teamObjective = (id: number) => detail.value?.teams?.find(team => team.teamId === id);
 function damageWidth(damage: number | null | undefined) { const max = Math.max(0, ...(detail.value?.players ?? []).map(p => p.summary.damage ?? 0)); return damage != null && max > 0 ? Math.max(0, Math.min(100, damage * 100 / max)) : 0; }
-function csRate(value: number | null | undefined, duration: number | null | undefined) { return value != null && duration && duration > 0 ? `${decimal(value * 60 / duration)}/分` : '—'; }
+function csRate(value: number | null | undefined, duration: number | null | undefined) { return value != null && duration && duration > 0 ? uiText.matchDetails.perMinute(decimal(value * 60 / duration)) : '—'; }
 
 watch(key, () => {
   revision++;
@@ -83,44 +84,44 @@ watch([key, canLoad, detail], ([requestKey, allowed, current]) => {
 
 <template>
   <section ref="root" class="full-match-detail">
-    <div class="analysis-tabs" role="tablist" aria-label="对局分析"><button v-for="(item, i) in tabs" :key="item.key" role="tab" :id="`${scopeId}-${gameId}-${item.key}`" :aria-selected="tab === item.key" :aria-controls="`${scopeId}-panel-${gameId}`" :tabindex="tab === item.key ? 0 : -1" @click="tab = item.key" @keydown="moveTab($event, i)">{{ item.label }}</button></div>
+    <div class="analysis-tabs" role="tablist" :aria-label="uiText.matchDetails.title"><button v-for="(item, i) in tabs" :key="item.key" role="tab" :id="`${scopeId}-${gameId}-${item.key}`" :aria-selected="tab === item.key" :aria-controls="`${scopeId}-panel-${gameId}`" :tabindex="tab === item.key ? 0 : -1" @click="tab = item.key" @keydown="moveTab($event, i)">{{ item.label }}</button></div>
     <p v-if="error" class="error-banner" role="alert">{{ error }}</p>
     <div :id="`${scopeId}-panel-${gameId}`" role="tabpanel" :aria-labelledby="`${scopeId}-${gameId}-${tab}`" class="analysis-tab-content">
       <template v-if="tab === 'overview'">
         <div v-if="detail" class="scoreboard-content">
-          <header class="scoreboard-heading"><div><h3>双方详情</h3><p>十名玩家在同一尺度下比较 KDA、输出、经济、视野与出装。</p></div><span>{{ detail.players?.length ?? 0 }} 名玩家<span v-if="detail.partial"> · {{ (detail.players?.length ?? 0) < 10 ? '按已返回记录展示' : '团队汇总不完整' }}</span></span></header>
-          <div class="detail-table-scroll" tabindex="0" aria-label="双方对局记分板">
+          <header class="scoreboard-heading"><div><h3>{{ uiText.matchDetails.scoreboard }}</h3><p>{{ uiText.matchDetails.comparisonHint }}</p></div><span>{{ uiText.matchDetails.playerCount(detail.players?.length ?? 0) }}<span v-if="detail.partial"> · {{ (detail.players?.length ?? 0) < 10 ? uiText.matchDetails.partialRoster : uiText.matchDetails.incompleteTotals }}</span></span></header>
+          <div class="detail-table-scroll" tabindex="0" :aria-label="uiText.matchDetails.scoreboardLabel">
             <div class="scoreboard-board">
               <section v-for="team in teams" :key="team" class="scoreboard-team" :class="{ 'team-blue': team === 100, 'team-red': team === 200 }">
                 <header class="team-summary">
-                  <div class="team-result"><b :class="{ victory: teamResult(team) === '胜利', defeat: teamResult(team) === '失败' }">{{ teamResult(team) || '结果待确认' }}</b><strong>{{ teamName(team) }}</strong><span>{{ detail.partial ? '已读击杀' : '击杀' }} {{ number(teamTotal(team, 'kills')) }}</span></div>
-                  <dl><div><dt>团队金币</dt><dd>{{ number(teamTotal(team, 'gold')) }}</dd></div><div><dt>英雄伤害</dt><dd>{{ number(teamTotal(team, 'damage')) }}</dd></div><div><dt>补刀</dt><dd>{{ number(teamTotal(team, 'cs')) }}</dd></div><div><dt>视野</dt><dd>{{ number(teamTotal(team, 'visionScore')) }}</dd></div></dl>
-                  <p v-if="teamObjective(team)" class="objective-line"><span>防御塔 {{ number(teamObjective(team)?.towers) }}</span><span>巨龙 {{ number(teamObjective(team)?.dragons) }}</span><span>男爵 {{ number(teamObjective(team)?.barons) }}</span><span>水晶 {{ number(teamObjective(team)?.inhibitors) }}</span><span v-if="teamObjective(team)?.heralds != null">先锋 {{ number(teamObjective(team)?.heralds) }}</span><span v-if="teamObjective(team)?.hordes != null">巢虫 {{ number(teamObjective(team)?.hordes) }}</span></p>
+                  <div class="team-result"><b :class="{ victory: teamResult(team) === uiText.common.win, defeat: teamResult(team) === uiText.common.loss }">{{ teamResult(team) || uiText.matchDetails.pendingOutcome }}</b><strong>{{ teamName(team) }}</strong><span>{{ detail.partial ? uiText.matchDetails.knownKills : uiText.common.kills }} {{ number(teamTotal(team, 'kills')) }}</span></div>
+                  <dl><div><dt>{{ uiText.matchDetails.gold }}</dt><dd>{{ number(teamTotal(team, 'gold')) }}</dd></div><div><dt>{{ uiText.common.damage }}</dt><dd>{{ number(teamTotal(team, 'damage')) }}</dd></div><div><dt>{{ uiText.common.cs }}</dt><dd>{{ number(teamTotal(team, 'cs')) }}</dd></div><div><dt>{{ uiText.common.vision }}</dt><dd>{{ number(teamTotal(team, 'visionScore')) }}</dd></div></dl>
+                  <p v-if="teamObjective(team)" class="objective-line"><span>{{ uiText.matchDetails.towers(number(teamObjective(team)?.towers)) }}</span><span>{{ uiText.matchDetails.dragons(number(teamObjective(team)?.dragons)) }}</span><span>{{ uiText.matchDetails.barons(number(teamObjective(team)?.barons)) }}</span><span>{{ uiText.matchDetails.inhibitors(number(teamObjective(team)?.inhibitors)) }}</span><span v-if="teamObjective(team)?.heralds != null">{{ uiText.matchDetails.heralds(number(teamObjective(team)?.heralds)) }}</span><span v-if="teamObjective(team)?.hordes != null">{{ uiText.matchDetails.grubs(number(teamObjective(team)?.hordes)) }}</span></p>
                 </header>
                 <table>
-                  <thead><tr><th scope="col">玩家 / 英雄</th><th scope="col">K / D / A · 参团</th><th scope="col">输出 / 承伤</th><th scope="col" title="补刀（CS）为小兵与野怪击杀数">补刀 / 经济</th><th scope="col">视野</th><th scope="col">终局装备</th></tr></thead>
+                  <thead><tr><th scope="col">{{ uiText.matchDetails.playerChampion }}</th><th scope="col">{{ uiText.matchDetails.kdaParticipation }}</th><th scope="col">{{ uiText.matchDetails.damageTaken }}</th><th scope="col" :title="uiText.matchDetails.csHint">{{ uiText.matchDetails.csGold }}</th><th scope="col">{{ uiText.common.vision }}</th><th scope="col">{{ uiText.common.finalItems }}</th></tr></thead>
                   <tbody><tr v-for="p in teamPlayers(team)" :key="p.participantId" :class="{ target: p.target }">
-                    <td><div class="scoreboard-player"><span class="scoreboard-hero"><GameIcon :id="p.summary.championId" :size="34"/><small v-if="p.summary.championLevel != null">{{ p.summary.championLevel }}</small></span><span class="scoreboard-systems"><GameIcon kind="spells" :id="p.summary.spell1" :size="15"/><GameIcon kind="spells" :id="p.summary.spell2" :size="15"/><RuneIcon v-if="p.summary.runeIds?.[0]" :id="p.summary.runeIds[0]" :size="15"/><RuneIcon v-if="p.summary.runeSecondary" :id="p.summary.runeSecondary" :size="14"/></span><span class="scoreboard-name"><strong :title="p.displayName">{{ p.displayName }}</strong><small>{{ championName(p.summary.championId).split('·').at(-1) }}<span v-if="p.summary.position"> · {{ positionName(p.summary.position) }}</span><span v-if="p.target" class="target-label"> · 当前查看</span></small></span></div></td>
-                    <td class="scoreboard-kda"><b>{{ kda(p.summary) }}</b><small>{{ decimal(sampleStats([p.summary]).kda) }} KDA · 参团 {{ percent(p.participation) }}</small></td>
-                    <td><b>{{ number(p.summary.damage) }}</b><span class="damage-track" title="英雄伤害；横条以本场最高伤害为基准"><i :style="{ width: `${damageWidth(p.summary.damage)}%` }"/></span><small>承伤 {{ number(p.summary.damageTaken) }}</small></td>
-                    <td><b>补刀 {{ number(p.summary.cs) }}</b><small>{{ csRate(p.summary.cs, p.summary.duration) }} · 金币 {{ number(p.summary.gold) }}</small></td>
-                    <td><b>{{ number(p.summary.visionScore) }}</b><small>插眼 {{ number(p.summary.wardsPlaced) }} · 排眼 {{ number(p.summary.wardsKilled) }}</small><small>真眼 {{ number(p.summary.controlWards) }}</small></td>
+                    <td><div class="scoreboard-player"><span class="scoreboard-hero"><GameIcon :id="p.summary.championId" :size="34"/><small v-if="p.summary.championLevel != null">{{ p.summary.championLevel }}</small></span><span class="scoreboard-systems"><GameIcon kind="spells" :id="p.summary.spell1" :size="15"/><GameIcon kind="spells" :id="p.summary.spell2" :size="15"/><RuneIcon v-if="p.summary.runeIds?.[0]" :id="p.summary.runeIds[0]" :size="15"/><RuneIcon v-if="p.summary.runeSecondary" :id="p.summary.runeSecondary" :size="14"/></span><span class="scoreboard-name"><strong :title="p.displayName">{{ p.displayName }}</strong><small>{{ championName(p.summary.championId).split('·').at(-1) }}<span v-if="p.summary.position"> · {{ positionName(p.summary.position) }}</span><span v-if="p.target" class="target-label">{{ uiText.matchDetails.currentPlayer }}</span></small></span></div></td>
+                    <td class="scoreboard-kda"><b>{{ kda(p.summary) }}</b><small>{{ uiText.matchDetails.kdaRate(decimal(sampleStats([p.summary]).kda), percent(p.participation)) }}</small></td>
+                    <td><b>{{ number(p.summary.damage) }}</b><span class="damage-track" :title="uiText.matchDetails.damageHint"><i :style="{ width: `${damageWidth(p.summary.damage)}%` }"/></span><small>{{ uiText.matchDetails.taken(number(p.summary.damageTaken)) }}</small></td>
+                    <td><b>{{ uiText.matchDetails.csTotal(number(p.summary.cs)) }}</b><small>{{ uiText.matchDetails.economy(csRate(p.summary.cs, p.summary.duration), number(p.summary.gold)) }}</small></td>
+                    <td><b>{{ number(p.summary.visionScore) }}</b><small>{{ uiText.matchDetails.wards(number(p.summary.wardsPlaced), number(p.summary.wardsKilled)) }}</small><small>{{ uiText.matchDetails.controlWards(number(p.summary.controlWards)) }}</small></td>
                     <td><span class="detail-loadout"><GameIcon v-for="slot in 7" :key="slot" kind="items" :id="p.summary.items?.[slot - 1]" :size="20"/></span></td>
                   </tr></tbody>
                 </table>
               </section>
             </div>
           </div>
-          <details class="scoreboard-note"><summary>数据说明</summary><p>伤害条以本场最高英雄伤害为基准。补刀包含小兵和野怪击杀；团队合计与参团率只在返回记录完整时计算，缺失值保留为 —。</p></details>
+          <details class="scoreboard-note"><summary>{{ uiText.common.dataNotes }}</summary><p>{{ uiText.matchDetails.dataHelp }}</p></details>
         </div>
-        <div v-else-if="busy" class="scoreboard-loading" role="status"><header><strong>正在读取双方详情</strong><span>仅加载当前点击的这一场</span></header><div v-for="row in 10" :key="row"><i/><span/><span/><span/></div></div>
-        <template v-else><div class="personal-content"><MatchSummary v-if="match" :match="match"/></div><div class="analysis-load"><span>{{ canLoad ? '双方详情读取失败，个人摘要仍可查看。' : '当前连接无法读取双方详情，先展示已保留的个人摘要。' }}</span><button v-if="canLoad" class="secondary" :disabled="busy" @click="load('detail')">重试双方详情</button></div></template>
+        <div v-else-if="busy" class="scoreboard-loading" role="status"><header><strong>{{ uiText.matchDetails.loadingScoreboard }}</strong><span>{{ uiText.matchDetails.clickedOnly }}</span></header><div v-for="row in 10" :key="row"><i/><span/><span/><span/></div></div>
+        <template v-else><div class="personal-content"><MatchSummary v-if="match" :match="match"/></div><div class="analysis-load"><span>{{ canLoad ? uiText.matchDetails.scoreboardFailed : uiText.matchDetails.disconnected }}</span><button v-if="canLoad" class="secondary" :disabled="busy" @click="load('detail')">{{ uiText.matchDetails.retryScoreboard }}</button></div></template>
       </template>
-      <template v-else-if="tab === 'team'"><TeamAnalysis v-if="detail" :detail="detail"/><div v-else class="analysis-load"><span>{{ busy ? '正在读取双方详情…' : '读取双方详情后可比较六项团队表现。' }}</span><button v-if="canLoad && !busy" class="secondary" @click="load('detail')">重试双方详情</button></div></template>
-      <template v-else-if="tab === 'timeline'"><MatchTimeline v-if="timeline && detail" :timeline="timeline" :detail="detail"/><div v-else class="analysis-load"><span>{{ provided ? '这是保留的赛后资料，时间线未保留。' : '按时间回看击杀、资源、位置与经济变化。' }}</span><button v-if="!provided" class="secondary" :disabled="busy || !canLoad" @click="load('timeline')">{{ busy ? '正在读取时间线…' : '读取本场时间线' }}</button></div></template>
-      <template v-else-if="tab === 'build'"><MatchBuild v-if="match" :match="match" :timeline="timeline" :participant-id="target?.participantId"/><div v-if="!timeline && !provided" class="analysis-load"><span>终局符文已展示，读取时间线后查看出装与加点顺序。</span><button class="secondary" :disabled="busy || !canLoad" @click="load('timeline')">{{ busy ? '正在读取时间线…' : '读取本场时间线' }}</button></div></template>
+      <template v-else-if="tab === 'team'"><TeamAnalysis v-if="detail" :detail="detail"/><div v-else class="analysis-load"><span>{{ busy ? uiText.matchDetails.loadingScoreboardShort : uiText.matchDetails.teamAnalysisHint }}</span><button v-if="canLoad && !busy" class="secondary" @click="load('detail')">{{ uiText.matchDetails.retryScoreboard }}</button></div></template>
+      <template v-else-if="tab === 'timeline'"><MatchTimeline v-if="timeline && detail" :timeline="timeline" :detail="detail"/><div v-else class="analysis-load"><span>{{ provided ? uiText.matchDetails.archivedTimeline : uiText.matchDetails.timelineHint }}</span><button v-if="!provided" class="secondary" :disabled="busy || !canLoad" @click="load('timeline')">{{ busy ? uiText.matchDetails.loadingTimeline : uiText.matchDetails.loadTimeline }}</button></div></template>
+      <template v-else-if="tab === 'build'"><MatchBuild v-if="match" :match="match" :timeline="timeline" :participant-id="target?.participantId"/><div v-if="!timeline && !provided" class="analysis-load"><span>{{ uiText.matchDetails.buildHint }}</span><button class="secondary" :disabled="busy || !canLoad" @click="load('timeline')">{{ busy ? uiText.matchDetails.loadingTimeline : uiText.matchDetails.loadTimeline }}</button></div></template>
     </div>
-    <details class="detail-note"><summary>统计说明</summary><p>对局 #{{ gameId }}。未取得的数值显示 —；明确提前结束且不超过 5 分钟的记录标为重开，不计入胜率或 KDA。</p></details>
+    <details class="detail-note"><summary>{{ uiText.common.statistics }}</summary><p>{{ uiText.matchDetails.matchStatistics(gameId) }}</p></details>
   </section>
 </template>
 

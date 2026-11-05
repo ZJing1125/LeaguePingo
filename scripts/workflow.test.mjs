@@ -31,6 +31,8 @@ test('policy regression mutations are rejected', () => {
     ['scripts/verify.sh', 'go run ./cmd/functioncheck', 'echo skipped function limit'],
     ['scripts/verify.sh', 'node scripts/check-styles.mjs', 'echo skipped style ownership'],
     ['scripts/verify.sh', 'scripts/check-styles.test.mjs', ''],
+    ['scripts/verify.sh', 'node scripts/check-copy.mjs', 'echo skipped copy catalog'],
+    ['scripts/verify.sh', 'scripts/check-copy.test.mjs', ''],
     ['scripts/verify.sh', 'CGO_ENABLED=1 go test -race ./...', 'echo skipped race checks'],
     ['scripts/package-windows.sh', 'node scripts/artifacts.mjs current', 'echo unverified'],
     ['scripts/sign-windows.sh', '"$task_signtool" verify', 'echo trusted'],

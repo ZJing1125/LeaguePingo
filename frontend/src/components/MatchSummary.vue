@@ -1,26 +1,27 @@
 <script setup lang="ts">
+import { uiText } from "../uiText";
 import { computed } from 'vue';
 import type { Match } from '../../bindings/leaguepingo/internal/core/models';
 import { decimal, number, percent, mapName, positionName, runeName, sampleStats } from '../presentation';
 import GameIcon from './GameIcon.vue';
 const props=defineProps<{match:Match}>();
-const perMinute=(value:number|null|undefined)=>value!=null && props.match.duration && props.match.duration>0?`${decimal(value*60/props.match.duration)} / 分`:'—';
+const perMinute=(value:number|null|undefined)=>value!=null && props.match.duration && props.match.duration>0?uiText.matchSummary.perMinute(decimal(value*60/props.match.duration)):'—';
 const stats=computed(()=>[
-  {label:'KDA',value:decimal(sampleStats([props.match]).kda),note:'（击杀 + 助攻）/ 死亡'},
-  {label:'补刀',value:number(props.match.cs),note:perMinute(props.match.cs)},
-  {label:'英雄伤害',value:number(props.match.damage),note:perMinute(props.match.damage)},
-  {label:'获得金币',value:number(props.match.gold),note:perMinute(props.match.gold)},
-  {label:'参团率',value:percent(props.match.participation),note:'完整阵容的本队击杀占比'},
-  {label:'视野得分',value:number(props.match.visionScore),note:`放置 ${number(props.match.wardsPlaced)} / 排除 ${number(props.match.wardsKilled)}`},
+  {label:'KDA',value:decimal(sampleStats([props.match]).kda),note:uiText.matchSummary.kdaFormula},
+  {label:uiText.common.cs,value:number(props.match.cs),note:perMinute(props.match.cs)},
+  {label:uiText.common.damage,value:number(props.match.damage),note:perMinute(props.match.damage)},
+  {label:uiText.matchSummary.gold,value:number(props.match.gold),note:perMinute(props.match.gold)},
+  {label:uiText.common.participation,value:percent(props.match.participation),note:uiText.matchSummary.participationHint},
+  {label:uiText.common.visionScore,value:number(props.match.visionScore),note:uiText.matchSummary.wards(number(props.match.wardsPlaced), number(props.match.wardsKilled))},
 ]);
 </script>
 <template>
-  <section class="match-personal" aria-label="个人对局表现">
-    <header class="personal-heading"><h3>个人表现</h3><div class="match-context-detail" aria-label="对局上下文"><span v-if="match.mapId">{{ mapName(match.mapId) }}</span><span v-if="match.position || match.lane">{{ positionName(match.position || match.lane) }}</span><span v-if="match.earlyEnd===true" class="early-end" title="提前结束，不代表已确认重开">提前结束</span></div></header>
+  <section class="match-personal" :aria-label="uiText.matchSummary.label">
+    <header class="personal-heading"><h3>{{ uiText.matchSummary.title }}</h3><div class="match-context-detail" :aria-label="uiText.matchSummary.context"><span v-if="match.mapId">{{ mapName(match.mapId) }}</span><span v-if="match.position || match.lane">{{ positionName(match.position || match.lane) }}</span><span v-if="match.earlyEnd===true" class="early-end" :title="uiText.matchSummary.unconfirmedEarlyEnd">{{ uiText.common.earlyEnd }}</span></div></header>
     <dl class="personal-metrics"><div v-for="stat in stats" :key="stat.label"><dt>{{ stat.label }}</dt><dd>{{ stat.value }}</dd><small>{{ stat.note }}</small></div></dl>
     <div class="personal-loadout">
-      <section><h4>终局装备</h4><div class="personal-items"><GameIcon v-for="slot in 7" :key="slot" kind="items" :id="match.items?.[slot-1]" :size="30"/></div><div class="personal-spells"><GameIcon kind="spells" :id="match.spell1" :size="22"/><GameIcon kind="spells" :id="match.spell2" :size="22"/><span>召唤师技能</span></div></section>
-      <section class="personal-runes" aria-label="本玩家符文"><h4>符文配置</h4><small v-if="match.runePrimary || match.runeSecondary">{{ match.runePrimary ? runeName(match.runePrimary) : '主系未知' }} / {{ match.runeSecondary ? runeName(match.runeSecondary) : '副系未知' }}</small><div v-if="match.runeIds?.length" class="rune-path"><span v-for="(rune,index) in match.runeIds" :key="`${rune}:${index}`" :title="`符文 #${rune}`" :class="{keystone:index===0}">{{ runeName(rune) }}</span></div><p v-else class="muted">符文未记录</p></section>
+      <section><h4>{{ uiText.common.finalItems }}</h4><div class="personal-items"><GameIcon v-for="slot in 7" :key="slot" kind="items" :id="match.items?.[slot-1]" :size="30"/></div><div class="personal-spells"><GameIcon kind="spells" :id="match.spell1" :size="22"/><GameIcon kind="spells" :id="match.spell2" :size="22"/><span>{{ uiText.common.spells }}</span></div></section>
+      <section class="personal-runes" :aria-label="uiText.matchSummary.runes"><h4>{{ uiText.common.runes }}</h4><small v-if="match.runePrimary || match.runeSecondary">{{ match.runePrimary ? runeName(match.runePrimary) : uiText.matchSummary.unknownPrimary }} / {{ match.runeSecondary ? runeName(match.runeSecondary) : uiText.matchSummary.unknownSecondary }}</small><div v-if="match.runeIds?.length" class="rune-path"><span v-for="(rune,index) in match.runeIds" :key="`${rune}:${index}`" :title="uiText.matchSummary.rune(rune)" :class="{keystone:index===0}">{{ runeName(rune) }}</span></div><p v-else class="muted">{{ uiText.matchSummary.missingRunes }}</p></section>
     </div>
   </section>
 </template>

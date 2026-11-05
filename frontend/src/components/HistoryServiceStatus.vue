@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiText } from "../uiText";
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import type { Participant } from '../../bindings/leaguepingo/internal/core/models';
 import * as Service from '../../bindings/leaguepingo/appservice';
@@ -20,9 +21,9 @@ const due=computed(()=>Date.parse(state.value?.retryAt ?? '')||0);
 const seconds=computed(()=>Math.max(0,Math.ceil((due.value-now.value)/1000)));
 const age=computed(()=>{
  const at=Date.parse(props.player.historyMeta?.fetchedAt ?? '');
- if(!at)return '战绩更新时间未知';
+ if(!at)return uiText.historyServiceStatus.unknownTime;
  const s=Math.max(0,Math.floor((now.value-at)/1000));
- return s<60?`更新于 ${s} 秒前`:s<3600?`更新于 ${Math.floor(s/60)} 分钟前`:`更新于 ${Math.floor(s/3600)} 小时前`;
+ return s<60?uiText.historyServiceStatus.secondsAgo(s):s<3600?uiText.historyServiceStatus.minutesAgo(Math.floor(s/60)):uiText.historyServiceStatus.hoursAgo(Math.floor(s/3600));
 });
 const canAuto=computed(()=>visible.value && !!state.value && !!due.value && props.automatic && props.connected && !props.busy && !props.readonly && !exhausted.value);
 const scheduled=ref(false);
@@ -54,11 +55,11 @@ onBeforeUnmount(()=>{alive=false;stop();clearInterval(clock);document.removeEven
 </script>
 <template>
  <div v-if="inline || state" class="history-service-status" :class="{degraded:state&&!inline,inline}" role="status">
-  <ExperimentalBadge v-if="(inline && player.cached) || (!inline && state)" feature="本地战绩缓存与恢复"/>
+  <ExperimentalBadge v-if="(inline && player.cached) || (!inline && state)" :feature="uiText.historyServiceStatus.label"/>
   <span>{{age}}</span>
   <template v-if="state && !inline">
-   <span>{{player.history?.length?'远端战绩暂不可用，已保留当前记录。':'战绩暂不可用，玩家资料仍可查看。'}} {{running?'正在后台重试…':scheduled?`约 ${seconds} 秒后自动重试。`:seconds?`请等待约 ${seconds} 秒后重试。`:exhausted?'自动重试已暂停，可手动重试。':'可手动重试。'}}</span>
-   <button v-if="!readonly" class="text-button" :disabled="busy || running || !connected || seconds>0" @click="emit('retry')">重试战绩</button>
+   <span>{{player.history?.length?uiText.historyServiceStatus.retained:uiText.historyServiceStatus.unavailable}} {{running?uiText.historyServiceStatus.retrying:scheduled?uiText.historyServiceStatus.retryAfter(seconds):seconds?uiText.historyServiceStatus.waitBeforeRetry(seconds):exhausted?uiText.historyServiceStatus.paused:uiText.historyServiceStatus.manualRetry}}</span>
+   <button v-if="!readonly" class="text-button" :disabled="busy || running || !connected || seconds>0" @click="emit('retry')">{{ uiText.common.retryHistory }}</button>
    <span v-if="notice">{{notice}}</span>
   </template>
  </div>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiText } from "../uiText";
 import { computed } from 'vue';
 import type { Match } from '../../bindings/leaguepingo/internal/core/models';
 import { date, decimal, duration, number, kda, outcome, queueName, sampleStats, percent, positionName } from '../presentation';
@@ -31,21 +32,21 @@ const role = computed(() => props.match.position || undefined);
       </span>
       <span class="match-build-summary">
         <span class="match-performance"><strong>{{ kda(match) }}</strong><small>{{ decimal(sampleStats([match]).kda) }} KDA</small><span v-if="match.runeIds?.length || match.runeSecondary" class="match-rune-icons"><RuneIcon v-if="match.runeIds?.[0]" :id="match.runeIds[0]" :size="18"/><RuneIcon v-if="match.runeSecondary" :id="match.runeSecondary" :size="16"/></span></span>
-        <span class="match-items" aria-label="本玩家终局装备"><GameIcon v-for="slot in 7" :key="slot" kind="items" :id="match.items?.[slot - 1]" :size="20"/></span>
+        <span class="match-items" :aria-label="uiText.matchHistoryRow.finalItems"><GameIcon v-for="slot in 7" :key="slot" kind="items" :id="match.items?.[slot - 1]" :size="20"/></span>
       </span>
       <span class="match-efficiency">
         <span v-if="role" class="match-role"><RoleIcon :role="role"/><b>{{ positionName(role) }}</b></span>
-        <span>参团 <b>{{ percent(match.participation) }}</b></span>
-        <span title="补刀（CS）为小兵与野怪击杀数；括号内为每分钟补刀。">补刀 <b>{{ number(match.cs) }}</b><small> · {{ cs == null ? '—' : cs.toFixed(1) }}/分</small></span>
-        <span>英雄伤害 <b>{{ number(match.damage) }}</b></span>
+        <span>{{ uiText.matchHistoryRow.participation }}<b>{{ percent(match.participation) }}</b></span>
+        <span :title="uiText.matchHistoryRow.csHint">{{ uiText.matchHistoryRow.cs }}<b>{{ number(match.cs) }}</b><small>{{ uiText.matchHistoryRow.perMinute(cs == null ? '—' : cs.toFixed(1)) }}</small></span>
+        <span>{{ uiText.matchHistoryRow.damage }}<b>{{ number(match.damage) }}</b></span>
         <span v-if="matchBadges(match).length" class="match-facts">{{ matchBadges(match).join(' · ') }}</span>
       </span>
-      <span v-if="fullRoster" class="match-mini-roster" aria-label="双方阵容">
+      <span v-if="fullRoster" class="match-mini-roster" :aria-label="uiText.common.roster">
         <span v-for="(team, index) in teams" :key="index" class="roster-team" :class="index ? 'enemy-roster' : 'ally-roster'">
           <span v-for="p in team" :key="p.participantId" :title="p.displayName" :class="{ target: p.target }"><GameIcon :id="p.championId" :size="17"/></span>
         </span>
       </span>
-      <span v-else class="match-roster-missing">阵容待取</span>
+      <span v-else class="match-roster-missing">{{ uiText.matchHistoryRow.missingRoster }}</span>
       <span v-if="!fixed" class="expand-indicator"><AppIcon name="chevron" :size="15"/></span>
     </component>
     <div v-if="expanded" class="match-expanded"><slot name="details"><MatchSummary :match="match"/></slot></div>

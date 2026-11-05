@@ -1,5 +1,6 @@
 <script setup lang="ts">
-withDefaults(defineProps<{ feature: string; label?: string }>(), { label: '实验性' });
+import { uiText } from "../uiText";
+withDefaults(defineProps<{ feature: string; label?: string }>(), { label: uiText.common.experimental });
 </script>
 
 <template>

@@ -6,9 +6,10 @@
 
 | 入口 | 范围 |
 | --- | --- |
-| `bash scripts/verify.sh portable` | 策略/工具脚本、Go AST函数长度、前端类型/19 项纯逻辑单测与生产构建、internal Go test/vet、diff |
+| `bash scripts/verify.sh portable` | 策略/工具脚本、组件样式/文案、Go AST函数长度、前端类型/22 项纯逻辑单测与生产构建、internal Go test/vet、diff |
 | `bash scripts/verify.sh windows` | Windows amd64 完整验证，含绑定生成/一致性、原生 Go test/vet及全包竞态、前端浏览器回归 |
 | `go run ./cmd/functioncheck` | 检查Git受管及未忽略的新生产Go声明/闭包不超过100物理行；包含平台专用文件，排除测试 |
+| `node scripts/check-copy.mjs` | 检查含根应用的全部产品组件无中文硬编码（脚本、模板、属性及转义）；沿用uiText，无新依赖 |
 | `node scripts/check-styles.mjs` | 所有产品Vue样式使用scoped/module，已迁移组件的私有选择器不能回流全局；portable/Windows共用门禁 |
 | `bash scripts/build.sh` | 唯一 Windows 交付入口，内含完整验证、编译、登记、留存清理及只读审计 |
 | `npm --prefix frontend run test:unit` | Vue 实际模块的 Node 环境纯逻辑测试，无浏览器/游戏 |
