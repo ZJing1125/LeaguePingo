@@ -72,7 +72,7 @@ func TestRecoveryYieldsToManualAndRejectsPhaseOrAccountChanges(t *testing.T) {
 	if err := <-done; err == nil {
 		t.Fatal("preempted recovery applied result")
 	}
-	if e.historyRecovery.entries[p.Key].attempts != 0 {
+	if recoveryAttemptsForTest(&e.historyRecovery, p.Key) != 0 {
 		t.Fatal("preemption consumed failure quota")
 	}
 	for _, stage := range []string{"selection", "in-game"} {
@@ -192,7 +192,9 @@ func TestRecoveryCannotBypassWaitOrRetryPermanentFailure(t *testing.T) {
 
 func TestRecoveryReadUsesRemainingEpisodeDeadline(t *testing.T) {
 	e, f, p := recoveryEngine(t)
+	e.historyRecovery.mu.Lock()
 	e.historyRecovery.entries = map[string]*historyRecoveryEntry{p.Key: {started: time.Now().Add(-time.Minute + 100*time.Millisecond)}}
+	e.historyRecovery.mu.Unlock()
 	f.historyFn = func(ctx context.Context, _ string) (core.HistoryResult, error) {
 		<-ctx.Done()
 		return core.HistoryResult{}, ctx.Err()

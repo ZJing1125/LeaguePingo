@@ -9,54 +9,13 @@ import (
 	"leaguepingo/internal/core"
 )
 
-// One finite recovery episode per verified player/connection. Manual refresh
-// does not use this quota, but still obeys the source's shared rate-limit gate.
-type historyRecovery struct {
-	entries    map[string]*historyRecoveryEntry
-	updates    chan core.Participant
-	background map[string]*historyRecoveryEntry
-}
-type historyRecoveryEntry struct {
-	attempts int
-	started  time.Time
-	cancel   context.CancelFunc
-}
-
-func (r *historyRecovery) stop() {
-	for _, v := range r.entries {
-		if v.cancel != nil {
-			v.cancel()
-			v.cancel = nil
-		}
-	}
-	for _, v := range r.background {
-		if v.cancel != nil {
-			v.cancel()
-		}
-	}
-}
-
 // Local UI update channel only; never logged, persisted or sent to a service.
 func (e *Engine) PlayerUpdates() <-chan core.Participant {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return e.historyRecovery.updates
+	return e.historyRecovery.updatesChannel()
 }
 func (e *Engine) publishPlayerLocked(p core.Participant) {
-	if e.historyRecovery.updates == nil || e.client == nil || p.ConnectionID != e.clientVersion {
-		return
-	}
-	select {
-	case e.historyRecovery.updates <- p:
-	default:
-		select {
-		case <-e.historyRecovery.updates:
-		default:
-		}
-		select {
-		case e.historyRecovery.updates <- p:
-		default:
-		}
+	if e.client != nil && p.ConnectionID == e.clientVersion {
+		e.historyRecovery.publish(p)
 	}
 }
 
@@ -91,45 +50,15 @@ func (e *Engine) RetryHistory(ctx context.Context, key string, connectionID uint
 		e.mu.Unlock()
 		return player, nil
 	}
-	if e.historyRecovery.entries == nil {
-		e.historyRecovery.entries = map[string]*historyRecoveryEntry{}
-	}
-	v := e.historyRecovery.entries[key]
-	if v == nil {
-		if len(e.historyRecovery.entries) >= 64 {
-			e.mu.Unlock()
-			return player, apperrors.New(apperrors.RecoveryExhausted)
-		}
-		v = &historyRecoveryEntry{started: time.Now()}
-		e.historyRecovery.entries[key] = v
-	}
-	if v.cancel != nil {
+	request, attempt, err := e.historyRecovery.beginRetry(ctx, key, time.Now())
+	if err != nil {
 		e.mu.Unlock()
-		return player, apperrors.New(apperrors.QueryBusy)
+		return player, err
 	}
-	if v.attempts >= 2 || time.Since(v.started) >= time.Minute {
-		e.mu.Unlock()
-		return player, apperrors.New(apperrors.RecoveryExhausted)
-	}
-	deadline := time.Now().Add(6 * time.Second)
-	if end := v.started.Add(time.Minute); end.Before(deadline) {
-		deadline = end
-	}
-	request, cancel := context.WithDeadline(ctx, deadline)
-	v.attempts++
-	v.cancel = cancel
 	epoch := e.phaseEpoch
 	e.mu.Unlock()
-	defer cancel()
 	refund := false
-	defer func() {
-		e.mu.Lock()
-		v.cancel = nil
-		if refund && v.attempts > 0 {
-			v.attempts--
-		}
-		e.mu.Unlock()
-	}()
+	defer func() { e.historyRecovery.finishRetry(attempt, refund) }()
 	request, release, err := e.scheduler.acquireAutomatic(request)
 	if err != nil {
 		refund = errors.Is(err, context.Canceled)
@@ -169,7 +98,7 @@ func (e *Engine) RetryHistory(ctx context.Context, key string, connectionID uint
 	}
 	e.cachePlayerLocked(player)
 	if loadErr == nil && result.Meta.Service == nil {
-		delete(e.historyRecovery.entries, key)
+		e.historyRecovery.forget(key)
 	}
 	return player, nil
 }

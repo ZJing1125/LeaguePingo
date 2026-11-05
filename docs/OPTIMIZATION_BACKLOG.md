@@ -177,14 +177,14 @@ status: in-progress
 confidence: verified-static
 needs_human: false
 problem: >-
-  Engine原59字段共用RWMutex；订阅、分组、复盘、缓存、房间/选人准备及查询会话独立后已降为29字段；开局原单字段已补齐独立锁/资格生命周期，字段数未变，独立统计原单字段已补齐独立锁/范围/游标生命周期，字段数未变，手动查询数据编排已迁至显式依赖的playerQueries，后台恢复等职责仍待迁移。
+  Engine原59字段共用RWMutex；订阅、分组、复盘、缓存、房间/选人准备及查询会话独立后已降为29字段；开局原单字段已补齐独立锁/资格生命周期，字段数未变，独立统计原单字段已补齐独立锁/范围/游标生命周期，字段数未变，手动查询数据编排已迁至显式依赖的playerQueries，后台恢复已迁至独立锁组件，名单预算/发现/发布生命周期等仍待收尾。
 evidence:
   - internal/engine/engine.go（Engine 结构体、poll）
   - internal/engine/event_subscription.go、grouping_state.go、review_state.go
   - internal/engine/player_cache.go、preparation_state.go、preparation.go
   - internal/engine/initial_match_state.go、initial_match.go、query_session.go、player_queries.go
   - internal/engine/scouting_state.go、scouting.go
-  - internal/engine/history_store.go
+  - internal/engine/history_store.go、history_recovery_state.go
 actions:
   - 先完成 S4（类型化状态），再按职责抽出组件：阶段监听、选人监听、预取器、查询服务、复盘、分组、历史
   - 第一步已实施：phase/champ事件订阅抽出独立锁与生命周期，Engine字段59→51；引擎竞态及相关统计三轮复测通过
@@ -196,12 +196,13 @@ actions:
   - 第七步已实施：querySession拥有12秒手动独占槽与首页子任务取消，30→29字段；保留并行拒绝/取消后worker释放/阶段与账号迟到隔离，不扩大取消至其他手动查询
   - 第八步已实施：scoutPreparation独立拥有统计范围/取消/预算/已尝试身份/报告/游标/推送节流，仍29字段；修复旧游标清空后迟到复活，原180秒/500页/两worker/十身份及逐人推送保留
   - 第九批已实施：playerQueries负责手动历史/可选资料编排，显式依赖queryState与scheduler；Engine保留原子守卫/写回，字段仍29，原预算/失败保留/独立时钟回归保留
+  - 第十批已实施：historyRecovery独立拥有有界重试/后台合并任务/本机更新队列；修复旧任务清理误释放新任务，保留原额度/时限/抢占退款及换号隔离，字段仍29
   - 每个组件持有自己的状态和锁；Engine 只做编排和事件分发
   - 保留现有的 generation / clientVersion / phaseEpoch 迟到结果丢弃机制，不要削弱
   - 每次只迁移一个组件，迁移后跑竞态测试
 acceptance:
   - Engine 字段显著减少（建议目标不超过 20）
-  - 仍待完成：后台恢复等其他职责迁移；不能把已实施的九批迁移记为整体完成
+  - 仍待完成：名单预算、发现/发布生命周期等收尾；不能把已实施的十批迁移记为整体完成
   - 新功能不再向 Engine 增加字段
   - go test -race ./internal/engine/... 通过
 depends_on: [S4]
@@ -311,9 +312,9 @@ problem: >-
   原schema 2整文件写入只限制身份/页数，序列化持锁、无字节上限；写入失败静默，
   PUUID使用无密钥SHA-256。现已升级schema 3并丢弃旧索引。
 evidence:
-  - internal/engine/history_store.go:215 json.Marshal
-  - internal/engine/history_store.go:232 os.Rename
-  - internal/engine/history_store.go:91,99 sha256
+  - internal/engine/history_store.go、history_recovery_state.go:215 json.Marshal
+  - internal/engine/history_store.go、history_recovery_state.go:232 os.Rename
+  - internal/engine/history_store.go、history_recovery_state.go:91,99 sha256
 actions:
   - 已完成：8MiB总上限，按更新时间保留最新身份，继续限制64身份/每人50页
   - 已完成：锁内深拷贝和版本戳，锁外编码，版本未变化才回写淘汰结果
@@ -935,7 +936,7 @@ confidence: verified-static
 needs_human: false
 problem: 已核实首页/磁盘页具备该策略，但完整ID与选中玩家的过期内存缓存仍同步等待，现已补齐。
 evidence:
-  - internal/engine/history_store.go
+  - internal/engine/history_store.go、history_recovery_state.go
 actions:
   - 已完成：两种查询入口返回本连接已核验的过期快照及原时间，复用既有合并后台刷新与本地更新事件
   - 已完成：显式强制刷新语义保留，取槽前后及写回均核验连接/阶段，失败保留原数据与资料

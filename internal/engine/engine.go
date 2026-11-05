@@ -70,7 +70,7 @@ func newEngine(discover Discoverer, onChange func(core.Snapshot)) *Engine {
 	e := &Engine{discover: discover, onChange: onChange, phaseEvents: newEventSubscription(), champEvents: newEventSubscription(), scheduler: newScheduler(), snapshot: core.Snapshot{Stage: string(StageDisconnected), UpdatedAt: time.Now(), Participants: []core.Participant{}}}
 	e.queries = newPlayerQueries(e, e.scheduler)
 	e.autoAccept = readycheck.New()
-	e.historyRecovery.updates = make(chan core.Participant, 64)
+	e.historyRecovery.init()
 	e.postGame = postgame.New()
 	if onChange != nil {
 		e.updates = make(chan core.Snapshot, 32)
@@ -344,8 +344,7 @@ func (e *Engine) poll(ctx context.Context) {
 
 // Retained data can still be displayed, but can never become a new connection's cache.
 func (e *Engine) invalidateConnectionLocked() {
-	e.historyRecovery.stop()
-	e.historyRecovery = historyRecovery{updates: e.historyRecovery.updates}
+	e.historyRecovery.reset()
 	e.readiness.Reset()
 	e.grouping.stop()
 	e.autoAccept.Observe(nil, 0, "")
@@ -775,7 +774,7 @@ func cachedPlayer(p core.Participant, offline bool) core.Participant {
 }
 func (e *Engine) cachePlayerLocked(p core.Participant) {
 	if p.HistoryMeta.Service == nil && historyCached(p) && p.Error == "" {
-		delete(e.historyRecovery.entries, p.Key)
+		e.historyRecovery.forget(p.Key)
 	}
 	p = e.players.remember(p)
 	if len(p.History) > 0 && !p.Cached {
@@ -807,75 +806,65 @@ func (e *Engine) refreshHydratedHistory(client Client, generation, version uint6
 		e.mu.Unlock()
 		return
 	}
-	if e.historyRecovery.background == nil {
-		e.historyRecovery.background = map[string]*historyRecoveryEntry{}
-	}
-	if e.historyRecovery.background[player.PUUID] != nil || len(e.historyRecovery.background) >= 64 {
-		e.mu.Unlock()
-		return
-	}
 	parent := e.initialMatch.parentContext()
 	if parent == nil {
 		parent = context.Background()
 	}
-	ctx, cancel := context.WithTimeout(parent, 12*time.Second)
-	task := &historyRecoveryEntry{cancel: cancel}
-	e.historyRecovery.background[player.PUUID] = task
+	ctx, task, started := e.historyRecovery.beginBackground(parent, player.PUUID)
+	if !started {
+		e.mu.Unlock()
+		return
+	}
 	epoch := e.phaseEpoch
 	e.mu.Unlock()
-	go func() {
-		defer cancel()
-		defer func() {
-			e.mu.Lock()
-			if e.historyRecovery.background[player.PUUID] == task {
-				delete(e.historyRecovery.background, player.PUUID)
-			}
-			e.mu.Unlock()
-		}()
-		history, err := e.scheduler.history(ctx, fmt.Sprintf("%d:%s", version, player.PUUID), false, func(request context.Context) (core.HistoryResult, error) {
-			e.mu.RLock()
-			current := e.client != nil && e.clientVersion == version && e.phaseEpoch == epoch
-			e.mu.RUnlock()
-			if !current {
-				return core.HistoryResult{}, apperrors.New(apperrors.StaleData)
-			}
-			return client.History(request, player.PUUID)
-		})
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		if ctx.Err() != nil || e.client == nil || e.clientVersion != version || e.phaseEpoch != epoch {
-			return
+	go e.readHydratedHistory(ctx, task, client, generation, version, epoch, player)
+}
+
+func (e *Engine) readHydratedHistory(ctx context.Context, task *historyRecoveryTask, client Client, generation, version, epoch uint64, player core.Participant) {
+	defer e.historyRecovery.finishBackground(player.PUUID, task)
+	history, err := e.scheduler.history(ctx, fmt.Sprintf("%d:%s", version, player.PUUID), false, func(request context.Context) (core.HistoryResult, error) {
+		e.mu.RLock()
+		current := e.client != nil && e.clientVersion == version && e.phaseEpoch == epoch
+		e.mu.RUnlock()
+		if !current {
+			return core.HistoryResult{}, apperrors.New(apperrors.StaleData)
 		}
-		if current, ok := e.players.player(player.PUUID); ok && current.ConnectionID == version {
-			player = current
-		}
-		if err == nil {
-			core.ApplyHistory(&player, history)
-		} else {
-			checked := time.Now()
-			player.HistoryMeta.CheckedAt = &checked
-			player.HistoryMeta.Service = history.Meta.Service
-			player.Error = apperrors.UserMessage(err, apperrors.DataUnavailable)
-		}
-		player.ConnectionID = version
-		e.cachePlayerLocked(player)
-		e.publishPlayerLocked(player)
-		if e.snapshot.Generation == generation {
-			for i := range e.snapshot.Participants {
-				if e.snapshot.Participants[i].PUUID == player.PUUID {
-					if err == nil {
-						core.ApplyHistory(&e.snapshot.Participants[i], history)
-					} else {
-						e.snapshot.Participants[i].HistoryMeta.Service = player.HistoryMeta.Service
-						e.snapshot.Participants[i].HistoryMeta.CheckedAt = player.HistoryMeta.CheckedAt
-						e.snapshot.Participants[i].Error = player.Error
-					}
+		return client.History(request, player.PUUID)
+	})
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if ctx.Err() != nil || e.client == nil || e.clientVersion != version || e.phaseEpoch != epoch {
+		return
+	}
+	if current, ok := e.players.player(player.PUUID); ok && current.ConnectionID == version {
+		player = current
+	}
+	if err == nil {
+		core.ApplyHistory(&player, history)
+	} else {
+		checked := time.Now()
+		player.HistoryMeta.CheckedAt = &checked
+		player.HistoryMeta.Service = history.Meta.Service
+		player.Error = apperrors.UserMessage(err, apperrors.DataUnavailable)
+	}
+	player.ConnectionID = version
+	e.cachePlayerLocked(player)
+	e.publishPlayerLocked(player)
+	if e.snapshot.Generation == generation {
+		for i := range e.snapshot.Participants {
+			if e.snapshot.Participants[i].PUUID == player.PUUID {
+				if err == nil {
+					core.ApplyHistory(&e.snapshot.Participants[i], history)
+				} else {
+					e.snapshot.Participants[i].HistoryMeta.Service = player.HistoryMeta.Service
+					e.snapshot.Participants[i].HistoryMeta.CheckedAt = player.HistoryMeta.CheckedAt
+					e.snapshot.Participants[i].Error = player.Error
 				}
 			}
-			e.snapshot.UpdatedAt = time.Now()
-			e.publishLocked()
 		}
-	}()
+		e.snapshot.UpdatedAt = time.Now()
+		e.publishLocked()
+	}
 }
 
 func (e *Engine) RefreshRoster(ctx context.Context) (core.Snapshot, error) {
