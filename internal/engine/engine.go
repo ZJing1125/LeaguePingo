@@ -34,7 +34,7 @@ type Engine struct {
 	onChange            func(core.Snapshot)
 	updates             chan core.Snapshot
 	lastLookup          time.Time
-	queries             *querySession
+	queries             *playerQueries
 	matchRosterAttempts int
 	matchRosterComplete bool
 	players             playerCache
@@ -67,7 +67,8 @@ func NewWithHistoryCache(discover Discoverer, onChange func(core.Snapshot), path
 }
 
 func newEngine(discover Discoverer, onChange func(core.Snapshot)) *Engine {
-	e := &Engine{discover: discover, onChange: onChange, queries: newQuerySession(), phaseEvents: newEventSubscription(), champEvents: newEventSubscription(), scheduler: newScheduler(), snapshot: core.Snapshot{Stage: string(StageDisconnected), UpdatedAt: time.Now(), Participants: []core.Participant{}}}
+	e := &Engine{discover: discover, onChange: onChange, phaseEvents: newEventSubscription(), champEvents: newEventSubscription(), scheduler: newScheduler(), snapshot: core.Snapshot{Stage: string(StageDisconnected), UpdatedAt: time.Now(), Participants: []core.Participant{}}}
+	e.queries = newPlayerQueries(e, e.scheduler)
 	e.autoAccept = readycheck.New()
 	e.historyRecovery.updates = make(chan core.Participant, 64)
 	e.postGame = postgame.New()
@@ -699,85 +700,25 @@ func (e *Engine) loadManualHistory(ctx context.Context, client Client, generatio
 // validLocked optionally prevents a cancelled home task from replacing cache
 // prepared by a newer phase. It is evaluated while e.mu is held.
 func (e *Engine) loadManualHistoryGuarded(ctx context.Context, client Client, generation uint64, version uint64, player core.Participant, force, enrich bool, validLocked func() bool) (core.Participant, error) {
-	// A complete-ID lookup already verified the name; preserve it even when
-	// the matching history cache was created from a nameless game roster.
-	if !core.IsPlaceholderName(player.DisplayName) {
-		player = e.resolvePlayerName(ctx, client, version, player, true)
-	}
+	return e.queries.history(ctx, client, generation, version, player, force, enrich, validLocked)
+}
+
+func (e *Engine) queryCachedPlayer(key string, version uint64) queryCacheRead {
 	e.mu.RLock()
-	cached, ok := e.players.player(player.PUUID)
-	sameClient := e.clientVersion == version
-	e.mu.RUnlock()
-	if !force && sameClient && ok && cacheFresh(cached) {
-		if enrich {
-			return e.enrichCachedProfile(ctx, cachedPlayer(cached, false)), nil
-		}
-		return cachedPlayer(cached, false), nil
-	}
-	player = e.resolvePlayerName(ctx, client, version, player, true)
-	if player.Stale {
-		return core.Participant{}, apperrors.New(apperrors.StaleData)
-	}
-	hadHistory := historyCached(player)
-	player.HistoryState = core.HistoryLoading
-	history, err := e.scheduler.history(ctx, fmt.Sprintf("%d:%s", version, player.PUUID), true, func(c context.Context) (core.HistoryResult, error) {
-		e.mu.RLock()
-		current := e.client != nil && e.clientVersion == version
-		e.mu.RUnlock()
-		if !current {
-			return core.HistoryResult{}, source.ErrNotConnected
-		}
-		return client.History(c, player.PUUID)
-	})
-	if err != nil {
-		// A refresh failure must keep verified history. A first failure still
-		// returns a usable identity so optional profile data can be inspected.
-		if history.Meta.Service == nil && ((sameClient && ok && historyCached(cached)) || hadHistory) {
-			return core.Participant{}, apperrors.Normalize(err, apperrors.DataUnavailable)
-		}
-		if sameClient && ok && historyCached(cached) {
-			player = cached
-		}
-		player.HistoryState = core.HistoryFailed
-		if len(player.History) > 0 {
-			player.HistoryState = core.HistoryReady
-			player.Cached = true
-		}
-		checked := time.Now()
-		player.HistoryMeta.CheckedAt = &checked
-		player.HistoryMeta.Service = history.Meta.Service
-		player.Error = "已确认玩家身份；" + apperrors.UserMessage(err, apperrors.DataUnavailable)
-	} else {
-		core.ApplyHistory(&player, history)
-	}
-	player.ConnectionID = version
-	// Enrich only explicit lookups, sharing the request lane and a short budget.
-	// Unsupported optional APIs cannot discard successfully fetched history.
-	if profiles, ok := client.(source.ProfileSource); ok && enrich {
-		profileCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		if release, err := e.scheduler.acquire(profileCtx, true); err == nil {
-			e.mu.RLock()
-			current := e.client != nil && e.clientVersion == version
-			e.mu.RUnlock()
-			if !current {
-				release()
-				cancel()
-				player.Stale = true
-				return player, nil
-			}
-			e.markProfileAttempt(version, player.Key)
-			profile := profiles.Profile(profileCtx, player.PUUID)
-			previous := player.Profile
-			if previous == nil && sameClient && ok {
-				previous = cached.Profile
-			}
-			profile = mergeProfile(profile, previous)
-			player.Profile = &profile
-			player.PrivacyState = profile.PrivacyState
-			release()
-		}
-		cancel()
-	}
+	defer e.mu.RUnlock()
+	player, found := e.players.player(key)
+	return queryCacheRead{player: player, found: found, current: e.clientVersion == version}
+}
+
+func (e *Engine) queryCurrent(version uint64) bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.client != nil && e.clientVersion == version
+}
+
+// Only Engine commits query data: the home guard, current connection and newer
+// profile clock are checked atomically with cache/snapshot updates.
+func (e *Engine) commitManualQuery(generation, version uint64, player core.Participant, validLocked func() bool) (core.Participant, error) {
 	e.mu.Lock()
 	if validLocked != nil && !validLocked() {
 		e.mu.Unlock()
