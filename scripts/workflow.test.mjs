@@ -66,8 +66,8 @@ test('CI preserves managed build, binding verification and opt-in executable upl
     ['run: bash scripts/build.sh bin/leaguepingo-ci.exe', 'run: bash scripts/verify.sh windows\n      - run: bash scripts/build.sh bin/leaguepingo-ci.exe'],
     ['needs: portable', 'needs: []'],
     ['git status --porcelain -- frontend/bindings', 'git diff -- frontend/bindings'],
-    ['go install honnef.co/go/tools/cmd/staticcheck@v0.7.0', 'go install honnef.co/go/tools/cmd/staticcheck@latest'],
-    ['go install golang.org/x/vuln/cmd/govulncheck@v1.7.0', 'go install golang.org/x/vuln/cmd/govulncheck@latest'],
+    ['go install honnef.co/go/tools/cmd/staticcheck@v0.8.2', 'go install honnef.co/go/tools/cmd/staticcheck@latest'],
+    ['go install golang.org/x/vuln/cmd/govulncheck@v1.8.0', 'go install golang.org/x/vuln/cmd/govulncheck@latest'],
     ['run: govulncheck ./...', 'run: true'],
     ['continue-on-error: true', 'continue-on-error: false'],
     ['GOTOOLCHAIN: local', 'GOTOOLCHAIN: auto'],
@@ -94,6 +94,20 @@ test('dependency updates stay coupled on dev and CI actions stay pinned', () => 
     assert.ok(files[config].includes(before), before);
     const changed = files[config].replace(before, after);
     assert.throws(() => checkWorkflow(f => f === config ? changed : files[f]), undefined, before);
+  }
+});
+test('all CI jobs follow one patched Go version source', () => {
+  for (const [file, before, after] of [
+    ['go.mod', 'go 1.26.10', 'go 1.26.9'],
+    ['go.mod', 'go 1.26.10', 'go 1.25.14'],
+    ['go.mod', 'go 1.26.10', 'go 1.26.10\ntoolchain go1.27.0'],
+    ['.github/workflows/ci.yml', 'go-version-file: go.mod', 'go-version: "1.25.x"'],
+    ['.github/workflows/ci.yml', 'go-version-file: go.mod', 'go-version-file: other.mod'],
+    ['.github/workflows/ci.yml', 'name: Advisory static analysis', 'name: Advisory static analysis\n    env:\n      GOTOOLCHAIN: auto'],
+  ]) {
+    assert.ok(files[file].includes(before));
+    const changed = files[file].replace(before, after);
+    assert.throws(() => checkWorkflow(f => f === file ? changed : files[f]), /patched Go 1.26.10 minimum/);
   }
 });
 test('advisory analyzers prepare real embedded assets in their own job', () => {

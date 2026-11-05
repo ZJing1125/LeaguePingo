@@ -9,7 +9,7 @@ export const policyFiles = ['AGENTS.md', 'Taskfile.yml', 'build/windows/Taskfile
   'scripts/dev.sh', 'scripts/verify.sh', 'scripts/audit-player-data.sh', 'docs/ci/verify.yml.example',
   'scripts/package-windows.sh', 'scripts/sign-windows.sh', 'scripts/verify-installer.sh', 'scripts/version.mjs',
   'frontend/package.json', 'frontend/preview/package.json', 'frontend/preview/histoire.config.ts',
-  '.github/workflows/ci.yml', '.github/dependabot.yml'];
+  '.github/workflows/ci.yml', '.github/dependabot.yml', 'go.mod'];
 
 // A deliberately restricted policy check, not a general YAML parser. Keep
 // entry tasks simple and also test their expansion with the real Wails runner.
@@ -142,14 +142,24 @@ export function checkWorkflow(read) {
   for (const text of ['branches: [dev]', 'branches: [dev, main]', 'contents: read',
     'needs: portable', 'runs-on: ubuntu-latest', 'runs-on: windows-latest',
     'run: bash scripts/verify.sh portable', 'git status --porcelain -- frontend/bindings',
-    'go install honnef.co/go/tools/cmd/staticcheck@v0.7.0',
-    'go install golang.org/x/vuln/cmd/govulncheck@v1.7.0',
+    'go install honnef.co/go/tools/cmd/staticcheck@v0.8.2',
+    'go install golang.org/x/vuln/cmd/govulncheck@v1.8.0',
     'run: staticcheck ./...', 'run: govulncheck ./...',
     'run: npm --prefix frontend audit --audit-level=high', 'GOTOOLCHAIN: local',
     'choco install nsis --version=3.13.0', 'bash scripts/package-windows.sh --binary bin/leaguepingo-ci.exe',
     'bash scripts/verify-installer.sh artifacts/installer-check/leaguepingo-ci-installer.exe',
     "github.event_name == 'workflow_dispatch' && inputs.upload_exe"])
     requireText('.github/workflows/ci.yml', text);
+  const declaredGo = contents['go.mod'].match(/^go (\d+)\.(\d+)\.(\d+)$/m);
+  const goParts = declaredGo?.slice(1).map(Number) || [];
+  const goFloor = [1, 26, 10];
+  const firstDifference = goParts.findIndex((value, index) => value !== goFloor[index]);
+  if (!declaredGo || (firstDifference >= 0 && goParts[firstDifference] < goFloor[firstDifference]) ||
+      /^toolchain /m.test(contents['go.mod']) || /^\s*go-version:/m.test(ci) ||
+      [...ci.matchAll(/^\s*GOTOOLCHAIN:\s*(\S+)/gm)].some(match => match[1] !== 'local') ||
+      (ci.match(/^\s*go-version-file: go\.mod$/gm) || []).length !== 3) {
+    throw new Error('CI Go versions must use go.mod with the patched Go 1.26.10 minimum');
+  }
   const advisory = ci.split('\n  advisory:\n')[1]?.split('\n  windows:\n')[0] || '';
   const embeddedFrontend = '      - name: Prepare embedded frontend for analyzers\n        run: |\n          npm --prefix frontend ci\n          npm --prefix frontend run build\n';
   if (!advisory.includes(embeddedFrontend) ||

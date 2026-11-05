@@ -20,6 +20,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  GOTOOLCHAIN: local
   # 测试通过 BROWSER_EXECUTABLE 使用系统 Edge/Chrome，不需要 Playwright 自带浏览器。
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
 
@@ -36,7 +37,7 @@ jobs:
 
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          go-version: "1.25.x" # 与 go.mod 的 go 1.25 保持一致，升级 Go 时同步修改
+          go-version-file: go.mod
           cache: true
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -54,15 +55,13 @@ jobs:
         run: bash scripts/verify.sh portable
 
   # 建议性质量门：先持续暴露存量问题，待告警清零后再改为阻断。
-  # 目标仍按 Windows 构建解析；工具固定在兼容 go.mod Go 1.25 的版本，
+  # 目标仍按 Windows 构建解析；工具固定在兼容 go.mod Go 1.26 的版本，
   # GOTOOLCHAIN=local 防止分析器静默下载另一套 Go。
   advisory:
     name: Advisory static analysis
     needs: portable
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      GOTOOLCHAIN: local
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -70,7 +69,7 @@ jobs:
 
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          go-version: "1.25.x"
+          go-version-file: go.mod
           cache: true
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -89,8 +88,8 @@ jobs:
       - name: Install pinned analyzers
         run: |
           tool_bin="$RUNNER_TEMP/advisory-bin"
-          GOBIN="$tool_bin" go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
-          GOBIN="$tool_bin" go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+          GOBIN="$tool_bin" go install honnef.co/go/tools/cmd/staticcheck@v0.8.2
+          GOBIN="$tool_bin" go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
           echo "$tool_bin" >> "$GITHUB_PATH"
 
       - name: Staticcheck (advisory)
@@ -151,7 +150,7 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         id: go
         with:
-          go-version: "1.25.x"
+          go-version-file: go.mod
           cache: true
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4

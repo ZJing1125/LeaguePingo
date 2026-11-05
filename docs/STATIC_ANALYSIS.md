@@ -2,11 +2,13 @@
 
 CI 的 `Advisory static analysis` 在 portable 任务通过后运行三项检查：
 
-- `staticcheck v0.7.0`：按 Windows amd64 目标分析全部 Go 包。
-- `govulncheck v1.7.0`：按 Windows amd64 目标检查可达漏洞。
+- `staticcheck v0.8.2`：按 Windows amd64 目标分析全部 Go 包。
+- `govulncheck v1.8.0`：按 Windows amd64 目标检查可达漏洞。
 - `npm audit --audit-level=high`：检查前端锁文件中的高危及严重依赖漏洞。
 
-工具版本固定为支持项目 Go 1.25 的版本，`GOTOOLCHAIN=local` 禁止分析器自行下载另一套 Go。三项各自使用 `continue-on-error`，所以能在同一次运行中给出全部结果；任务摘要会列出每项状态。当前阶段是建议性检查，告警可见但不阻断 Windows 构建。
+产品Go最低补丁版本由go.mod声明为1.26.10，三个CI任务统一读取go-version-file，分析器最低Go要求为1.26.0。GOTOOLCHAIN=local禁止静默下载另一套Go，策略检查拒绝版本回退、独立CI版本及任务内auto覆盖。三项当前仍分别使用continue-on-error，强制门禁在升级兼容性完成后启用；每项实际结果需查步骤明细，不能只看job是否成功。
+
+2026-11-05 / BUG-0128：同一份623a197业务代码的升级前扫描确认11项标准库可达漏洞；改用Go 1.26.10及上述兼容分析器后，本机Windows目标根包/internal/cmd扫描为No vulnerabilities found，staticcheck通过。Wails及其他第三方产品模块版本未升级，go.sum未变，tidy仅将Windows测试直接引用的go-ole改为直接依赖。Windows完整构建、竞态、绑定及原生回归以PR的CI为准，国服人工验收仍后置。
 
 BUG-0127：每个job都有独立checkout，advisory必须自己执行锁文件安装和前端生产构建，再运行分析器。main.go嵌入frontend/dist，portable中成功构建不能替代本job的资源；缺失会让staticcheck提前编译失败。workflow回归保护前置步骤的内容、job归属与顺序，不使用空目录/占位文件规避检查。已在本机实际复现缺资源失败及构建后目标staticcheck通过，远程按修复提交核验。
 
@@ -17,8 +19,8 @@ BUG-0127：每个job都有独立checkout，advisory必须自己执行锁文件�
 ```bash
 npm --prefix frontend ci
 npm --prefix frontend run build
-GOTOOLCHAIN=local go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
-GOTOOLCHAIN=local go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+GOTOOLCHAIN=local go install honnef.co/go/tools/cmd/staticcheck@v0.8.2
+GOTOOLCHAIN=local go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
 GOOS=windows GOARCH=amd64 CGO_ENABLED=0 GOTOOLCHAIN=local staticcheck ./...
 GOOS=windows GOARCH=amd64 CGO_ENABLED=0 GOTOOLCHAIN=local govulncheck ./...
 npm --prefix frontend audit --audit-level=high
