@@ -1,0 +1,50 @@
+version: 2
+
+# The configuration must reach the default branch before GitHub activates it.
+# Product Go/npm updates share one PR so Wails runtime versions are reviewed
+# together. The existing CI rejects mismatched backend/frontend versions.
+multi-ecosystem-groups:
+  desktop:
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:00"
+      timezone: Asia/Shanghai
+
+updates:
+  - package-ecosystem: gomod
+    directory: "/"
+    target-branch: dev
+    patterns: ["*"]
+    multi-ecosystem-group: desktop
+
+  - package-ecosystem: npm
+    directory: "/frontend"
+    target-branch: dev
+    patterns: ["*"]
+    multi-ecosystem-group: desktop
+
+  # The Vite 7 preview tool has its own lockfile and is not a product runtime.
+  - package-ecosystem: npm
+    directory: "/frontend/preview"
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:00"
+      timezone: Asia/Shanghai
+    groups:
+      preview:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:00"
+      timezone: Asia/Shanghai
+    groups:
+      actions:
+        patterns: ["*"]
