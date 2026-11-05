@@ -358,7 +358,7 @@ func TestInProgressRenewsBoundedRosterBudgetAfterGameStart(t *testing.T) {
 	for i := 0; i < inGameRosterAttemptLimit; i++ {
 		e.poll(context.Background())
 	}
-	if e.matchRosterAttempts != inGameRosterAttemptLimit || e.matchRosterComplete {
+	if e.roster.view().attempts != inGameRosterAttemptLimit || e.roster.view().complete {
 		t.Fatal("GameStart roster retry budget did not stop at its limit")
 	}
 	if e.pollInterval() != 5*time.Second {
@@ -368,11 +368,11 @@ func TestInProgressRenewsBoundedRosterBudgetAfterGameStart(t *testing.T) {
 	fake.phase, fake.rosterErr, fake.roster, fake.gameID = "InProgress", nil, fullTestRoster(), 42
 	fake.mu.Unlock()
 	e.poll(context.Background())
-	if !e.matchRosterComplete || !completeRoster(e.Snapshot().Participants) {
+	if !e.roster.view().complete || !completeRoster(e.Snapshot().Participants) {
 		t.Fatal("InProgress did not refresh roster after client readiness transition")
 	}
-	if e.matchRosterAttempts != 1 {
-		t.Fatalf("unexpected renewed attempt count: %d", e.matchRosterAttempts)
+	if e.roster.view().attempts != 1 {
+		t.Fatalf("unexpected renewed attempt count: %d", e.roster.view().attempts)
 	}
 	for _, call := range fake.calls {
 		if call == "history" || call == "name" {
@@ -421,7 +421,7 @@ func TestOldCompleteRosterDoesNotEndNewIncompleteMatchBudget(t *testing.T) {
 	e.client, e.clientVersion = fake, 1
 	e.snapshot = core.Snapshot{ConnectionID: 1, Stage: "in-game", Phase: "EndOfGame", GameID: 42, Connected: true, Participants: fullTestRoster()}
 	e.poll(context.Background())
-	if e.matchRosterComplete || e.Snapshot().GameID != 43 || len(e.Snapshot().Participants) != 5 {
+	if e.roster.view().complete || e.Snapshot().GameID != 43 || len(e.Snapshot().Participants) != 5 {
 		t.Fatal("previous complete roster hid an incomplete new match")
 	}
 }
@@ -519,7 +519,7 @@ func TestNextGameRefreshDoesNotInheritOldMatchHistory(t *testing.T) {
 	fake := &fakeClient{phase: "GameStart", gameID: 43, roster: fullTestRoster()}
 	e := New(func() (Client, error) { return fake, nil }, nil)
 	e.client = fake
-	e.matchRosterAttempts = 3
+	seedRosterForTest(e, 3, e.roster.view().complete)
 	e.snapshot = core.Snapshot{Stage: "in-game", Phase: "EndOfGame", GameID: 42, Frozen: true, Connected: true, Participants: players}
 	e.poll(context.Background())
 	snapshot := e.Snapshot()
@@ -532,15 +532,15 @@ func TestNextGameRetriesAfterFailureDespiteCompleteOldRoster(t *testing.T) {
 	fake := &fakeClient{phase: "GameStart", rosterErr: errors.New("not ready")}
 	e := New(func() (Client, error) { return fake, nil }, nil)
 	e.client = fake
-	e.matchRosterAttempts, e.matchRosterComplete = 3, true
+	seedRosterForTest(e, 3, true)
 	e.snapshot = core.Snapshot{Stage: "in-game", Phase: "EndOfGame", GameID: 42, Frozen: true, Connected: true, Participants: fullTestRoster()}
 	e.poll(context.Background())
-	if e.matchRosterComplete || e.matchRosterAttempts != 1 {
+	if e.roster.view().complete || e.roster.view().attempts != 1 {
 		t.Fatal("old complete roster suppressed the new match's retry budget")
 	}
 	fake.phase, fake.rosterErr, fake.gameID, fake.roster = "InProgress", nil, 43, fullTestRoster()
 	e.poll(context.Background())
-	if e.Snapshot().GameID != 43 || !e.matchRosterComplete || e.matchRosterAttempts != 1 {
+	if e.Snapshot().GameID != 43 || !e.roster.view().complete || e.roster.view().attempts != 1 {
 		t.Fatal("new match roster did not recover after the first attempt failed")
 	}
 	before := len(fake.calls)
@@ -596,16 +596,16 @@ func TestManualRefreshOfNextGameResetsAutomaticBudget(t *testing.T) {
 	e := New(nil, nil)
 	e.client = fake
 	e.snapshot = core.Snapshot{Phase: "EndOfGame", Stage: "in-game", Frozen: true, GameID: 42, Participants: fullTestRoster()}
-	e.matchRosterAttempts, e.matchRosterComplete = 3, true
+	seedRosterForTest(e, 3, true)
 	if _, err := e.RefreshRoster(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if e.matchRosterAttempts != 0 || e.matchRosterComplete {
+	if e.roster.view().attempts != 0 || e.roster.view().complete {
 		t.Fatal("manual next-game refresh kept old completion state")
 	}
 	fake.roster = fullTestRoster()
 	e.poll(context.Background())
-	if !e.matchRosterComplete || !completeRoster(e.Snapshot().Participants) {
+	if !e.roster.view().complete || !completeRoster(e.Snapshot().Participants) {
 		t.Fatal("automatic refresh did not complete the manually detected new game")
 	}
 }

@@ -101,7 +101,7 @@ func (e *Engine) syncScoutingLocked() {
 	if !ok {
 		return
 	}
-	if snapshotStage(e.snapshot.Stage) == StageInGame && !completeRoster(e.snapshot.Participants) && e.matchRosterAttempts < inGameRosterAttemptLimit {
+	if snapshotStage(e.snapshot.Stage) == StageInGame && !completeRoster(e.snapshot.Participants) && e.roster.view().attempts < inGameRosterAttemptLimit {
 		return
 	}
 	scope := fmt.Sprintf("%d:%s:%d", e.clientVersion, e.snapshot.Stage, e.snapshot.GameID)

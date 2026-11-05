@@ -117,7 +117,7 @@ func TestInGameReconnectRenewsRosterBudgetWithoutAutomaticHistory(t *testing.T) 
 	e := New(func() (Client, error) { return fake, nil }, nil)
 	e.poll(context.Background())
 	first := e.Snapshot().ConnectionID
-	if !e.matchRosterComplete {
+	if !e.roster.view().complete {
 		t.Fatal("initial roster incomplete")
 	}
 	fake.phaseErr = errors.New("temporary disconnect")
@@ -126,7 +126,7 @@ func TestInGameReconnectRenewsRosterBudgetWithoutAutomaticHistory(t *testing.T) 
 	e.lastLookup = time.Time{}
 	e.poll(context.Background())
 	s := e.Snapshot()
-	if s.ConnectionID <= first || !s.Connected || !e.matchRosterComplete {
+	if s.ConnectionID <= first || !s.Connected || !e.roster.view().complete {
 		t.Fatal("reconnection did not recover roster")
 	}
 	for _, p := range s.Participants {

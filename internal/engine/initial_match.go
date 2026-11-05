@@ -35,7 +35,7 @@ func (e *Engine) startInitialMatchLocked() {
 		e.initialMatch.enterGame(e.snapshot.GameID, e.clientVersion)
 	}
 	// Wait for actual gameplay and allow bounded identity discovery to finish.
-	if snapshotPhase(e.snapshot.Phase) == PhaseGameStart || (!completeRoster(e.snapshot.Participants) && e.matchRosterAttempts < inGameRosterAttemptLimit) {
+	if snapshotPhase(e.snapshot.Phase) == PhaseGameStart || (!completeRoster(e.snapshot.Participants) && e.roster.view().attempts < inGameRosterAttemptLimit) {
 		return
 	}
 	scope, claimed := e.initialMatch.claim(e.clientVersion, e.snapshot.GameID)

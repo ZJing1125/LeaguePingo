@@ -22,35 +22,34 @@ type Discoverer func() (Client, error)
 const inGameRosterAttemptLimit = 3
 
 type Engine struct {
-	historyRecovery     historyRecovery
-	readiness           diagnostics.Readiness
-	grouping            groupingState
-	autoAccept          *readycheck.Controller
-	postGame            *postgame.Controller
-	mu                  sync.RWMutex
-	discover            Discoverer
-	client              Client
-	snapshot            core.Snapshot
-	onChange            func(core.Snapshot)
-	updates             chan core.Snapshot
-	lastLookup          time.Time
-	queries             *playerQueries
-	matchRosterAttempts int
-	matchRosterComplete bool
-	players             playerCache
-	clientVersion       uint64
-	accountIdentity     string
-	phaseEpoch          uint64
-	phaseHint           Phase
-	phaseEvents         *eventSubscription
-	champEvents         *eventSubscription
-	champEpoch          uint64
-	scheduler           *requestScheduler
-	preparation         preparationState
-	initialMatch        initialMatchPreparation
-	scouting            scoutPreparation
-	reviews             reviewState
-	historyStore        *historyStore
+	historyRecovery historyRecovery
+	readiness       diagnostics.Readiness
+	grouping        groupingState
+	autoAccept      *readycheck.Controller
+	postGame        *postgame.Controller
+	mu              sync.RWMutex
+	discover        Discoverer
+	client          Client
+	snapshot        core.Snapshot
+	onChange        func(core.Snapshot)
+	updates         chan core.Snapshot
+	lastLookup      time.Time
+	queries         *playerQueries
+	roster          rosterDiscovery
+	players         playerCache
+	clientVersion   uint64
+	accountIdentity string
+	phaseEpoch      uint64
+	phaseHint       Phase
+	phaseEvents     *eventSubscription
+	champEvents     *eventSubscription
+	champEpoch      uint64
+	scheduler       *requestScheduler
+	preparation     preparationState
+	initialMatch    initialMatchPreparation
+	scouting        scoutPreparation
+	reviews         reviewState
+	historyStore    *historyStore
 }
 
 func New(discover Discoverer, onChange func(core.Snapshot)) *Engine {
@@ -155,10 +154,10 @@ func (e *Engine) pollInterval() time.Duration {
 	defer e.mu.RUnlock()
 	stage := snapshotStage(e.snapshot.Stage)
 	if stage == StageInGame {
-		if e.client != nil && activeMatch(snapshotPhase(e.snapshot.Phase)) && !e.matchRosterComplete && e.matchRosterAttempts < inGameRosterAttemptLimit {
+		if e.client != nil && activeMatch(snapshotPhase(e.snapshot.Phase)) && !e.roster.view().complete && e.roster.view().attempts < inGameRosterAttemptLimit {
 			return 2 * time.Second
 		}
-		if e.client != nil && snapshotPhase(e.snapshot.Phase) == PhaseGameStart && !e.matchRosterComplete {
+		if e.client != nil && snapshotPhase(e.snapshot.Phase) == PhaseGameStart && !e.roster.view().complete {
 			return 5 * time.Second // Phase only after the loading-screen roster budget ends.
 		}
 	}
@@ -240,28 +239,9 @@ func (e *Engine) poll(ctx context.Context) {
 	}
 	e.readiness.Phase(string(phase), phaseObserved)
 	e.observeAutoAcceptLocked(phase, phaseStarted)
-	refresh := false
+	refresh := e.roster.observe(phase, snapshotPhase(e.snapshot.Phase), stage)
 	if activeMatch(phase) {
-		entering := !activeMatch(snapshotPhase(e.snapshot.Phase)) || (phase == PhaseGameStart && snapshotPhase(e.snapshot.Phase) != PhaseGameStart)
-		if entering {
-			e.matchRosterAttempts = 0
-			e.matchRosterComplete = false
-		}
-		// GameStart and InProgress are distinct client readiness windows. If
-		// loading ended before gameflow exposed the full roster, grant one new
-		// bounded local-identity refresh budget at the transition.
-		if phase == PhaseInProgress && snapshotPhase(e.snapshot.Phase) == PhaseGameStart && !e.matchRosterComplete {
-			e.matchRosterAttempts = 0
-			e.matchRosterComplete = false
-		}
 		e.preparation.stop()
-		refresh = e.matchRosterAttempts < inGameRosterAttemptLimit && !e.matchRosterComplete
-		if refresh {
-			e.matchRosterAttempts++
-		}
-	} else if stage != StageInGame {
-		e.matchRosterAttempts = 0
-		e.matchRosterComplete = false
 	}
 	e.mu.Unlock()
 	var rosterErr error
@@ -301,7 +281,7 @@ func (e *Engine) poll(ctx context.Context) {
 		// readiness phase; GameStart -> InProgress can renew once).
 		// Run may fill missing names/first histories once after entry discovery.
 		if refresh && rosterErr == nil && gameID != 0 && completeRoster(roster) {
-			e.matchRosterComplete = true
+			e.roster.markComplete()
 		}
 		if !refresh || rosterErr != nil || len(roster) == 0 {
 			gameID = e.snapshot.GameID
@@ -360,8 +340,7 @@ func (e *Engine) invalidateConnectionLocked() {
 	e.phaseHint = ""
 	e.clientVersion++
 	e.accountIdentity = ""
-	e.matchRosterAttempts = 0
-	e.matchRosterComplete = false
+	e.roster.reset()
 	e.players.reset()
 	e.preparation.invalidate()
 	for i := range e.snapshot.Participants {
@@ -922,20 +901,14 @@ func (e *Engine) RefreshRoster(ctx context.Context) (core.Snapshot, error) {
 	if activeMatch(phase) && e.snapshot.ConnectionID == version && gameID == e.snapshot.GameID && !rosterImproves(e.snapshot.Participants, roster) {
 		roster = clone(e.snapshot).Participants
 	}
-	if activeMatch(phase) && (!activeMatch(snapshotPhase(e.snapshot.Phase)) || (phase == PhaseGameStart && snapshotPhase(e.snapshot.Phase) != PhaseGameStart) || (gameID != 0 && gameID != e.snapshot.GameID)) {
-		e.matchRosterAttempts = 0
-		e.matchRosterComplete = false
-	}
-	if phase == PhaseInProgress && snapshotPhase(e.snapshot.Phase) == PhaseGameStart && !e.matchRosterComplete {
-		e.matchRosterAttempts = 0
-	}
+	e.roster.refreshed(phase, snapshotPhase(e.snapshot.Phase), gameID, e.snapshot.GameID)
 	// Explicit refresh also renews the independent scouting round. Ordinary
 	// polls, card selection and overlay visibility do not reset it.
 	e.stopScoutingLocked()
 	e.scouting.refresh(roster)
 	e.replaceLocked(stage, phase, gameID, roster, "")
 	if activeMatch(phase) && gameID != 0 && completeRoster(roster) {
-		e.matchRosterComplete = true
+		e.roster.markComplete()
 	}
 	e.mu.Unlock()
 	return e.Snapshot(), nil

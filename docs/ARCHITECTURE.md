@@ -34,7 +34,7 @@ desktopApplication ── 主窗 / 托盘 / companion 辅助窗口
 
 `main()` 只做 WebView2 前置检查、创建生命周期、传入资源和运行。`desktopApplication` 显式持有桥接、窗口、监控和取消依赖；`desktop_app` 负责组装/托盘/关闭，`desktop_controls` 负责侧栏与设置，`desktop_workers` 负责事件转发和启动任务。单实例检查早于服务创建，重复启动只唤起已有实例；关闭时先取消工作，再停监控和保存设置。
 
-Engine的独立锁组件包括：`eventSubscription`管理事件取消/序号/重连与唤醒，`groupingState`持有分组scope/匿名字段/标签与单轮取消，`reviewState`持有候选/冻结复盘/账号与结算令牌，`playerCache`持有五表内存缓存，`preparationState`持有房间/选人准备的取消/令牌/期限/次数/优先玩家，`initialMatchPreparation`持有开局单轮资格/取消/版本/比赛/令牌，`querySession`持有手动查询独占槽与首页子任务取消，`scoutPreparation`持有独立统计范围/令牌/预算/报告/游标与发布节流，`historyRecovery`持有重试episode、合并后台任务与本机更新队列。复盘发布后只读，更新替换外层值；固定Engine→组件锁序，来源/磁盘I/O、引擎发布和回调均在组件锁外。Engine保留连接/阶段/身份/比赛守卫，字段由59经51、45、41、37降为30，再由查询会话降为29；开局状态原已为单字段，改为独立锁后字段数未变。独立统计原已为单字段，独立锁迁移未减少字段。手动查询数据编排已移至`playerQueries`，通过显式`queryState`与scheduler依赖调用；名单预算、发现/发布生命周期等尚待收尾，S2仍进行中。
+Engine的独立锁组件包括：`eventSubscription`管理事件取消/序号/重连与唤醒，`groupingState`持有分组scope/匿名字段/标签与单轮取消，`reviewState`持有候选/冻结复盘/账号与结算令牌，`playerCache`持有五表内存缓存，`preparationState`持有房间/选人准备的取消/令牌/期限/次数/优先玩家，`initialMatchPreparation`持有开局单轮资格/取消/版本/比赛/令牌，`querySession`持有手动查询独占槽与首页子任务取消，`scoutPreparation`持有独立统计范围/令牌/预算/报告/游标与发布节流，`historyRecovery`持有重试episode、合并后台任务与本机更新队列，`rosterDiscovery`持有本地身份发现就绪窗口/次数/完成状态。复盘发布后只读，更新替换外层值；固定Engine→组件锁序，来源/磁盘I/O、引擎发布和回调均在组件锁外。Engine保留连接/阶段/身份/比赛守卫，字段由59经51、45、41、37降为30，再由查询会话降为29、名单发现降为28；开局状态原已为单字段，改为独立锁后字段数未变。独立统计原已为单字段，独立锁迁移未减少字段。手动查询数据编排已移至`playerQueries`，通过显式`queryState`与scheduler依赖调用；发现/发布生命周期尚待收尾，S2仍进行中。
 
 ## 阶段与并发
 
@@ -55,6 +55,8 @@ Engine的独立锁组件包括：`eventSubscription`管理事件取消/序号/�
 `playerQueries`负责手动历史读取、缓存命中、失败保留与可选资料编排；`queryState`仅提供受保护的值读取、姓名/资料能力及原子提交，服务不持Engine指针，不在会话锁内调用来源或状态端口。Engine提交时继续核对首页guard、连接/代次和较新的资料时钟。
 
 手动查询共用`querySession`的一个独占槽，沿用12秒及调用方更短的context期限，忙时立即拒绝、不增加排队或重试；任务取消后仍由原worker退出时释放槽。只有已核验、空闲且无缓存的首页查询创建额外子context，离idle/换连接/退出只取消该子任务，不取消其他手动查询或父context；原身份/阶段/代次守卫留在Engine。
+
+本地名单读取预算由`rosterDiscovery`拥有。每个加载/正式游戏就绪窗口最多三次，加载→正式游戏仅在名单未完整时续窗；已完整后停止自动读取，同局手动刷新不续窗，新比赛或离局才按原规则重置。Engine在调用前后核验阶段/连接，组件不读来源、不发布快照。
 
 准备首批历史与完整独立统计是两条任务：首批房间/选人与开局各沿用 10 人/45 秒边界；独立 Scout 按[SCOUTING.md](SCOUTING.md)的 180 秒、500 页合计预算逐人发布。12 小时/30 天/当前赛季范围不从列表“最近 N 场”推算。渲染、换主题、悬停、换英雄、快览显隐不重启准备。
 
