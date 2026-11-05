@@ -14,6 +14,8 @@
 
 第三批为PlayerCardData、PlayerScoutCard与MatchRoster，迁移232个分支。11个辅助窗/复盘场景246组状态15988节点的全部样式、普通布局及强制控件状态尺寸无差异，原侧栏五人、加载十人、快览、独立排位和缓存只读断言通过。
 
+第四批为ClientSidebar、SidebarPlayer、OverlayView、ReviewRoom、MatchRoom及PlayerDrawer，迁移164个分支与预览倒计时私有关键帧。11场景246组状态15988节点样式和布局无差异，原侧栏/快览/复盘/窗口入口行为断言通过。
+
 其余批次与最终全局归属、浏览器和Windows核验在本记录后续追加；人工验收仍后置。
 
 ## BUG-0134 / 日常任务恢复直接集成dev

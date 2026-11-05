@@ -297,24 +297,6 @@ select {
   min-height: 0;
   gap: 12px;
 }
-.overlay-player:before {
-  position: absolute;
-  content: "";
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background:
-    linear-gradient(90deg, #10212bef 0%, #10212bcc 44%, #10212b20 100%),
-    linear-gradient(0deg, #10212bf2 0%, #10212b88 30%, #10212b0a 100%);
-}
-.overlay-player > .card-illustration {
-  inset: 8px;
-  width: calc(100% - 16px);
-  height: calc(100% - 16px);
-  object-fit: contain;
-  object-position: right center;
-  z-index: 0;
-}
 .card-intent {
   position: absolute;
   right: 6px;
@@ -416,18 +398,6 @@ select {
   color: #e0bb83;
 }
 /* Player details keep their query state separate from tabs. */
-.drawer-shell {
-  display: contents;
-}
-.player-drawer {
-  width: 100%;
-  height: 212px;
-  flex: none;
-  background: var(--raised);
-  border: 1px solid var(--border);
-  border-radius: 0;
-  box-shadow: none;
-}
 .drawer-toolbar {
   height: 27px;
   min-height: 27px;
@@ -445,29 +415,6 @@ select {
   font-size: 10px;
   z-index: 1;
   max-width: 170px;
-}
-.player-drawer > .quality-warning {
-  margin: 2px 10px;
-  padding: 2px 6px;
-  font-size: 10px;
-}
-.player-drawer .profile-update {
-  font-size: 9px;
-}
-.drawer-floating {
-  inset: var(--titlebar-height) 0 0;
-  background: #1c2b2e88;
-  padding: 18px;
-  align-items: flex-end;
-  justify-content: center;
-  display: flex;
-}
-.drawer-floating .player-drawer {
-  width: 100%;
-  height: min(450px, 85%);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  background: var(--surface);
 }
 /* Player dossier: portrait at left; actual account avatar remains distinct. */
 .players-workspace {
@@ -490,21 +437,6 @@ select {
   color: var(--win);
 }
 /* Read-only hold and interactive persistent overlay share one cached presentation. */
-.overlay-shell {
-  color-scheme: dark;
-  color: #e5eadb;
-  background: #141c20;
-  --text: #e5eadb;
-  --muted: #a0b39f;
-  --border: #ffffff20;
-  --surface: #141c20;
-  --raised: #253531;
-  --accent: #ec875e;
-  --win: #99c9b0;
-  --loss: #d3938c;
-  padding: 14px 22px;
-  gap: 0;
-}
 .overlay-shell .guide-panel {
  --panel: #1a2427;
  --surface-2: #253531;
@@ -512,36 +444,6 @@ select {
  --button-bg: #253531;
  --button-text: #e5eadb;
  --hover: #30463c;
-}
-.overlay-head {
-  background: none;
-  border: 0;
-  padding: 0 0 10px;
-  min-height: 42px;
-}
-.overlay-title strong {
-  font-size: 17px;
-}
-.overlay-title small {
-  font-size: 9px;
-  color: #93a68e;
-}
-.overlay-controls button {
-  background: #25322e;
-  color: #cbd7c4;
-  border-color: #ffffff15;
-}
-.overlay-content {
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-height: 0;
-  overflow: auto;
-}
-.overlay-status {
-  font-size: 10px;
-  margin: 0;
 }
 .overlay-readiness {
   padding: 2px 0 6px;
@@ -552,81 +454,6 @@ select {
 }
 .overlay-readiness b {
   color: #d7dfcd;
-}
-.overlay-groups {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 8px;
-  min-height: 0;
-  flex: 1;
-}
-.overlay-groups > section {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-content: start;
-  gap: 8px;
-}
-.overlay-groups h2 {
-  width: 100%;
-  font-size: 10px;
-  letter-spacing: 2px;
-  flex: none;
-  margin: 0;
-  height: 15px;
-  color: #9abdb6;
-}
-.overlay-groups section:nth-child(2) h2 {
-  color: #d4a19b;
-}
-.overlay-groups h2 span {
-  font-size: 9px;
-  margin-left: 10px;
-}
-.overlay-player {
-  position: relative;
-  isolation: isolate;
-  display: flex;
-  flex-direction: column;
-  padding: 0;
-  gap: 0;
-  border: 1px solid #ffffff15;
-  min-width: 0;
-  width: calc((100% - 32px) / 5);
-  min-height: 182px;
-  margin: 0;
-  border-radius: 0;
-  background: #1b2b2e;
-  overflow: hidden;
-}
-.overlay-player.outdated {
-  border-color: #a48c5f;
-}
-.overlay-player .main-heroes-row {
-  display: none;
-}
-.overlay-player .current-hero {
-  min-height: 19px;
-  padding: 3px 0;
-}
-.overlay-footer {
-  padding: 9px 0 0;
-  border: 0;
-  background: none;
-  font-size: 9px;
-  min-height: 22px;
-  flex: none;
-  color: #94a48d;
-}
-.overlay-shell.hold-mode {
-  user-select: none;
-  pointer-events: none;
-}
-.overlay-shell.hold-mode .overlay-head {
-  --wails-draggable: no-drag;
-}
-.overlay-shell.hold-mode .overlay-footer {
-  color: #e0b49b;
 }
 @media (max-width: 1150px) {
   .app-toolbar {
@@ -716,41 +543,10 @@ select {
   .profile-update span {
     display: none;
   }
-
-  .overlay-shell {
-    padding: 12px 15px;
-  }
-  .overlay-player .block-caption small {
-    display: none;
-  }
 }
 @media (max-width: 680px) {
-  .overlay-groups {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-  .overlay-groups > section {
-    flex-direction: column;
-    flex-wrap: nowrap;
-    gap: 5px;
-  }
-  .overlay-player {
-    width: 100%;
-    min-height: 94px;
-    flex: none;
-  }
-  .overlay-player .current-hero {
-    display: none;
-  }
-  .overlay-footer > span:last-child {
-    display: none;
-  }
   .overlay-readiness {
     font-size: 9px;
-  }
-  .overlay-title strong {
-    font-size: 15px;
   }
 }
 
@@ -760,11 +556,6 @@ select {
 }
 .detail-metrics {
   color: #536658;
-}
-@media (min-width: 1000px) and (max-height: 780px) {
-  .player-drawer {
-    height: 188px;
-  }
 }
 .players-workspace .rank-query {
   color: #f4e5c8;
@@ -824,50 +615,10 @@ select {
 }
 
 /* Details float above the roster, preserving every card's geometry. */
-.drawer-floating {
-  inset: var(--titlebar-height) 0 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: #15252b80;
-  backdrop-filter: blur(3px);
-}
-.drawer-floating .player-drawer {
-  width: min(1100px, 100%);
-  height: min(640px, 100%);
-  border-radius: 10px;
-  box-shadow: 0 24px 70px #0c171840;
-  overflow: hidden;
-}
-.drawer-floating .drawer-toolbar {
-  height: 42px;
-  min-height: 42px;
-  padding: 5px 14px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.drawer-floating .drawer-toolbar button {
-  font-size: 12px;
-}
 .drawer-player-switch {
   display: flex;
   gap: 12px;
   margin-left: auto;
-}
-.drawer-floating .profile-freshness {
-  left: 16px;
-  right: auto;
-  max-width: 220px;
-  top: auto;
-  bottom: 12px;
-  font-size: 11px;
-}
-@media (max-width: 1000px) {
-  .drawer-floating {
-    padding: 14px;
-  }
 }
 
 /* Player analysis: compact identity, aligned evidence panels and a readable match column. */

@@ -123,5 +123,127 @@ onBeforeUnmount(() => {
   </Teleport>
 </template>
 <style scoped>
+/* Scope inside :where and retain original specificity with :is; child boundaries use :deep. */
+:where(.drawer-shell):is(.drawer-shell) {
+  display: contents;
+}
+:where(.player-drawer):is(.player-drawer) {
+  width: 400px;
+  min-width: 0;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  background: #141820;
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: 9px 9px 0 0;
+  overflow: hidden;
+}
+:where(.drawer-floating):is(.drawer-floating) {
+  position: fixed;
+  inset: var(--titlebar-height) 0 0;
+  z-index: 30;
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px;
+  background: #05090db3;
+}
+:where(.player-drawer):is(.drawer-floating .player-drawer) {
+  width: min(440px, 100%);
+  height: 100%;
+  border-bottom: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: -15px 0 40px #0007;
+}
+:where(.player-drawer):is(.player-drawer) :deep(>.quality-warning) {
+  margin: 8px;
+}
+@media (max-width: 620px) {
+  :where(.drawer-floating):is(.drawer-floating) {
+    padding: 8px;
+  }
+}
+:where(.drawer-shell):is(.drawer-shell) {
+  display: contents;
+}
+:where(.player-drawer):is(.player-drawer) {
+  width: 100%;
+  height: 212px;
+  flex: none;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  box-shadow: none;
+}
+:where(.player-drawer):is(.player-drawer) :deep(>.quality-warning) {
+  margin: 2px 10px;
+  padding: 2px 6px;
+  font-size: 10px;
+}
+:where(.player-drawer):is(.player-drawer) :deep(.profile-update) {
+  font-size: 9px;
+}
+:where(.drawer-floating):is(.drawer-floating) {
+  inset: var(--titlebar-height) 0 0;
+  background: #1c2b2e88;
+  padding: 18px;
+  align-items: flex-end;
+  justify-content: center;
+  display: flex;
+}
+:where(.player-drawer):is(.drawer-floating .player-drawer) {
+  width: 100%;
+  height: min(450px, 85%);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--surface);
+}
+@media (min-width: 1000px) and (max-height: 780px) {
+  :where(.player-drawer):is(.player-drawer) {
+    height: 188px;
+  }
+}
+:where(.drawer-floating):is(.drawer-floating) {
+  inset: var(--titlebar-height) 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #15252b80;
+  backdrop-filter: blur(3px);
+}
+:where(.player-drawer):is(.drawer-floating .player-drawer) {
+  width: min(1100px, 100%);
+  height: min(640px, 100%);
+  border-radius: 10px;
+  box-shadow: 0 24px 70px #0c171840;
+  overflow: hidden;
+}
+:where(.drawer-floating):is(.drawer-floating) :deep(.drawer-toolbar) {
+  height: 42px;
+  min-height: 42px;
+  padding: 5px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+:where(.drawer-floating):is(.drawer-floating) :deep(.drawer-toolbar button) {
+  font-size: 12px;
+}
+:where(.drawer-floating):is(.drawer-floating) :deep(.profile-freshness) {
+  left: 16px;
+  right: auto;
+  max-width: 220px;
+  top: auto;
+  bottom: 12px;
+  font-size: 11px;
+}
+@media (max-width: 1000px) {
+  :where(.drawer-floating):is(.drawer-floating) {
+    padding: 14px;
+  }
+}
+</style>
+<style scoped>
 .drawer-floating .player-drawer.drawer-fit {height:auto;min-height:0;max-height:calc(100dvh - var(--titlebar-height) - 48px);}
 </style>

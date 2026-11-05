@@ -37,5 +37,26 @@ const picking=computed(()=>props.snapshot?.phase==='ChampSelect');
     <footer class="sidebar-footer"><span>{{ picking?uiText.clientSidebar.expandHelp:uiText.clientSidebar.selectionHelp }}</span><small>{{ state?.holdEnabled && state?.holdAvailable ? uiText.clientSidebar.holdHelp(state?.holdKey==='Backquote'?'~':state?.holdKey || '~') : state?.shortcutAvailable ? uiText.clientSidebar.shortcutHelp(state.shortcut) : uiText.clientSidebar.previewHelp }}</small></footer>
   </main>
 </template>
-
+<style scoped>
+/* Scope inside :where and retain original specificity with :is; child boundaries use :deep. */
+:where(.client-sidebar):is(.client-sidebar) { height:100dvh; width:100%; background:var(--surface); color:var(--text); border:1px solid var(--border); font-variant-numeric:tabular-nums; overflow:hidden; }
+:where(.sidebar-rail):is(.sidebar-rail) { height:100dvh; width:100%; background:var(--surface); color:var(--text); border:1px solid var(--border); font-variant-numeric:tabular-nums; overflow:hidden; }
+:where(.client-sidebar):is(.client-sidebar) { display:flex;flex-direction:column;font-size:12px;line-height:1.25; }
+:where(.sidebar-header):is(.sidebar-header) { display:flex;align-items:center;gap:8px;padding:6px 12px;flex:none;border-bottom:1px solid var(--border);height:38px; }
+:where(.sidebar-header):is(.sidebar-header) :deep(strong) {font-size:13px;letter-spacing:-.3px;}
+:where(.sidebar-header):is(.sidebar-header) :deep(button) {margin-left:auto;padding:4px;}
+:where(.sidebar-heading):is(.sidebar-heading) {flex:none;display:flex;flex-direction:column;padding:9px 10px 8px;gap:7px;}
+:where(.sidebar-heading):is(.sidebar-heading) :deep(>div) {display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
+:where(.sidebar-heading):is(.sidebar-heading) :deep(h1) {font-size:18px;letter-spacing:-.5px;margin:0;}
+:where(.sidebar-heading):is(.sidebar-heading) :deep(small) {font-size:11px;color:var(--muted);}
+:where(.sidebar-footer):is(.sidebar-footer) {font-size:11px;color:var(--muted);}
+:where(.sidebar-players):is(.sidebar-players) {flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:0 10px 10px;scrollbar-gutter:stable;}
+:where(.sidebar-footer):is(.sidebar-footer) {display:flex;flex-direction:column;border-top:1px solid var(--border);flex:none;padding:6px 10px;gap:2px;}
+:where(.sidebar-footer):is(.sidebar-footer) :deep(small) {font-size:11px;}
+:where(.sidebar-empty):is(.sidebar-empty) {color:var(--muted);font-size:13px;padding:24px 6px;}
+:where(.client-sidebar):is(.client-sidebar) :deep(>.quality-warning) {margin:0 10px 8px;font-size:11px;}
+:where(.sidebar-rail):is(.sidebar-rail) :deep(>button) {display:flex;flex-direction:column;align-items:center;justify-content:center;gap:15px;width:100%;height:100%;padding:3px;background:var(--surface);color:var(--text);border:0;}
+:where(.sidebar-rail):is(.sidebar-rail) :deep(span) {writing-mode:vertical-rl;letter-spacing:4px;font-size:12px;}
+:where(.sidebar-rail):is(.sidebar-rail) :deep(b) {font-size:12px;color:var(--accent);}
+</style>
 <style scoped>.sidebar-tab{border:0;border-radius:0;background:none;color:var(--muted);font:inherit;padding:0;min-height:22px;cursor:pointer;}.sidebar-tab[aria-pressed="true"]{color:var(--text);border-bottom:1px solid var(--accent);}.guide-tab{font-size:12px;}.client-sidebar > .guide-panel{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;}</style>

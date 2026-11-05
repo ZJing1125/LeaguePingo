@@ -50,3 +50,11 @@ async function refresh(){if(busy.value || !props.review)return;busy.value=true;e
     </PlayerDrawer>
   </section>
 </template>
+<style scoped>
+/* Scope inside :where and retain original specificity with :is; child boundaries use :deep. */
+:where(.review-room):is(.review-room) {height:100%;overflow:auto;padding:22px 24px;display:flex;flex-direction:column;gap:14px;min-height:0;}
+:where(.review-result):is(.review-result) {background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 16px;}
+:where(.review-status):is(.review-status) {display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px;color:var(--muted);}
+@media(max-width:1000px){:where(.review-room):is(.review-room){padding:16px;}}
+:where(.review-room):is(.match-room>.review-room) {flex:1;height:auto;min-height:0;}
+</style>

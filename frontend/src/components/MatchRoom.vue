@@ -97,3 +97,12 @@ async function changeQueue(value: number) {
     <ReviewRoom v-show="scope === 'review'" :review="snapshot?.review ?? null" :connected="snapshot?.connected ?? false" :active="active && scope === 'review'" :in-game="inGame" @snapshot="$emit('snapshot', $event)" @query="$emit('query', $event)" @modal="$emit('modal', $event)"/>
   </section>
 </template>
+<style scoped>
+/* Scope inside :where and retain original specificity with :is; child boundaries use :deep. */
+:where(.match-room):is(.match-room) {height:100%;min-height:0;display:flex;flex-direction:column;}
+:where(.match-room-nav):is(.match-room-nav) {flex:none;padding:12px 24px 0;}
+:where(.current-match):is(.match-room>.current-match) {flex:1;height:auto;min-height:0;}
+:where(.current-match):is(.current-match) {overflow:auto;padding:18px 24px 22px;display:flex;flex-direction:column;gap:14px;}
+@media(max-width:1000px){:where(.match-room-nav):is(.match-room-nav){padding:12px 16px 0;}}
+@media(max-width:1000px){:where(.current-match):is(.current-match){padding:16px;}}
+</style>

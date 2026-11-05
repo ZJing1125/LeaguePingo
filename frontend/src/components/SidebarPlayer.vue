@@ -36,3 +36,37 @@ const heroState=computed(()=>!props.player.championId?uiText.playerCardData.wait
     <div class="scout-card sidebar-expanded"><PlayerCardData :player="player" :queue="queue" :party="!picking"/></div>
   </details>
 </template>
+<style scoped>
+/* Scope inside :where and retain original specificity with :is; child boundaries use :deep. */
+:where(.sidebar-player):is(.sidebar-player) {background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:6px;}
+:where(.sidebar-player):is(.sidebar-player) :deep(summary) {display:flex;flex-direction:column;cursor:pointer;list-style:none;padding:4px 8px;gap:3px;}
+:where(.sidebar-player):is(.sidebar-player) :deep(summary::-webkit-details-marker) {display:none;}
+:where(.sidebar-player):is(.sidebar-player) :deep(summary:focus-visible) {outline:2px solid var(--accent);outline-offset:-3px;}
+:where(.sidebar-player):is(.sidebar-player) :deep(summary:hover) {background:var(--hover);}
+:where(.sidebar-player[open]):is(.sidebar-player[open]) {border-color:var(--accent);}
+:where(.sidebar-identity):is(.sidebar-identity) {display:flex;align-items:center;min-width:0;gap:7px;min-height:30px;}
+:where(.sidebar-identity):is(.sidebar-identity) :deep(>span:not(.participant-avatar):not(.rank-emblem)) {min-width:0;flex:1;}
+:where(.sidebar-identity):is(.sidebar-identity) :deep(strong) {display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:16px;}
+:where(.sidebar-identity):is(.sidebar-identity) :deep(small) {font-size:11px;color:var(--muted);}
+:where(.sidebar-rank):is(.sidebar-rank) {font-size:11px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;}
+:where(.sidebar-rank):is(.sidebar-rank) :deep(b) {font-size:12px;color:var(--text);font-weight:600;}
+:where(.sidebar-hero):is(.sidebar-hero) {display:flex;align-items:center;min-width:0;gap:6px;padding-top:0;border-top:0;}
+:where(.sidebar-hero):is(.sidebar-hero) :deep(>span) {min-width:0;flex:1;}
+:where(.sidebar-hero):is(.sidebar-hero) :deep(strong) {display:block;font-size:12px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+:where(.sidebar-hero):is(.sidebar-hero) :deep(small) {font-size:11px;color:var(--muted);}
+:where(.sidebar-experience):is(.sidebar-experience) {font-size:11px;color:var(--muted);}
+:where(.sidebar-experience):is(.sidebar-experience) {display:flex;gap:7px;white-space:nowrap;overflow:hidden;flex-wrap:nowrap;line-height:13px;}
+:where(.sidebar-metrics):is(.sidebar-metrics) {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding-top:0;border-top:0;}
+:where(.sidebar-metrics):is(.sidebar-metrics) :deep(>span) {display:flex;flex-direction:column;text-align:center;gap:1px;}
+:where(.sidebar-metrics):is(.sidebar-metrics) :deep(small) {font-size:11px;color:var(--muted);line-height:12px;}
+:where(.sidebar-metrics):is(.sidebar-metrics) :deep(b) {font-weight:650;font-size:15px;line-height:17px;}
+:where(.sidebar-coverage):is(.sidebar-coverage) {font-size:11px;color:var(--muted);text-align:center;}
+:where(.sidebar-expanded.scout-card):is(.sidebar-expanded.scout-card) {display:block;height:auto;min-height:0;border:0;border-top:1px solid var(--border);border-radius:0;}
+:where(.sidebar-rank):is(.sidebar-identity .sidebar-rank) {display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;line-height:13px;}
+:where(.sidebar-hero-title):is(.sidebar-hero-title) {display:flex;align-items:baseline;justify-content:space-between;gap:5px;line-height:14px;}
+:where(.sidebar-hero-title):is(.sidebar-hero-title) :deep(strong) {font-size:12px;}
+:where(.sidebar-hero-title):is(.sidebar-hero-title) :deep(b) {font-size:11px;font-weight:600;white-space:nowrap;}
+:where(.sidebar-hero-title):is(.sidebar-hero-title) :deep(b small) {font-weight:400;}
+:where(.sidebar-experience):is(.sidebar-experience) :deep(small) {font-size:11px;}
+:where(.sidebar-hero):is(.sidebar-hero) :deep(>span:not(.game-icon)) {flex:1;min-width:0;}
+</style>

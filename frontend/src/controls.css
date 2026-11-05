@@ -9,8 +9,8 @@
 *::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
 *::-webkit-scrollbar-corner { background: transparent; }
 @supports not selector(::-webkit-scrollbar) { :root body * { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; } }
-:is(.desktop-app, .drawer-floating) button, .overlay-shell button { font-family: inherit; transition: border-color .12s, box-shadow .12s; }
-:is(.desktop-app, .drawer-floating) :is(.secondary, .icon-button, .text-button), .overlay-controls button { border-radius: var(--control-radius); }
+:is(.desktop-app, .drawer-floating) button { font-family: inherit; transition: border-color .12s, box-shadow .12s; }
+:is(.desktop-app, .drawer-floating) :is(.secondary, .icon-button, .text-button) { border-radius: var(--control-radius); }
 :is(.desktop-app, .drawer-floating) :is(.secondary, .icon-button):hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 48%, var(--border)); background: var(--hover); }
 :is(.desktop-app, .drawer-floating) :is(.secondary, .icon-button):active:not(:disabled) { background: color-mix(in srgb, var(--accent) 15%, var(--panel)); }
 :is(.desktop-app, .drawer-floating, .overlay-shell) :where(button, input, select, textarea, summary, a[href], [tabindex="0"]):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -23,4 +23,4 @@
 :is(.desktop-app, .drawer-floating) input[type="checkbox"] { accent-color: var(--accent); }
 :is(.desktop-app, .drawer-floating) .desktop-titlebar { position: relative; height: 64px; border-bottom: 1px solid var(--border); }
 @media (max-width: 999px) { :is(.desktop-app, .drawer-floating) .roster-toolbar .hold-hint { display: none; } }
-@media (prefers-reduced-motion: reduce) { :is(.desktop-app, .drawer-floating) button, .overlay-shell button { transition: none; } }
+@media (prefers-reduced-motion: reduce) { :is(.desktop-app, .drawer-floating) button { transition: none; } }

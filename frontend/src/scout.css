@@ -15,7 +15,7 @@
   --scout-ally: #248ba7;
   --scout-enemy: #c26573;
 }
-:root[data-theme="dark"], .overlay-shell {
+:root[data-theme="dark"] {
   --scout-card: #344052;
   --scout-head: #2b3545;
   --scout-cell: #374456;
@@ -31,47 +31,7 @@
   --scout-ally: #50c6e3;
   --scout-enemy: #ef8b9b;
 }
-.overlay-shell .overlay-player.scout-card {
-  --scout-team: var(--scout-ally);
-  position: relative;
-  isolation: isolate;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding: 0;
-  color: var(--scout-text);
-  background: var(--scout-card);
-  border: 1px solid var(--scout-border);
-  border-radius: 5px;
-  clip-path: none;
-  overflow: hidden;
-  box-shadow: 0 2px 5px #11182725;
-  min-width: 0;
-  min-height: 0;
-  height: 300px;
-}
-.overlay-shell .overlay-player.scout-enemy { --scout-team: var(--scout-enemy); }
-.overlay-shell .overlay-player.scout-card::before { content: none; display: none; }
 .desktop-app .match-workspace .roster-toolbar { height: 46px; padding-block: 3px; }
 .match-workspace .roster-toolbar .section-eyebrow { display: none; }
 .match-workspace .roster-toolbar h1 { font-size: 23px; line-height: 26px; margin: 0 0 2px; }
 .desktop-app .match-workspace .roster-progress { height: 22px; min-height: 22px; margin-bottom: 2px; padding-block: 2px; }
-.overlay-shell .overlay-groups { gap: 8px; margin-top: 0; }
-main.overlay-shell { padding-block: 8px; }
-.overlay-shell .overlay-head { min-height: 34px; padding-bottom: 2px; }
-.overlay-shell .overlay-title strong { font-size: 16px; line-height: 18px; }
-.overlay-shell .overlay-title small { line-height: 11px; margin-top: 2px; }
-.overlay-shell .overlay-readiness { padding-block: 2px; font-size: 11px; line-height: 12px; }
-.overlay-shell .overlay-content { gap: 2px; }
-.overlay-shell .overlay-footer { min-height: 16px; padding-top: 2px; line-height: 14px; margin-top: 0; }
-.overlay-shell .overlay-groups > section { gap: 6px; }
-.overlay-shell .overlay-player.scout-card { height: 236px; min-height: 236px; width: calc((100% - 24px) / 5); margin: 0; }
-@media (max-width: 680px) {
-  .overlay-shell .overlay-groups { display: flex; flex-direction: column; }
-  .overlay-shell .overlay-groups > section { flex-direction: row; flex-wrap: wrap; }
-  .overlay-shell .overlay-groups h2 { flex-basis: 100%; }
-  .overlay-shell .overlay-player.scout-card { width: calc((100% - 6px) / 2); height: auto; min-height: 250px; }
-  .overlay-shell .overlay-head { min-height: 34px; }
-}
-
-.overlay-shell .overlay-status, .overlay-shell .overlay-title small, .overlay-shell .overlay-footer { font-size: 11px; }
