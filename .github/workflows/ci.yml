@@ -79,6 +79,13 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      # Each job has its own checkout. Go embeds frontend/dist from this job,
+      # so the portable job's build cannot supply staticcheck's inputs.
+      - name: Prepare embedded frontend for analyzers
+        run: |
+          npm --prefix frontend ci
+          npm --prefix frontend run build
+
       - name: Install pinned analyzers
         run: |
           tool_bin="$RUNNER_TEMP/advisory-bin"

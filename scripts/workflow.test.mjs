@@ -96,6 +96,21 @@ test('dependency updates stay coupled on dev and CI actions stay pinned', () => 
     assert.throws(() => checkWorkflow(f => f === config ? changed : files[f]), undefined, before);
   }
 });
+test('advisory analyzers prepare real embedded assets in their own job', () => {
+  const file = '.github/workflows/ci.yml';
+  const prepare = '      - name: Prepare embedded frontend for analyzers\n        run: |\n          npm --prefix frontend ci\n          npm --prefix frontend run build\n';
+  assert.ok(files[file].includes(prepare));
+  for (const changed of [
+    files[file].replace(prepare, ''),
+    files[file].replace(prepare, prepare.replace('npm --prefix frontend ci', 'npm --prefix frontend install')),
+    files[file].replace(prepare, prepare.replace('npm --prefix frontend run build', 'mkdir -p frontend/dist')),
+    // A build in the portable job cannot supply another checkout's embed inputs.
+    files[file].replace(prepare, '').replace('      - name: Portable verification', prepare + '\n      - name: Portable verification'),
+    files[file].replace(prepare, '').replace('      - name: npm audit (advisory)', prepare + '\n      - name: npm audit (advisory)'),
+  ]) {
+    assert.throws(() => checkWorkflow(f => f === file ? changed : files[f]), /Advisory analyzers require/);
+  }
+});
 
 test('component preview routes cannot become product or desktop delivery entry points', () => {
   for (const [file, change] of [

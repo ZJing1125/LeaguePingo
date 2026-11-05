@@ -150,6 +150,13 @@ export function checkWorkflow(read) {
     'bash scripts/verify-installer.sh artifacts/installer-check/leaguepingo-ci-installer.exe',
     "github.event_name == 'workflow_dispatch' && inputs.upload_exe"])
     requireText('.github/workflows/ci.yml', text);
+  const advisory = ci.split('\n  advisory:\n')[1]?.split('\n  windows:\n')[0] || '';
+  const embeddedFrontend = '      - name: Prepare embedded frontend for analyzers\n        run: |\n          npm --prefix frontend ci\n          npm --prefix frontend run build\n';
+  if (!advisory.includes(embeddedFrontend) ||
+      advisory.indexOf(embeddedFrontend) > advisory.indexOf('run: staticcheck ./...') ||
+      advisory.indexOf(embeddedFrontend) > advisory.indexOf('run: govulncheck ./...')) {
+    throw new Error('Advisory analyzers require a locked frontend build in their own job before analysis');
+  }
   if ((ci.match(/run: bash scripts\/build\.sh bin\/leaguepingo-ci\.exe/g) || []).length !== 1 ||
       (ci.match(/^\s*needs: portable$/gm) || []).length !== 2 ||
       (ci.match(/continue-on-error: true/g) || []).length < 3 ||
