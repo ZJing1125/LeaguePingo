@@ -205,8 +205,6 @@ func (e *Engine) poll(ctx context.Context) {
 			account, _ = accounts.AccountIdentity(requestCtx)
 		}
 	}
-	var gameID int64
-	var roster []core.Participant
 	e.mu.Lock()
 	if e.snapshot.Generation != generation || e.clientVersion != version || e.phaseEpoch != epoch {
 		e.mu.Unlock()
@@ -233,19 +231,7 @@ func (e *Engine) poll(ctx context.Context) {
 		e.preparation.stop()
 	}
 	e.mu.Unlock()
-	var rosterErr error
-	if preparationStage(stage) || refresh {
-		if stage == StageParty {
-			if lobby, ok := client.(source.LobbySource); ok {
-				roster, rosterErr = lobby.Lobby(requestCtx)
-			}
-		} else {
-			gameID, roster, rosterErr = readRoster(requestCtx, client, stage)
-		}
-		for i := range roster {
-			roster[i].ConnectionID = version
-		}
-	}
+	gameID, roster, rosterErr := readPollRoster(requestCtx, client, stage, refresh, version)
 	if stage == StageInGame {
 		if cached, ok := client.(source.CachedAccountSource); ok {
 			account = cached.CachedAccountIdentity()
@@ -253,6 +239,47 @@ func (e *Engine) poll(ctx context.Context) {
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	e.finishPollLocked(pollRosterResult{
+		generation: generation, version: version, epoch: epoch, champEpoch: champEpoch,
+		phase: phase, stage: stage, account: account, gameID: gameID,
+		roster: roster, rosterErr: rosterErr, refresh: refresh,
+	})
+}
+
+type pollRosterResult struct {
+	generation, version, epoch, champEpoch uint64
+	phase                                  Phase
+	stage                                  Stage
+	account                                string
+	gameID                                 int64
+	roster                                 []core.Participant
+	rosterErr                              error
+	refresh                                bool
+}
+
+func readPollRoster(ctx context.Context, client Client, stage Stage, refresh bool, version uint64) (int64, []core.Participant, error) {
+	var gameID int64
+	var roster []core.Participant
+	var err error
+	if preparationStage(stage) || refresh {
+		if stage == StageParty {
+			if lobby, ok := client.(source.LobbySource); ok {
+				roster, err = lobby.Lobby(ctx)
+			}
+		} else {
+			gameID, roster, err = readRoster(ctx, client, stage)
+		}
+		for i := range roster {
+			roster[i].ConnectionID = version
+		}
+	}
+	return gameID, roster, err
+}
+
+func (e *Engine) finishPollLocked(result pollRosterResult) {
+	generation, version, epoch, champEpoch := result.generation, result.version, result.epoch, result.champEpoch
+	phase, stage, account := result.phase, result.stage, result.account
+	gameID, roster, rosterErr, refresh := result.gameID, result.roster, result.rosterErr, result.refresh
 	if e.snapshot.Generation != generation || e.clientVersion != version || e.phaseEpoch != epoch {
 		return
 	}
@@ -426,27 +453,7 @@ func (e *Engine) replaceLocked(stage Stage, phase Phase, gameID int64, roster []
 			message = initialMatchMessage
 		}
 	}
-	if sameConnection && (preparationStage(stage) || stage == StageInGame) && (gameID == 0 || e.snapshot.GameID == 0 || gameID == e.snapshot.GameID) {
-		for i := range roster {
-			for _, old := range e.snapshot.Participants {
-				if old.ConnectionID == e.clientVersion && old.PUUID != "" && old.PUUID == roster[i].PUUID {
-					roster[i].History = append([]core.Match(nil), old.History...)
-					roster[i].HistoryMeta = old.HistoryMeta
-					roster[i].Stats = old.Stats
-					roster[i].Profile = old.Profile
-					roster[i].Scout = old.Scout
-					roster[i].PrivacyState = old.PrivacyState
-					roster[i].Cached = old.Cached
-					roster[i].Stale = old.Stale
-					roster[i].HistoryState = old.HistoryState
-					if core.IsPlaceholderName(roster[i].DisplayName) && !core.IsPlaceholderName(old.DisplayName) {
-						roster[i].DisplayName = old.DisplayName
-					}
-					roster[i].Error = old.Error
-				}
-			}
-		}
-	}
+	e.carryPreparedRosterLocked(roster, stage, gameID, sameConnection)
 	// Names belong to a verified connection/player, independently of the match
 	// or history timestamp. Never let a nameless roster overwrite the cache.
 	for i := range roster {
@@ -483,6 +490,30 @@ func (e *Engine) replaceLocked(stage Stage, phase Phase, gameID int64, roster []
 	e.startPreparationLocked()
 	e.startInitialMatchLocked()
 	e.syncScoutingLocked()
+}
+
+func (e *Engine) carryPreparedRosterLocked(roster []core.Participant, stage Stage, gameID int64, sameConnection bool) {
+	if sameConnection && (preparationStage(stage) || stage == StageInGame) && (gameID == 0 || e.snapshot.GameID == 0 || gameID == e.snapshot.GameID) {
+		for i := range roster {
+			for _, old := range e.snapshot.Participants {
+				if old.ConnectionID == e.clientVersion && old.PUUID != "" && old.PUUID == roster[i].PUUID {
+					roster[i].History = append([]core.Match(nil), old.History...)
+					roster[i].HistoryMeta = old.HistoryMeta
+					roster[i].Stats = old.Stats
+					roster[i].Profile = old.Profile
+					roster[i].Scout = old.Scout
+					roster[i].PrivacyState = old.PrivacyState
+					roster[i].Cached = old.Cached
+					roster[i].Stale = old.Stale
+					roster[i].HistoryState = old.HistoryState
+					if core.IsPlaceholderName(roster[i].DisplayName) && !core.IsPlaceholderName(old.DisplayName) {
+						roster[i].DisplayName = old.DisplayName
+					}
+					roster[i].Error = old.Error
+				}
+			}
+		}
+	}
 }
 
 func (e *Engine) updatePrepared(token uint64, puuid string, edit func(*core.Participant)) {

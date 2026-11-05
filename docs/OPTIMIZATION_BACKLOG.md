@@ -477,20 +477,18 @@ id: Q2
 title: 拆分超长函数
 priority: P1
 area: quality
-status: todo
+status: in-progress
 confidence: verified-static
 needs_human: false
-problem: 19 个函数超过 100 行。
+problem: 重新按Go AST核验，097fbe9基线仍有10个生产函数及其中1个闭包超过100行；引擎首批三处已拆分，仍有7个函数及1个闭包待处理。
 evidence:
-  - main.go:28 main 344 行
-  - internal/engine/scouting.go:225 prepareScouting 191 行
-  - internal/readycheck/controller.go:183 runSession 186 行
-  - internal/postgame/controller.go:280 runTask 179 行
-  - internal/engine/engine.go:204 poll 174 行
-  - internal/engine/grouping.go:15 syncGroupingLocked 167 行
-  - overlay.go:248 reconcileCompanion 135 行
+  - internal/engine/engine.go、scouting.go（poll/replaceLocked/runScoutCursor首批已拆分）
+  - internal/source/ranked.go、internal/core/timeline.go、scouting.go
+  - internal/guides/service.go
+  - overlay.go、cmd/perfprobe/main_windows.go
 actions:
-  - 按职责拆分；runSession、runTask 与 S3 合并处理，main 与 S8 合并处理
+  - 已完成：runSession/runTask随S3、main随S8；首批poll/名单写回及游标页归并/报告按职责分开，完整引擎竞态通过
+  - 继续拆分剩余统计/解析、攻略与Windows窗口/性能工具，保留阶段/来源/预算/迟到等原边界
 acceptance:
   - 逐步降到没有超过 100 行的函数，且每次拆分都有测试保护
 depends_on: [Q1, S3, S8]

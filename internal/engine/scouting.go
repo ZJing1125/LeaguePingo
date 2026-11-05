@@ -377,71 +377,9 @@ func (e *Engine) runScoutCursor(ctx context.Context, version uint64, scope strin
 			c.retryAt = apperrors.RetryAt(err)
 			c.message = apperrors.UserMessage(err, apperrors.DataUnavailable)
 		} else {
-			c.pageFails = 0
-			c.pages++
-			if page.Offset != c.offset || page.Meta.Returned < 0 || page.Meta.Returned > 20 || page.NextOffset != c.offset+page.Meta.Returned || page.LimitReason != "" {
-				c.done = true
-				c.invalid = true
-				c.message = "当前记录范围受限"
-			}
-			added := 0
-			for _, m := range page.Matches {
-				if c.seen[m.GameID] || m.GameID <= 0 {
-					continue
-				}
-				c.seen[m.GameID] = true
-				added++
-				if m.PlayedAt == nil || m.PlayedAt.After(cutoff) {
-					c.invalid = true
-					continue
-				}
-				if !c.oldest.IsZero() && m.PlayedAt.After(c.oldest) {
-					c.invalid = true
-				}
-				c.oldest = *m.PlayedAt
-				c.matches = append(c.matches, m)
-			}
-			if page.Meta.Excluded > 0 {
-				c.invalid = true
-			}
-			if page.Meta.Returned > 0 && added == 0 {
-				c.done = true
-				c.invalid = true
-				c.message = "当前记录范围受限"
-			}
-			if !c.invalid {
-				// Service exhaustion can be a retention boundary. A full time
-				// range requires an actual record reaching its start.
-				c.twelve = !c.oldest.IsZero() && !c.oldest.After(cutoff.Add(-12*time.Hour))
-				c.month = !c.oldest.IsZero() && !c.oldest.After(cutoff.Add(-30*24*time.Hour))
-				c.complete = season != nil && !c.oldest.IsZero() && !c.oldest.After(season.Start)
-			}
-			if !page.HasMore || !c.oldest.IsZero() && !c.oldest.After(boundary) || page.NextOffset >= 20000 {
-				c.done = true
-			}
-			c.offset = page.NextOffset
+			c.absorbPage(page, season, cutoff, boundary)
 		}
-		if c.invalid {
-			c.complete, c.twelve, c.month = false, false, false
-			c.done = true
-			if c.reason == "" {
-				c.reason = scoutReasonRangeLimited
-			}
-		}
-		r := core.BuildScoutReport(c.matches, c.masteries, season, cutoff, c.complete, c.twelve, c.month)
-		if !c.done {
-			r.State = "loading"
-		} else if !r.Complete || !r.Complete30 {
-			r.State = "partial"
-		}
-		r.Message = c.message
-		r.Reason = c.reason
-		r.RetryAt = c.retryAt
-		r.PagesRead = c.pages
-		if !c.oldest.IsZero() {
-			covered := c.oldest
-			r.CoverageEndsAt = &covered
-		}
+		r := c.report(season, cutoff)
 		if !e.saveScout(version, scope, token, c.player.PUUID, r) {
 			c.done = true
 		}
@@ -453,4 +391,75 @@ func (e *Engine) runScoutCursor(ctx context.Context, version uint64, scope strin
 			return
 		}
 	}
+}
+
+func (c *scoutCursor) absorbPage(page core.HistoryPage, season *core.ScoutSeason, cutoff, boundary time.Time) {
+	c.pageFails = 0
+	c.pages++
+	if page.Offset != c.offset || page.Meta.Returned < 0 || page.Meta.Returned > 20 || page.NextOffset != c.offset+page.Meta.Returned || page.LimitReason != "" {
+		c.done = true
+		c.invalid = true
+		c.message = "当前记录范围受限"
+	}
+	added := 0
+	for _, m := range page.Matches {
+		if c.seen[m.GameID] || m.GameID <= 0 {
+			continue
+		}
+		c.seen[m.GameID] = true
+		added++
+		if m.PlayedAt == nil || m.PlayedAt.After(cutoff) {
+			c.invalid = true
+			continue
+		}
+		if !c.oldest.IsZero() && m.PlayedAt.After(c.oldest) {
+			c.invalid = true
+		}
+		c.oldest = *m.PlayedAt
+		c.matches = append(c.matches, m)
+	}
+	if page.Meta.Excluded > 0 {
+		c.invalid = true
+	}
+	if page.Meta.Returned > 0 && added == 0 {
+		c.done = true
+		c.invalid = true
+		c.message = "当前记录范围受限"
+	}
+	if !c.invalid {
+		// Service exhaustion can be a retention boundary. A full time
+		// range requires an actual record reaching its start.
+		c.twelve = !c.oldest.IsZero() && !c.oldest.After(cutoff.Add(-12*time.Hour))
+		c.month = !c.oldest.IsZero() && !c.oldest.After(cutoff.Add(-30*24*time.Hour))
+		c.complete = season != nil && !c.oldest.IsZero() && !c.oldest.After(season.Start)
+	}
+	if !page.HasMore || !c.oldest.IsZero() && !c.oldest.After(boundary) || page.NextOffset >= 20000 {
+		c.done = true
+	}
+	c.offset = page.NextOffset
+}
+
+func (c *scoutCursor) report(season *core.ScoutSeason, cutoff time.Time) core.ScoutReport {
+	if c.invalid {
+		c.complete, c.twelve, c.month = false, false, false
+		c.done = true
+		if c.reason == "" {
+			c.reason = scoutReasonRangeLimited
+		}
+	}
+	r := core.BuildScoutReport(c.matches, c.masteries, season, cutoff, c.complete, c.twelve, c.month)
+	if !c.done {
+		r.State = "loading"
+	} else if !r.Complete || !r.Complete30 {
+		r.State = "partial"
+	}
+	r.Message = c.message
+	r.Reason = c.reason
+	r.RetryAt = c.retryAt
+	r.PagesRead = c.pages
+	if !c.oldest.IsZero() {
+		covered := c.oldest
+		r.CoverageEndsAt = &covered
+	}
+	return r
 }
