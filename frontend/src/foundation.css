@@ -278,45 +278,6 @@ small {
 .window-inactive .window-brand {
   opacity: 0.6;
 }
-.window-control-error {
-  margin-left: 20px;
-  color: var(--loss);
-  font-size: 11px;
-}
-.window-controls {
-  display: flex;
-  align-self: stretch;
-  margin-left: auto;
-  --wails-draggable: no-drag;
-}
-.window-controls button {
-  width: 46px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--muted);
-}
-.window-controls button:hover:not(:disabled) {
-  background: var(--raised);
-  color: var(--text);
-}
-.window-controls .window-close:hover:not(:disabled) {
-  background: #c44459;
-  color: #fff;
-}
-.window-controls button:focus-visible {
-  outline-offset: -4px;
-}
-.window-controls button[aria-disabled="true"] {
-  opacity: 0.45;
-  cursor: wait;
-}
-.window-controls .app-icon {
-  pointer-events: none;
-}
 .sidebar-status {
   display: flex;
   align-items: center;
