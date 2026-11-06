@@ -1,5 +1,7 @@
 # 国服实机验收
 
+2026-11-06最新反馈：用户报告P1–P7、A1–A4、D1–D6、X1共18项验收完毕，通过结论及实际测试版本待确认。见[反馈记录](acceptance/R1-feedback.md)与[现行编号](REAL_CLIENT_ACCEPTANCE.md)；下文历史反馈保留当时范围，其他项目不据此记为通过。
+
 R3每次发版的六项基础回归已固定到[RELEASE_REGRESSION.md](RELEASE_REGRESSION.md)，附独立空白结果表；覆盖首次启动、断线/重启、快捷键冲突、缺WebView2及托盘退出。模板准备不等于执行通过，实际结果继续集中后置。
 
 ## S9 严格TLS候选核验（后置，未执行）
