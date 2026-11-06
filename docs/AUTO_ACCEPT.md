@@ -20,6 +20,8 @@ Engine将核验后的连接及阶段通知internal/readycheck.Controller，现�
 
 ## 验证
 
+2026-11-06用户已确认A1–A4全部通过；实际测试版本等元数据待补，见[实机反馈](acceptance/R1-feedback.md)。
+
 internal/readycheck使用合成Source覆盖轮询发现、连续匹配、重复通知、超时实际成功、未知结果不重试、三次上限、跳过、手动响应、阶段退出、断线、关闭、旧连接迟到结果及关闭时零请求。Engine集成测试用阻塞History证明自动接受不等待资料。LCU HTTPS合成测试核验固定方法/端点与204，settings测试核验默认/持久化/异常配置。frontend/tests/auto-accept.cjs使用合成桥接核验保存失败、默认草稿、两组设置同次保存、一键停用、跨窗状态/跳过、旧revision拒绝和深浅/窄布局；接入test:smoke。
 
 Linux通用检查及Windows目标编译不等于Windows原生执行或国服接受成功。实机清单见ACCEPTANCE.md，本批不生成或替换交付程序。
