@@ -17,6 +17,8 @@ suggested_repo_path: docs/OPTIMIZATION_BACKLOG.md
 
 2026-11-06验收进展：用户明确确认P1–P7、A1–A4、D1–D6、X1共18项全部通过，已登记PASS及本轮结果CSV；实际程序/客户端版本等元数据待补。H1–H3、G1/G2、G3来源专项、C1–C3及X2仍待反馈，R1整体尚未完成，其余任务计数不变，见acceptance/R1-feedback.md。
 
+2026-11-12续办：18项通过记录9d0c057已推送dev；下一轮按海克斯优先从H1–H3开始，其后C1–C3/X2，分组需独立双方基准。S10复核默认main配置仍与dev一致，未见Dependabot PR或动态任务，继续保留服务待核验；不能从API未见记录判定更新失败或无更新，详见DEPENDENCIES.md。
+
 Q1首次运行：[40856437383](https://github.com/ZJing1125/LeaguePingo/actions/runs/40856437383)，Linux成功，Windows原生Go检查通过，侧栏720px五卡高度回归失败。已根据日志修复摘要内边距，保留原验收断言。修复提交dd33476的[40857941063](https://github.com/ZJing1125/LeaguePingo/actions/runs/40857941063)两个job全部成功：Windows全包test/vet、绑定生成/一致性、九项浏览器回归、EXE编译及产物审计均通过。EXE只存在runner，未上传、部署或登记为用户已验收；截图保留7天。PR事件配置已做语法检查，未专门新建PR测试。默认分支仍为main，手动触发入口需工作流进入默认分支后才能使用；本批未修改main或默认分支。
 
 已核实差异：海克斯实际使用固定公共专页；当前guides.Service已为每次内容任务设置8秒总超时及30秒失败冷却，基础攻略与对位分别有界加载。S5原文“最坏15秒”不适用于该产品调用路径。F2/F3需核对既有逐人发布、缓存先显后更新，不能直接重写。Q4建议性检查单独实施，不把尚未运行的检查列为通过。
@@ -433,6 +435,7 @@ problem: 自动更新配置与Actions提交固定已完成；PR #3已合入main�
 evidence:
   - go.mod（wails/v3 v3.0.0-beta.29）
   - frontend/package.json
+  - docs/DEPENDENCIES.md（2026-11-12服务复核及待补证据）
 actions:
   - 已完成：Dependabot v2分别配置Go、产品npm、preview及Actions，周一上海10:00，PR指向dev
   - 已完成：产品Go/npm跨生态组共同审阅Wails前后端更新，既有版本一致性门禁保留

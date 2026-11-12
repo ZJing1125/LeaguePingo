@@ -2,6 +2,8 @@
 
 S10配置已进入默认分支。[PR #3](https://github.com/ZJing1125/LeaguePingo/pull/3)于2026-11-05 15:34:10 UTC由仓库流程合入main，合并提交8e7d6af；只增加与dev逐字节相同的配置，没有带入其余产品改动。当前状态为configured-awaiting-service-verification：尚未观测到实际更新任务或依赖PR，不把配置合入记为任务成功。不直接修改main、不改默认分支、不自动合并。
 
+2026-11-12复核：默认分支仍为main，配置blob仍为`af4cf235a33b6413ee5f456db00464e75c1c0688`，与dev一致。全部PR列表中仍无Dependabot PR，按`dependabot[bot]`筛选的Actions运行列表为0；工作流列表仅返回产品CI，未返回Dependabot动态任务。这些只读结果不能证明更新服务未执行或执行失败，也不能把“未见PR”登记为“无更新”。S10继续等待更新页面的实际任务结果；原定11月9日计划时间已过，按配置下一次计划为11月16日上海10:00（UTC 02:00），不是产品上线或交付时间。仓库维护者可在[更新页面](https://github.com/ZJing1125/LeaguePingo/network/updates)核对任务成功/失败及错误摘要；没有服务记录前不改动频率、依赖版本或仓库安全设置。
+
 | 范围 | 配置和节奏 |
 | --- | --- |
 | Go `/` 与产品 npm `/frontend` | desktop跨生态组，共同PR到dev；上海时间每周一10:00 |
@@ -37,4 +39,4 @@ PR #3只增加50行`.github/dependabot.yml`，文件SHA-256为`002d0f39cb34192be
 3. 核对首个更新PR目标为dev；产品Go/npm共同审阅，preview与Actions独立；Actions仍固定完整提交SHA，Wails前后端版本一致。
 4. 更新PR必须通过dev的portable、quality及Windows完整CI后再人工审阅；不自动合并或发版。没有待更新版本时保留“无更新”，以任务成功记录证明已执行，不凭空补出PR。
 
-只有配置生效且实际更新任务成功后才能登记S10服务验收；若有更新PR，再分别记录其完整CI结果。2026-11-05核验：main配置blob为af4cf235a33b6413ee5f456db00464e75c1c0688，与dev一致；API尚无Dependabot更新PR/dynamic任务，依赖图返回0个manifest。Dependabot安全更新状态API对当前集成返回403，GraphQL报告告警未启用；二者不能证明版本更新服务被禁用。官方[版本更新说明](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/configure-version-updates)以配置文件启用版本更新，[依赖图说明](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/enable-dependency-graph)提供仓库设置入口。当前无可调用的已连接浏览器工具，公开API也未提供本任务可用的版本更新立即执行入口；保留服务核验，不为消除待办擅开安全更新、改配置频率或伪造运行记录。下次计划检查为2026-11-09上海10:00，也可在更新页面查看/执行Check for updates；这是外部执行核验，不是剩余产品代码。
+只有配置生效且实际更新任务成功后才能登记S10服务验收；若有更新PR，再分别记录其完整CI结果。2026-11-05核验：main配置blob为af4cf235a33b6413ee5f456db00464e75c1c0688，与dev一致；API尚无Dependabot更新PR/dynamic任务，依赖图返回0个manifest。Dependabot安全更新状态API对当前集成返回403，GraphQL报告告警未启用；二者不能证明版本更新服务被禁用。官方[版本更新说明](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/configure-version-updates)以配置文件启用版本更新，[依赖图说明](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/enable-dependency-graph)提供仓库设置入口。当时无可调用的已连接浏览器工具，公开API也未提供本任务可用的版本更新立即执行入口；保留服务核验，不为消除待办擅开安全更新、改配置频率或伪造运行记录。当时下一次计划检查为2026-11-09上海10:00，也可在更新页面查看/执行Check for updates；这是外部执行核验，不是剩余产品代码。
