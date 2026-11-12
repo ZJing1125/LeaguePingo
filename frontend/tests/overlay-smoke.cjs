@@ -948,7 +948,7 @@ async function main() {
     assert.equal(
       calls.length,
       navigationCalls,
-      "keyboard navigation must only switch cached views",
+      "keyboard navigation must only switch cached views: " + JSON.stringify(calls.slice(navigationCalls)),
     );
     await page.getByRole("tablist", {name:"已查看玩家"}).getByRole("tab", { selected: true }).press("Delete");
     assert.equal(await page.getByRole("tab").count(), 7);

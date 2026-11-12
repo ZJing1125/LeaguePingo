@@ -32,7 +32,15 @@ type ScoutPosition struct {
 	Position string `json:"position"`
 	Games    int    `json:"games"`
 }
+type ScoutCoverage struct {
+	FetchedAt  time.Time `json:"fetchedAt"`
+	Complete   bool      `json:"complete"`
+	Complete12 bool      `json:"complete12"`
+	Complete30 bool      `json:"complete30"`
+}
+
 type ScoutQueue struct {
+	Coverage  *ScoutCoverage  `json:"coverage,omitempty"`
 	QueueID   int             `json:"queueId"`
 	Season    Stats           `json:"season"`
 	Twelve    Stats           `json:"twelve"`
@@ -73,7 +81,14 @@ func BuildScoutReport(matches []Match, masteries []ChampionMastery, season *Scou
 		if m.PlayedAt == nil || m.PlayedAt.After(cutoff) {
 			continue
 		}
+		if mode, ok := ScoutModeFor(m.QueueID); ok && !mode.Matches(valueOrZero(m.MapID), "") {
+			r.Complete, r.Complete12, r.Complete30 = false, false, false
+			continue
+		}
 		valid = append(valid, m)
+		if !m.PlayedAt.Before(cutoff.Add(-30*24*time.Hour)) && m.ChampionID > 0 {
+			ids[m.ChampionID] = true
+		}
 		if season != nil && !m.PlayedAt.Before(season.Start) && m.PlayedAt.Before(season.End) {
 			seasonal = append(seasonal, m)
 			if m.ChampionID > 0 {
@@ -93,50 +108,19 @@ func BuildScoutReport(matches []Match, masteries []ChampionMastery, season *Scou
 		ordered = append(ordered, id)
 	}
 	sort.Ints(ordered)
+	seasonByHero, recentByHero := indexScoutChampions(seasonal), indexScoutChampions(valid)
 	for _, id := range ordered {
-		r.Champions = append(r.Champions, buildScoutChampion(id, seasonal, masteryByID, r.Complete))
+		r.Champions = append(r.Champions, buildScoutChampion(id, seasonByHero[id], recentByHero[id], masteryByID, r.Complete, cutoff))
 	}
-	for _, q := range []int{420, 440} {
-		s, tw, month := []Match{}, []Match{}, []Match{}
-		positions := map[string]int{}
-		for _, m := range seasonal {
-			if m.QueueID == q {
-				s = append(s, m)
-			}
-		}
-		for _, m := range valid {
-			if m.QueueID != q {
-				continue
-			}
-			if !m.PlayedAt.Before(cutoff.Add(-12 * time.Hour)) {
-				tw = append(tw, m)
-			}
-			if !m.PlayedAt.Before(cutoff.Add(-30 * 24 * time.Hour)) {
-				month = append(month, m)
-				if IsRemake(m) {
-					continue
-				}
-				if m.MapID != nil && *m.MapID != 11 {
-					continue
-				}
-				switch m.Position {
-				case "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY":
-					positions[m.Position]++
-				}
-			}
-		}
-		p := []ScoutPosition{}
-		for _, role := range []string{"TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"} {
-			if positions[role] > 0 {
-				p = append(p, ScoutPosition{Position: role, Games: positions[role]})
-			}
-		}
-		r.Queues = append(r.Queues, ScoutQueue{QueueID: q, Season: CalculateStats(s), Twelve: CalculateStats(tw), Month: CalculateStats(month), Positions: p})
+	for _, mode := range scoutModes {
+		q := buildScoutQueue(mode, seasonal, valid, cutoff)
+		q.Coverage = &ScoutCoverage{FetchedAt: cutoff, Complete: r.Complete, Complete12: r.Complete12, Complete30: r.Complete30}
+		r.Queues = append(r.Queues, q)
 	}
 	return r
 }
 
-func buildScoutChampion(id int, seasonal []Match, masteryByID map[int]ChampionMastery, complete bool) ScoutChampion {
+func buildScoutChampion(id int, seasonal, valid []Match, masteryByID map[int]ChampionMastery, complete bool, cutoff time.Time) ScoutChampion {
 	h := ScoutChampion{ChampionID: id, Queues: []ScoutHeroQueue{}}
 	if mastery, ok := masteryByID[id]; ok {
 		copy := mastery
@@ -152,11 +136,16 @@ func buildScoutChampion(id int, seasonal []Match, masteryByID map[int]ChampionMa
 		n := len(all)
 		h.Games = &n
 	}
-	for _, q := range []int{420, 440} {
+	for _, mode := range scoutModes {
+		q := mode.QueueID
 		selected := []Match{}
 		var k, d, a float64
-		for _, m := range all {
-			if m.QueueID == q {
+		source := all
+		if !mode.Ranked {
+			source = valid
+		}
+		for _, m := range source {
+			if m.ChampionID == id && m.QueueID == q && (mode.Ranked || !m.PlayedAt.Before(cutoff.Add(-30*24*time.Hour))) {
 				selected = append(selected, m)
 				if !IsRemake(m) && m.Kills != nil && m.Deaths != nil && m.Assists != nil {
 					k += float64(*m.Kills)
@@ -164,6 +153,9 @@ func buildScoutChampion(id int, seasonal []Match, masteryByID map[int]ChampionMa
 					a += float64(*m.Assists)
 				}
 			}
+		}
+		if !mode.Ranked && len(selected) == 0 {
+			continue
 		}
 		stats := CalculateStats(selected)
 		average := []float64{}
@@ -174,4 +166,59 @@ func buildScoutChampion(id int, seasonal []Match, masteryByID map[int]ChampionMa
 		h.Queues = append(h.Queues, ScoutHeroQueue{QueueID: q, Stats: stats, Average: average})
 	}
 	return h
+}
+
+func valueOrZero(value *int) int {
+	if value == nil {
+		return 0
+	}
+	return *value
+}
+
+func buildScoutQueue(mode ScoutMode, seasonal, valid []Match, cutoff time.Time) ScoutQueue {
+	q := mode.QueueID
+	s, tw, month := []Match{}, []Match{}, []Match{}
+	positions := map[string]int{}
+	for _, m := range seasonal {
+		if m.QueueID == q {
+			s = append(s, m)
+		}
+	}
+	for _, m := range valid {
+		if m.QueueID != q {
+			continue
+		}
+		if !m.PlayedAt.Before(cutoff.Add(-12 * time.Hour)) {
+			tw = append(tw, m)
+		}
+		if !m.PlayedAt.Before(cutoff.Add(-30 * 24 * time.Hour)) {
+			month = append(month, m)
+			if !mode.Roles || IsRemake(m) {
+				continue
+			}
+			if m.MapID != nil && *m.MapID != 11 {
+				continue
+			}
+			switch m.Position {
+			case "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY":
+				positions[m.Position]++
+			}
+		}
+	}
+	p := []ScoutPosition{}
+	for _, role := range []string{"TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"} {
+		if positions[role] > 0 {
+			p = append(p, ScoutPosition{Position: role, Games: positions[role]})
+		}
+	}
+	return ScoutQueue{QueueID: q, Season: CalculateStats(s), Twelve: CalculateStats(tw), Month: CalculateStats(month), Positions: p}
+}
+
+// Index once per page publication, avoiding a full-history scan per hero/mode.
+func indexScoutChampions(matches []Match) map[int][]Match {
+	byHero := make(map[int][]Match)
+	for _, match := range matches {
+		byHero[match.ChampionID] = append(byHero[match.ChampionID], match)
+	}
+	return byHero
 }

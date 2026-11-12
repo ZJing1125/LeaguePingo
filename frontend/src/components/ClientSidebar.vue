@@ -16,6 +16,7 @@ defineEmits<{collapse:[value:boolean];queue:[value:number]}>();
 const tab=ref('players');
 const players=computed(()=>props.snapshot?.participants?.filter(p=>p.team==='ally') ?? []);
 const hasGroups=computed(()=>players.value.some(p=>p.premadeGroup && (p.premadeSize||0)>1));
+function expandPlayer(event:Event){const item=event.target as HTMLDetailsElement;if(item.open) item.parentElement?.querySelectorAll('details[open]').forEach(other=>{if(other!==item)other.removeAttribute('open');});}
 const picking=computed(()=>props.snapshot?.phase==='ChampSelect');
 </script>
 <template>
@@ -24,14 +25,14 @@ const picking=computed(()=>props.snapshot?.phase==='ChampSelect');
   </main>
   <main v-else class="client-sidebar desktop-app" :data-side="state?.sidebarSide" :aria-label="uiText.clientSidebar.label">
     <header class="sidebar-header"><BrandIcon/><strong>LeaguePingo</strong><button class="icon-button" :aria-label="uiText.clientSidebar.collapse" :title="uiText.clientSidebar.collapseShort" @click="$emit('collapse',true)"><AppIcon name="minimise" :size="17"/></button></header>
-    <div class="sidebar-heading"><div><h1><button class="sidebar-tab" :aria-label="uiText.clientSidebar.playerData" :aria-pressed="tab==='players'" @click="tab='players'">{{ picking?uiText.common.allies:uiText.common.party }}</button></h1><button class="sidebar-tab guide-tab" :aria-pressed="tab==='guide'" @click="tab='guide'">{{ uiText.clientSidebar.guide }}</button><small><ExperimentalBadge v-if="hasGroups" :feature="uiText.clientSidebar.groups" :label="uiText.clientSidebar.groupExperimental"/><template v-else>{{ status.split(' · ')[0] }}</template>{{ uiText.clientSidebar.members(players.length) }}</small></div><QueueSwitch :value="snapshot?.scoutQueue ?? 420" compact @change="$emit('queue',$event)"/></div>
+    <div class="sidebar-heading"><div><h1><button class="sidebar-tab" :aria-label="uiText.clientSidebar.playerData" :aria-pressed="tab==='players'" @click="tab='players'">{{ picking?uiText.common.allies:uiText.common.party }}</button></h1><button class="sidebar-tab guide-tab" :aria-pressed="tab==='guide'" @click="tab='guide'">{{ uiText.clientSidebar.guide }}</button><small><ExperimentalBadge v-if="hasGroups" :feature="uiText.clientSidebar.groups" :label="uiText.clientSidebar.groupExperimental"/><template v-else>{{ status.split(' · ')[0] }}</template>{{ uiText.clientSidebar.members(players.length) }}</small></div><QueueSwitch v-if="tab==='players'" :current="snapshot?.queueId ?? 0" :value="snapshot?.scoutQueue ?? 0" compact @change="$emit('queue',$event)"/></div>
     <p v-if="error || state?.warning || snapshot?.rosterError" class="quality-warning" role="status">{{ error || state?.warning || snapshot?.rosterError }}</p>
     <AutoAcceptNotice compact />
     <PostGameNotice compact />
 
     <GuidePanel v-show="tab==='guide'" :snapshot="snapshot" compact/>
-    <section v-show="tab==='players'" class="sidebar-players" :aria-label="uiText.clientSidebar.alliesLabel">
-      <SidebarPlayer v-for="p in players" :key="p.key" :player="p" :queue="snapshot?.scoutQueue ?? 420" :picking="picking"/>
+    <section v-show="tab==='players'" class="sidebar-players" @toggle.capture="expandPlayer" :aria-label="uiText.clientSidebar.alliesLabel">
+      <SidebarPlayer v-for="p in players" :key="p.key" :player="p" :queue="snapshot?.scoutQueue ?? 0" :picking="picking"/>
       <p v-if="!players.length" class="sidebar-empty">{{ picking?uiText.clientSidebar.loadingAllies:uiText.clientSidebar.waitingParty }}</p>
     </section>
     <footer class="sidebar-footer"><span>{{ picking?uiText.clientSidebar.expandHelp:uiText.clientSidebar.selectionHelp }}</span><small>{{ state?.holdEnabled && state?.holdAvailable ? uiText.clientSidebar.holdHelp(state?.holdKey==='Backquote'?'~':state?.holdKey || '~') : state?.shortcutAvailable ? uiText.clientSidebar.shortcutHelp(state.shortcut) : uiText.clientSidebar.previewHelp }}</small></footer>

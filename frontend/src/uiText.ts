@@ -718,8 +718,20 @@ export const uiText = {
     hint: (count: unknown) => `客户端返回的同组标识 · ${count} 人 · 国服组队含义待实机验证`,
     label: (group: unknown, count: unknown) => `同组 ${toDisplayString(group)} · ${toDisplayString(count)}人`,
   },
+  modeScouting: {
+    reference: "排位参考 · 单双排",
+    remakes: (count: unknown) => `重开 ${toDisplayString(count)} 场`,
+    hero30: "本英雄 · 近30天",
+    noRecords: "当前模式暂无已读英雄记录",
+    partial: "当前模式记录未完整",
+    pendingMode: "模式待确认",
+    scope: (mode: unknown, games: unknown) => `${toDisplayString(mode)} · 已读 ${toDisplayString(games)} 场`,
+    auto: (mode: unknown) => `本局：${toDisplayString(mode)} · 自动`,
+    viewing: (mode: unknown) => `查看：${toDisplayString(mode)}参考`,
+    current: (mode: unknown) => `本局：${toDisplayString(mode)}`,
+  },
   queueSwitch: {
-    label: "对局统计排位模式",
+    label: "对局统计模式",
     flex: "灵活组排",
   },
   rankEmblem: {

@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"fmt"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -51,13 +50,13 @@ func scoutPageTimeout(collector *diagnostics.Collector) time.Duration {
 }
 
 func (e *Engine) SetScoutQueue(queue int) (core.Snapshot, error) {
-	if queue != 420 && queue != 440 {
+	if _, ok := core.ScoutModeFor(queue); queue != 0 && !ok {
 		return e.Snapshot(), apperrors.New(apperrors.InvalidQueue)
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.scouting.selectQueue(queue)
-	e.snapshot.ScoutQueue = queue
+	e.snapshot.ScoutQueue = e.scouting.queueFor(e.scoutModeLocked())
 	e.snapshot.UpdatedAt = time.Now()
 	e.publishLocked()
 	return clone(e.snapshot), nil
@@ -79,6 +78,7 @@ func (e *Engine) syncScoutingLocked() {
 		}
 		return
 	}
+	e.scouting.observeGame(e.snapshot.GameID, snapshotPhase(e.snapshot.Phase))
 	oldQueue, oldMode := e.snapshot.ScoutQueue, e.snapshot.QueueID
 	reportChanged := false
 	defer func() {
@@ -89,7 +89,7 @@ func (e *Engine) syncScoutingLocked() {
 	if q, ok := e.client.(source.QueueSource); ok {
 		e.snapshot.QueueID = q.CurrentQueue()
 	}
-	e.snapshot.ScoutQueue = e.scouting.queueFor(e.snapshot.QueueID)
+	e.snapshot.ScoutQueue = e.scouting.queueFor(e.scoutModeLocked())
 	parent := e.initialMatch.parentContext()
 	if parent == nil || parent.Err() != nil || (!preparationStage(snapshotStage(e.snapshot.Stage)) && !activeMatch(snapshotPhase(e.snapshot.Phase))) || snapshotPhase(e.snapshot.Phase) == PhaseGameStart || e.phaseHint != PhaseUnknown && stageForPhase(e.phaseHint) != snapshotStage(e.snapshot.Stage) {
 		if e.scouting.hasTask() {
@@ -105,7 +105,7 @@ func (e *Engine) syncScoutingLocked() {
 		return
 	}
 	scope := fmt.Sprintf("%d:%s:%d", e.clientVersion, e.snapshot.Stage, e.snapshot.GameID)
-	e.snapshot.ScoutQueue = e.scouting.scopeFor(scope, e.snapshot.QueueID, e.snapshot.Participants)
+	e.snapshot.ScoutQueue = e.scouting.scopeFor(scope, e.scoutModeLocked(), e.snapshot.Participants)
 	targets, changed := e.scouting.targets(e.snapshot.Participants, time.Now())
 	reportChanged = changed
 	if len(targets) == 0 {
@@ -129,19 +129,7 @@ func (e *Engine) saveScout(version uint64, scope string, token uint64, id string
 	for i := range e.snapshot.Participants {
 		p := &e.snapshot.Participants[i]
 		if p.PUUID == id && p.ConnectionID == version {
-			// Refresh progress/failure must not replace a usable earlier report
-			// with an empty or shorter range. Keep its original cutoff, explicitly
-			// mark retention, and never carry a verified old season into a new one.
-			if old := p.Scout; old != nil && r.State != "ready" && old.Read > r.Read && (old.Complete30 || r.Read == 0) {
-				sameSeason := old.Season == nil && r.Season == nil || old.Season != nil && r.Season != nil && old.Season.Start.Equal(r.Season.Start) || old.Season != nil && r.Season == nil && !r.FetchedAt.Before(old.Season.Start) && r.FetchedAt.Before(old.Season.End)
-				if sameSeason {
-					state := r.State
-					r = *old
-					r.State = state
-					r.Retained = true
-					r.Message = "保留上次统计"
-				}
-			}
+			r = core.MergeScoutReports(p.Scout, r)
 			if p.Scout == nil || p.Scout.FetchedAt.IsZero() || p.Scout.Read == 0 && r.Read > 0 {
 				firstData = true
 			}
@@ -170,6 +158,7 @@ type scoutCursor struct {
 	reason                                 string
 	retryAt                                *time.Time
 	done, complete, twelve, month, invalid bool
+	hasMore                                bool
 	oldest                                 time.Time
 	message                                string
 }
@@ -215,61 +204,46 @@ func (e *Engine) prepareScouting(ctx context.Context, version uint64, scope stri
 		}
 	}()
 	cutoff := time.Now().UTC()
-	var season *core.ScoutSeason
-	for ctx.Err() == nil {
-		automaticCtx, release, err := e.scheduler.acquireAutomatic(ctx)
-		if err != nil {
-			break
-		}
-		request, cancel := context.WithTimeout(automaticCtx, 3*time.Second)
-		season, _ = src.ScoutSeason(request)
-		cancel()
-		interrupted := automaticCtx.Err() != nil && ctx.Err() == nil
-		release()
-		if !interrupted {
-			break
-		}
-	}
-	e.mu.Lock()
-	if e.scoutValidLocked(version, scope, token) {
-		e.syncScoutingLocked()
-	}
-	e.mu.Unlock()
+	seasonResult := make(chan *core.ScoutSeason, 1)
+	go func() { seasonResult <- e.readScoutSeason(ctx, src) }()
 	cursors := make([]scoutCursor, len(targets))
 	for i, p := range targets {
 		cursors[i] = e.resumeScoutCursor(p)
 	}
+	var pages atomic.Int64
+	pages.Store(int64(e.scouting.pageCount()))
+	var season *core.ScoutSeason
 	boundary := cutoff.Add(-30 * 24 * time.Hour)
-	if season != nil && season.Start.Before(boundary) {
+	// First pages publish without waiting for optional season/mastery reads.
+	e.scoutPageRound(ctx, version, scope, token, src, cursors, nil, cutoff, boundary, &pages)
+	select {
+	case season = <-seasonResult:
+	case <-ctx.Done():
+	}
+	mode, _ := core.ScoutModeFor(e.Snapshot().QueueID)
+	if mode.Ranked && season != nil && season.Start.Before(boundary) {
 		boundary = season.Start
 	}
-	count := e.scouting.pageCount()
-	var pages atomic.Int64
-	if count < scoutPageLimit {
-		pages.Store(int64(count))
-	} else {
-		pages.Store(int64(scoutPageLimit))
-	}
-	workers := scoutWorkers
-	if len(cursors) < workers {
-		workers = len(cursors)
-	}
-	work := make(chan int)
-	var wg sync.WaitGroup
-	for w := 0; w < workers; w++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for i := range work {
-				e.runScoutCursor(ctx, version, scope, token, src, &cursors[i], season, cutoff, boundary, &pages)
-			}
-		}()
-	}
 	for i := range cursors {
-		work <- i
+		c := &cursors[i]
+		if c.month && mode.Ranked && season != nil && c.oldest.After(boundary) && !c.invalid && c.hasMore {
+			c.done = false
+		}
+		if !c.invalid && season != nil {
+			c.complete = !c.oldest.IsZero() && !c.oldest.After(season.Start)
+		}
 	}
-	close(work)
-	wg.Wait()
+	e.scoutMasteries(ctx, version, scope, token, src, cursors, season, cutoff)
+	for ctx.Err() == nil {
+		active := false
+		for i := range cursors {
+			active = active || !cursors[i].done
+		}
+		if !active || pages.Load() >= scoutPageLimit {
+			break
+		}
+		e.scoutPageRound(ctx, version, scope, token, src, cursors, season, cutoff, boundary, &pages)
+	}
 	for i := range cursors {
 		c := &cursors[i]
 		if !c.done {
@@ -299,102 +273,83 @@ func waitScoutPace(ctx context.Context) bool {
 	}
 }
 
-// runScoutCursor fills one player's range. Workers share the round deadline and
+// readScoutPage attempts one page. Workers share the round deadline and
 // page budget but never touch another player's cursor.
-func (e *Engine) runScoutCursor(ctx context.Context, version uint64, scope string, token uint64, src source.ScoutSource, c *scoutCursor, season *core.ScoutSeason, cutoff, boundary time.Time, pages *atomic.Int64) {
-	for ctx.Err() == nil {
-		if pages.Load() >= int64(scoutPageLimit) {
-			return
+func (e *Engine) readScoutPage(ctx context.Context, version uint64, scope string, token uint64, src source.ScoutSource, c *scoutCursor, season *core.ScoutSeason, cutoff, boundary time.Time, pages *atomic.Int64) {
+	if ctx.Err() != nil {
+		return
+	}
+	if pages.Load() >= int64(scoutPageLimit) {
+		return
+	}
+	e.mu.RLock()
+	valid := e.scoutValidLocked(version, scope, token)
+	present := false
+	for _, p := range e.snapshot.Participants {
+		if p.PUUID == c.player.PUUID {
+			present = true
 		}
-		e.mu.RLock()
-		valid := e.scoutValidLocked(version, scope, token)
-		present := false
-		for _, p := range e.snapshot.Participants {
-			if p.PUUID == c.player.PUUID {
-				present = true
-			}
-		}
-		e.mu.RUnlock()
-		if !valid {
-			return
-		}
-		if !present {
-			c.done = true
-			return
-		}
-		// Deliver each player's first page before spending up to twenty seconds
-		// on everybody else's mastery. No champion-lock dependency and no extra
-		// requests: the same bounded round fills all heroes.
-		if c.offset == 0 || len(c.masteries) == 0 {
-			// Mastery is a short local read; it must not sit behind another
-			// player's page scan or another worker's mastery.
-			request, cancel := context.WithTimeout(ctx, 2*time.Second)
-			c.masteries, _ = src.ChampionMasteries(request, c.player.PUUID)
-			cancel()
-			if ctx.Err() != nil {
+	}
+	e.mu.RUnlock()
+	if !valid {
+		return
+	}
+	if !present {
+		c.done = true
+		return
+	}
+	// Reserve the page before the request so two workers cannot overshoot
+	// the shared cap.
+	if pages.Add(1) > int64(scoutPageLimit) {
+		pages.Add(-1)
+		return
+	}
+	request, cancel := context.WithTimeout(ctx, scoutPageTimeout(diagnostics.Default))
+	page, err := src.ScoutPage(request, c.player.PUUID, c.offset)
+	cancel()
+	n := pages.Load()
+	e.mu.Lock()
+	if e.scoutValidLocked(version, scope, token) {
+		e.scouting.recordPages(int(n))
+	}
+	e.mu.Unlock()
+	if ctx.Err() != nil {
+		return
+	}
+	if err != nil {
+		// One bounded retry per page. A single slow page must not freeze
+		// this player for the whole stage; the retry is a new request, so
+		// the page budget above still counts it.
+		if c.pageFails < 1 {
+			c.pageFails++
+			if !waitScoutPace(ctx) {
 				return
 			}
-			if c.offset == 0 {
-				initial := core.BuildScoutReport(nil, c.masteries, season, cutoff, false, false, false)
-				initial.State = "loading"
-				if !e.saveScout(version, scope, token, c.player.PUUID, initial) {
-					c.done = true
-					return
-				}
-			}
-		}
-		// Reserve the page before the request so two workers cannot overshoot
-		// the shared cap.
-		if pages.Add(1) > int64(scoutPageLimit) {
-			pages.Add(-1)
 			return
 		}
-		request, cancel := context.WithTimeout(ctx, scoutPageTimeout(diagnostics.Default))
-		page, err := src.ScoutPage(request, c.player.PUUID, c.offset)
-		cancel()
-		n := pages.Load()
-		e.mu.Lock()
-		if e.scoutValidLocked(version, scope, token) {
-			e.scouting.recordPages(int(n))
-		}
-		e.mu.Unlock()
-		if ctx.Err() != nil {
-			return
-		}
-		if err != nil {
-			// One bounded retry per page. A single slow page must not freeze
-			// this player for the whole stage; the retry is a new request, so
-			// the page budget above still counts it.
-			if c.pageFails < 1 {
-				c.pageFails++
-				if !waitScoutPace(ctx) {
-					return
-				}
-				continue
-			}
-			c.done = true
-			c.reason = string(apperrors.CodeOf(err))
-			c.retryAt = apperrors.RetryAt(err)
-			c.message = apperrors.UserMessage(err, apperrors.DataUnavailable)
-		} else {
-			c.absorbPage(page, season, cutoff, boundary)
-		}
-		r := c.report(season, cutoff)
-		if !e.saveScout(version, scope, token, c.player.PUUID, r) {
-			c.done = true
-		}
-		e.rememberScoutProgress(version, scope, token, c)
-		if c.done {
-			return
-		}
-		if !waitScoutPace(ctx) {
-			return
-		}
+		c.done = true
+		c.reason = string(apperrors.CodeOf(err))
+		c.retryAt = apperrors.RetryAt(err)
+		c.message = apperrors.UserMessage(err, apperrors.DataUnavailable)
+	} else {
+		c.absorbPage(page, season, cutoff, boundary)
+	}
+	r := c.report(season, cutoff)
+	if !e.saveScout(version, scope, token, c.player.PUUID, r) {
+		c.done = true
+	}
+	e.rememberScoutProgress(version, scope, token, c)
+	if c.done {
+		return
+	}
+	if !waitScoutPace(ctx) {
+		return
 	}
 }
 
 func (c *scoutCursor) absorbPage(page core.HistoryPage, season *core.ScoutSeason, cutoff, boundary time.Time) {
 	c.pageFails = 0
+	c.hasMore = page.HasMore
 	c.pages++
 	if page.Offset != c.offset || page.Meta.Returned < 0 || page.Meta.Returned > 20 || page.NextOffset != c.offset+page.Meta.Returned || page.LimitReason != "" {
 		c.done = true
@@ -462,4 +417,12 @@ func (c *scoutCursor) report(season *core.ScoutSeason, cutoff time.Time) core.Sc
 		r.CoverageEndsAt = &covered
 	}
 	return r
+}
+
+func (e *Engine) scoutModeLocked() int {
+	mode, ok := core.ScoutModeFor(e.snapshot.QueueID)
+	if !ok || !mode.Matches(e.snapshot.MapID, e.snapshot.GameMode) {
+		return 0
+	}
+	return mode.QueueID
 }

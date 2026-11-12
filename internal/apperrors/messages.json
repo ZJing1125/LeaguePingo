@@ -24,7 +24,7 @@
   "HistoryPageInvalid": "战绩分页位置无效，已有记录保留，请刷新后重试。",
   "HistoryRepeated": "数据源重复返回已获取的战绩，已停止补取；未证明历史已查完，请稍后刷新重试。",
   "InvalidMatch": "这场对局的记录已失效，请返回战绩列表重新选择。",
-  "InvalidQueue": "请选择单双排或灵活组排后重试。",
+  "InvalidQueue": "请选择受支持的对局统计模式后重试。",
   "InvalidPosition": "请选择有效分路后重试。",
   "InvalidCandidates": "强化符文已变化或选择无效，请重新选择最多三个当前英雄的强化符文。",
   "GuideUnavailable": "攻略暂不可用，请稍后重试或查看原文。",

@@ -53,7 +53,7 @@ func TestScoutPartialRangesUnknownOutcomesAndSeasonBoundary(t *testing.T) {
 		t.Fatal("unknown outcome became a real zero")
 	}
 	withoutSeason := BuildScoutReport(m, nil, nil, now, true, true, true)
-	if withoutSeason.Complete || len(withoutSeason.Champions) != 0 {
+	if withoutSeason.Complete || withoutSeason.Champions[0].Games != nil || withoutSeason.Champions[0].Queues[2].Stats.Games != 1 {
 		t.Fatal("unknown season must not invent champion counts")
 	}
 }

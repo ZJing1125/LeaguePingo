@@ -160,7 +160,7 @@ function toggle(id: number) {
           <p v-if="scouting.hero?.games != null && scouting.report?.season">{{ uiText.playerView.championRecords(scouting.report.season.name, scouting.report.complete ? uiText.common.allModes : uiText.playerView.allModes, scouting.hero.games) }}</p>
           <p v-if="scouting.hero?.mastery">{{ uiText.playerView.mastery(scouting.hero.mastery.level, scouting.hero.mastery.points.toLocaleString()) }}</p>
           <p>{{ uiText.playerView.rankedCutoff(date(scouting.report?.fetchedAt), scouting.report?.retained ? uiText.playerView.retained : '', scouting.overall.outcomeGames ?? 0, scouting.overall.kdaGames ?? 0, scouting.report?.complete30 ? '' : uiText.playerView.readRange) }}</p>
-          <p>{{ uiText.playerView.role(roleDistribution) }}</p>
+          <p v-if="scouting.roles">{{ uiText.playerView.role(roleDistribution) }}</p>
         </details>
         <details
           v-if="noticePlayer.historyMeta?.excluded"

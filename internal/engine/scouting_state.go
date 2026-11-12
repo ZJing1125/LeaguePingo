@@ -22,6 +22,8 @@ type scoutPreparation struct {
 	progress    map[string]*scoutProgress
 	queue       int
 	manual      bool
+	mode        int
+	game        int64
 	deadline    time.Time
 	pages       int
 	lastPublish time.Time
@@ -29,18 +31,21 @@ type scoutPreparation struct {
 
 func (s *scoutPreparation) selectQueue(queue int) {
 	s.mu.Lock()
-	s.queue, s.manual = queue, true
+	s.queue, s.manual = queue, queue != 0
 	s.mu.Unlock()
 }
 
 func (s *scoutPreparation) queueFor(mode int) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.queue != 420 && s.queue != 440 {
-		s.queue = 420
+	if s.mode != mode {
+		s.mode, s.manual = mode, false
 	}
-	if !s.manual && (mode == 420 || mode == 440) {
-		s.queue = mode
+	if !s.manual {
+		s.queue = 0
+		if _, ok := core.ScoutModeFor(mode); ok {
+			s.queue = mode
+		}
 	}
 	return s.queue
 }
@@ -77,9 +82,12 @@ func (s *scoutPreparation) scopeFor(scope string, mode int, players []core.Parti
 		s.scope = scope
 		s.attempted = map[string]bool{}
 		s.deadline = time.Time{}
-		s.pages, s.manual = 0, false
-		if mode == 420 || mode == 440 {
-			s.queue = mode
+		s.pages = 0
+		if !s.manual {
+			s.queue = 0
+			if _, ok := core.ScoutModeFor(mode); ok {
+				s.queue = mode
+			}
 		}
 	}
 	return s.queue
@@ -182,7 +190,9 @@ func (s *scoutPreparation) pageCount() int {
 
 func (s *scoutPreparation) recordPages(pages int) {
 	s.mu.Lock()
-	s.pages = pages
+	if pages > s.pages {
+		s.pages = pages
+	}
 	s.mu.Unlock()
 }
 
@@ -196,6 +206,7 @@ func (s *scoutPreparation) invalidate() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.scope, s.cache, s.progress, s.attempted = "", nil, nil, nil
+	s.manual, s.queue, s.mode, s.game = false, 0, 0, 0
 }
 
 func (s *scoutPreparation) refresh(players []core.Participant) {
@@ -243,5 +254,23 @@ func (s *scoutPreparation) rememberProgress(c *scoutCursor, now time.Time) {
 	s.progress[c.player.PUUID] = &scoutProgress{
 		matches: append([]core.Match(nil), c.matches...), seen: seen, offset: c.offset,
 		oldest: c.oldest, complete: c.complete, twelve: c.twelve, month: c.month, at: now,
+	}
+}
+
+func (s *scoutPreparation) observeGame(game int64, phase Phase) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if phase == PhaseLobby {
+		if s.game != 0 {
+			s.manual = false
+		}
+		s.game = 0
+		return
+	}
+	if game != 0 && s.game != 0 && s.game != game {
+		s.manual = false
+	}
+	if game != 0 {
+		s.game = game
 	}
 }

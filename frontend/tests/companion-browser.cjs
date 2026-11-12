@@ -55,7 +55,7 @@ async function main(){
     else if(method==='CurrentPlayer')result=players[0];
     else if(method==='AuxiliaryReady'){}
     else if(method==='SetSidebarCollapsed'){state={...state,collapsed:args[0],mode:args[0]?'rail':'sidebar',revision:state.revision+1};result=state;}
-    else if(method==='SetScoutQueue'){snapshot={...snapshot,scoutQueue:args[0],generation:snapshot.generation+1,updatedAt:new Date().toISOString()};result=snapshot;await emit('leaguepingo:snapshot',snapshot);}
+    else if(method==='SetScoutQueue'){snapshot={...snapshot,scoutQueue:args[0] || snapshot.queueId,generation:snapshot.generation+1,updatedAt:new Date().toISOString()};result=snapshot;await emit('leaguepingo:snapshot',snapshot);}
     else if(method==='HideOverlay'){state={...state,visible:false,mode:'hidden',revision:state.revision+1};result=state;}
     else if(method==='Info')result=info;
     else if(method==='ConfigureCompanion'){info={...info,sidebarEnabled:args[0],previewEnabled:args[1],sidebarWidth:args[2]};result=info;}
@@ -120,7 +120,7 @@ async function main(){
   await rankResults.getByText('本季已读 49%',{exact:true}).waitFor();
   snapshot.participants[1].scout.complete=true;await publish();
 
-  await side.getByRole('button',{name:'灵活组排',exact:true}).click();
+  await side.getByRole('combobox',{name:'对局统计模式'}).selectOption('440');
   await side.locator('.sidebar-rank').first().getByText(/黄金 III/).waitFor();
   assert((await side.locator('.sidebar-player[open] .scout-rings').innerText()).includes('辅助'));
   assert((await rankResults.innerText()).includes('本季 40%'));assert((await rankResults.innerText()).includes('20胜 / 30负'));
@@ -178,8 +178,9 @@ async function main(){
   const current=main.locator('.current-match'),review=main.locator('.review-room');
   const roomNav=main.getByRole('navigation',{name:'对局室内容'});
   const beforeCurrent=calls.length;
-  await current.getByRole('button',{name:'单双排',exact:true}).click();
-  await current.locator('.queue-switch button[aria-pressed="true"]').getByText('单双排',{exact:true}).waitFor();
+  await current.getByRole('combobox',{name:'对局统计模式'}).selectOption('420');
+  try{await current.locator('.queue-switch select option[value="0"]:checked').waitFor({state:'attached'});}catch(e){throw Error(String(e)+' queue='+snapshot.scoutQueue+' actual='+await current.getByRole('combobox',{name:'对局统计模式'}).inputValue()+' calls='+JSON.stringify(calls.slice(beforeCurrent)));}
+  assert.equal(await current.getByRole('combobox',{name:'对局统计模式'}).inputValue(),'0');
   assert.equal(snapshot.scoutQueue,420,'current queue did not synchronize with companion');
   assert.deepEqual(calls.slice(beforeCurrent).map(c=>c.method),['SetScoutQueue']);
   await current.locator('.player-row').first().click();
@@ -232,7 +233,7 @@ async function main(){
   await roomNav.getByRole('button',{name:'最近复盘',exact:true}).click();
   assert.equal(await review.locator('.team-columns').innerText(),fixedCards,'new selection replaced completed review');
   const beforeMode=calls.length;
-  await review.getByRole('button',{name:'灵活组排',exact:true}).click();
+  await review.getByRole('combobox',{name:'对局统计模式'}).selectOption('440');
   assert.equal(calls.length,beforeMode,'review mode switch changed live mode or fetched data');
   assert.equal(snapshot.scoutQueue,420);
   assert((await review.locator('.player-row').first().innerText()).includes('1360 场'));
@@ -262,7 +263,7 @@ async function main(){
   await main.getByRole('heading',{name:'当前对局',exact:true}).waitFor();
   assert.equal(await current.locator('.player-row').count(),10,'loading kept old postgame view');
   await roomNav.getByRole('button',{name:'最近复盘',exact:true}).click();
-  assert.equal(await review.getByRole('button',{name:'灵活组排',exact:true}).getAttribute('aria-pressed'),'true','switching room contexts erased review filter');
+  assert.equal(await review.getByRole('combobox',{name:'对局统计模式'}).inputValue(),'440','switching room contexts erased review filter');
   await review.getByRole('button',{name:'本局结果',exact:true}).click();
   assert(await review.getByRole('button',{name:'同步结算',exact:true}).isDisabled(),'in-game review requested settlement');
   await main.getByRole('button',{name:'设置与诊断',exact:true}).click();await main.getByRole('tab',{name:'游戏辅助',exact:true}).click();
@@ -281,6 +282,43 @@ async function main(){
   assert.equal(calls.filter(c=>c.method==='AuxiliaryReady').length,1,'auxiliary frontend reloaded between modes');
   assert(!calls.some(c=>/Lookup|HistoryPage|EnsureProfile|RefreshData/.test(c.method)),'cache-only companion/review paths fetched player data');
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
+  const mayhemPlayers=structuredClone(players.slice(0,5));
+  for(const p of mayhemPlayers){
+   p.connectionId=2;
+   const modeStats={games:3,wins:2,losses:0,outcomeGames:2,kdaGames:2,winRate:100,kda:8,remakes:1};
+   p.scout={state:'partial',read:3,fetchedAt:time,complete:false,complete12:false,complete30:false,champions:[{championId:23,queues:[{queueId:2400,stats:modeStats,average:[6,2,10]}]}],queues:[{queueId:2400,twelve:modeStats,month:modeStats,positions:[{position:'TOP',games:3}]}]};
+  }
+  snapshot={...snapshot,queueId:2400,scoutQueue:2400,phase:'ChampSelect',stage:'preparing',gameId:123,selfKey:mayhemPlayers[0].key,participants:mayhemPlayers};
+  const modeCalls=calls.length;
+  await overlay('sidebar');await publish();
+  await side.locator('.sidebar-player').first().waitFor();
+  await side.locator('.sidebar-player summary').first().click();
+  await side.locator('.sidebar-player[open] .scout-kda').getByText('6.0',{exact:true}).waitFor();
+  assert.equal(await side.locator('.sidebar-player[open] .scout-position-cell').count(),0,'mayhem rendered ranked lane');
+  assert((await side.locator('.sidebar-player[open]').innerText()).includes('海克斯大乱斗'));
+  assert((await side.locator('.sidebar-player[open]').innerText()).includes('排位参考'));
+  for(const width of [280,320]){
+   await side.setViewportSize({width,height:720});
+   assert(await side.locator('.client-sidebar').evaluate(el=>el.scrollWidth<=el.clientWidth+1),'mayhem sidebar overflow');
+  }
+  await shot(side,'sidebar-mayhem');
+  await side.getByRole('combobox',{name:'对局统计模式'}).selectOption('450');
+  await side.locator('.queue-switch select option[value="450"]:checked').waitFor({state:'attached'});
+  assert.equal(await side.locator('.sidebar-player[open] .scout-kda').count(),0,'ARAM borrowed mayhem hero stats');
+  await side.getByRole('combobox',{name:'对局统计模式'}).selectOption('0');
+  await side.locator('.sidebar-player[open] .scout-kda').waitFor();
+  assert.equal(calls.slice(modeCalls).filter(c=>/Lookup|HistoryPage|EnsureProfile|RefreshData/.test(c.method)).length,0);
+  snapshot={...snapshot,phase:'InProgress',stage:'in-game'};await publish();
+  await side.setViewportSize({width:1100,height:640});await overlay('preview');
+  await side.locator('.overlay-player').first().waitFor();
+  assert(await side.locator('.overlay-player .scout-scope').evaluateAll(els=>els.every(el=>el.scrollWidth<=el.clientWidth+1)),'mayhem scope overflowed preview cards');
+  assert.equal(await side.locator('.overlay-player .scout-position-cell').count(),0);
+  const referenceRects=await side.locator('.overlay-player .mode-rank-reference').evaluateAll(els=>els.map(el=>({self:el.getBoundingClientRect().toJSON(),parent:el.parentElement.getBoundingClientRect().toJSON()})));
+  await shot(side,'mayhem-reference-check');
+  assert(referenceRects.every(r=>r.self.top>=r.parent.top-1 && r.self.bottom<=r.parent.bottom+1),'rank reference escaped header: '+JSON.stringify(referenceRects));
+  assert(await side.locator('.overlay-player .scout-scope').evaluateAll(els=>els.every(el=>[...el.children].every(child=>child.getBoundingClientRect().bottom<=el.getBoundingClientRect().bottom+1))),'mayhem scope clipped vertically');
+  await shot(side,'mayhem-preview');
+  console.log('PASS: mayhem without season, no lane, rank reference, 280/320 geometry and cache-only mode switches');
   console.log('PASS: live room without review, party/selection allies, loading/game roster, empty/late updates, disconnected cache, home/current priority, archived review and mode/filter isolation, cache-only drawers, 1280/1100/880; scoped solo/flex sidebar, 1100/400 preview and hold, settlement, seven items/focus, companion settings; synthetic bridge only.');
  }finally{await context?.unrouteAll({behavior:'ignoreErrors'});await browser.close();}
 }

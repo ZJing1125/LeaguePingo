@@ -25,7 +25,7 @@ watch(()=>`${props.snapshot?.connectionId}:${props.snapshot?.selfKey}:${props.sn
 const hasGuide=computed(()=>guideState.value?.query.champion===props.snapshot?.participants?.find(p=>p.key===props.snapshot?.selfKey)?.championId&&guideState.value?.scope===`${props.snapshot?.connectionId}:${props.snapshot?.selfKey||''}:${props.snapshot?.gameId||0}`&&!!(guideState.value?.base||guideState.value?.matchup));
 const displayGuide=computed(()=>guideOpen.value&&hasGuide.value&&!['hold','preview'].includes(props.state?.mode||''));
 const players = computed(() => props.snapshot?.participants ?? []);
-const reports = computed(() => scoutStatus(players.value, props.snapshot?.scoutQueue ?? 420));
+const reports = computed(() => scoutStatus(players.value, props.snapshot?.scoutQueue ?? 0));
 const reportTime = computed(() => {
   const p = reports.value;
   if (!p.earliest) return uiText.overlayView.unknownTime;
@@ -67,14 +67,14 @@ defineEmits<{ hide: []; pin: [] }>();
           class="connection-light"
           :class="{ online: snapshot?.connected }"
         ></span
-        >{{ status }} · {{ rankedMode(snapshot?.scoutQueue ?? 420) }}
+        >{{ status }} · {{ rankedMode(snapshot?.scoutQueue ?? 0) }}
         <ExperimentalBadge v-if="players.some(p => p.premadeGroup && (p.premadeSize || 0) > 1)" :feature="uiText.clientSidebar.groups" :label="uiText.clientSidebar.groupExperimental"/>
       </div>
       <p v-if="state?.warning || error" class="error-banner" role="status">
         {{ error || state?.warning }}
       </p>
       <GuidePanel v-if="displayGuide" :snapshot="snapshot" summary/>
-      <RosterProgress v-if="players.length && !displayGuide" :players="players" :queue="snapshot?.scoutQueue ?? 420" compact />
+      <RosterProgress v-if="players.length && !displayGuide" :players="players" :queue="snapshot?.scoutQueue ?? 0" compact />
       <div v-if="!players.length" class="empty-state">
         <AppIcon name="match" :size="30" />
         <p>{{ uiText.overlayView.waitingRoster }}</p>
@@ -102,7 +102,7 @@ defineEmits<{ hide: []; pin: [] }>();
               outdated: p.stale,
             }"
           >
-            <PlayerScoutCard :player="p" :frozen="snapshot?.frozen" :party="snapshot?.stage === 'party'" :queue="snapshot?.scoutQueue ?? 420" />
+            <PlayerScoutCard :player="p" :frozen="snapshot?.frozen" :party="snapshot?.stage === 'party'" :queue="snapshot?.scoutQueue ?? 0" />
           </div>
         </section>
       </div>

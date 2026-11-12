@@ -23,6 +23,7 @@ export type {
     Profile,
     Rank,
     ScoutChampion,
+    ScoutCoverage,
     ScoutHeroQueue,
     ScoutPosition,
     ScoutQueue,

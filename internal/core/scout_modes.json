@@ -1,0 +1,113 @@
+[
+  {
+    "queueId": 420,
+    "label": "单双排",
+    "ranked": true,
+    "roles": true,
+    "mapId": 11,
+    "gameModes": [
+      "CLASSIC"
+    ],
+    "guide": "ranked"
+  },
+  {
+    "queueId": 440,
+    "label": "灵活组排",
+    "ranked": true,
+    "roles": true,
+    "mapId": 11,
+    "gameModes": [
+      "CLASSIC"
+    ],
+    "guide": "flex"
+  },
+  {
+    "queueId": 450,
+    "label": "极地大乱斗",
+    "ranked": false,
+    "roles": false,
+    "mapId": 12,
+    "gameModes": [
+      "ARAM"
+    ],
+    "guide": "aram"
+  },
+  {
+    "queueId": 2400,
+    "label": "海克斯大乱斗",
+    "ranked": false,
+    "roles": false,
+    "mapId": 12,
+    "gameModes": [
+      "ARAM",
+      "ARAM_MAYHEM"
+    ],
+    "guide": "aram-mayhem"
+  },
+  {
+    "queueId": 400,
+    "label": "征召匹配",
+    "ranked": false,
+    "roles": true,
+    "mapId": 11,
+    "gameModes": [
+      "CLASSIC"
+    ],
+    "guide": "ranked"
+  },
+  {
+    "queueId": 430,
+    "label": "匹配模式",
+    "ranked": false,
+    "roles": true,
+    "mapId": 11,
+    "gameModes": [
+      "CLASSIC"
+    ],
+    "guide": "ranked"
+  },
+  {
+    "queueId": 490,
+    "label": "快速模式",
+    "ranked": false,
+    "roles": true,
+    "mapId": 11,
+    "gameModes": [
+      "CLASSIC"
+    ],
+    "guide": "ranked"
+  },
+  {
+    "queueId": 900,
+    "label": "无限火力",
+    "ranked": false,
+    "roles": false,
+    "mapId": 11,
+    "gameModes": [
+      "URF"
+    ],
+    "guide": "urf"
+  },
+  {
+    "queueId": 1900,
+    "label": "随机无限火力",
+    "ranked": false,
+    "roles": false,
+    "mapId": 11,
+    "gameModes": [
+      "URF"
+    ],
+    "guide": "urf"
+  },
+  {
+    "queueId": 1300,
+    "label": "极限闪击",
+    "ranked": false,
+    "roles": false,
+    "mapId": 21,
+    "gameModes": [
+      "NEXUSBLITZ"
+    ],
+    "guide": "nexus-blitz"
+  }
+]

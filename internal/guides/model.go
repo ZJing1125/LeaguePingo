@@ -89,46 +89,25 @@ type State struct {
 }
 
 func mode(s core.Snapshot) (string, string, bool) {
-	for _, spec := range []struct {
-		queues            []int
-		mode, label, game string
-		mapID             int
-	}{{[]int{900, 1900}, "urf", "无限火力", "URF", 11}, {[]int{1300}, "nexus-blitz", "极限闪击", "NEXUSBLITZ", 21}, {[]int{1700, 1710}, "arena", "斗魂竞技场", "CHERRY", 30}} {
-		for _, q := range spec.queues {
-			if s.QueueID == q {
-				if s.MapID != 0 && s.MapID != spec.mapID || s.GameMode != "" && !strings.EqualFold(s.GameMode, spec.game) {
-					return "", "当前模式暂无已核验攻略", false
-				}
-				return spec.mode, spec.label, false
-			}
-		}
-	}
-
-	if s.QueueID == 2400 {
-		if (s.MapID != 0 && s.MapID != 12) || (s.GameMode != "" && !strings.EqualFold(s.GameMode, "ARAM") && !strings.EqualFold(s.GameMode, "ARAM_MAYHEM")) {
+	if spec, ok := core.ScoutModeFor(s.QueueID); ok {
+		if !spec.Matches(s.MapID, s.GameMode) {
 			return "", "当前模式暂无已核验攻略", false
 		}
-		return "aram-mayhem", "海克斯大乱斗", false
+		reference := spec.Guide == "ranked" && !spec.Ranked
+		if reference {
+			return spec.Guide, "峡谷参考", true
+		}
+		return spec.Guide, spec.Label, false
 	}
-	if (s.QueueID == 420 || s.QueueID == 440 || s.QueueID == 400 || s.QueueID == 430 || s.QueueID == 490) && ((s.MapID != 0 && s.MapID != 11) || (s.GameMode != "" && !strings.EqualFold(s.GameMode, "CLASSIC"))) {
-		return "", "当前模式暂无已核验攻略", false
-	}
-	if s.QueueID == 450 && ((s.MapID != 0 && s.MapID != 12) || (s.GameMode != "" && !strings.EqualFold(s.GameMode, "ARAM"))) {
-		return "", "当前模式暂无已核验攻略", false
-	}
-	// Queue is authoritative. Do not treat every map 12/ARAM variant as classic ARAM.
-	switch s.QueueID {
-	case 420:
-		return "ranked", "单双排", false
-	case 440:
-		return "flex", "灵活排位", false
-	case 450:
-		return "aram", "极地大乱斗", false
-	case 400, 430, 490:
-		return "ranked", "峡谷参考", true
+	if s.QueueID == 1700 || s.QueueID == 1710 {
+		if s.MapID != 0 && s.MapID != 30 || s.GameMode != "" && !strings.EqualFold(s.GameMode, "CHERRY") {
+			return "", "当前模式暂无已核验攻略", false
+		}
+		return "arena", "斗魂竞技场", false
 	}
 	return "", "当前模式暂无已核验攻略", false
 }
+
 func scope(s core.Snapshot) string {
 	return fmt.Sprintf("%d:%s:%d", s.ConnectionID, s.SelfKey, s.GameID)
 }

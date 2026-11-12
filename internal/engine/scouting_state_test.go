@@ -34,6 +34,7 @@ func TestScoutStateRoundBudgetIdentityCapAndResume(t *testing.T) {
 		t.Fatal("round changed its 180-second deadline")
 	}
 	s.recordPages(17)
+	s.recordPages(16) // A delayed worker cannot lower the shared page budget.
 	if next, _ := s.targets(players, now); len(next) != 0 {
 		t.Fatal("running round started another batch")
 	}
@@ -47,8 +48,8 @@ func TestScoutStateRoundBudgetIdentityCapAndResume(t *testing.T) {
 		t.Fatal("stop did not cancel and retain partial reports")
 	}
 	s.scopeFor("preparing", 440, players)
-	if s.queueFor(440) != 440 || s.pageCount() != 0 {
-		t.Fatal("new stage did not reset round scope")
+	if s.queueFor(440) != 420 || s.pageCount() != 0 {
+		t.Fatal("new stage lost manual reference or did not reset task scope")
 	}
 	_, next := s.begin(context.Background(), now)
 	defer s.finish("preparing", next)

@@ -23,7 +23,7 @@ const currentAvailable = computed(() => hasCurrentMatch(props.snapshot));
 const inGame = computed(() => ['GameStart', 'InProgress', 'Reconnect'].includes(props.snapshot?.phase || ''));
 const party = computed(() => ['Lobby', 'Matchmaking', 'ReadyCheck'].includes(props.snapshot?.phase || ''));
 const players = computed(() => (props.snapshot?.participants ?? []).filter(p => inGame.value || p.team === 'ally'));
-const queue = computed(() => props.snapshot?.scoutQueue || 420);
+const queue = computed(() => props.snapshot?.scoutQueue ?? 0);
 const currentKey = computed(() => {
   const s = props.snapshot;
   const owner = `${s?.connectionId}:${s?.selfKey || ''}`;
@@ -61,7 +61,7 @@ function adjacent(direction: number) {
   if (players.value.length) selectedKey.value = players.value[(index + direction + players.value.length) % players.value.length]!.key;
 }
 async function changeQueue(value: number) {
-  if (changingQueue.value || !props.snapshot?.connected || value === queue.value) return;
+  if (changingQueue.value || !props.snapshot?.connected || value !== 0 && value === queue.value) return;
   const connection = props.snapshot.connectionId;
   changingQueue.value = true; error.value = '';
   try { emit('snapshot', await Service.SetScoutQueue(value)); }
@@ -79,7 +79,7 @@ async function changeQueue(value: number) {
     <section v-show="scope === 'current'" class="current-match" :aria-label="uiText.matchRoom.currentData">
       <header class="review-heading"><div><h1>{{ uiText.matchRoom.current }}</h1><p>{{ currentAvailable ? subtitle : uiText.matchRoom.waitingDescription }}<span v-if="currentAvailable && snapshot?.queueId"> · {{ queueName(snapshot.queueId) }}</span></p></div><button v-if="currentAvailable && snapshot?.connected && snapshot.phase !== 'Reconnect'" class="secondary" @click="$emit('companion')">{{ inGame ? uiText.matchRoom.showPreview : uiText.clientSidebar.expand }}</button></header>
       <template v-if="currentAvailable">
-        <div class="review-section-title"><h2>{{ party ? uiText.common.party : uiText.common.pregame }}</h2><QueueSwitch :value="queue" :busy="changingQueue || !snapshot?.connected" @change="changeQueue"/></div>
+        <div class="review-section-title"><h2>{{ party ? uiText.common.party : uiText.common.pregame }}</h2><QueueSwitch :current="snapshot?.queueId ?? 0" :value="queue" :busy="changingQueue || !snapshot?.connected" @change="changeQueue"/></div>
         <p v-if="error || snapshot?.rosterError" class="quality-warning" role="status">{{ error || snapshot?.rosterError }}</p>
         <GuidePanel :snapshot="snapshot"/>
         <p v-if="inGame && snapshot?.groupCoverage" class="review-note">{{ uiText.matchRoom.groupCoverage(snapshot.groupCoverage, players.length) }}</p>

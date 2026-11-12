@@ -565,6 +565,7 @@ func (e *Engine) publishLocked() {
 		e.snapshot.GameMode = v.GameMode
 		e.snapshot.MapID = v.MapID
 		e.snapshot.GameVersion = v.Version
+		e.snapshot.ScoutQueue = e.scouting.queueFor(e.scoutModeLocked())
 	}
 	e.syncGroupingLocked()
 	e.syncReviewLocked()

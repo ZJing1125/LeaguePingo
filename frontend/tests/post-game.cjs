@@ -93,7 +93,9 @@ const {mockWindowRuntime}=require('./window-runtime.cjs');
  const side=await open('?view=companion',280);await side.locator('.client-sidebar').waitFor();
  for(const status of ['honor-countdown','return-countdown','queue-countdown']){
   state={...state,revision:state.revision+1,status,dueAt:new Date(Date.now()+10000).toISOString()};await emit();
-  await side.locator('.post-game-notice').getByRole('button',{name:'取消本次',exact:true}).click();await emit();
+  await side.locator('.post-game-notice').getByRole('button',{name:'取消本次',exact:true}).click();
+  // The input click finishes before the asynchronous bridge response renders.
+  await side.locator('.post-game-notice').waitFor({state:'hidden'});await emit();
   assert.equal(await side.locator('.post-game-notice').count(),0,'cancelled step must leave no banner');
  }
  assert.equal(calls.filter(c=>c==='CancelPostGame').length,3);

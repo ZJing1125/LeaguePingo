@@ -198,6 +198,7 @@ type MatchTeam struct {
 }
 
 type Stats struct {
+	Remakes      int      `json:"remakes,omitempty"`
 	Games        int      `json:"games"`
 	Wins         int      `json:"wins"`
 	Losses       int      `json:"losses"`
@@ -254,6 +255,7 @@ func CalculateStats(matches []Match) Stats {
 	for _, match := range matches {
 		out.Games++
 		if IsRemake(match) {
+			out.Remakes++
 			continue
 		}
 		if match.Win != nil {

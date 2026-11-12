@@ -9,8 +9,8 @@ function load(file) {
   const filename = path.resolve(__dirname, '../src', file + '.ts');
   if (cache.has(filename)) return cache.get(filename).exports;
   const mod = new Module(filename, module); cache.set(filename, mod); mod.filename = filename;
-  mod.require = id => { assert.equal(id, './matchStats'); return load(id.slice(2)); };
-  mod._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, filename);
+  mod.require = id => { if(id.endsWith('.json')) return require(path.resolve(path.dirname(filename),id)); assert.ok(['./matchStats','./scoutStats'].includes(id)); return load(id.slice(2)); };
+  mod._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true, target: ts.ScriptTarget.ES2020 } }).outputText, filename);
   return mod.exports;
 }
 const { scoutStats, rankedMode } = load('scoutStats');
@@ -126,3 +126,14 @@ merged=newestPlayer({...outage,historyMeta:{fetchedAt:'2026-10-29T03:00:00Z',che
 assert.equal(merged.historyMeta.service,undefined,'successful update must clear prior outage');
 assert.equal(newestPlayer(full,merged).historyMeta.service,undefined,'late old status cannot resurrect failure');
 console.log('PASS: retained-history timestamp and separate service-state clock, successful recovery and stale-event rejection.');
+
+const mayhem=structuredClone(player);
+mayhem.scout.season=undefined;
+mayhem.scout.queues.push({queueId:2400,month:stats(3,100),twelve:stats(1,100),positions:[{position:'TOP',games:3}]});
+mayhem.scout.champions[0].games=null;
+mayhem.scout.champions[0].queues.push({queueId:2400,stats:stats(2,100),average:[6,2,10]});
+d=scoutStats(mayhem,2400);
+assert.equal(d.queueLabel,'海克斯大乱斗');assert.equal(d.champion.games,2);assert.equal(d.role.known,0);assert.equal(d.ranked,false);
+assert.equal(scoutStats(mayhem,450).champion.games,0,'missing ARAM data must not use mayhem');
+assert.equal(rankedMode(99999),'模式待确认','unknown queue cannot become ranked');
+console.log('PASS: mayhem without season, exact queue isolation, non-lane modes and unknown queue label');

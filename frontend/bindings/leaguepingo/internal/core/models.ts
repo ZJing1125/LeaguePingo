@@ -247,6 +247,13 @@ export interface ScoutChampion {
     "queues": ScoutHeroQueue[] | null;
 }
 
+export interface ScoutCoverage {
+    "fetchedAt": string;
+    "complete": boolean;
+    "complete12": boolean;
+    "complete30": boolean;
+}
+
 export interface ScoutHeroQueue {
     "queueId": number;
     "stats": Stats;
@@ -259,6 +266,7 @@ export interface ScoutPosition {
 }
 
 export interface ScoutQueue {
+    "coverage"?: ScoutCoverage | null;
     "queueId": number;
     "season": Stats;
     "twelve": Stats;
@@ -327,6 +335,7 @@ export interface Snapshot {
 }
 
 export interface Stats {
+    "remakes"?: number;
     "games": number;
     "wins": number;
     "losses": number;

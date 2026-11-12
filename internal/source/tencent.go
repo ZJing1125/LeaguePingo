@@ -111,6 +111,10 @@ func (s *TencentLCU) ChampSelectRoster(ctx context.Context) (int64, []core.Parti
 	if json.Unmarshal(raw, &queue) == nil && queue.QueueID > 0 {
 		s.queueID.Store(int32(queue.QueueID))
 		s.metaMu.Lock()
+		if s.meta.QueueID != queue.QueueID {
+			s.meta.MapID = 0
+			s.meta.GameMode = ""
+		}
 		s.meta.QueueID = queue.QueueID
 		s.metaMu.Unlock()
 	}

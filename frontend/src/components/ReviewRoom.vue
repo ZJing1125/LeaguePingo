@@ -13,12 +13,12 @@ import PlayerView from './PlayerView.vue';
 import AppIcon from './AppIcon.vue';
 const props=defineProps<{review:MatchReview|null;connected:boolean;active:boolean;inGame:boolean}>();
 const emit=defineEmits<{query:[player:Participant];snapshot:[value:Snapshot];modal:[open:boolean]}>();
-const queue=ref(420), selectedKey=ref(''), busy=ref(false), error=ref('');
+const queue=ref(0), selectedKey=ref(''), busy=ref(false), error=ref('');
 const scope=ref('result');
 const states=reactive<Record<string,PlayerViewState>>({});
 const selected=computed(()=>props.review?.participants?.find(p=>p.key===selectedKey.value) ?? null);
 const target=computed(()=>props.review?.participants?.find(p=>p.key===props.review?.selfKey || p.puuid===props.review?.selfKey) ?? props.review?.participants?.[0]);
-watch(()=>`${props.review?.connectionId}:${props.review?.selfKey}:${props.review?.gameId}`,()=>{queue.value=props.review?.scoutQueue || 420;scope.value='result';selectedKey.value='';error.value='';for(const k of Object.keys(states))delete states[k];},{immediate:true});
+watch(()=>`${props.review?.connectionId}:${props.review?.selfKey}:${props.review?.gameId}`,()=>{queue.value=props.review?.scoutQueue ?? props.review?.queueId ?? 0;scope.value='result';selectedKey.value='';error.value='';for(const k of Object.keys(states))delete states[k];},{immediate:true});
 watch(()=>props.active,active=>{if(!active)selectedKey.value='';});
 watch(()=>!!selected.value,open=>emit('modal',open));
 function stateFor(key:string){return states[key] ?? (states[key]={queue:'all',expanded:[]});}
@@ -38,7 +38,7 @@ async function refresh(){if(busy.value || !props.review)return;busy.value=true;e
         <p v-else class="review-note">{{ uiText.reviewRoom.settlementHelp }}</p>
       </section>
       <template v-if="scope==='pregame'">
-        <div class="review-section-title"><h2>{{ uiText.reviewRoom.pregame }}</h2><QueueSwitch :value="queue" @change="queue=$event"/></div>
+        <div class="review-section-title"><h2>{{ uiText.reviewRoom.pregame }}</h2><QueueSwitch :current="review.queueId" :value="queue" @change="queue=$event || review.queueId"/></div>
         <p class="review-note">{{ uiText.reviewRoom.capturedHelp }}</p>
         <MatchRoster :players="review.participants ?? []" :selected-key="selectedKey" :queue="queue" frozen captured @select="selectedKey=$event.key"/>
       </template>
