@@ -198,13 +198,13 @@ export function checkWorkflow(read) {
     requireText('.github/workflows/ci.yml', text);
   const declaredGo = contents['go.mod'].match(/^go (\d+)\.(\d+)\.(\d+)$/m);
   const goParts = declaredGo?.slice(1).map(Number) || [];
-  const goFloor = [1, 26, 10];
+  const goFloor = [1, 26, 11];
   const firstDifference = goParts.findIndex((value, index) => value !== goFloor[index]);
   if (!declaredGo || (firstDifference >= 0 && goParts[firstDifference] < goFloor[firstDifference]) ||
       /^toolchain /m.test(contents['go.mod']) || /^\s*go-version:/m.test(ci) ||
       [...ci.matchAll(/^\s*GOTOOLCHAIN:\s*(\S+)/gm)].some(match => match[1] !== 'local') ||
       (ci.match(/^\s*go-version-file: go\.mod$/gm) || []).length !== 3) {
-    throw new Error('CI Go versions must use go.mod with the patched Go 1.26.10 minimum');
+    throw new Error('CI Go versions must use go.mod with the patched Go 1.26.11 minimum');
   }
   qualityPolicy(ci);
   if ((ci.match(/run: bash scripts\/build\.sh bin\/leaguepingo-ci\.exe/g) || []).length !== 1 ||

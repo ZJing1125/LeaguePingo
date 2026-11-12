@@ -11,7 +11,7 @@
 
 ## 开发与构建
 
-先读 [AGENTS.md](AGENTS.md) 和[当前主机约定](docs/ENVIRONMENTS.md)。依赖需事先配置，使用 Bash；Windows 完整构建需要 Go 1.26.10+、Node 22+、锁定的 Wails CLI 和前端依赖。入口详见[工程结构](docs/PROJECT_STRUCTURE.md)。
+先读 [AGENTS.md](AGENTS.md) 和[当前主机约定](docs/ENVIRONMENTS.md)。依赖需事先配置，使用 Bash；Windows 完整构建需要 Go 1.26.11+、Node 22+、锁定的 Wails CLI 和前端依赖。入口详见[工程结构](docs/PROJECT_STRUCTURE.md)。
 
 ```bash
 # Windows amd64：完整验证、构建及本机产物审计

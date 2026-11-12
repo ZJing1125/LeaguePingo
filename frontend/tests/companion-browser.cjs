@@ -68,7 +68,7 @@ async function main(){
       p.damageShare=p.summary.damage*100/sum('damage');p.goldShare=p.summary.gold*100/sum('gold');p.participation=(p.summary.kills+p.summary.assists)*100/sum('kills');
      }
      snapshot={...snapshot,review:{...snapshot.review,state:'ready',result:{gameId:42,players:resultPlayers,partial:false,fetchedAt:time}},generation:snapshot.generation+1,updatedAt:new Date().toISOString()};result=snapshot;
-    }else throw new Error('Unexpected service call '+method);
+    }else throw new Error('Unexpected service call '+method+' phase='+snapshot.phase+' args='+JSON.stringify(args)+' recent='+JSON.stringify(calls.slice(-5)));
     return route.fulfill({json:result});
    }
    const name=url.pathname==='/'?'index.html':url.pathname.slice(1);assert(!name.includes('..'));

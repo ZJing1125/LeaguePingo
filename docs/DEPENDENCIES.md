@@ -1,5 +1,7 @@
 # 依赖更新与验证
 
+BUG-0139：当前Go最低补丁版提升为1.26.11，以修复新公布的GO-2026-6859；同提交安全扫描及Windows构建另行核验。该补丁不改变第三方模块或Dependabot服务待核验状态，原1.26.10记录保留为历史。
+
 S10配置已进入默认分支。[PR #3](https://github.com/ZJing1125/LeaguePingo/pull/3)于2026-11-05 15:34:10 UTC由仓库流程合入main，合并提交8e7d6af；只增加与dev逐字节相同的配置，没有带入其余产品改动。当前状态为configured-awaiting-service-verification：尚未观测到实际更新任务或依赖PR，不把配置合入记为任务成功。不直接修改main、不改默认分支、不自动合并。
 
 2026-11-12复核：默认分支仍为main，配置blob仍为`af4cf235a33b6413ee5f456db00464e75c1c0688`，与dev一致。全部PR列表中仍无Dependabot PR，按`dependabot[bot]`筛选的Actions运行列表为0；工作流列表仅返回产品CI，未返回Dependabot动态任务。这些只读结果不能证明更新服务未执行或执行失败，也不能把“未见PR”登记为“无更新”。S10继续等待更新页面的实际任务结果；原定11月9日计划时间已过，按配置下一次计划为11月16日上海10:00（UTC 02:00），不是产品上线或交付时间。仓库维护者可在[更新页面](https://github.com/ZJing1125/LeaguePingo/network/updates)核对任务成功/失败及错误摘要；没有服务记录前不改动频率、依赖版本或仓库安全设置。

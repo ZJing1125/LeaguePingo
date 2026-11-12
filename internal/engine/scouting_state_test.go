@@ -161,3 +161,28 @@ func TestScoutStateConcurrentReadersAndResets(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestScoutReferenceSurvivesStagesButResetsForNextSelection(t *testing.T) {
+	var s scoutPreparation
+	s.queueFor(2400)
+	s.selectQueue(420)
+	s.observeGame(77, PhaseChampSelect)
+	s.scopeFor("preparing", 2400, nil)
+	s.observeGame(77, PhaseGameStart)
+	s.scopeFor("in-game", 2400, nil)
+	if s.queueFor(2400) != 420 {
+		t.Fatal("phase transition erased reference")
+	}
+	s.observeGame(0, PhaseChampSelect)
+	if s.queueFor(2400) != 2400 {
+		t.Fatal("new selection kept previous game's reference")
+	}
+	s.selectQueue(440)
+	if s.queueFor(450) != 450 {
+		t.Fatal("real mode change did not restore auto")
+	}
+	s.selectQueue(0)
+	if s.queueFor(99999) != 0 {
+		t.Fatal("unknown queue became ranked")
+	}
+}

@@ -1,12 +1,14 @@
 # 静态分析
 
+2026-11-12 / BUG-0139：CI发现GO-2026-6859（net/http，修复于Go 1.26.11），包括前两次文档提交也被强制quality阻断。已将最低补丁版及降级变异门禁提升到1.26.11；所有CI任务继续只从go.mod取版本，第三方模块与go.sum未变。升级后的扫描/Windows结果以本提交实际CI为准，不豁免漏洞。
+
 CI 的 `Quality checks` 在 portable 任务通过后运行三项强制检查；全部成功后才运行 Windows 验证和构建：
 
 - `staticcheck v0.8.2`：按 Windows amd64 目标分析全部 Go 包。
 - `govulncheck v1.8.0`：按 Windows amd64 目标检查可达漏洞。
 - `npm audit --audit-level=high`：检查前端锁文件中的高危及严重依赖漏洞。
 
-产品Go最低补丁版本由go.mod声明为1.26.10，三个CI任务统一读取go-version-file，分析器最低Go要求为1.26.0。GOTOOLCHAIN=local禁止静默下载另一套Go，策略检查拒绝版本回退、独立CI版本及任务内auto覆盖。三项均使用默认失败语义，不设置continue-on-error。Go检查在前端/工具准备成功且任务未取消时各自运行，npm只依赖前端准备；前一个检查失败不会阻止其他独立结果产出。always摘要保留实际outcome，任一检查失败都会让quality失败，Windows依赖该job而停止；准备失败显示跳过，不能记为扫描通过。
+产品Go最低补丁版本由go.mod声明为1.26.11，三个CI任务统一读取go-version-file，分析器最低Go要求为1.26.0。GOTOOLCHAIN=local禁止静默下载另一套Go，策略检查拒绝版本回退、独立CI版本及任务内auto覆盖。三项均使用默认失败语义，不设置continue-on-error。Go检查在前端/工具准备成功且任务未取消时各自运行，npm只依赖前端准备；前一个检查失败不会阻止其他独立结果产出。always摘要保留实际outcome，任一检查失败都会让quality失败，Windows依赖该job而停止；准备失败显示跳过，不能记为扫描通过。
 
 2026-11-05 / BUG-0128：同一份623a197业务代码的升级前扫描确认11项标准库可达漏洞；改用Go 1.26.10及上述兼容分析器后，本机Windows目标根包/internal/cmd扫描为No vulnerabilities found，staticcheck通过。Wails及其他第三方产品模块版本未升级，go.sum未变，tidy仅将Windows测试直接引用的go-ole改为直接依赖。c711426的42024419785已通过Windows完整构建、全包竞态、绑定/原生/浏览器回归及隔离安装卸载，强制门禁按PR后续提交确认，国服人工验收仍后置。
 
@@ -16,7 +18,7 @@ BUG-0127：每个job都有独立checkout，advisory必须自己执行锁文件�
 
 BUG-0129策略回归覆盖移除Windows依赖、job跳过/强行执行、允许失败、shell掩盖、独立检查被success条件跳过、错误目标、失去准备ID、工具安装后移和虚假摘要。PR的当前完整CI确认实际扫描及Windows构建；未专门对远程CI注入失败，不冒称该种实验已经执行。
 
-本地复现需要 Go 1.26.10+ 工具位于 `PATH`：
+本地复现需要 Go 1.26.11+ 工具位于 `PATH`：
 
 ```bash
 npm --prefix frontend ci

@@ -97,16 +97,17 @@ test('dependency updates stay coupled on dev and CI actions stay pinned', () => 
 });
 test('all CI jobs follow one patched Go version source', () => {
   for (const [file, before, after] of [
-    ['go.mod', 'go 1.26.10', 'go 1.26.9'],
-    ['go.mod', 'go 1.26.10', 'go 1.25.14'],
-    ['go.mod', 'go 1.26.10', 'go 1.26.10\ntoolchain go1.27.0'],
+    ['go.mod', 'go 1.26.11', 'go 1.26.10'],
+    ['go.mod', 'go 1.26.11', 'go 1.26.9'],
+    ['go.mod', 'go 1.26.11', 'go 1.25.14'],
+    ['go.mod', 'go 1.26.11', 'go 1.26.11\ntoolchain go1.27.0'],
     ['.github/workflows/ci.yml', 'go-version-file: go.mod', 'go-version: "1.25.x"'],
     ['.github/workflows/ci.yml', 'go-version-file: go.mod', 'go-version-file: other.mod'],
     ['.github/workflows/ci.yml', 'name: Quality checks', 'name: Quality checks\n    env:\n      GOTOOLCHAIN: auto'],
   ]) {
     assert.ok(files[file].includes(before));
     const changed = files[file].replace(before, after);
-    assert.throws(() => checkWorkflow(f => f === file ? changed : files[f]), /patched Go 1.26.10 minimum/);
+    assert.throws(() => checkWorkflow(f => f === file ? changed : files[f]), /patched Go 1.26.11 minimum/);
   }
 });
 test('quality analyzers prepare real embedded assets in their own job', () => {

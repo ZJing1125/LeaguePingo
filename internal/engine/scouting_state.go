@@ -260,7 +260,7 @@ func (s *scoutPreparation) rememberProgress(c *scoutCursor, now time.Time) {
 func (s *scoutPreparation) observeGame(game int64, phase Phase) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if phase == PhaseLobby {
+	if phase == PhaseLobby || phase == PhaseChampSelect && game == 0 && s.game != 0 {
 		if s.game != 0 {
 			s.manual = false
 		}

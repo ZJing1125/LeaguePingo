@@ -719,7 +719,7 @@ export const uiText = {
     label: (group: unknown, count: unknown) => `同组 ${toDisplayString(group)} · ${toDisplayString(count)}人`,
   },
   modeScouting: {
-    reference: "排位参考 · 单双排",
+    reference: "排位参考",
     remakes: (count: unknown) => `重开 ${toDisplayString(count)} 场`,
     hero30: "本英雄 · 近30天",
     noRecords: "当前模式暂无已读英雄记录",

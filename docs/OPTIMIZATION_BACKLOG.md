@@ -19,6 +19,8 @@ suggested_repo_path: docs/OPTIMIZATION_BACKLOG.md
 
 2026-11-12续办：18项通过记录9d0c057已推送dev；下一轮按海克斯优先从H1–H3开始，其后C1–C3/X2，分组需独立双方基准。S10复核默认main配置仍与dev一致，未见Dependabot PR或动态任务，继续保留服务待核验；不能从API未见记录判定更新失败或无更新，详见DEPENDENCIES.md。
 
+2026-11-12安全补丁：CI发现GO-2026-6859，Go最低版与降级门禁已提升为1.26.11，quality强制执行，结果以同提交CI为准。
+
 2026-11-12新增需求（不计入原34项）：用户确认侧栏玩家统计尚未随非排位模式切换，要求规划扩展。已形成[多模式统计与侧栏方案](MODE_SCOUTING_PLAN.md)，分M1–M4实施，海克斯与普通大乱斗优先，包含首批公平调度。M1/M2代码已实施，M3常规模式已接入同一目录；M4竞技场与新功能MS1–MS6仍待来源/实机核验。既有18项PASS不代表新功能通过。
 
 Q1首次运行：[40856437383](https://github.com/ZJing1125/LeaguePingo/actions/runs/40856437383)，Linux成功，Windows原生Go检查通过，侧栏720px五卡高度回归失败。已根据日志修复摘要内边距，保留原验收断言。修复提交dd33476的[40857941063](https://github.com/ZJing1125/LeaguePingo/actions/runs/40857941063)两个job全部成功：Windows全包test/vet、绑定生成/一致性、九项浏览器回归、EXE编译及产物审计均通过。EXE只存在runner，未上传、部署或登记为用户已验收；截图保留7天。PR事件配置已做语法检查，未专门新建PR测试。默认分支仍为main，手动触发入口需工作流进入默认分支后才能使用；本批未修改main或默认分支。

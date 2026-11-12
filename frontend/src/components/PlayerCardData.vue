@@ -2,7 +2,7 @@
 import { uiText } from "../uiText";
 import { computed } from "vue";
 import type { Participant } from "../../bindings/leaguepingo/internal/core/models";
-import { percent, decimal, date } from "../presentation";
+import { percent, decimal, date, tierName } from "../presentation";
 import { rankPresentation } from "../rankPresentation";
 import { championName } from "../gameAssets";
 import { scoutStats, roleNames } from "../scoutStats";
@@ -61,7 +61,7 @@ function periodDetail(p: ReturnType<typeof scoutStats>["periods"][number]) {
         <span class="rank-line"><b>{{ shortRank }}</b><small v-if="rank.retained">{{ uiText.common.old }}</small></span>
         <small v-if="data.ranked" class="scout-season" :title="season?.title"><span v-if="season">{{ season.scope }} {{ percent(season.rate) }}</span><span>{{ season ? uiText.playerCardData.outcomes(season.wins, season.losses) : uiText.common.pendingOutcome }}</span></small>
       </span>
-    <small v-if="!data.ranked" class="mode-rank-reference">{{ uiText.modeScouting.reference }} · {{ rank.label }}</small>
+    <small v-if="!data.ranked" class="mode-rank-reference" :title="rank.title"><span>{{ uiText.modeScouting.reference }}</span><span>{{ uiText.common.solo }}</span><span>{{ rank.rank ? tierName(rank.rank.tier) + ' ' + (rank.rank.division || '') : rank.label }}</span><span v-if="rank.rank?.lp != null">{{ rank.rank.lp }} LP</span></small>
     </span>
     <template v-if="player.identityState === 'known'">
       <span v-if="statisticsPending" class="scout-stat-skeleton" role="status" :aria-label="uiText.playerCardData.fetchingStatistics">
@@ -464,4 +464,4 @@ function periodDetail(p: ReturnType<typeof scoutStats>["periods"][number]) {
 @media (prefers-reduced-motion: reduce) { .scout-stat-skeleton i { animation: none; } }
 </style>
 
-<style scoped>.mode-rank-reference{display:flex;align-items:center;justify-content:center;color:var(--scout-muted);font-size:11px;padding:4px;line-height:16px;min-width:0;text-align:center;} .scout-headline:has(.mode-rank-reference) .scout-hero-rate{line-height:12px;} .scout-headline:has(.mode-rank-reference) .scout-champion{min-height:0;gap:2px;} .scout-headline:has(.mode-rank-reference) .card-pick small{line-height:13px;}</style>
+<style scoped>.mode-rank-reference{display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--scout-muted);font-size:11px;padding:3px;line-height:14px;min-width:0;text-align:center;} .scout-headline:has(.mode-rank-reference) .scout-hero-rate{line-height:12px;} .scout-headline:has(.mode-rank-reference) .scout-champion{min-height:0;gap:2px;} .scout-headline:has(.mode-rank-reference) .card-pick small{line-height:13px;}</style>
