@@ -13,6 +13,7 @@ import (
 	"leaguepingo/internal/postgame"
 	"leaguepingo/internal/readycheck"
 	"leaguepingo/internal/source"
+	"leaguepingo/internal/teambrief"
 )
 
 type Client = source.Source
@@ -22,6 +23,7 @@ type Discoverer func() (Client, error)
 const inGameRosterAttemptLimit = 3
 
 type Engine struct {
+	brief           *teambrief.Controller
 	historyRecovery historyRecovery
 	readiness       diagnostics.Readiness
 	grouping        groupingState
@@ -69,6 +71,7 @@ func newEngine(discover Discoverer, onChange func(core.Snapshot)) *Engine {
 	e.autoAccept = readycheck.New()
 	e.historyRecovery.init()
 	e.postGame = postgame.New()
+	e.brief = teambrief.New()
 	return e
 }
 
@@ -79,6 +82,7 @@ func (e *Engine) Snapshot() core.Snapshot {
 }
 
 func (e *Engine) Run(ctx context.Context) {
+	defer e.brief.Stop()
 	postDone := make(chan struct{})
 	go func() { defer close(postDone); e.postGame.Run(ctx) }()
 	defer func() { <-postDone }()
@@ -103,6 +107,11 @@ func (e *Engine) Run(ctx context.Context) {
 	}()
 	for {
 		select {
+		case <-e.brief.Changes():
+			e.mu.Lock()
+			e.snapshot.UpdatedAt = time.Now()
+			e.publishLocked()
+			e.mu.Unlock()
 		case <-ctx.Done():
 			e.mu.Lock()
 			e.historyRecovery.stop()
@@ -568,6 +577,7 @@ func (e *Engine) publishLocked() {
 		e.snapshot.ScoutQueue = e.scouting.queueFor(e.scoutModeLocked())
 	}
 	e.syncGroupingLocked()
+	e.observeAnalysisBriefLocked()
 	e.syncReviewLocked()
 	e.snapshot.Review, _ = e.reviews.view()
 	e.observePostGameLocked()

@@ -20,6 +20,7 @@ import MatchDetails from "./MatchDetails.vue";
 
 import TransientNotice from "./TransientNotice.vue";
 import OverviewPerformance from './OverviewPerformance.vue';
+import PlayerAnalysisPanel from './PlayerAnalysisPanel.vue';
 import RankPanel from './RankPanel.vue';
 import ChampionAnalysis from './ChampionAnalysis.vue';
 import PlaystylePanel from './PlaystylePanel.vue';
@@ -96,6 +97,7 @@ function toggle(id: number) {
     <TransientNotice :message="error" banner-class="player-error" />
     <div class="player-columns">
       <aside v-if="!compact && !profileCollapsed" class="analysis-sidebar">
+        <PlayerAnalysisPanel v-if="scouting.report" :analysis="scouting.analysis" :mode="scouting.queueLabel"/>
         <RankPanel :player="player"/>
         <RankPanel :player="player" queue="RANKED_FLEX_SR"/>
         <ChampionAnalysis :matches="analysisMatches" :scope="sampleLabel" :fetched-at="player.historyMeta?.fetchedAt"/>

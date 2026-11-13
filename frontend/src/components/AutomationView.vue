@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import * as Service from "../../bindings/leaguepingo/appservice";
 import type { AppInfo } from "../../bindings/leaguepingo/models";
 import { errorMessage } from "../presentation";
-import { useAutomation } from "../composables/useAutomation";
+import { applyBriefConfiguration, useAutomation } from "../composables/useAutomation";
 import AppIcon from "./AppIcon.vue";
 import ExperimentalBadge from "./ExperimentalBadge.vue";
 import { uiText } from "../uiText";
@@ -17,11 +17,15 @@ const text = uiText.automationState;
 const message = ref("");
 const error = ref("");
 const acceptEnabled = ref(false), acceptDelay = ref(1);
+const briefEnabled = ref(false), briefAudience = ref("team"), briefSelf = ref(true), briefPreview = ref("");
 const skipHonor = ref(false), returnEnabled = ref(false), queueEnabled = ref(false), queueDelay = ref(10);
 const live = useAutomation();
 const { acceptText, postText, acceptVisible, postVisible, accept, post, skipAccept, cancelPost, error: liveError, activeCount, warning } = live;
 
 type AutomationDraft = {
+  briefEnabled: boolean;
+  briefAudience: string;
+  briefSelf: boolean;
   acceptEnabled: boolean;
   acceptDelay: number;
   skipHonor: boolean;
@@ -32,6 +36,10 @@ type AutomationDraft = {
 
 function apply(next: AppInfo) {
   info.value = next;
+  applyBriefConfiguration(next);
+  briefEnabled.value = next.autoAnalysisBrief ?? false;
+  briefAudience.value = next.analysisAudience ?? 'team';
+  briefSelf.value = next.analysisIncludeSelf ?? true;
   acceptEnabled.value = next.autoAcceptEnabled ?? false;
   acceptDelay.value = next.autoAcceptDelay ?? 1;
   skipHonor.value = next.autoSkipHonor ?? false;
@@ -41,6 +49,7 @@ function apply(next: AppInfo) {
 }
 function currentDraft(): AutomationDraft {
   return {
+    briefEnabled: briefEnabled.value, briefAudience: briefAudience.value, briefSelf: briefSelf.value,
     acceptEnabled: acceptEnabled.value,
     acceptDelay: acceptDelay.value,
     skipHonor: skipHonor.value,
@@ -59,7 +68,11 @@ function postChanged(target: AutomationDraft, current: AppInfo) {
     target.queueEnabled !== (current.autoQueueEnabled ?? false) ||
     target.queueDelay !== (current.autoQueueDelay ?? 10);
 }
+function briefChanged(target: AutomationDraft, current: AppInfo) {
+  return target.briefEnabled !== (current.autoAnalysisBrief ?? false) || target.briefAudience !== (current.analysisAudience ?? 'team') || target.briefSelf !== (current.analysisIncludeSelf ?? true);
+}
 const dirty = computed(() => !!info.value && (
+  briefChanged(currentDraft(), info.value) ||
   acceptEnabled.value !== (info.value.autoAcceptEnabled ?? false) ||
   acceptDelay.value !== (info.value.autoAcceptDelay ?? 1) ||
   skipHonor.value !== (info.value.autoSkipHonor ?? false) ||
@@ -68,7 +81,7 @@ const dirty = computed(() => !!info.value && (
   queueDelay.value !== (info.value.autoQueueDelay ?? 10)
 ));
 const anyEnabled = computed(() => !!info.value && (
-  acceptEnabled.value || skipHonor.value || returnEnabled.value || queueEnabled.value ||
+  briefEnabled.value || (info.value.autoAnalysisBrief ?? false) || acceptEnabled.value || skipHonor.value || returnEnabled.value || queueEnabled.value ||
   (info.value.autoAcceptEnabled ?? false) || (info.value.autoSkipHonor ?? false) ||
   (info.value.autoReturnEnabled ?? false) || (info.value.autoQueueEnabled ?? false)
 ));
@@ -86,12 +99,20 @@ async function persist(target: AutomationDraft, successMessage: string) {
   try {
     // Keep the requested values stable across both calls. Applying the first
     // response here would otherwise erase unsaved values from the other card.
+    if (briefChanged(target, latest) && !target.briefEnabled) {
+      latest = await Service.ConfigureAnalysisBrief(target.briefEnabled, target.briefAudience, target.briefSelf);
+      applied = true;
+    }
     if (acceptChanged(target, latest)) {
       latest = await Service.ConfigureAutoAccept(target.acceptEnabled, target.acceptDelay);
       applied = true;
     }
     if (postChanged(target, latest)) {
       latest = await Service.ConfigurePostGame(target.returnEnabled, target.queueEnabled, target.queueDelay, target.skipHonor);
+      applied = true;
+    }
+    if (briefChanged(target, latest)) {
+      latest = await Service.ConfigureAnalysisBrief(target.briefEnabled, target.briefAudience, target.briefSelf);
       applied = true;
     }
     apply(latest);
@@ -110,11 +131,17 @@ async function save() {
 }
 async function disableAll() {
   const target = currentDraft();
+  target.briefEnabled = false;
   target.acceptEnabled = false;
   target.skipHonor = false;
   target.returnEnabled = false;
   target.queueEnabled = false;
   await persist(target, uiText.automationView.disabledAll);
+}
+async function previewBrief() {
+  error.value = '';
+  try { briefPreview.value = await Service.PreviewAnalysisBrief() || uiText.analysisBrief.emptyPreview; }
+  catch (reason) { error.value = errorMessage(reason); }
 }
 onMounted(() => { void load(); });
 </script>
@@ -168,6 +195,15 @@ onMounted(() => { void load(); });
       </p>
     </article>
 
+    <article class="automation-card" :class="{on:briefEnabled}">
+      <header><h2>{{ uiText.analysisBrief.title }}<ExperimentalBadge :feature="uiText.analysisBrief.title"/></h2><label class="automation-switch"><input v-model="briefEnabled" type="checkbox" :aria-label="uiText.analysisBrief.enabled" :disabled="unavailable"/>{{ uiText.common.enable }}</label></header>
+      <p class="muted">{{ uiText.analysisBrief.help }}</p>
+      <div class="automation-rows"><label class="automation-field">{{ uiText.analysisBrief.audience }}<select v-model="briefAudience" :aria-label="uiText.analysisBrief.audience" :disabled="unavailable"><option value="team">{{ uiText.analysisBrief.team }}</option><option value="self">{{ uiText.analysisBrief.self }}</option></select></label><label class="automation-switch"><input v-model="briefSelf" type="checkbox" :disabled="unavailable"/>{{ uiText.analysisBrief.includeSelf }}</label></div>
+      <p v-if="briefEnabled" class="automation-live" data-live="brief">{{ live.briefText.value }}</p>
+      <button class="secondary" :disabled="unavailable" @click="previewBrief">{{ uiText.analysisBrief.preview }}</button>
+      <textarea v-if="briefPreview" class="brief-preview" :aria-label="uiText.analysisBrief.previewLabel" :value="briefPreview" readonly rows="6"/>
+    </article>
+
     <footer class="automation-actions">
       <button class="secondary" type="button" @click="emit('settings')"><AppIcon name="settings" :size="14" />{{ uiText.automationView.otherSettings }}</button>
       <button class="secondary stop-all" type="button" :disabled="unavailable || !anyEnabled" @click="disableAll">{{ uiText.automationView.stopAll }}</button>
@@ -180,6 +216,7 @@ onMounted(() => { void load(); });
   </section>
 </template>
 <style scoped>
+.brief-preview{display:block;width:100%;margin-top:10px;font-size:12px;resize:vertical;}
 .automation-workspace { padding: 20px 24px 28px; overflow-y: auto; min-height: 0; }
 .automation-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
 .automation-head h1 { font-size: 20px; margin: 0 0 6px; }

@@ -35,7 +35,10 @@ const {mockWindowRuntime}=require('./window-runtime.cjs');
  info={...info,autoAcceptEnabled:args[0],autoAcceptDelay:args[1]};state={...state,revision:state.revision+1,enabled:args[0],delaySeconds:args[1],status:args[0]?'armed':'off'};result=info;
  }else if(method==='ConfigurePostGame'){
  info={...info,autoReturnEnabled:args[0],autoQueueEnabled:args[1],autoQueueDelay:args[2],autoSkipHonor:args[3]};postState={...postState,revision:postState.revision+1,returnEnabled:args[0],queueEnabled:args[1],delaySeconds:args[2],skipHonor:args[3],status:(args[0]||args[1]||args[3])?'armed':'off'};result=info;
- }else if(method==='SkipAutoAccept'){assert.equal(state.status,'countdown');result=state={...state,revision:state.revision+1,status:'skipped'};}
+ }else if(method==='ConfigureAnalysisBrief'){
+ info={...info,autoAnalysisBrief:args[0],analysisAudience:args[1],analysisIncludeSelf:args[2]};result=info;
+ }else if(method==='PreviewAnalysisBrief')result='LeaguePingo｜单双排｜近30天已读表现分析\n1L｜暂定B级 6.4分｜有效8场｜输出较好';
+ else if(method==='SkipAutoAccept'){assert.equal(state.status,'countdown');result=state={...state,revision:state.revision+1,status:'skipped'};}
  else if(method!=='AuxiliaryReady')throw Error('unexpected service '+method);
  return route.fulfill({json:result});
  }
@@ -81,19 +84,30 @@ const {mockWindowRuntime}=require('./window-runtime.cjs');
  const skipHonor=page.getByRole('checkbox',{name:'自动跳过点赞',exact:true});
  const returnEnabled=page.getByRole('checkbox',{name:'赛后自动返回房间',exact:true});
  const queueEnabled=page.getByRole('checkbox',{name:'返回后自动排队',exact:true});
+ const briefEnabled=page.getByRole('checkbox',{name:'选人阶段自动发送玩家分析',exact:true});
+ assert.equal(await briefEnabled.isChecked(),false,'analysis chat defaults off');
+ await page.getByRole('button',{name:'预览当前我方分析',exact:true}).click();
+ assert.match(await page.getByRole('textbox',{name:'选人分析简报预览',exact:true}).inputValue(),/B级 6.4分/);
+ assert.equal(calls.filter(c=>c==='ConfigureAnalysisBrief').length,0,'preview cannot enable or send chat');
+ await briefEnabled.check();
+ await page.getByRole('combobox',{name:'简报接收范围',exact:true}).selectOption('self');
+ await page.getByRole('checkbox',{name:'包含自己',exact:true}).uncheck();
  await skipHonor.check();await returnEnabled.check();await queueEnabled.check();
  await page.getByRole('button',{name:'保存自动化设置'}).click();await page.getByText('自动化设置已保存。',{exact:true}).waitFor();
  assert.equal(info.autoSkipHonor,true);assert.equal(info.autoReturnEnabled,true);assert.equal(info.autoQueueEnabled,true);
+ assert.equal(info.autoAnalysisBrief,true);assert.equal(info.analysisAudience,'self');assert.equal(info.analysisIncludeSelf,false);
+ assert.equal(calls.filter(c=>c==='ConfigureAnalysisBrief').length,1,'same save preserves all three card drafts');
  const acceptCalls=calls.filter(c=>c==='ConfigureAutoAccept').length,postCalls=calls.filter(c=>c==='ConfigurePostGame').length;
  await page.getByRole('button',{name:'停用全部自动化',exact:true}).click();
  await page.getByText('全部自动化已停用。',{exact:true}).waitFor();
  assert.equal(calls.filter(c=>c==='ConfigureAutoAccept').length,acceptCalls+1,'stop-all disables ready check');
  assert.equal(calls.filter(c=>c==='ConfigurePostGame').length,postCalls+1,'stop-all disables post-game automation');
  assert.equal(info.autoAcceptEnabled,false);assert.equal(info.autoSkipHonor,false);assert.equal(info.autoReturnEnabled,false);assert.equal(info.autoQueueEnabled,false);
+ assert.equal(info.autoAnalysisBrief,false);assert.equal(await briefEnabled.isChecked(),false,'stop-all also disables chat');
  assert.equal(await toggle.isChecked(),false);assert.equal(await skipHonor.isChecked(),false);assert.equal(await returnEnabled.isChecked(),false);assert.equal(await queueEnabled.isChecked(),false);
  await emit();
  await page.locator('.automation-chip').waitFor({state:'detached'});
  if(process.env.UI_SCREENSHOT_PREFIX)await page.screenshot({path:process.env.UI_SCREENSHOT_PREFIX+'-automation.png'});
- assert.deepEqual(errors,[]);console.log('PASS: automation page opt-in/boundaries, atomic two-card save, one-click stop-all, chip instead of banners, failure rollback, cross-window countdown/skip, settings link and 880/280 geometry (synthetic bridge).');
+ assert.deepEqual(errors,[]);console.log('PASS: automation opt-in, read-only analysis preview, three-card draft save/stop-all, chip, failure rollback, cross-window countdown and 880/280 geometry (synthetic bridge; no real chat).');
  }finally{await browser.close();}
 })().catch(err=>{console.error(err);process.exitCode=1});

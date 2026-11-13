@@ -7,6 +7,7 @@ export {
 } from "./models.js";
 
 export type {
+    AnalysisBriefState,
     ArenaResult,
     ArenaStats,
     ChampionMastery,
@@ -17,11 +18,14 @@ export type {
     Match,
     MatchDetail,
     MatchPeer,
+    MatchPerformance,
     MatchPlayer,
     MatchReview,
     MatchTeam,
     MatchTimeline,
     Participant,
+    PerformanceMetric,
+    PlayerAnalysis,
     Profile,
     Rank,
     ScoutChampion,

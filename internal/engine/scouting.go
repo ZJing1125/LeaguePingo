@@ -91,7 +91,7 @@ func (e *Engine) syncScoutingLocked() {
 	}
 	e.snapshot.ScoutQueue = e.scouting.queueFor(e.scoutModeLocked())
 	parent := e.initialMatch.parentContext()
-	if parent == nil || parent.Err() != nil || (!preparationStage(snapshotStage(e.snapshot.Stage)) && !activeMatch(snapshotPhase(e.snapshot.Phase))) || snapshotPhase(e.snapshot.Phase) == PhaseGameStart || e.phaseHint != PhaseUnknown && stageForPhase(e.phaseHint) != snapshotStage(e.snapshot.Stage) {
+	if parent == nil || parent.Err() != nil || (!preparationStage(snapshotStage(e.snapshot.Stage)) && !activeMatch(snapshotPhase(e.snapshot.Phase))) || e.phaseHint != PhaseUnknown && stageForPhase(e.phaseHint) != snapshotStage(e.snapshot.Stage) {
 		if e.scouting.hasTask() {
 			e.stopScoutingLocked()
 		}

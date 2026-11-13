@@ -1,3 +1,4 @@
+import { applyAnalysisBrief } from "../analysisBriefState";
 import { computed, ref } from "vue";
 import type { Snapshot as SnapshotModel } from "../../bindings/leaguepingo/internal/core/models";
 
@@ -14,6 +15,7 @@ export function useLeagueSnapshot() {
     )
       return false;
     snapshot.value = next;
+    applyAnalysisBrief(next.analysisBrief);
     return true;
   }
   const canRefresh = computed(
@@ -42,8 +44,8 @@ export function useLeagueSnapshot() {
       Matchmaking: "正在排队",
       ReadyCheck: "确认对局",
       ChampSelect: "选人 · 准备资料",
-      GameStart: "对局载入 · 自动预取暂停",
-      InProgress: "对局中 · 自动预取暂停",
+      GameStart: "对局载入 · 准备玩家分析",
+      InProgress: "对局中 · 玩家分析",
       Reconnect: "重连中",
       WatchInProgress: "观战中",
       WaitingForStats: "等待结算",

@@ -31,5 +31,5 @@ export function scoutStats(player: Participant, queue = 420) {
   const tags: { label: string; title: string; tone: string; heroId?: number }[] = [];
   if (hero?.games != null && report?.season) tags.push({ label: `${report.complete ? '本季全模式' : '本季已读'} ${hero.games} 场`, title: `${report.season.name} · 本英雄全部模式${report.complete ? '' : '已读取范围'}；不受战绩列表筛选影响`, tone: "accent" });
   if (hero?.mastery) tags.push({ label: `熟练度 ${hero.mastery.level} 级`, title: `全部模式英雄熟练度 ${hero.mastery.points.toLocaleString()} 分；熟练度不换算为场次`, tone: "positive" });
-  return { report, mode, hero, champion, periods, role, ranked, arena: !!(definition && 'arena' in definition && definition.arena), roles: !!definition?.roles, heroComplete: ranked ? !!report?.complete : !!report?.complete30, overall: mode?.month ?? empty, tags: tags.slice(0, 3), queueLabel: rankedMode(queue) };
+  return { report, mode, analysis: mode?.analysis, hero, champion, periods, role, ranked, arena: !!(definition && 'arena' in definition && definition.arena), roles: !!definition?.roles, heroComplete: ranked ? !!report?.complete : !!report?.complete30, overall: mode?.month ?? empty, tags: tags.slice(0, 3), queueLabel: rankedMode(queue) };
 }

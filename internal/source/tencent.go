@@ -17,6 +17,7 @@ import (
 )
 
 type TencentLCU struct {
+	selectChat  string // transient selection identity; never exported or logged
 	client      *lcu.Client
 	selfMu      sync.Mutex
 	selfPUUID   string
@@ -38,6 +39,7 @@ func (s *TencentLCU) ResetIdentity() {
 	s.queueID.Store(0)
 	s.metaMu.Lock()
 	s.meta = SessionMetadata{}
+	s.selectChat = ""
 	s.metaMu.Unlock()
 	s.selfMu.Lock()
 	s.selfPUUID = ""
@@ -106,7 +108,19 @@ func (s *TencentLCU) ChampSelectRoster(ctx context.Context) (int64, []core.Parti
 		return 0, nil, err
 	}
 	var queue struct {
-		QueueID int `json:"queueId"`
+		QueueID int             `json:"queueId"`
+		Chat    json.RawMessage `json:"chatDetails"`
+	}
+	if json.Unmarshal(raw, &queue) == nil {
+		var chat struct {
+			ID json.RawMessage `json:"multiUserChatId"`
+		}
+		_ = json.Unmarshal(queue.Chat, &chat)
+		var id string
+		_ = json.Unmarshal(chat.ID, &id)
+		s.metaMu.Lock()
+		s.selectChat = id
+		s.metaMu.Unlock()
 	}
 	if json.Unmarshal(raw, &queue) == nil && queue.QueueID > 0 {
 		s.queueID.Store(int32(queue.QueueID))

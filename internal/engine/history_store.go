@@ -215,6 +215,11 @@ func sanitizeHistoryPage(page core.HistoryPage) core.HistoryPage {
 	}
 	page.Matches = append([]core.Match(nil), page.Matches...)
 	for i := range page.Matches {
+		if performance := page.Matches[i].Performance; performance != nil {
+			value := *performance
+			value.Metrics = append([]core.PerformanceMetric(nil), performance.Metrics...)
+			page.Matches[i].Performance = &value
+		}
 		if arena := page.Matches[i].Arena; arena != nil {
 			value := *arena
 			if arena.TeamCount != nil {

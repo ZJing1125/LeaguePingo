@@ -7,7 +7,7 @@ import (
 
 // Scouting is independent of the recent-history list and its browsing filters.
 // Reports are immutable after publication. Partial ranges never imply zero games.
-const ScoutStatsVersion = 2
+const ScoutStatsVersion = 3
 
 type ScoutSeason struct {
 	Name  string    `json:"name"`
@@ -42,6 +42,7 @@ type ScoutCoverage struct {
 }
 
 type ScoutQueue struct {
+	Analysis  *PlayerAnalysis `json:"analysis,omitempty"`
 	Coverage  *ScoutCoverage  `json:"coverage,omitempty"`
 	QueueID   int             `json:"queueId"`
 	Season    Stats           `json:"season"`
@@ -116,7 +117,7 @@ func BuildScoutReport(matches []Match, masteries []ChampionMastery, season *Scou
 		r.Champions = append(r.Champions, buildScoutChampion(id, seasonByHero[id], recentByHero[id], masteryByID, r.Complete, cutoff))
 	}
 	for _, mode := range scoutModes {
-		q := buildScoutQueue(mode, seasonal, valid, cutoff)
+		q := buildScoutQueue(mode, seasonal, valid, cutoff, r.Complete30)
 		q.Coverage = &ScoutCoverage{FetchedAt: cutoff, Complete: r.Complete, Complete12: r.Complete12, Complete30: r.Complete30}
 		r.Queues = append(r.Queues, q)
 	}
@@ -178,7 +179,7 @@ func valueOrZero(value *int) int {
 	return *value
 }
 
-func buildScoutQueue(mode ScoutMode, seasonal, valid []Match, cutoff time.Time) ScoutQueue {
+func buildScoutQueue(mode ScoutMode, seasonal, valid []Match, cutoff time.Time, complete bool) ScoutQueue {
 	q := mode.QueueID
 	s, tw, month := []Match{}, []Match{}, []Match{}
 	positions := map[string]int{}
@@ -214,7 +215,7 @@ func buildScoutQueue(mode ScoutMode, seasonal, valid []Match, cutoff time.Time) 
 			p = append(p, ScoutPosition{Position: role, Games: positions[role]})
 		}
 	}
-	return ScoutQueue{QueueID: q, Season: CalculateStats(s), Twelve: CalculateStats(tw), Month: CalculateStats(month), Positions: p}
+	return ScoutQueue{QueueID: q, Analysis: BuildPlayerAnalysis(month, q, cutoff, complete), Season: CalculateStats(s), Twelve: CalculateStats(tw), Month: CalculateStats(month), Positions: p}
 }
 
 // Index once per page publication, avoiding a full-history scan per hero/mode.

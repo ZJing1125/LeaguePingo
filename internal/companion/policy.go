@@ -13,7 +13,8 @@ const PreviewDuration = 6 * time.Second
 const EntryWindow = 45 * time.Second
 
 // InGame includes the loading screen. Window/shortcut eligibility is separate
-// from the engine's InProgress-only player-data preparation budget.
+// from the InProgress-only recent-history preparation budget; independent
+// player analysis may prepare during loading within its existing scout budget.
 func InGame(s core.Snapshot) bool {
 	return s.Connected && (s.Phase == "GameStart" || s.Phase == "InProgress")
 }

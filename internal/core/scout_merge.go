@@ -44,6 +44,9 @@ func MergeScoutReports(old *ScoutReport, next ScoutReport) ScoutReport {
 }
 
 func scoutQueueImproved(old, next ScoutQueue) bool {
+	if next.Analysis != nil && (old.Analysis == nil && next.Analysis.ScoredGames > 0 || old.Analysis != nil && (next.Analysis.ScoredGames > old.Analysis.ScoredGames || next.Analysis.ComparedGames > old.Analysis.ComparedGames)) {
+		return true
+	}
 	if next.Month.Arena != nil {
 		previous := ArenaStats{}
 		if old.Month.Arena != nil {

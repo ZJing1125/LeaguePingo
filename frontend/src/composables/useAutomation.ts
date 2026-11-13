@@ -6,7 +6,11 @@ import { Events } from "@wailsio/runtime";
 import * as Service from "../../bindings/leaguepingo/appservice";
 import type { State as ReadyState } from "../../bindings/leaguepingo/internal/readycheck/models";
 import type { State as PostState } from "../../bindings/leaguepingo/internal/postgame/models";
+import { uiText } from "../uiText";
 import { errorMessage } from "../presentation";
+
+import { brief, applyBriefConfiguration } from "../analysisBriefState";
+export { applyBriefConfiguration } from "../analysisBriefState";
 
 // Statuses worth a visible line: something is counting down, working, or needs
 // the player's attention. Terminal successes stay in the automation page only.
@@ -56,14 +60,16 @@ export function useAutomation() {
 
   const acceptEnabled = computed(() => !!accept.value?.enabled);
   const postEnabled = computed(() => !!(post.value?.returnEnabled || post.value?.queueEnabled || post.value?.skipHonor));
-  const activeCount = computed(() => Number(acceptEnabled.value) + Number(postEnabled.value));
+  const activeCount = computed(() => Number(acceptEnabled.value) + Number(postEnabled.value) + Number(!!brief.value?.enabled));
   const acceptVisible = computed(() => acceptEnabled.value && acceptVisibleStatuses.includes(accept.value!.status));
   const postVisible = computed(() => postEnabled.value && postVisibleStatuses.includes(post.value!.status));
   const warning = computed(() =>
+    ["uncertain", "unsupported"].includes(brief.value?.status ?? "") ||
     ["failed", "unsupported"].includes(accept.value?.status ?? "") ||
     ["failed", "timeout", "honor-unavailable", "honor-unconfirmed", "honor-mismatch", "continue-unavailable", "continue-unconfirmed"].includes(post.value?.status ?? ""),
   );
 
+  const briefText = computed(() => uiText.analysisBrief.state[brief.value?.status as keyof typeof uiText.analysisBrief.state] ?? uiText.analysisBrief.state.idle);
   const acceptText = computed(() => {
     const s = accept.value;
     if (!s) return "";
@@ -142,7 +148,7 @@ export function useAutomation() {
   });
 
   return {
-    accept, post, error, busy,
+    accept, post, brief, briefText, error, busy,
     acceptEnabled, postEnabled, activeCount, warning,
     acceptVisible, postVisible, acceptText, postText,
     skipAccept, cancelPost, refresh,

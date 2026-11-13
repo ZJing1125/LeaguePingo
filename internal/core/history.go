@@ -63,6 +63,8 @@ type historyParticipant struct {
 		Role string `json:"role"`
 	} `json:"timeline"`
 	Stats struct {
+		Healing       *int  `json:"totalHeal"`
+		Shielding     *int  `json:"totalDamageShieldedOnTeammates"`
 		SubteamID     *int  `json:"playerSubteamId"`
 		Placement     *int  `json:"subteamPlacement"`
 		ParticipantID int   `json:"participantId"`
@@ -206,8 +208,9 @@ func matchSummary(game historyGame, p historyParticipant, now time.Time) Match {
 		}
 	}
 	return Match{
-		Arena:  arenaResult(game, p),
-		GameID: game.GameID, QueueID: game.QueueID, ChampionID: champion, PlayedAt: playedAt,
+		Performance: matchPerformance(game, p),
+		Arena:       arenaResult(game, p),
+		GameID:      game.GameID, QueueID: game.QueueID, ChampionID: champion, PlayedAt: playedAt,
 		Win: p.Stats.Win, Kills: nonNegative(p.Stats.Kills), Deaths: nonNegative(p.Stats.Deaths), Assists: nonNegative(p.Stats.Assists),
 		Duration: nonNegative(game.Duration), Gold: nonNegative(p.Stats.Gold), Damage: nonNegative(p.Stats.Damage), CS: cs,
 		Spell1: nonNegative(p.Spell1), Spell2: nonNegative(p.Spell2),

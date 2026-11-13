@@ -176,7 +176,8 @@ func (c *Client) request(ctx context.Context, method, path string, body []byte) 
 	}
 	defer response.Body.Close()
 	status = response.StatusCode
-	if response.StatusCode != http.StatusOK && !(method == http.MethodPost && (path == readyCheckPath+"/accept" || path == playAgainPath || path == startSearchPath || path == submitHonorBallotPath || path == continuePostGamePath) && response.StatusCode == http.StatusNoContent) {
+	acceptedChat := method == http.MethodPost && chatMessagePath(path) && (response.StatusCode == http.StatusCreated || response.StatusCode == http.StatusNoContent)
+	if response.StatusCode != http.StatusOK && !acceptedChat && !(method == http.MethodPost && (path == readyCheckPath+"/accept" || path == playAgainPath || path == startSearchPath || path == submitHonorBallotPath || path == continuePostGamePath) && response.StatusCode == http.StatusNoContent) {
 		return nil, apperrors.HTTP(apperrors.LocalClient, response.StatusCode)
 	}
 	data, err = io.ReadAll(io.LimitReader(response.Body, 8<<20))

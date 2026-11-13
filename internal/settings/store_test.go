@@ -134,6 +134,22 @@ func TestAutoAcceptDefaultsAndRoundtrip(t *testing.T) {
 	}
 }
 
+func TestAnalysisBriefDefaultsAndPersistence(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	s, err := Open(path)
+	if err != nil || s.Snapshot().AutoAnalysisBrief || s.Snapshot().AnalysisAudience != "team" || !s.Snapshot().AnalysisIncludeSelf {
+		t.Fatal("unsafe or incomplete brief defaults")
+	}
+	s.SetAnalysisBrief(true, "self", false)
+	if s.Save() != nil {
+		t.Fatal("save brief config")
+	}
+	loaded, err := Open(path)
+	if err != nil || !loaded.Snapshot().AutoAnalysisBrief || loaded.Snapshot().AnalysisAudience != "self" || loaded.Snapshot().AnalysisIncludeSelf {
+		t.Fatal("brief options lost")
+	}
+}
+
 func TestPostGameDefaultsAndPersistence(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 	s, _ := Open(path)

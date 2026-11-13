@@ -21,23 +21,26 @@ type Rect struct {
 	Height int `json:"height"`
 }
 type Config struct {
-	AutoSkipHonor     bool   `json:"autoSkipHonor"`
-	AutoReturnEnabled bool   `json:"autoReturnEnabled"`
-	AutoQueueEnabled  bool   `json:"autoQueueEnabled"`
-	AutoQueueDelay    int    `json:"autoQueueDelay"`
-	AutoAcceptEnabled bool   `json:"autoAcceptEnabled"`
-	AutoAcceptDelay   int    `json:"autoAcceptDelay"`
-	Schema            int    `json:"schema"`
-	Shortcut          string `json:"shortcut"`
-	Pinned            bool   `json:"pinned"`
-	HoldEnabled       bool   `json:"holdEnabled"`
-	HoldKey           string `json:"holdKey"`
-	Main              Rect   `json:"main"`
-	Overlay           Rect   `json:"overlay"`
-	SidebarEnabled    bool   `json:"sidebarEnabled"`
-	PreviewEnabled    bool   `json:"previewEnabled"`
-	SidebarWidth      int    `json:"sidebarWidth"`
-	GuidesEnabled     bool   `json:"guidesEnabled"`
+	AutoAnalysisBrief   bool   `json:"autoAnalysisBrief"`
+	AnalysisAudience    string `json:"analysisAudience"`
+	AnalysisIncludeSelf bool   `json:"analysisIncludeSelf"`
+	AutoSkipHonor       bool   `json:"autoSkipHonor"`
+	AutoReturnEnabled   bool   `json:"autoReturnEnabled"`
+	AutoQueueEnabled    bool   `json:"autoQueueEnabled"`
+	AutoQueueDelay      int    `json:"autoQueueDelay"`
+	AutoAcceptEnabled   bool   `json:"autoAcceptEnabled"`
+	AutoAcceptDelay     int    `json:"autoAcceptDelay"`
+	Schema              int    `json:"schema"`
+	Shortcut            string `json:"shortcut"`
+	Pinned              bool   `json:"pinned"`
+	HoldEnabled         bool   `json:"holdEnabled"`
+	HoldKey             string `json:"holdKey"`
+	Main                Rect   `json:"main"`
+	Overlay             Rect   `json:"overlay"`
+	SidebarEnabled      bool   `json:"sidebarEnabled"`
+	PreviewEnabled      bool   `json:"previewEnabled"`
+	SidebarWidth        int    `json:"sidebarWidth"`
+	GuidesEnabled       bool   `json:"guidesEnabled"`
 }
 type Store struct {
 	mu     sync.Mutex
@@ -46,7 +49,7 @@ type Store struct {
 }
 
 func Default() Config {
-	return Config{Schema: 1, AutoQueueDelay: 10, AutoAcceptDelay: 1, Shortcut: "Ctrl+Shift+P", Pinned: true, HoldEnabled: true, HoldKey: "Backquote", SidebarEnabled: true, PreviewEnabled: true, SidebarWidth: 320, GuidesEnabled: true, Main: Rect{Width: 1280, Height: 800}, Overlay: Rect{Width: 1100, Height: 640}}
+	return Config{AnalysisAudience: "team", AnalysisIncludeSelf: true, Schema: 1, AutoQueueDelay: 10, AutoAcceptDelay: 1, Shortcut: "Ctrl+Shift+P", Pinned: true, HoldEnabled: true, HoldKey: "Backquote", SidebarEnabled: true, PreviewEnabled: true, SidebarWidth: 320, GuidesEnabled: true, Main: Rect{Width: 1280, Height: 800}, Overlay: Rect{Width: 1100, Height: 640}}
 }
 func Open(path string) (*Store, error) {
 	s := &Store{path: path, config: Default()}
@@ -68,6 +71,9 @@ func Open(path string) (*Store, error) {
 	if !readycheck.ValidDelay(c.AutoAcceptDelay) {
 		c.AutoAcceptDelay = 1
 		c.AutoAcceptEnabled = false
+	}
+	if c.AnalysisAudience != "team" && c.AnalysisAudience != "self" {
+		c.AutoAnalysisBrief, c.AnalysisAudience = false, "team"
 	}
 	if !postgame.ValidDelay(c.AutoQueueDelay) {
 		c.AutoQueueDelay = 10
@@ -187,4 +193,10 @@ func (s *Store) SetSkipHonor(enabled bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.config.AutoSkipHonor = enabled
+}
+
+func (s *Store) SetAnalysisBrief(enabled bool, audience string, self bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.config.AutoAnalysisBrief, s.config.AnalysisAudience, s.config.AnalysisIncludeSelf = enabled, audience, self
 }

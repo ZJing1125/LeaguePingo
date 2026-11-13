@@ -6,6 +6,9 @@
 import * as diagnostics$0 from "./internal/diagnostics/models.js";
 
 export interface AppInfo {
+    "autoAnalysisBrief": boolean;
+    "analysisAudience": string;
+    "analysisIncludeSelf": boolean;
     "autoSkipHonor": boolean;
     "autoReturnEnabled": boolean;
     "autoQueueEnabled": boolean;

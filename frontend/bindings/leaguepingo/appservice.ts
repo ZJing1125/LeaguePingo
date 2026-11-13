@@ -39,6 +39,10 @@ export function CancelPostGame(): $CancellablePromise<postgame$0.State> {
     return $Call.ByID(2530344064);
 }
 
+export function ConfigureAnalysisBrief(enabled: boolean, audience: string, includeSelf: boolean): $CancellablePromise<$models.AppInfo> {
+    return $Call.ByID(3655483416, enabled, audience, includeSelf);
+}
+
 export function ConfigureAutoAccept(enabled: boolean, delay: number): $CancellablePromise<$models.AppInfo> {
     return $Call.ByID(2458339489, enabled, delay);
 }
@@ -125,6 +129,10 @@ export function OverlayStatus(): $CancellablePromise<$models.OverlayState> {
 
 export function PostGameStatus(): $CancellablePromise<postgame$0.State> {
     return $Call.ByID(4282913048);
+}
+
+export function PreviewAnalysisBrief(): $CancellablePromise<string> {
+    return $Call.ByID(1275302532);
 }
 
 export function PrioritizePlayer(key: string): $CancellablePromise<void> {

@@ -187,3 +187,32 @@ func TestSkipHonorSaveAppliesIndependentlyAndRollsBack(t *testing.T) {
 		t.Fatal("failed save enabled skip")
 	}
 }
+
+func TestAnalysisBriefPreferenceValidationAndSaveRollback(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := settings.Open(filepath.Join(dir, "settings.json"))
+	e := engine.New(nil, nil)
+	s := &AppService{settings: store, engine: e}
+	info, err := s.ConfigureAnalysisBrief(true, "self", false)
+	if err != nil || !info.AutoAnalysisBrief || info.AnalysisAudience != "self" || info.AnalysisIncludeSelf {
+		t.Fatal("independent analysis preference not applied", err)
+	}
+	if state := e.Snapshot().AnalysisBrief; state == nil || !state.Enabled || state.Audience != "self" || state.IncludeSelf {
+		t.Fatal("engine preference differs from saved settings")
+	}
+	if _, err := s.ConfigureAnalysisBrief(true, "other", true); err == nil {
+		t.Fatal("arbitrary audience accepted")
+	}
+	blocker := filepath.Join(dir, "file")
+	if err := os.WriteFile(blocker, []byte("file"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	broken, _ := settings.Open(filepath.Join(blocker, "settings.json"))
+	s.settings = broken
+	if _, err := s.ConfigureAnalysisBrief(true, "team", true); err == nil {
+		t.Fatal("save failure hidden")
+	}
+	if broken.Snapshot().AutoAnalysisBrief || e.Snapshot().AnalysisBrief.Audience != "self" {
+		t.Fatal("failed save changed settings or running audience")
+	}
+}

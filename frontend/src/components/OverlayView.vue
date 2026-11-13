@@ -39,7 +39,7 @@ defineEmits<{ hide: []; pin: [] }>();
     <header class="overlay-head">
       <div class="overlay-title">
         <BrandIcon />
-        <div><strong>LeaguePingo</strong><small>{{ uiText.overlayView.title }}</small></div>
+        <div><h1>LeaguePingo</h1><small>{{ uiText.overlayView.title }}</small></div>
       </div>
       <div v-if="!['hold','preview'].includes(state?.mode || '')" class="overlay-controls">
         <button class="guide-switch" v-if="hasGuide" :aria-pressed="displayGuide" @click="guideOpen=!guideOpen">{{displayGuide?uiText.overlayView.players:uiText.clientSidebar.guide}}</button>
@@ -154,8 +154,11 @@ defineEmits<{ hide: []; pin: [] }>();
   align-items: center;
   gap: 10px;
 }
-:where(.overlay-title):is(.overlay-title) :deep(strong) {
+:where(.overlay-title):is(.overlay-title) :deep(h1) {
+  display: inline;
+  margin: 0;
   font-size: 13px;
+  font-weight: 700;
 }
 :where(.overlay-title):is(.overlay-title) :deep(small) {
   display: block;
@@ -314,7 +317,7 @@ defineEmits<{ hide: []; pin: [] }>();
 :where(.overlay-groups):is(.overlay-shell .overlay-groups) { gap: 8px; margin-top: 0; }
 :where(main.overlay-shell):is(main.overlay-shell) { padding-block: 8px; }
 :where(.overlay-head):is(.overlay-shell .overlay-head) { min-height: 34px; padding-bottom: 2px; }
-:where(.overlay-title):is(.overlay-shell .overlay-title) :deep(strong) { font-size: 16px; line-height: 18px; }
+:where(.overlay-title):is(.overlay-shell .overlay-title) :deep(h1) { font-size: 16px; line-height: 18px; }
 :where(.overlay-title):is(.overlay-shell .overlay-title) :deep(small) { line-height: 11px; margin-top: 2px; }
 :where(.overlay-shell):is(.overlay-shell) :deep(.overlay-readiness) { padding-block: 2px; font-size: 11px; line-height: 12px; }
 :where(.overlay-content):is(.overlay-shell .overlay-content) { gap: 2px; }
@@ -381,7 +384,7 @@ defineEmits<{ hide: []; pin: [] }>();
   padding: 0 0 10px;
   min-height: 42px;
 }
-:where(.overlay-title):is(.overlay-title) :deep(strong) {
+:where(.overlay-title):is(.overlay-title) :deep(h1) {
   font-size: 17px;
 }
 :where(.overlay-title):is(.overlay-title) :deep(small) {
@@ -523,7 +526,7 @@ defineEmits<{ hide: []; pin: [] }>();
   }
 }
 @media (max-width: 680px) {
-  :where(.overlay-title):is(.overlay-title) :deep(strong) {
+  :where(.overlay-title):is(.overlay-title) :deep(h1) {
     font-size: 15px;
   }
 }

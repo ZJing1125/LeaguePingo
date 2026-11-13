@@ -118,7 +118,10 @@ async function verifyKeyboardAccess(page, player, calls, capture = async () => {
     const automation = page.getByRole('region', {name: '游戏辅助', exact: true});
     await tabTo(automation.getByRole('checkbox', {name: '启用自动接受对局', exact: true}));
     await visibleFocus(automation.getByRole('checkbox', {name: '启用自动接受对局', exact: true}));
-    for (const checkbox of await automation.getByRole('checkbox').all()) assert.equal(await checkbox.isChecked(), false, 'navigation enabled automation');
+    for (const name of ['启用自动接受对局','自动跳过点赞','赛后自动返回房间','返回后自动排队','选人阶段自动发送玩家分析']) {
+      assert.equal(await automation.getByRole('checkbox',{name,exact:true}).isChecked(), false, 'navigation enabled automation');
+    }
+    assert.equal(await automation.getByRole('checkbox',{name:'包含自己',exact:true}).isChecked(),true,'report inclusion default changed');
     await tabTo(nav.getByRole('button', {name: '首页', exact: true})); await page.keyboard.press('Enter');
     assert.equal(await home.locator('.secondary').first().evaluate(element => getComputedStyle(element).transitionDuration), '0s', 'reduced motion was lost');
   }

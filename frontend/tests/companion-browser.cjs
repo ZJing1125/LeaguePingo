@@ -144,9 +144,12 @@ async function main(){
   await side.locator('.overlay-player').nth(9).waitFor();
   await side.getByText(/载入快览 · 6 秒后收起/).waitFor();
   await rankFits(side);
+  assert.equal(await side.locator('.overlay-player .player-rating b').count(),10,'loading must show both teams grades');
+  assert.equal(await side.locator('.overlay-player .player-rating').first().getAttribute('title').then(t=>t.includes('B') && t.includes('6.4')),true);
   await shot(side,'loading-preview');
   snapshot={...snapshot,phase:'InProgress'};await publish();
   await side.getByText(/开局快览 · 6 秒后收起/).waitFor();
+  assert.equal(await side.locator('.overlay-player .player-rating b').count(),10,'in-game lost prepared grades');
 
   const readOnlyCalls=calls.length;
   for(const index of [8,9])snapshot.participants[index]={...snapshot.participants[index],displayName:'玩家名称暂不可用',historyState:'loading',history:[],scout:{...snapshot.participants[index].scout,state:'loading',read:0,complete:false,complete12:false,complete30:false,champions:[],queues:[]}};await publish();
@@ -196,6 +199,7 @@ async function main(){
   for(const [phase,stage,count] of [['Lobby','party',2],['ChampSelect','preparing',5],['GameStart','in-game',10],['InProgress','in-game',10]]){
    snapshot={...snapshot,phase,stage,participants:structuredClone(players)};if(phase==='Lobby')snapshot.participants=players.slice(0,2);await publish();
    assert.equal(await current.locator('.player-row').count(),count,phase+' used finished review or exposed opponents before loading');
+   if(count===10)assert.equal(await current.locator('.player-rating b').count(),10,phase+' missed both teams grades');
    if(count<10)assert.equal(await current.getByRole('region',{name:'对方',exact:true}).count(),0);
   }
   snapshot={...snapshot,participants:[]};await publish();await current.getByText('等待当前名单',{exact:true}).waitFor();

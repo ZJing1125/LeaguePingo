@@ -116,6 +116,7 @@ func (r *desktopApplication) connectServices() {
 	cfg := store.Snapshot()
 	_ = r.backend.engine.ConfigurePostGame(cfg.AutoReturnEnabled, cfg.AutoQueueEnabled, cfg.AutoQueueDelay, cfg.AutoSkipHonor)
 	_ = r.backend.engine.ConfigureAutoAccept(cfg.AutoAcceptEnabled, cfg.AutoAcceptDelay)
+	_ = r.backend.engine.ConfigureAnalysisBrief(cfg.AutoAnalysisBrief, cfg.AnalysisAudience, cfg.AnalysisIncludeSelf)
 	go r.forwardAutomation()
 	go r.forwardPlayers()
 }

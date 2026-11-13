@@ -20,34 +20,37 @@ var BuildTime = "unrecorded"
 var UpdateManifestURL = "https://raw.githubusercontent.com/ZJing1125/LeaguePingo/main/update.json"
 
 type AppInfo struct {
-	AutoSkipHonor     bool                          `json:"autoSkipHonor"`
-	AutoReturnEnabled bool                          `json:"autoReturnEnabled"`
-	AutoQueueEnabled  bool                          `json:"autoQueueEnabled"`
-	AutoQueueDelay    int                           `json:"autoQueueDelay"`
-	AutoAcceptEnabled bool                          `json:"autoAcceptEnabled"`
-	AutoAcceptDelay   int                           `json:"autoAcceptDelay"`
-	Version           string                        `json:"version"`
-	Commit            string                        `json:"commit"`
-	BuildTime         string                        `json:"buildTime"`
-	Shortcut          string                        `json:"shortcut"`
-	HoldEnabled       bool                          `json:"holdEnabled"`
-	HoldKey           string                        `json:"holdKey"`
-	SidebarEnabled    bool                          `json:"sidebarEnabled"`
-	PreviewEnabled    bool                          `json:"previewEnabled"`
-	SidebarWidth      int                           `json:"sidebarWidth"`
-	GuidesEnabled     bool                          `json:"guidesEnabled"`
-	SettingsWarning   string                        `json:"settingsWarning"`
-	GoHeapBytes       uint64                        `json:"goHeapBytes"`
-	Goroutines        int                           `json:"goroutines"`
-	Requests          map[string]diagnostics.Metric `json:"requests"`
-	PerformanceScope  string                        `json:"performanceScope"`
+	AutoAnalysisBrief   bool                          `json:"autoAnalysisBrief"`
+	AnalysisAudience    string                        `json:"analysisAudience"`
+	AnalysisIncludeSelf bool                          `json:"analysisIncludeSelf"`
+	AutoSkipHonor       bool                          `json:"autoSkipHonor"`
+	AutoReturnEnabled   bool                          `json:"autoReturnEnabled"`
+	AutoQueueEnabled    bool                          `json:"autoQueueEnabled"`
+	AutoQueueDelay      int                           `json:"autoQueueDelay"`
+	AutoAcceptEnabled   bool                          `json:"autoAcceptEnabled"`
+	AutoAcceptDelay     int                           `json:"autoAcceptDelay"`
+	Version             string                        `json:"version"`
+	Commit              string                        `json:"commit"`
+	BuildTime           string                        `json:"buildTime"`
+	Shortcut            string                        `json:"shortcut"`
+	HoldEnabled         bool                          `json:"holdEnabled"`
+	HoldKey             string                        `json:"holdKey"`
+	SidebarEnabled      bool                          `json:"sidebarEnabled"`
+	PreviewEnabled      bool                          `json:"previewEnabled"`
+	SidebarWidth        int                           `json:"sidebarWidth"`
+	GuidesEnabled       bool                          `json:"guidesEnabled"`
+	SettingsWarning     string                        `json:"settingsWarning"`
+	GoHeapBytes         uint64                        `json:"goHeapBytes"`
+	Goroutines          int                           `json:"goroutines"`
+	Requests            map[string]diagnostics.Metric `json:"requests"`
+	PerformanceScope    string                        `json:"performanceScope"`
 }
 
 func (s *AppService) Info() AppInfo {
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
 	cfg := s.settings.Snapshot()
-	return AppInfo{AutoSkipHonor: cfg.AutoSkipHonor, AutoReturnEnabled: cfg.AutoReturnEnabled, AutoQueueEnabled: cfg.AutoQueueEnabled, AutoQueueDelay: cfg.AutoQueueDelay, AutoAcceptEnabled: cfg.AutoAcceptEnabled, AutoAcceptDelay: cfg.AutoAcceptDelay, Version: Version, Commit: Commit, BuildTime: BuildTime, Shortcut: cfg.Shortcut, HoldEnabled: cfg.HoldEnabled, HoldKey: cfg.HoldKey, SidebarEnabled: cfg.SidebarEnabled, PreviewEnabled: cfg.PreviewEnabled, SidebarWidth: cfg.SidebarWidth, GuidesEnabled: cfg.GuidesEnabled, SettingsWarning: s.settingsWarning,
+	return AppInfo{AutoAnalysisBrief: cfg.AutoAnalysisBrief, AnalysisAudience: cfg.AnalysisAudience, AnalysisIncludeSelf: cfg.AnalysisIncludeSelf, AutoSkipHonor: cfg.AutoSkipHonor, AutoReturnEnabled: cfg.AutoReturnEnabled, AutoQueueEnabled: cfg.AutoQueueEnabled, AutoQueueDelay: cfg.AutoQueueDelay, AutoAcceptEnabled: cfg.AutoAcceptEnabled, AutoAcceptDelay: cfg.AutoAcceptDelay, Version: Version, Commit: Commit, BuildTime: BuildTime, Shortcut: cfg.Shortcut, HoldEnabled: cfg.HoldEnabled, HoldKey: cfg.HoldKey, SidebarEnabled: cfg.SidebarEnabled, PreviewEnabled: cfg.PreviewEnabled, SidebarWidth: cfg.SidebarWidth, GuidesEnabled: cfg.GuidesEnabled, SettingsWarning: s.settingsWarning,
 		GoHeapBytes: mem.HeapAlloc, Goroutines: runtime.NumGoroutine(), Requests: diagnostics.Default.Snapshot(), PerformanceScope: "仅 Go 堆；不包含 WebView2，不代表总内存、游戏 FPS 或网络延迟"}
 }
 func (s *AppService) ConfigureGuides(enabled bool) (serviceValue AppInfo, serviceErr error) {
@@ -187,3 +190,19 @@ func (s *AppService) CancelPostGame() (serviceValue postgame.State, serviceErr e
 	defer apperrors.Present(&serviceErr)
 	return s.engine.CancelPostGame()
 }
+
+func (s *AppService) ConfigureAnalysisBrief(enabled bool, audience string, includeSelf bool) (serviceValue AppInfo, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
+	if audience != "team" && audience != "self" {
+		return AppInfo{}, apperrors.New(apperrors.InvalidResponse)
+	}
+	old := s.settings.Snapshot()
+	s.settings.SetAnalysisBrief(enabled, audience, includeSelf)
+	if err := s.settings.Save(); err != nil {
+		s.settings.SetAnalysisBrief(old.AutoAnalysisBrief, old.AnalysisAudience, old.AnalysisIncludeSelf)
+		return AppInfo{}, err
+	}
+	_ = s.engine.ConfigureAnalysisBrief(enabled, audience, includeSelf)
+	return s.Info(), nil
+}
+func (s *AppService) PreviewAnalysisBrief() string { return s.engine.PreviewAnalysisBrief() }
