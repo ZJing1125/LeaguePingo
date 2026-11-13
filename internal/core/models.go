@@ -84,40 +84,41 @@ type Rank struct {
 }
 
 type Match struct {
-	GameID        int64       `json:"gameId"`
-	PlayedAt      *time.Time  `json:"playedAt"`
-	QueueID       int         `json:"queueId"`
-	ChampionID    int         `json:"championId"`
-	Win           *bool       `json:"win"`
-	Kills         *int        `json:"kills"`
-	Deaths        *int        `json:"deaths"`
-	Assists       *int        `json:"assists"`
-	Duration      *int        `json:"duration"`
-	Gold          *int        `json:"gold"`
-	Damage        *int        `json:"damage"`
-	CS            *int        `json:"cs"`
-	Items         []*int      `json:"items"`
-	Spell1        *int        `json:"spell1"`
-	Spell2        *int        `json:"spell2"`
-	MapID         *int        `json:"mapId"`
-	Position      string      `json:"position"`
-	Lane          string      `json:"lane"`
-	EarlyEnd      *bool       `json:"earlyEnd"`
-	RuneIDs       []int       `json:"runeIds"`
-	RunePrimary   *int        `json:"runePrimary"`
-	RuneSecondary *int        `json:"runeSecondary"`
-	RuneShards    []int       `json:"runeShards,omitempty"`
-	ChampionLevel *int        `json:"championLevel"`
-	DamageTaken   *int        `json:"damageTaken"`
-	VisionScore   *int        `json:"visionScore"`
-	WardsPlaced   *int        `json:"wardsPlaced"`
-	WardsKilled   *int        `json:"wardsKilled"`
-	ControlWards  *int        `json:"controlWards"`
-	TripleKills   *int        `json:"tripleKills"`
-	QuadraKills   *int        `json:"quadraKills"`
-	PentaKills    *int        `json:"pentaKills"`
-	Participation *float64    `json:"participation"`
-	Roster        []MatchPeer `json:"roster,omitempty"`
+	Arena         *ArenaResult `json:"arena,omitempty"`
+	GameID        int64        `json:"gameId"`
+	PlayedAt      *time.Time   `json:"playedAt"`
+	QueueID       int          `json:"queueId"`
+	ChampionID    int          `json:"championId"`
+	Win           *bool        `json:"win"`
+	Kills         *int         `json:"kills"`
+	Deaths        *int         `json:"deaths"`
+	Assists       *int         `json:"assists"`
+	Duration      *int         `json:"duration"`
+	Gold          *int         `json:"gold"`
+	Damage        *int         `json:"damage"`
+	CS            *int         `json:"cs"`
+	Items         []*int       `json:"items"`
+	Spell1        *int         `json:"spell1"`
+	Spell2        *int         `json:"spell2"`
+	MapID         *int         `json:"mapId"`
+	Position      string       `json:"position"`
+	Lane          string       `json:"lane"`
+	EarlyEnd      *bool        `json:"earlyEnd"`
+	RuneIDs       []int        `json:"runeIds"`
+	RunePrimary   *int         `json:"runePrimary"`
+	RuneSecondary *int         `json:"runeSecondary"`
+	RuneShards    []int        `json:"runeShards,omitempty"`
+	ChampionLevel *int         `json:"championLevel"`
+	DamageTaken   *int         `json:"damageTaken"`
+	VisionScore   *int         `json:"visionScore"`
+	WardsPlaced   *int         `json:"wardsPlaced"`
+	WardsKilled   *int         `json:"wardsKilled"`
+	ControlWards  *int         `json:"controlWards"`
+	TripleKills   *int         `json:"tripleKills"`
+	QuadraKills   *int         `json:"quadraKills"`
+	PentaKills    *int         `json:"pentaKills"`
+	Participation *float64     `json:"participation"`
+	Roster        []MatchPeer  `json:"roster,omitempty"`
 }
 
 // A compact preview from the already returned game; never a per-row lookup.
@@ -133,6 +134,9 @@ type MatchPeer struct {
 // normal early surrender remains a completed loss; a short aborted game stays
 // visible in history but does not contribute to win-rate or KDA statistics.
 func IsRemake(match Match) bool {
+	if IsArenaQueue(match.QueueID) {
+		return false
+	}
 	return match.EarlyEnd != nil && *match.EarlyEnd && match.Duration != nil && *match.Duration >= 0 && *match.Duration <= 5*60
 }
 
@@ -198,14 +202,15 @@ type MatchTeam struct {
 }
 
 type Stats struct {
-	Remakes      int      `json:"remakes,omitempty"`
-	Games        int      `json:"games"`
-	Wins         int      `json:"wins"`
-	Losses       int      `json:"losses"`
-	OutcomeGames int      `json:"outcomeGames"`
-	KDAGames     int      `json:"kdaGames"`
-	WinRate      *float64 `json:"winRate"`
-	KDA          *float64 `json:"kda"`
+	Arena        *ArenaStats `json:"arena,omitempty"`
+	Remakes      int         `json:"remakes,omitempty"`
+	Games        int         `json:"games"`
+	Wins         int         `json:"wins"`
+	Losses       int         `json:"losses"`
+	OutcomeGames int         `json:"outcomeGames"`
+	KDAGames     int         `json:"kdaGames"`
+	WinRate      *float64    `json:"winRate"`
+	KDA          *float64    `json:"kda"`
 }
 
 type Snapshot struct {
@@ -237,6 +242,7 @@ type Snapshot struct {
 // MatchReview is the latest finished match in memory. Participants contain the
 // captured pre-match reports; Result contains only actual post-game statistics.
 type MatchReview struct {
+	ModelVersion int           `json:"modelVersion,omitempty"`
 	ConnectionID uint64        `json:"connectionId"`
 	GameID       int64         `json:"gameId"`
 	Region       string        `json:"region"`
@@ -258,7 +264,7 @@ func CalculateStats(matches []Match) Stats {
 			out.Remakes++
 			continue
 		}
-		if match.Win != nil {
+		if match.Win != nil && !IsArenaQueue(match.QueueID) {
 			out.OutcomeGames++
 			if *match.Win {
 				out.Wins++
@@ -273,6 +279,7 @@ func CalculateStats(matches []Match) Stats {
 			assists += *match.Assists
 		}
 	}
+	out.Arena = CalculateArenaStats(matches)
 	if out.OutcomeGames > 0 {
 		value := float64(out.Wins) * 100 / float64(out.OutcomeGames)
 		out.WinRate = &value

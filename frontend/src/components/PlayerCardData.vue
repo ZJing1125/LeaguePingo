@@ -40,12 +40,16 @@ const shortRank = computed(() => rank.value.rank ? rank.value.label : rank.value
 const roleTitle = computed(() => uiText.playerCardData.roleHint(data.value.queueLabel, data.value.role.known, data.value.overall.games, data.value.role.positions.map(p => uiText.playerCardData.roleCount(roleNames[p.position], p.games)).join('，')));
 function periodCaption(p: ReturnType<typeof scoutStats>["periods"][number]) {
   if (!data.value.report || !p.games && data.value.report.state === "loading") return props.captured ? uiText.common.notRetained : uiText.common.preparing;
+  if (data.value.arena) return uiText.arena.samples(p.arena?.placementGames ?? 0);
   return p.outcomeGames ? uiText.playerCardData.validGames(p.outcomeGames) : p.games ? uiText.playerCardData.readGames(p.games) : p.complete ? uiText.playerCardData.zeroGames : uiText.common.pending;
 }
 function periodDetail(p: ReturnType<typeof scoutStats>["periods"][number]) {
   if (!p.games) return p.complete ? uiText.sidebarPlayer.zeroGames : data.value.report?.state === "loading" || !data.value.report ? "—" : uiText.common.incompleteRange;
+  if (data.value.arena) return p.arena?.averagePlace != null ? uiText.arena.average(decimal(p.arena.averagePlace)) : uiText.arena.pending;
   return p.outcomeGames ? uiText.playerCardData.outcomes(p.wins, p.losses) : uiText.playerCardData.missingOutcome;
 }
+const heroArena = computed(() => data.value.champion.arena);
+const arenaTitle = (p: ReturnType<typeof scoutStats>["periods"][number]) => `${uiText.arena.hint(p.arena?.placementGames ?? 0, p.games)} · ${uiText.arena.topHalf}: ${percent(p.arena?.topHalfRate)} · ${uiText.arena.topHalfHint(p.arena?.topHalfGames ?? 0)}`;
 </script>
 <template>
   <span class="card-details scout-data">
@@ -54,7 +58,8 @@ function periodDetail(p: ReturnType<typeof scoutStats>["periods"][number]) {
         <span class="card-pick"><GameIcon v-if="player.championId" :id="player.championId" :size="32" /><AppIcon v-else name="match" :size="28" /><span><strong :title="hero">{{ hero }}</strong><small :title="heroScope">{{ heroScope }}</small></span></span>
         <span v-if="data.champion.average" class="scout-kda" :title="uiText.playerCardData.championAverage(data.queueLabel, data.champion.kdaGames)"><b>{{ data.champion.average[0]!.toFixed(1) }}</b> / <b>{{ data.champion.average[1]!.toFixed(1) }}</b> / <b>{{ data.champion.average[2]!.toFixed(1) }}</b></span>
         <span v-else class="scout-no-kda" :title="heroStatus">{{ heroStatus }}</span>
-        <small class="scout-hero-rate" :class="{ 'no-sample': !data.champion.outcomeGames }">{{ data.champion.outcomeGames ? percent(data.champion.winRate) : data.ranked && data.report?.season ? uiText.playerCardData.seasonQueue(data.queueLabel) : data.queueLabel }}<span v-if="data.champion.outcomeGames">{{ uiText.playerCardData.championOutcomes(data.champion.wins, data.champion.losses) }}</span></small>
+        <small v-if="data.arena" class="scout-hero-rate" :title="uiText.arena.hint(heroArena?.placementGames ?? 0, data.champion.games)">{{ heroArena?.firstPlaceRate != null ? uiText.arena.first(percent(heroArena.firstPlaceRate)) : uiText.arena.pending }}<span v-if="heroArena?.averagePlace != null"> · {{ uiText.arena.average(decimal(heroArena.averagePlace)) }}</span></small>
+        <small v-else class="scout-hero-rate" :class="{ 'no-sample': !data.champion.outcomeGames }">{{ data.champion.outcomeGames ? percent(data.champion.winRate) : data.ranked && data.report?.season ? uiText.playerCardData.seasonQueue(data.queueLabel) : data.queueLabel }}<span v-if="data.champion.outcomeGames">{{ uiText.playerCardData.championOutcomes(data.champion.wins, data.champion.losses) }}</span></small>
       </span>
       <span v-if="data.ranked" class="scout-rank" :title="`${data.queueLabel} · ${rank.title}`">
         <span class="scout-rank-heading"><RankEmblem :tier="player.identityState === 'known' ? rank.rank?.tier : undefined" /><small class="scout-queue-label">{{ data.ranked ? data.queueLabel : uiText.modeScouting.reference }}</small></span>
@@ -72,14 +77,14 @@ function periodDetail(p: ReturnType<typeof scoutStats>["periods"][number]) {
       </span>
       <template v-else>
         <span class="overview-metrics scout-rings" :style="data.roles ? undefined : {gridTemplateColumns: 'repeat(2,minmax(0,1fr))'}" :title="uiText.playerCardData.independentScope(data.queueLabel, date(data.report?.fetchedAt))">
-          <ScoutRing :value="data.periods[0]!.winRate" short="12h" :label="uiText.playerCardData.last12Hours" :caption="periodCaption(data.periods[0]!)" :detail="periodDetail(data.periods[0]!)" :title="uiText.playerCardData.last12HoursHint(data.queueLabel, data.periods[0]!.outcomeGames, data.periods[0]!.games, data.periods[0]!.complete ? '' : uiText.playerCardData.readOnly)" />
+          <ScoutRing :value="data.arena ? data.periods[0]!.arena?.firstPlaceRate ?? null : data.periods[0]!.winRate" :measure="data.arena ? uiText.arena.firstRate : undefined" short="12h" :label="uiText.playerCardData.last12Hours" :caption="periodCaption(data.periods[0]!)" :detail="periodDetail(data.periods[0]!)" :title="data.arena ? arenaTitle(data.periods[0]!) : uiText.playerCardData.last12HoursHint(data.queueLabel, data.periods[0]!.outcomeGames, data.periods[0]!.games, data.periods[0]!.complete ? '' : uiText.playerCardData.readOnly)" />
           <span v-if="data.roles" class="scout-position-cell">
             <ScoutRing :value="data.role.share" :role="data.role.key" short="" :label="uiText.playerCardData.role30Days" :caption="roleCaption" :detail="data.role.known ? uiText.playerCardData.recordedGames(data.role.known) : '—'" :title="roleTitle" />
             <span v-if="data.role.known" class="role-distribution" :title="roleTitle"><i v-for="p in data.role.positions" :key="p.position" :class="p.position.toLowerCase()" :style="{ flexGrow: p.games }" :title="uiText.playerCardData.roleCount(roleNames[p.position], p.games)" /></span>
           </span>
-          <ScoutRing :value="data.periods[1]!.winRate" short="30d" :label="uiText.playerCardData.within30Days" :caption="periodCaption(data.periods[1]!)" :detail="periodDetail(data.periods[1]!)" :title="uiText.playerCardData.last30DaysHint(data.queueLabel, data.periods[1]!.outcomeGames, data.periods[1]!.games, data.periods[1]!.complete ? '' : uiText.playerCardData.readOnly)" />
+          <ScoutRing :value="data.arena ? data.periods[1]!.arena?.firstPlaceRate ?? null : data.periods[1]!.winRate" :measure="data.arena ? uiText.arena.firstRate : undefined" short="30d" :label="uiText.playerCardData.within30Days" :caption="periodCaption(data.periods[1]!)" :detail="periodDetail(data.periods[1]!)" :title="data.arena ? arenaTitle(data.periods[1]!) : uiText.playerCardData.last30DaysHint(data.queueLabel, data.periods[1]!.outcomeGames, data.periods[1]!.games, data.periods[1]!.complete ? '' : uiText.playerCardData.readOnly)" />
         </span>
-        <span class="scout-scope" :title="uiText.playerCardData.cutoffHint(data.queueLabel, range, data.overall.games, data.overall.kdaGames ?? 0, date(data.report?.fetchedAt), data.report?.season?.name || uiText.playerCardData.missingSeason)"><small class="sample-size">{{ range }}</small><span>KDA <b>{{ decimal(data.overall.kda) }}</b></span><span v-if="data.overall.remakes">{{ uiText.modeScouting.remakes(data.overall.remakes) }}</span><span v-if="data.report && !data.report.complete30" class="scout-coverage-mark">{{ uiText.common.incompleteRange }}</span></span>
+        <span class="scout-scope" :title="uiText.playerCardData.cutoffHint(data.queueLabel, range, data.overall.games, data.overall.kdaGames ?? 0, date(data.report?.fetchedAt), data.report?.season?.name || uiText.playerCardData.missingSeason)"><small class="sample-size">{{ range }}</small><span v-if="data.arena" :title="uiText.arena.topHalfHint(data.overall.arena?.topHalfGames ?? 0)">{{ uiText.arena.topHalf }} <b>{{ percent(data.overall.arena?.topHalfRate) }}</b></span><span v-else>KDA <b>{{ decimal(data.overall.kda) }}</b></span><span v-if="data.overall.remakes">{{ uiText.modeScouting.remakes(data.overall.remakes) }}</span><span v-if="data.report && !data.report.complete30" class="scout-coverage-mark">{{ uiText.common.incompleteRange }}</span></span>
         <span class="scout-tags recent-block"><span v-for="tag in data.tags" :key="tag.label" class="scout-tag" :class="tag.tone" :title="tag.title">{{ tag.label }}</span><small v-if="!data.tags.length" class="scout-empty-tags">{{ !data.ranked ? uiText.modeScouting.hero30 : data.report?.state === 'loading' || !data.report ? captured ? uiText.playerCardData.capturedRanked : uiText.playerCardData.preparingRanked : uiText.playerCardData.seasonChampion }}</small></span>
       </template>
     </template>

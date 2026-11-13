@@ -11,6 +11,7 @@ type ScoutMode struct {
 	Label     string   `json:"label"`
 	Ranked    bool     `json:"ranked"`
 	Roles     bool     `json:"roles"`
+	Arena     bool     `json:"arena,omitempty"`
 	MapID     int      `json:"mapId"`
 	GameModes []string `json:"gameModes"`
 	Guide     string   `json:"guide"`

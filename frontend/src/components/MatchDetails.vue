@@ -7,7 +7,8 @@ import { errorMessage, kda, number, percent, decimal, sampleStats, positionName 
 import { championName } from '../gameAssets';
 import { targetPlayer } from '../analysisData';
 import { analysisCache } from '../analysisCache';
-import { isRemake } from '../matchStats';
+import { isRemake, isArena } from '../matchStats';
+import ArenaScoreboard from './ArenaScoreboard.vue';
 import GameIcon from './GameIcon.vue';
 import RuneIcon from './RuneIcon.vue';
 import MatchSummary from './MatchSummary.vue';
@@ -20,11 +21,13 @@ const loaded = ref<MatchDetail | null>(null), timeline = ref<Timeline | null>(nu
 const tab = ref('overview');
 const scopeId = `analysis-${getCurrentInstance()!.uid}`;
 const root = ref<HTMLElement | null>(null);
-const tabs = [{ key: 'overview', label: uiText.common.matchOverview }, { key: 'team', label: uiText.common.teamAnalysis }, { key: 'timeline', label: uiText.common.timeline }, { key: 'build', label: uiText.common.buildRunes }];
+const tabs = computed(() => [{ key: 'overview', label: uiText.common.matchOverview }, { key: 'team', label: uiText.common.teamAnalysis }, { key: 'timeline', label: uiText.common.timeline }, { key: 'build', label: uiText.common.buildRunes }].filter(item => !arena.value || item.key === 'overview'));
 const key = computed(() => `${props.player.connectionId}:${props.player.key}:${props.gameId}`);
 let revision = 0, autoRequested = '';
 const detail = computed(() => props.provided ?? loaded.value);
 const match = computed(() => targetPlayer(detail.value)?.summary ?? props.match ?? props.player.history?.find(m => m.gameId === props.gameId));
+const arena = computed(() => !!match.value && isArena(match.value));
+watch(arena, () => { if (arena.value) tab.value = 'overview'; });
 const target = computed(() => targetPlayer(detail.value));
 const canLoad = computed(() => !!props.connected && !props.player.stale && !props.provided);
 const teams = computed(() => [...new Set((detail.value?.players ?? []).map(p => p.teamId))].sort());
@@ -56,7 +59,7 @@ watch(key, () => {
 }, { immediate: true });
 onBeforeUnmount(() => { revision++; });
 watch(() => props.connected, () => { if (!props.connected) { revision++; busy.value = false; } });
-function moveTab(event: KeyboardEvent, index: number) { let next = index; if (event.key === 'ArrowRight') next = (index + 1) % tabs.length; else if (event.key === 'ArrowLeft') next = (index + tabs.length - 1) % tabs.length; else if (event.key === 'Home') next = 0; else if (event.key === 'End') next = tabs.length - 1; else return; event.preventDefault(); tab.value = tabs[next]!.key; (event.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLButtonElement>('[role=tab]')[next]?.focus(); }
+function moveTab(event: KeyboardEvent, index: number) { let next = index; if (event.key === 'ArrowRight') next = (index + 1) % tabs.value.length; else if (event.key === 'ArrowLeft') next = (index + tabs.value.length - 1) % tabs.value.length; else if (event.key === 'Home') next = 0; else if (event.key === 'End') next = tabs.value.length - 1; else return; event.preventDefault(); tab.value = tabs.value[next]!.key; (event.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLButtonElement>('[role=tab]')[next]?.focus(); }
 async function load(kind: 'detail' | 'timeline', scroll = true) {
   if (busy.value || !canLoad.value) return;
   const request = ++revision, requestKey = key.value; busy.value = true; error.value = '';
@@ -88,7 +91,8 @@ watch([key, canLoad, detail], ([requestKey, allowed, current]) => {
     <p v-if="error" class="error-banner" role="alert">{{ error }}</p>
     <div :id="`${scopeId}-panel-${gameId}`" role="tabpanel" :aria-labelledby="`${scopeId}-${gameId}-${tab}`" class="analysis-tab-content">
       <template v-if="tab === 'overview'">
-        <div v-if="detail" class="scoreboard-content">
+        <ArenaScoreboard v-if="detail && arena" :detail="detail"/>
+        <div v-else-if="detail" class="scoreboard-content">
           <header class="scoreboard-heading"><div><h3>{{ uiText.matchDetails.scoreboard }}</h3><p>{{ uiText.matchDetails.comparisonHint }}</p></div><span>{{ uiText.matchDetails.playerCount(detail.players?.length ?? 0) }}<span v-if="detail.partial"> · {{ (detail.players?.length ?? 0) < 10 ? uiText.matchDetails.partialRoster : uiText.matchDetails.incompleteTotals }}</span></span></header>
           <div class="detail-table-scroll" tabindex="0" :aria-label="uiText.matchDetails.scoreboardLabel">
             <div class="scoreboard-board">

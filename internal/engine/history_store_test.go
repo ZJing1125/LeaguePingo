@@ -83,6 +83,21 @@ func TestHistoryStoreRejectsIncompatibleFile(t *testing.T) {
 	}
 }
 
+func TestHistoryPageRetainsOnlyDerivedArenaResultAndCopiesIt(t *testing.T) {
+	n := 8
+	result := &core.ArenaResult{Placement: 2, TeamCount: &n}
+	page := sanitizeHistoryPage(core.HistoryPage{Matches: []core.Match{{GameID: 1, QueueID: 1700, Arena: result}}})
+	result.Placement, n = 5, 4
+	if page.Matches[0].Arena.Placement != 2 || *page.Matches[0].Arena.TeamCount != 8 {
+		t.Fatal("sanitized cache aliases mutable Arena data")
+	}
+	raw, _ := json.Marshal(page)
+	var restored core.HistoryPage
+	if json.Unmarshal(raw, &restored) != nil || restored.Matches[0].Arena.Placement != 2 {
+		t.Fatal("derived result lost on cache roundtrip")
+	}
+}
+
 func TestHistoryStoreMigratesSchemaOneWithoutServingIncompleteRosters(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "history-cache.json")
 	secret, _, err := loadHistoryStoreSecret(path + ".key")

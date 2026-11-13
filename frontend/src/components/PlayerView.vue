@@ -25,6 +25,7 @@ import ChampionAnalysis from './ChampionAnalysis.vue';
 import PlaystylePanel from './PlaystylePanel.vue';
 import MasteryPanel from './MasteryPanel.vue';
 
+import { isArena } from '../matchStats';
 import { scoutStats, roleNames } from "../scoutStats";
 import {
   HISTORY_PAGE_SIZE,
@@ -72,6 +73,7 @@ const {
   goPage,
   fill,
 } = useHistoryBrowser(props, historyScroll);
+const arenaOnly = computed(() => analysisMatches.value.length > 0 && analysisMatches.value.every(isArena));
 const stats = computed(() => sampleStats(analysisMatches.value));
 const modes = computed(() => [
   ...new Set([420, 440, 450, 2400, ...allMatches.value.map((m) => m.queueId)]),
@@ -101,7 +103,7 @@ function toggle(id: number) {
         <MasteryPanel :player="player"/>
       </aside>
       <div class="history-column">
-        <details v-if="!compact" class="analysis-overview"><summary><strong>{{ uiText.playerView.recentAnalysis }}</strong><span>{{stats.outcomeGames?uiText.playerView.outcomes(stats.wins, stats.losses):uiText.playerView.pendingOutcome}} <b class="analysis-sample-win">{{percent(stats.winRate)}}</b></span><span>KDA <b class="analysis-sample-kda">{{decimal(stats.kda)}}</b></span><small class="analysis-scope">{{sampleLabel}}</small><span class="overview-expand">{{ uiText.playerView.expandAnalysis }}</span></summary><OverviewPerformance :matches="analysisMatches" :scope="sampleLabel"/></details>
+        <details v-if="!compact" class="analysis-overview"><summary><strong>{{ uiText.playerView.recentAnalysis }}</strong><span>{{arenaOnly ? uiText.arena.firstRate : stats.outcomeGames?uiText.playerView.outcomes(stats.wins, stats.losses):uiText.playerView.pendingOutcome}} <b class="analysis-sample-win">{{percent(arenaOnly ? stats.arena?.firstPlaceRate : stats.winRate)}}</b></span><span>KDA <b class="analysis-sample-kda">{{decimal(stats.kda)}}</b></span><small class="analysis-scope">{{sampleLabel}}</small><span class="overview-expand">{{ uiText.playerView.expandAnalysis }}</span></summary><OverviewPerformance :matches="analysisMatches" :scope="sampleLabel"/></details>
         <div class="history-toolbar">
           <div class="history-filter">
             <strong class="history-count"

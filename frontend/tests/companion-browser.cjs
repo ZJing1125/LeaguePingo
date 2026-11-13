@@ -318,6 +318,56 @@ async function main(){
   assert(referenceRects.every(r=>r.self.top>=r.parent.top-1 && r.self.bottom<=r.parent.bottom+1),'rank reference escaped header: '+JSON.stringify(referenceRects));
   assert(await side.locator('.overlay-player .scout-scope').evaluateAll(els=>els.every(el=>[...el.children].every(child=>child.getBoundingClientRect().bottom<=el.getBoundingClientRect().bottom+1))),'mayhem scope clipped vertically');
   await shot(side,'mayhem-preview');
+  const arenaPlayers=structuredClone(mayhemPlayers);
+  const arenaMetrics={games:5,wins:5,losses:0,outcomeGames:5,kdaGames:5,winRate:100,kda:5,arena:{placementGames:4,firstPlaces:1,averagePlace:2.5,firstPlaceRate:25,topHalfGames:3,topHalf:2,topHalfRate:200/3}};
+  const otherArena={...arenaMetrics,games:2,arena:{placementGames:1,firstPlaces:0,averagePlace:3,firstPlaceRate:0,topHalfGames:1,topHalf:0,topHalfRate:0}};
+  for(const p of arenaPlayers){
+   p.scout={state:'partial',modelVersion:2,read:7,fetchedAt:time,complete12:false,complete30:false,champions:[{championId:23,queues:[{queueId:1700,stats:arenaMetrics,average:[6,2,4]},{queueId:1710,stats:otherArena,average:[4,3,2]}]}],queues:[{queueId:1700,twelve:arenaMetrics,month:arenaMetrics,positions:[]},{queueId:1710,twelve:otherArena,month:otherArena,positions:[]}]};
+  }
+  const noPlace={...arenaMetrics,arena:undefined};
+  arenaPlayers[4].scout.champions[0].queues[0].stats=noPlace;
+  arenaPlayers[4].scout.queues[0].month=noPlace;arenaPlayers[4].scout.queues[0].twelve=noPlace;
+  snapshot={...snapshot,queueId:1700,scoutQueue:1700,phase:'ChampSelect',stage:'preparing',participants:arenaPlayers};
+  await publish();await overlay('sidebar');await side.setViewportSize({width:320,height:720});
+  await side.locator('.sidebar-player summary').first().click();
+  await side.locator('.sidebar-player[open] .scout-hero-rate').getByText('25% 夺冠',{exact:false}).waitFor();
+  assert((await side.locator('.sidebar-player').first().innerText()).includes('平均 2.50 名'));
+  assert((await side.locator('.sidebar-player').last().innerText()).includes('名次待确认'),'legacy wins must not become Arena first places');
+  await side.getByRole('combobox',{name:'对局统计模式'}).selectOption('1710');
+  await side.locator('.sidebar-player[open] .scout-hero-rate').getByText('0% 夺冠',{exact:false}).waitFor();
+  await side.getByRole('combobox',{name:'对局统计模式'}).selectOption('0');
+  await side.locator('.sidebar-player[open] .scout-hero-rate').getByText('25% 夺冠',{exact:false}).waitFor();
+  for(const theme of ['dark','light']){
+   await side.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
+   for(const width of [280,320]){
+    await side.setViewportSize({width,height:720});
+    assert(await side.locator('.client-sidebar').evaluate(el=>el.scrollWidth<=el.clientWidth+1),'Arena sidebar overflow');
+    await shot(side,`arena-sidebar-${theme}-${width}`);
+   }
+  }
+  const switchTimes=[];
+  for(let i=0;i<20;i++){
+   const start=performance.now();await side.getByRole('combobox',{name:'对局统计模式'}).selectOption(i%2?'1700':'1710');
+   await side.locator('.sidebar-player[open] .scout-hero-rate').getByText(i%2?'25% 夺冠':'0% 夺冠',{exact:false}).waitFor();
+   switchTimes.push(performance.now()-start);
+  }
+  switchTimes.sort((a,b)=>a-b);console.log('MEASURE: synthetic Linux cache-mode switches, n=20, p95='+switchTimes[18].toFixed(1)+'ms; not a Windows/client performance result');
+  snapshot={...snapshot,phase:'InProgress',stage:'in-game'};await publish();await side.setViewportSize({width:1100,height:640});await overlay('preview');
+  await side.locator('.overlay-player .scout-scope').first().waitFor();
+  assert.equal(await side.locator('.overlay-player .scout-position-cell').count(),0);
+  assert(await side.locator('.overlay-player .scout-ring-center').evaluateAll(els=>els.every(el=>el.scrollHeight<=el.clientHeight+1)),'Arena ring label clipped');
+  await shot(side,'arena-preview');
+  const arenaResultPlayers=Array.from({length:16},(_,i)=>({participantId:i+1,displayName:`竞技场合成玩家 ${i+1}`,teamId:100,target:i===0,summary:{...players[0].history[0],queueId:1700,mapId:30,arena:{placement:Math.floor(i/2)+1,teamCount:8}}}));
+  snapshot={...snapshot,review:{connectionId:2,modelVersion:2,gameId:456,queueId:1700,scoutQueue:1700,selfKey:arenaPlayers[0].key,capturedAt:time,state:'ready',participants:arenaPlayers,result:{gameId:456,players:arenaResultPlayers,partial:true,fetchedAt:time}}};await publish();
+  await roomNav.getByRole('button',{name:'最近复盘',exact:true}).click();
+  await review.getByRole('heading',{name:'竞技场名次与表现',exact:true}).waitFor();
+  assert.equal(await review.locator('.arena-scoreboard tbody tr').count(),16);
+  assert.equal(await review.locator('.scoreboard-team').count(),0,'Arena grouped by legacy blue/red teamId');
+  assert.equal(await review.getByRole('tab',{name:'团队分析',exact:true}).count(),0);
+  await shot(main,'arena-scoreboard');
+  assert(!calls.slice(modeCalls).some(c=>/Lookup|HistoryPage|EnsureProfile|RefreshData|MatchTimeline/.test(c.method)),'Arena mode switch fetched player or timeline data');
+  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
+  console.log('PASS: independent Arena 1700/1710, first-place/average/top-half metrics, missing fields, 280/320 themes, 236 preview and sixteen-player result without 5v5 grouping; cache-only');
   console.log('PASS: mayhem without season, no lane, rank reference, 280/320 geometry and cache-only mode switches');
   console.log('PASS: live room without review, party/selection allies, loading/game roster, empty/late updates, disconnected cache, home/current priority, archived review and mode/filter isolation, cache-only drawers, 1280/1100/880; scoped solo/flex sidebar, 1100/400 preview and hold, settlement, seven items/focus, companion settings; synthetic bridge only.');
  }finally{await context?.unrouteAll({behavior:'ignoreErrors'});await browser.close();}

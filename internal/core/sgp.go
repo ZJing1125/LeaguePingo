@@ -14,9 +14,10 @@ func ParseSGPHistory(raw []byte, target, platform string) (HistoryResult, error)
 	var envelope struct {
 		Games []struct {
 			Metadata struct {
-				Product  string `json:"product"`
-				InfoType string `json:"info_type"`
-				MatchID  string `json:"match_id"`
+				Product      string          `json:"product"`
+				InfoType     string          `json:"info_type"`
+				MatchID      string          `json:"match_id"`
+				Participants json.RawMessage `json:"participants"`
 			} `json:"metadata"`
 			JSON json.RawMessage `json:"json"`
 		} `json:"games"`
@@ -34,7 +35,7 @@ func ParseSGPHistory(raw []byte, target, platform string) (HistoryResult, error)
 		if json.Unmarshal(item.JSON, &game) != nil || game.GameID <= 0 || game.Platform != platform || item.Metadata.Product != "lol" || item.Metadata.InfoType != "summary" || item.Metadata.MatchID != fmt.Sprintf("%s_%d", platform, game.GameID) {
 			return HistoryResult{}, errors.New("战绩服务的比赛或大区无法核验")
 		}
-		out, err := normalizeSGPGame(item.JSON)
+		out, err := normalizeSGPGame(item.JSON, item.Metadata.Participants)
 		if err != nil {
 			return HistoryResult{}, err
 		}
@@ -46,8 +47,9 @@ func ParseSGPHistory(raw []byte, target, platform string) (HistoryResult, error)
 	return result, err
 }
 
-func normalizeSGPGame(raw []byte) ([]byte, error) {
+func normalizeSGPGame(raw []byte, roster json.RawMessage) ([]byte, error) {
 	var game struct {
+		QueueID      int               `json:"queueId"`
 		Participants []json.RawMessage `json:"participants"`
 	}
 	if json.Unmarshal(raw, &game) != nil || len(game.Participants) > 64 {
@@ -55,6 +57,13 @@ func normalizeSGPGame(raw []byte) ([]byte, error) {
 	}
 	var fields map[string]json.RawMessage
 	_ = json.Unmarshal(raw, &fields)
+	if IsArenaQueue(game.QueueID) {
+		var expected []string
+		if json.Unmarshal(roster, &expected) != nil {
+			expected = nil // Optional roster failure must not discard personal stats.
+		}
+		fields["participantIdentities"], _ = json.Marshal(sgpArenaIdentities(game.Participants, expected))
+	}
 	participants := []json.RawMessage{}
 	for _, participant := range game.Participants {
 		var p map[string]json.RawMessage
@@ -121,9 +130,10 @@ func normalizeSGPGame(raw []byte) ([]byte, error) {
 func ParseSGPMatchDetail(raw []byte, gameID int64, target, platform string) (MatchDetail, error) {
 	var item struct {
 		Metadata struct {
-			Product  string `json:"product"`
-			InfoType string `json:"info_type"`
-			MatchID  string `json:"match_id"`
+			Product      string          `json:"product"`
+			InfoType     string          `json:"info_type"`
+			MatchID      string          `json:"match_id"`
+			Participants json.RawMessage `json:"participants"`
 		} `json:"metadata"`
 		JSON json.RawMessage `json:"json"`
 	}
@@ -137,7 +147,7 @@ func ParseSGPMatchDetail(raw []byte, gameID int64, target, platform string) (Mat
 	if json.Unmarshal(item.JSON, &game) != nil || game.GameID != gameID || game.Platform != platform {
 		return MatchDetail{}, errors.New("对局详情身份范围不匹配")
 	}
-	data, err := normalizeSGPGame(item.JSON)
+	data, err := normalizeSGPGame(item.JSON, item.Metadata.Participants)
 	if err != nil {
 		return MatchDetail{}, err
 	}

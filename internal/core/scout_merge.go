@@ -12,6 +12,7 @@ func MergeScoutReports(old *ScoutReport, next ScoutReport) ScoutReport {
 		return next
 	}
 	result := *old
+	result.ModelVersion = max(old.ModelVersion, next.ModelVersion)
 	result.State, result.Retained, result.Message = next.State, true, "保留上次统计"
 	result.Queues = append([]ScoutQueue(nil), old.Queues...)
 	result.Champions = append([]ScoutChampion(nil), old.Champions...)
@@ -43,6 +44,15 @@ func MergeScoutReports(old *ScoutReport, next ScoutReport) ScoutReport {
 }
 
 func scoutQueueImproved(old, next ScoutQueue) bool {
+	if next.Month.Arena != nil {
+		previous := ArenaStats{}
+		if old.Month.Arena != nil {
+			previous = *old.Month.Arena
+		}
+		if next.Month.Arena.PlacementGames > previous.PlacementGames || next.Month.Arena.TopHalfGames > previous.TopHalfGames {
+			return true // Keep the incoming queue's own partial coverage/date.
+		}
+	}
 	if old.Coverage != nil && next.Coverage != nil {
 		if next.Coverage.Complete30 != old.Coverage.Complete30 {
 			return next.Coverage.Complete30

@@ -7,6 +7,8 @@ export {
 } from "./models.js";
 
 export type {
+    ArenaResult,
+    ArenaStats,
     ChampionMastery,
     FieldFreshness,
     HistoryMeta,

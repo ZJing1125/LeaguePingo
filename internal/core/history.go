@@ -21,16 +21,8 @@ type historyGame struct {
 	MapID                 *int              `json:"mapId"`
 	Duration              *int              `json:"gameDuration"`
 	Participants          []json.RawMessage `json:"participants"`
-	ParticipantIdentities []struct {
-		ParticipantID int `json:"participantId"`
-		Player        struct {
-			PUUID        string `json:"puuid"`
-			GameName     string `json:"gameName"`
-			TagLine      string `json:"tagLine"`
-			SummonerName string `json:"summonerName"`
-		} `json:"player"`
-	} `json:"participantIdentities"`
-	Teams []struct {
+	ParticipantIdentities []historyIdentity `json:"participantIdentities"`
+	Teams                 []struct {
 		TeamID     int  `json:"teamId"`
 		Towers     *int `json:"towerKills"`
 		Dragons    *int `json:"dragonKills"`
@@ -42,6 +34,15 @@ type historyGame struct {
 			Kills *int `json:"kills"`
 		} `json:"objectives"`
 	} `json:"teams"`
+}
+type historyIdentity struct {
+	ParticipantID int `json:"participantId"`
+	Player        struct {
+		PUUID        string `json:"puuid"`
+		GameName     string `json:"gameName"`
+		TagLine      string `json:"tagLine"`
+		SummonerName string `json:"summonerName"`
+	} `json:"player"`
 }
 type historyParticipant struct {
 	TeamID             int    `json:"teamId"`
@@ -62,6 +63,8 @@ type historyParticipant struct {
 		Role string `json:"role"`
 	} `json:"timeline"`
 	Stats struct {
+		SubteamID     *int  `json:"playerSubteamId"`
+		Placement     *int  `json:"subteamPlacement"`
 		ParticipantID int   `json:"participantId"`
 		TeamID        int   `json:"teamId"`
 		EarlyEnd      *bool `json:"gameEndedInEarlySurrender"`
@@ -203,6 +206,7 @@ func matchSummary(game historyGame, p historyParticipant, now time.Time) Match {
 		}
 	}
 	return Match{
+		Arena:  arenaResult(game, p),
 		GameID: game.GameID, QueueID: game.QueueID, ChampionID: champion, PlayedAt: playedAt,
 		Win: p.Stats.Win, Kills: nonNegative(p.Stats.Kills), Deaths: nonNegative(p.Stats.Deaths), Assists: nonNegative(p.Stats.Assists),
 		Duration: nonNegative(game.Duration), Gold: nonNegative(p.Stats.Gold), Damage: nonNegative(p.Stats.Damage), CS: cs,
@@ -324,6 +328,9 @@ func historyName(game historyGame, p historyParticipant) string {
 }
 
 func historyPeers(game historyGame, target historyParticipant) ([]MatchPeer, *float64) {
+	if IsArenaQueue(game.QueueID) {
+		return nil, nil // Arena subteams are not the two legacy teamId values.
+	}
 	peers := []MatchPeer{}
 	seen := map[int]bool{}
 	counts := map[int]int{}

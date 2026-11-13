@@ -60,7 +60,7 @@ func (r *reviewState) observe(snapshot core.Snapshot) *core.MatchReview {
 		if r.candidate == nil || r.candidate.GameID != snapshot.GameID {
 			r.stopLocked()
 		}
-		r.candidate = &core.MatchReview{ConnectionID: snapshot.ConnectionID, GameID: snapshot.GameID, Region: snapshot.Region, SelfKey: snapshot.SelfKey, QueueID: snapshot.QueueID, ScoutQueue: snapshot.ScoutQueue, CapturedAt: snapshot.UpdatedAt, Participants: clone(snapshot).Participants}
+		r.candidate = &core.MatchReview{ModelVersion: core.ScoutStatsVersion, ConnectionID: snapshot.ConnectionID, GameID: snapshot.GameID, Region: snapshot.Region, SelfKey: snapshot.SelfKey, QueueID: snapshot.QueueID, ScoutQueue: snapshot.ScoutQueue, CapturedAt: snapshot.UpdatedAt, Participants: clone(snapshot).Participants}
 		return nil
 	}
 	if !reviewCanFreeze(snapshot, r.candidate) {

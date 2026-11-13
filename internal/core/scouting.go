@@ -7,6 +7,8 @@ import (
 
 // Scouting is independent of the recent-history list and its browsing filters.
 // Reports are immutable after publication. Partial ranges never imply zero games.
+const ScoutStatsVersion = 2
+
 type ScoutSeason struct {
 	Name  string    `json:"name"`
 	Start time.Time `json:"start"`
@@ -48,15 +50,16 @@ type ScoutQueue struct {
 	Positions []ScoutPosition `json:"positions"`
 }
 type ScoutReport struct {
-	State      string       `json:"state"`
-	Retained   bool         `json:"retained,omitempty"`
-	FetchedAt  time.Time    `json:"fetchedAt"`
-	Season     *ScoutSeason `json:"season,omitempty"`
-	Complete   bool         `json:"complete"`
-	Complete12 bool         `json:"complete12"`
-	Complete30 bool         `json:"complete30"`
-	Read       int          `json:"read"`
-	Message    string       `json:"message,omitempty"`
+	ModelVersion int          `json:"modelVersion,omitempty"`
+	State        string       `json:"state"`
+	Retained     bool         `json:"retained,omitempty"`
+	FetchedAt    time.Time    `json:"fetchedAt"`
+	Season       *ScoutSeason `json:"season,omitempty"`
+	Complete     bool         `json:"complete"`
+	Complete12   bool         `json:"complete12"`
+	Complete30   bool         `json:"complete30"`
+	Read         int          `json:"read"`
+	Message      string       `json:"message,omitempty"`
 	// Coverage fields let the interface describe what was actually read instead
 	// of collapsing every shortfall into one generic notice. Reason is a fixed
 	// code, never an error string.
@@ -69,7 +72,7 @@ type ScoutReport struct {
 }
 
 func BuildScoutReport(matches []Match, masteries []ChampionMastery, season *ScoutSeason, cutoff time.Time, complete, complete12, complete30 bool) ScoutReport {
-	r := ScoutReport{State: "ready", FetchedAt: cutoff, Season: season, Complete: complete && season != nil, Complete12: complete12, Complete30: complete30, Read: len(matches), Champions: []ScoutChampion{}, Queues: []ScoutQueue{}}
+	r := ScoutReport{ModelVersion: ScoutStatsVersion, State: "ready", FetchedAt: cutoff, Season: season, Complete: complete && season != nil, Complete12: complete12, Complete30: complete30, Read: len(matches), Champions: []ScoutChampion{}, Queues: []ScoutQueue{}}
 	valid, seasonal := []Match{}, []Match{}
 	seen := map[int64]bool{}
 	ids := map[int]bool{}

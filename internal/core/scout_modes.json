@@ -109,5 +109,29 @@
       "NEXUSBLITZ"
     ],
     "guide": "nexus-blitz"
+  },
+  {
+    "queueId": 1700,
+    "label": "斗魂竞技场",
+    "ranked": false,
+    "roles": false,
+    "arena": true,
+    "mapId": 30,
+    "gameModes": [
+      "CHERRY"
+    ],
+    "guide": "arena"
+  },
+  {
+    "queueId": 1710,
+    "label": "斗魂竞技场（1710）",
+    "ranked": false,
+    "roles": false,
+    "arena": true,
+    "mapId": 30,
+    "gameModes": [
+      "CHERRY"
+    ],
+    "guide": "arena"
   }
 ]

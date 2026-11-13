@@ -18,7 +18,7 @@ func TestReviewStateKeepsPublishedViewsImmutable(t *testing.T) {
 	reviews.observe(snapshot)
 	snapshot.Phase = "EndOfGame"
 	frozen := reviews.observe(snapshot)
-	if frozen == nil || frozen.State != "waiting" {
+	if frozen == nil || frozen.State != "waiting" || frozen.ModelVersion != core.ScoutStatsVersion {
 		t.Fatal("finished candidate was not frozen")
 	}
 	ctx, cancel, token := reviews.begin()

@@ -4,7 +4,7 @@ import { computed } from 'vue';
 import type { Match } from '../../bindings/leaguepingo/internal/core/models';
 import { date, decimal, duration, number, kda, outcome, queueName, sampleStats, percent, positionName } from '../presentation';
 import { perMinute, matchBadges } from '../analysisData';
-import { isRemake } from '../matchStats';
+import { isRemake, isArena, matchTone } from '../matchStats';
 import GameIcon from './GameIcon.vue';
 import RuneIcon from './RuneIcon.vue';
 import AppIcon from './AppIcon.vue';
@@ -20,7 +20,7 @@ const role = computed(() => props.match.position || undefined);
 </script>
 
 <template>
-  <article class="match-card" :class="[isRemake(match) ? 'remake' : match.win == null ? 'unknown' : match.win ? 'won' : 'lost', { 'match-open': expanded }]">
+  <article class="match-card" :class="[matchTone(match), { 'match-open': expanded }]">
     <component :is="fixed ? 'div' : 'button'" class="match-main" :class="{ 'match-static': fixed }" :aria-expanded="fixed ? undefined : expanded" @click="!fixed && emit('toggle')">
       <span class="match-context">
         <strong>{{ queueName(match.queueId) }}</strong><small>{{ date(match.playedAt) }}</small>
@@ -36,8 +36,9 @@ const role = computed(() => props.match.position || undefined);
       </span>
       <span class="match-efficiency">
         <span v-if="role" class="match-role"><RoleIcon :role="role"/><b>{{ positionName(role) }}</b></span>
-        <span>{{ uiText.matchHistoryRow.participation }}<b>{{ percent(match.participation) }}</b></span>
-        <span :title="uiText.matchHistoryRow.csHint">{{ uiText.matchHistoryRow.cs }}<b>{{ number(match.cs) }}</b><small>{{ uiText.matchHistoryRow.perMinute(cs == null ? '—' : cs.toFixed(1)) }}</small></span>
+        <span v-if="isArena(match)">{{ match.arena ? uiText.arena.place(match.arena.placement) : uiText.arena.pending }}<small v-if="match.arena?.teamCount"> · {{ uiText.arena.teams(match.arena.teamCount) }}</small></span>
+        <span v-else>{{ uiText.matchHistoryRow.participation }}<b>{{ percent(match.participation) }}</b></span>
+        <span v-if="!isArena(match)" :title="uiText.matchHistoryRow.csHint">{{ uiText.matchHistoryRow.cs }}<b>{{ number(match.cs) }}</b><small>{{ uiText.matchHistoryRow.perMinute(cs == null ? '—' : cs.toFixed(1)) }}</small></span>
         <span>{{ uiText.matchHistoryRow.damage }}<b>{{ number(match.damage) }}</b></span>
         <span v-if="matchBadges(match).length" class="match-facts">{{ matchBadges(match).join(' · ') }}</span>
       </span>

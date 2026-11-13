@@ -99,12 +99,7 @@ func mode(s core.Snapshot) (string, string, bool) {
 		}
 		return spec.Guide, spec.Label, false
 	}
-	if s.QueueID == 1700 || s.QueueID == 1710 {
-		if s.MapID != 0 && s.MapID != 30 || s.GameMode != "" && !strings.EqualFold(s.GameMode, "CHERRY") {
-			return "", "当前模式暂无已核验攻略", false
-		}
-		return "arena", "斗魂竞技场", false
-	}
+
 	return "", "当前模式暂无已核验攻略", false
 }
 

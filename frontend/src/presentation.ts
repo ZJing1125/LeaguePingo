@@ -3,7 +3,8 @@ import type {
   Participant,
   HistoryMeta,
 } from "../bindings/leaguepingo/internal/core/models";
-import { isRemake } from "./matchStats";
+import { isRemake, isArena, arenaResult } from "./matchStats";
+import { uiText } from "./uiText";
 import runeCatalog from "./assets/game/rune-names.json";
 import { gameAsset } from "./gameAssets";
 import { hasPlayerName } from "./playerState";
@@ -77,6 +78,10 @@ export function tierName(tier: string) {
   return tiers[tier] ?? "段位未知";
 }
 export function outcome(m: Match) {
+  if (isArena(m)) {
+    const result = arenaResult(m);
+    return result ? uiText.arena.place(result.placement) : uiText.arena.pending;
+  }
   return isRemake(m)
     ? "重开"
     : m.win == null
@@ -107,6 +112,7 @@ const queues: Record<number, string> = {
   490: "快速匹配",
   700: "冠军杯赛",
   1700: "斗魂竞技场",
+  1710: "斗魂竞技场（1710）",
   1900: "无限火力",
   2400: "海克斯大乱斗",
   3140: "训练模式",
