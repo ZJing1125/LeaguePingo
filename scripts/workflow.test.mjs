@@ -27,6 +27,7 @@ test('policy regression mutations are rejected', () => {
     ['scripts/dev.sh', '-o artifacts/hot-reload/leaguepingo-hot-reload.exe', '-o bin/leaguepingo.exe'],
     ['scripts/verify.sh', 'scripts/workflow.test.mjs', ''],
     ['scripts/verify.sh', 'scripts/version.test.mjs', ''],
+    ['scripts/verify.sh', 'scripts/ci-download.test.mjs', ''],
     ['scripts/verify.sh', 'npm --prefix frontend run test:unit', 'echo skipped unit tests'],
     ['scripts/verify.sh', 'go run ./cmd/functioncheck', 'echo skipped function limit'],
     ['scripts/verify.sh', 'node scripts/check-styles.mjs', 'echo skipped style ownership'],
@@ -59,7 +60,7 @@ test('unsupported environment flags fail instead of silently changing the target
   }
   assert.throws(() => checkEnvironment({}, 'darwin', 'arm64'));
 });
-test('CI preserves managed build, binding verification and opt-in executable upload', () => {
+test('CI preserves managed build, binding verification and successful dev download upload', () => {
   const file = '.github/workflows/ci.yml';
   for (const [before, after] of [
     ['run: bash scripts/build.sh bin/leaguepingo-ci.exe', 'run: go build -o bin/leaguepingo-ci.exe .'],
@@ -71,6 +72,12 @@ test('CI preserves managed build, binding verification and opt-in executable upl
     ['run: govulncheck ./...', 'run: true'],
     ['GOTOOLCHAIN: local', 'GOTOOLCHAIN: auto'],
     ["github.event_name == 'workflow_dispatch' && inputs.upload_exe", 'success()'],
+    ["success() && github.ref == 'refs/heads/dev'", "github.ref == 'refs/heads/dev'"],
+    ["github.ref == 'refs/heads/dev'", "github.ref == 'refs/heads/main'"],
+    ["github.event_name == 'push'", "github.event_name == 'pull_request'"],
+    ['path: artifacts/ci-download/', 'path: bin/'],
+    ['retention-days: 14', 'retention-days: 90'],
+    ['run: node scripts/ci-download.mjs', 'run: echo skipped packaging'],
     ['  pull_request:', '  pull_request_target:'],
   ]) {
     assert.ok(files[file].includes(before), before);
@@ -94,6 +101,15 @@ test('dependency updates stay coupled on dev and CI actions stay pinned', () => 
     const changed = files[config].replace(before, after);
     assert.throws(() => checkWorkflow(f => f === config ? changed : files[f]), undefined, before);
   }
+});
+test('download cannot run before installer and binding verification', () => {
+  const file = '.github/workflows/ci.yml';
+  const start = files[file].indexOf('      - name: Prepare development download');
+  const end = files[file].indexOf('      - name: Upload development download');
+  const prepare = files[file].slice(start, end);
+  const changed = files[file].replace(prepare, '').replace('      - name: Verify NSIS install and uninstall',
+    prepare + '      - name: Verify NSIS install and uninstall');
+  assert.throws(() => checkWorkflow(f => f === file ? changed : files[f]), /Downloads must follow/);
 });
 test('all CI jobs follow one patched Go version source', () => {
   for (const [file, before, after] of [

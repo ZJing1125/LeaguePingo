@@ -28,7 +28,7 @@ bash scripts/package-windows.sh \
 bash scripts/verify-installer.sh artifacts/installers/leaguepingo-example-installer.exe
 ```
 
-`wails3 task package` 和 `wails3 task windows:create:nsis:installer` 进入同一脚本。脚本只接受当前 `artifacts.json` 已审计的 EXE，输出仅位于 `artifacts/`，并拒绝覆盖。CI 固定安装 NSIS 3.13.0，执行受管构建、生成安装器，再在临时目录静默安装/卸载；不上传安装器，也不创建 Release。
+`wails3 task package` 和 `wails3 task windows:create:nsis:installer` 进入同一脚本。脚本只接受当前 `artifacts.json` 已审计的 EXE，输出仅位于 `artifacts/`，并拒绝覆盖。CI 固定安装 NSIS 3.13.0，执行受管构建、生成安装器，再在临时目录静默安装/卸载；验证成功后安装器随[dev迭代下载包](CLOUD_BUILDS.md)上传，不创建 Release。
 
 MSIX、跨平台打包和 Docker 构建仍被策略拒绝。NSIS 与签名入口已同步纳入 `scripts/workflow.mjs` 和回归测试，不能用模板或直接编译绕过。
 

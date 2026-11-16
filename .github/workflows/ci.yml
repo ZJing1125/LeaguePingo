@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       upload_exe:
-        description: 上传 CI 构建出的 exe（仅用于测试，不是正式交付）
+        description: 上传 dev 测试下载包（自动推送构建无需勾选）
         type: boolean
         default: false
 
@@ -229,14 +229,32 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      # 仅手动触发并勾选时上传，供测试使用；它不是正式交付程序。
-      - name: Upload CI executable (manual only)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.upload_exe }}
+      # 成功的 dev 推送自动提供测试下载；PR 只验证，手动运行仍可选择上传。
+      - name: Prepare development download
+        id: bundle
+        if: ${{ success() && github.ref == 'refs/heads/dev' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.upload_exe)) }}
+        run: node scripts/ci-download.mjs
+
+      - name: Upload development download
+        id: download
+        if: ${{ success() && github.ref == 'refs/heads/dev' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.upload_exe)) }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: leaguepingo-ci-exe
-          path: |
-            bin/leaguepingo-ci.exe
-            bin/artifacts.json
+          name: ${{ steps.bundle.outputs.artifact_name }}
+          path: artifacts/ci-download/
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 14
+
+      - name: Publish download link
+        if: ${{ success() && steps.download.outcome == 'success' }}
+        env:
+          DOWNLOAD_URL: ${{ steps.download.outputs.artifact-url }}
+        run: |
+          {
+            echo "### Windows 开发测试版"
+            echo "[下载本次迭代 ZIP]($DOWNLOAD_URL)（登录 GitHub 后下载，保留 14 天）"
+            echo
+            echo "解压后退出旧版助手，再运行 leaguepingo.exe；也可用 leaguepingo-setup.exe 安装。"
+            echo "无需 Go、Node 或 Wails。提交和校验值见 BUILD-INFO.json、SHA256SUMS.txt。"
+            echo "此包已通过自动化验证；真实客户端功能仍需本机验收。"
+          } >> "$GITHUB_STEP_SUMMARY"

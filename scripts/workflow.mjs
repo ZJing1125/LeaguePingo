@@ -25,6 +25,33 @@ function taskBlocks(text, section = 'tasks') {
   return result;
 }
 
+function downloadPolicy(ci) {
+  const windows = taskBlocks(ci, 'jobs').get('windows') || '';
+  const blocks = windows.split(/^      - /m).slice(1);
+  const gate = "        if: ${{ success() && github.ref == 'refs/heads/dev' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.upload_exe)) }}";
+  const steps = ['Prepare development download', 'Upload development download', 'Publish download link'].map(name => {
+    const matches = blocks.filter(block => block.startsWith('name: ' + name + '\n'));
+    if (matches.length !== 1) throw new Error('Required download step missing or duplicated: ' + name);
+    return matches[0];
+  });
+  for (const block of steps.slice(0, 2)) {
+    if (!block.split('\n').includes(gate) || /continue-on-error:/.test(block)) throw new Error('Downloads require successful dev push or explicit manual dev upload');
+  }
+  const required = [
+    ['        id: bundle', '        run: node scripts/ci-download.mjs'],
+    ['        id: download', '          name: ${{ steps.bundle.outputs.artifact_name }}', '          path: artifacts/ci-download/', '          if-no-files-found: error', '          retention-days: 14'],
+    ["        if: ${{ success() && steps.download.outcome == 'success' }}", '          DOWNLOAD_URL: ${{ steps.download.outputs.artifact-url }}'],
+  ];
+  steps.forEach((block, i) => {
+    if (required[i].some(line => !block.split('\n').includes(line))) throw new Error('Download contents, retention and link must stay explicit');
+  });
+  const order = ['name: Verify and build (scripts/build.sh)', 'name: Package NSIS installer',
+    'name: Verify NSIS install and uninstall', 'name: Check generated bindings are committed', ...steps];
+  if (order.some((value, i) => windows.indexOf(value) < 0 || (i && windows.indexOf(value) <= windows.indexOf(order[i - 1])))) {
+    throw new Error('Downloads must follow build, installer and binding verification');
+  }
+}
+
 function qualityPolicy(ci) {
   const jobs = taskBlocks(ci, 'jobs');
   const quality = jobs.get('quality') || '', windows = jobs.get('windows') || '';
@@ -207,6 +234,8 @@ export function checkWorkflow(read) {
     throw new Error('CI Go versions must use go.mod with the patched Go 1.26.11 minimum');
   }
   qualityPolicy(ci);
+  downloadPolicy(ci);
+  requireText('scripts/verify.sh', 'scripts/ci-download.test.mjs');
   if ((ci.match(/run: bash scripts\/build\.sh bin\/leaguepingo-ci\.exe/g) || []).length !== 1 ||
       /^\s*(?:run: |.*&&\s*)(?:go|garble)\s+build\b/m.test(ci) ||
       /run: bash scripts\/verify\.sh(?:\s*\n|\s+windows)/.test(ci) ||

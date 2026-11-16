@@ -15,6 +15,7 @@
 | `npm --prefix frontend run test:unit` | Vue 实际模块的 Node 环境纯逻辑测试，无浏览器/游戏 |
 | `npm --prefix frontend run test:smoke` | 合成桥接的浏览器交互、错误/缓存/身份隔离和布局；先构建 frontend 并设置 `BROWSER_EXECUTABLE` |
 | `node scripts/workflow.mjs check` | 构建/CI/依赖配置等工程策略 |
+| `node --test scripts/ci-download.test.mjs` | 临时夹具核验下载包内容、提交/哈希、脏或篡改产物拒绝，不代表真实EXE运行 |
 
 CI 位于 `.github/workflows/ci.yml`：按portable→quality→Windows顺序执行；quality强制运行Windows目标staticcheck/govulncheck及npm audit，每项实际结果独立记录，失败阻止Windows统一构建。具体结果核对提交号和 [Actions](https://github.com/ZJing1125/LeaguePingo/actions)，不能把另一个提交的成功套用到当前改动。静态分析范围和工具链更新见 [DEPENDENCIES.md](DEPENDENCIES.md)。
 

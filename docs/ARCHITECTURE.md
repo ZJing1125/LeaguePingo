@@ -104,6 +104,6 @@ SGP 认证/限流/服务错误进入共享冷却：5/15/45/60 秒基线加 0–2
 
 ## 验证与交付
 
-[TESTING.md](TESTING.md)列出自动与显式实机入口。[ENVIRONMENTS.md](ENVIRONMENTS.md)区分开发机、Windows runner 和游戏电脑；portable 不生成绑定或产品，Windows CI 经统一 `build.sh` 完整验证、构建和审计，不发布 Release、不自动部署。工具链和更新配置见 [DEPENDENCIES.md](DEPENDENCIES.md)；Dependabot 需默认分支含配置才激活。
+[TESTING.md](TESTING.md)列出自动与显式实机入口。[ENVIRONMENTS.md](ENVIRONMENTS.md)区分开发机、Windows runner 和游戏电脑；portable 不生成绑定或产品，Windows CI 经统一 `build.sh` 完整验证、构建和审计，成功dev构建自动提供[下载包](CLOUD_BUILDS.md)，保留14天；不发布 Release、不自动部署。工具链和更新配置见 [DEPENDENCIES.md](DEPENDENCIES.md)；Dependabot 需默认分支含配置才激活。
 
 原生/真实客户端验收、干净 Windows 安装、发布证书及整局 FPS/延迟仍单独记录于 [ACCEPTANCE.md](ACCEPTANCE.md)、[INSTALLATION.md](INSTALLATION.md)和 [PERFORMANCE.md](PERFORMANCE.md)。自动化结果不冒称真机通过；当前 S9/S10 的未完成部分以[优化清单](OPTIMIZATION_BACKLOG.md)为准。

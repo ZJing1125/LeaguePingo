@@ -9,6 +9,10 @@
 
 启动腾讯国服客户端并完成登录，保持助手运行即可等待连接。首次未连接时首页提供三步指引。关闭主窗后驻留托盘，退出使用托盘菜单。设置中可切换深色、浅色或跟随系统，并查看实际版本与提交号。
 
+## 下载迭代测试版
+
+每次 dev 更新通过 CI 后，自动生成 Windows 下载包并保留 14 天。登录 GitHub，在 [dev 构建列表](https://github.com/ZJing1125/LeaguePingo/actions/workflows/ci.yml?query=branch%3Adev) 打开绿色成功的运行，点击摘要下载链接，解压后运行 `leaguepingo.exe`；无需在游戏电脑构建。[完整下载说明](docs/CLOUD_BUILDS.md)。
+
 ## 开发与构建
 
 先读 [AGENTS.md](AGENTS.md) 和[当前主机约定](docs/ENVIRONMENTS.md)。依赖需事先配置，使用 Bash；Windows 完整构建需要 Go 1.26.11+、Node 22+、锁定的 Wails CLI 和前端依赖。入口详见[工程结构](docs/PROJECT_STRUCTURE.md)。
