@@ -429,8 +429,27 @@ async function main() {
     assert(await page.locator(".toolbar-content :is(nav, form, select, button, input)").evaluateAll(nodes => nodes.every(node => getComputedStyle(node).getPropertyValue("--wails-draggable").trim() === "no-drag")), "toolbar interactions must be excluded from native drag regions");
     assert.equal(await page.getByRole("textbox", { name: "玩家完整 ID" }).evaluate(input => getComputedStyle(input).userSelect), "text");
     await page.getByRole("button", { name: "最小化窗口", exact: true }).click();
+    // Native state events can precede the request reply. Reproduce that order
+    // explicitly: a changed caption does not mean keyboard actions are ready.
+    const emitWindowEvent = desktopWindow.emit.bind(desktopWindow);
+    let releaseMaximise;
+    const maximiseReply = new Promise(resolve => { releaseMaximise = resolve; });
+    desktopWindow.emit = async (name, sender) => {
+      await emitWindowEvent(name, sender);
+      if (name === "WindowMaximise") {
+        desktopWindow.emit = emitWindowEvent;
+        await maximiseReply;
+      }
+    };
     await page.getByRole("button", { name: "最大化窗口", exact: true }).click();
     await page.getByRole("button", { name: "还原窗口", exact: true }).waitFor();
+    try {
+      assert.equal(await page.locator('.window-controls').getAttribute('aria-busy'), 'true');
+      await page.getByRole("button", { name: "还原窗口", exact: true }).press("Enter");
+      assert.equal(desktopWindow.calls.filter(m => m === "ToggleMaximise").length, 1,
+        "keyboard input during the pending native request must not start another action");
+    } finally { releaseMaximise(); }
+    await page.locator('.window-controls[aria-busy="false"]').waitFor();
     await page
       .getByRole("button", { name: "还原窗口", exact: true })
       .press("Enter");
@@ -443,6 +462,7 @@ async function main() {
         .evaluate((el) => el === document.activeElement),
       "keyboard window control must preserve focus",
     );
+    await page.locator('.window-controls[aria-busy="false"]').waitFor();
     await page.locator(".window-brand").dblclick();
     await page.getByRole("button", { name: "还原窗口", exact: true }).waitFor();
     await page.getByRole("button", { name: "还原窗口", exact: true }).click();

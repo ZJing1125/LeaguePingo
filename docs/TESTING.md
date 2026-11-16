@@ -19,6 +19,8 @@
 
 CI 位于 `.github/workflows/ci.yml`：按portable→quality→Windows顺序执行；quality强制运行Windows目标staticcheck/govulncheck及npm audit，每项实际结果独立记录，失败阻止Windows统一构建。具体结果核对提交号和 [Actions](https://github.com/ZJing1125/LeaguePingo/actions)，不能把另一个提交的成功套用到当前改动。静态分析范围和工具链更新见 [DEPENDENCIES.md](DEPENDENCIES.md)。
 
+窗口回归用可释放响应屏障覆盖原生事件先于请求完成的顺序；按钮标签更新不代表可操作。键盘还原与标题双击须等待aria-busy=false，忙状态按键不得重复调用；不用固定sleep或加长超时掩盖时序。
+
 Windows全包竞态通过`CGO_ENABLED=1 go test -race ./...`执行，需要本机PATH已有兼容Go竞态运行库的MinGW-w64 GCC；缺失明确失败，不自动安装。该CGO设置只作用于竞态命令，正式产品仍沿用原构建设置。perfprobe两项Windows测试只采样测试进程自身并校验CSV/进程身份，不连接客户端，不代表F5整局性能实测。
 
 浏览器使用现有 Edge/Chromium，通过 `BROWSER_EXECUTABLE` 指定；也可用 `PLAYWRIGHT_MODULE` 指向现有包。测试只生成合成账号；截图可显式设置 `UI_SCREENSHOT_PREFIX` / `WORKSPACE_SCREENSHOT`，不提交图片或程序。正式构建的证据登记见 [ARTIFACTS.md](ARTIFACTS.md)。组件工作台入口和限制见 [FRONTEND_GUIDE.md](FRONTEND_GUIDE.md)。
