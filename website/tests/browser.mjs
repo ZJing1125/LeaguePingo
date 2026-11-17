@@ -29,7 +29,7 @@ try{
 
   await page.close();
  }
- const noJS=await browser.newPage({javaScriptEnabled:false,viewport:{width:390,height:900}});await noJS.goto(url);assert(await noJS.locator('[data-download="installer"]').isVisible());assert(await noJS.locator('#stage-pregame').isVisible());await noJS.close();
+ const noJS=await browser.newPage({javaScriptEnabled:false,viewport:{width:390,height:900}});await noJS.goto(url);assert(await noJS.locator('[data-download="installer"]').isVisible());assert(await noJS.locator('#stage-pregame').isVisible());assert.equal(await noJS.locator('.stage-controls').isVisible(),false);await noJS.close();
  const mac=await browser.newPage({userAgent:'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'});await mac.goto(url);assert(await mac.locator('.platform-note').isVisible());await mac.close();
  assert.deepEqual(errors,[]);console.log('PASS: four responsive widths, real download manifest, keyboard stages, FAQ, media, Windows/macOS, no-script fallback and reduced motion');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

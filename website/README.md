@@ -18,3 +18,5 @@ npm --prefix website run preview
 官网变动触发独立website工作流，不重建桌面程序；桌面CI成功发布Release后显式调用同一website工作流。网页PR只构建验证；部署只接受dev。仅deploy任务持pages:write/id-token:write，不能写软件Release。仓库Settings → Pages → Source需为GitHub Actions；github-pages环境需允许dev部署，私有/付费仓库需满足GitHub Pages可用条件。设置访问被拒绝时不修改默认分支或绕过权限。
 
 程序下载源是现有GitHub Releases；国内网络质量、独立域名、CDN未在云开发机证明。网址应以实际部署任务的返回结果为准。
+
+发布后调用网站工作流时读取最新dev页面源码；部署前核对源码仍为dev当前提交，避免旧软件CI排队完成后把较新的官网内容覆盖。无脚本时不显示无法使用的阶段切换按钮，默认演示与下载始终可用。

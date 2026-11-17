@@ -47,7 +47,7 @@ const stages = [
         <div class="hero-visual"><img class="overview" src={media('overview')} alt="LeaguePingo 战绩界面：段位、常用英雄及最近比赛" width="1280" height="900" fetchpriority="high" /><div class="visual-caption"><span>LeaguePingo</span><span>你的下一局，从这里开始。</span></div></div>
       </section>
       <section class="stages wrap" id="features">
-        <div class="section-top"><h2>从选人，<br />到最后一张记分板。</h2><div class="stage-controls" role="group" aria-label="选择对局阶段">{stages.map((s,i)=><button type="button" data-stage={s.id} aria-pressed={i===0}>{s.name}</button>)}</div></div>
+        <div class="section-top"><h2>从选人，<br />到最后一张记分板。</h2><div class="stage-controls" hidden role="group" aria-label="选择对局阶段">{stages.map((s,i)=><button type="button" data-stage={s.id} aria-pressed={i===0}>{s.name}</button>)}</div></div>
         {stages.map((s,i)=><article class={`stage stage-${s.id}`} id={`stage-${s.id}`} hidden={i!==0}><div class="stage-copy"><h3>{s.title}</h3><p>{s.description}</p>{s.id==='pregame'&&<p class="small-note">资料跟随当前模式，海克斯与排位分别统计。</p>}{s.id==='ingame'&&<p class="shortcut"><kbd>~</kbd> 按住查看，松开收起</p>}{s.id==='review'&&<a href={repo+'/releases'}>看看最新版本 <span aria-hidden="true">↗</span></a>}</div><div class="stage-image"><img src={media(s.image)} alt={s.alt} width={s.id==='pregame'?320:s.id==='review'?1280:1100} height={s.id==='pregame'?720:s.id==='review'?900:640} loading="eager" /></div></article>)}
         <noscript><p>安装后可使用赛前侧栏、加载与局内快览，以及赛后双方详情。</p></noscript>
       </section>
@@ -66,6 +66,7 @@ const stages = [
     </main>
     <footer class="wrap"><a class="brand" href={base}><img src={`${base}icon.png`} width="28" height="28" alt="" />LeaguePingo</a><div><a href={repo}>GitHub</a><a href={repo+'/issues'}>反馈问题</a><a href={`${repo}/blob/dev/THIRD_PARTY_NOTICES.md`}>第三方声明</a></div><p>独立开发的本地助手，与 Riot Games、腾讯或 OP.GG 无隶属关系。产品画面使用演示数据。</p></footer>
     <script>
+      document.querySelector<HTMLElement>('.stage-controls')!.hidden=false;
       const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-stage]'));
       function select(button: HTMLButtonElement) {
         buttons.forEach(b => b.setAttribute('aria-pressed',String(b===button)));
