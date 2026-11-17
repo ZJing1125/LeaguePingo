@@ -4,6 +4,12 @@
 
 历史条目描述当时行为；如后续需求调整，以较新条目为准。当前局内请求边界见 BUG-0043；BUG-0045 仅为临时按住快览恢复鼠标穿透，手动模式保持可交互。
 
+## BUG-0144 / 精简界面说明原则与下载官网规划
+
+2026-11-17。按用户要求在AGENTS.md加入原文“Avoid unnecessary secondary labels and descriptions. Let the layout do the explaining.”，适用于助手界面与官网。新增DOWNLOAD_WEBSITE_PLAN：产品演示与首屏下载、现有品牌、静态站点、预发布/稳定版渠道、Release后显式接续部署、下载清单核验及国服下载线路验收；当前只有预发布版本，不能依赖/latest获取下载信息，也不能假定GITHUB_TOKEN创建Release会自动触发独立release事件工作流。
+
+本批仅修改项目规则和规划文档，没有开发或部署网站、购买域名、迁移客户端页面或改变下载发布流程。工作流策略与文档差异按本批检查记录，不将设计方案称为已上线功能。
+
 ## BUG-0143 / GitHub Releases 发布入口
 
 2026-11-17。用户澄清下载入口应为Releases。当前连接可创建草稿，但uploads.github.com上传返回401，未产生附件。改由GitHub Actions原生令牌执行：portable、quality和Windows成功后，独立release任务读取同次Windows输出的下载包；该任务单独获得contents:write/actions:read，其他任务保持只读，PR不发布。版本标签按程序版本与提交生成，全部为预发布，不自动改变正式Latest或main。
