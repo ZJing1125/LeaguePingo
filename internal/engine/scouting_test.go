@@ -55,9 +55,14 @@ func waitScout(t *testing.T, e *Engine) *core.ScoutReport {
 	t.Helper()
 	end := time.Now().Add(5 * time.Second)
 	for time.Now().Before(end) {
-		s := e.Snapshot()
-		if len(s.Participants) > 0 && s.Participants[0].Scout != nil && s.Participants[0].Scout.State != "loading" {
-			return s.Participants[0].Scout
+		// First-page reports may be partial while season/mastery preparation
+		// continues. Read the snapshot only after the task has finished, so
+		// a snapshot from before completion cannot be returned as terminal.
+		if !e.scouting.hasTask() {
+			s := e.Snapshot()
+			if len(s.Participants) > 0 && s.Participants[0].Scout != nil && s.Participants[0].Scout.State != "loading" {
+				return s.Participants[0].Scout
+			}
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
