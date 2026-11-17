@@ -1,0 +1,80 @@
+---
+import releases from '../data/releases.json';
+import '../styles/site.css';
+const current = releases.stable ?? releases.preview;
+if (!current) throw new Error('No verified download available');
+const base = import.meta.env.BASE_URL;
+const media = (name: string) => `${base}media/${name}.webp`;
+const repo = 'https://github.com/ZJing1125/LeaguePingo';
+const label = current.channel === 'preview' ? '下载 Windows 测试版' : '下载 Windows 版';
+const date = new Date(current.publishedAt).toLocaleDateString('zh-CN', {timeZone:'Asia/Shanghai'});
+const mb = (size: number) => `${(size/1024/1024).toFixed(1)} MB`;
+const stages = [
+  {id:'pregame',name:'赛前',title:'选人时，看清队友近况。',description:'段位、常用英雄与近期表现，在客户端旁边一眼查看。',image:'pregame',alt:'选人阶段的玩家资料侧栏，展示段位和近期统计'},
+  {id:'ingame',name:'局内',title:'需要的时候，按住看一眼。',description:'加载与对局中，用快览查看双方已准备的玩家资料。',image:'ingame',alt:'加载阶段的双方十人玩家资料快览'},
+  {id:'review',name:'复盘',title:'从一场战绩，看到双方表现。',description:'打开对局详情，比较双方阵容、输出、视野和出装。',image:'review',alt:'双方对局详情记分板，包含KDA和伤害数据'},
+];
+---
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#161719" />
+    <title>LeaguePingo — 腾讯国服英雄联盟助手下载</title>
+    <meta name="description" content="LeaguePingo，面向腾讯国服的本地英雄联盟助手。赛前资料、局内快览、赛后复盘与海克斯大乱斗攻略。下载 Windows 版。" />
+    <link rel="icon" href={`${base}icon.png`} />
+    <link rel="canonical" href={new URL(base, Astro.site)} />
+    <meta property="og:title" content="LeaguePingo · 看清对局，再进峡谷" />
+    <meta property="og:description" content="腾讯国服本地助手。赛前资料、局内快览与赛后复盘。" />
+    <meta property="og:type" content="website" /><meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content={new URL(`${base}media/overview.webp`, Astro.site)} />
+  </head>
+  <body>
+    <a class="skip" href="#main">跳到正文</a>
+    <header class="site-header wrap">
+      <a class="brand" href={base} aria-label="LeaguePingo 首页"><img src={`${base}icon.png`} alt="" width="32" height="32" />LeaguePingo</a>
+      <nav aria-label="主导航"><a href="#features">功能</a><a href="#updates">更新日志</a><a href="#help">帮助</a><a class="nav-download" href="#download">下载 <span aria-hidden="true">↗</span></a></nav>
+    </header>
+    <main id="main">
+      <section class="hero wrap" id="download">
+        <div class="hero-copy">
+          <h1>看清对局，<br />再进峡谷。</h1>
+          <p class="intro">面向腾讯国服的本地助手。<br />赛前资料、局内快览与赛后复盘。</p>
+          <div class="download-actions"><a class="button" data-download="installer" href={current.files['leaguepingo-setup.exe'].url}>{label}<span aria-hidden="true">↓</span></a><a class="portable" data-download="portable" href={current.files['leaguepingo.exe'].url}>免安装版 <span aria-hidden="true">↗</span></a></div>
+          <p class="release-meta">Windows 64 位 · {current.version} · {date}</p>
+          <p class="platform-note" hidden>请在 Windows 电脑上安装使用。<button id="copy-link" type="button">复制下载链接</button><span role="status" id="copy-status"></span></p>
+        </div>
+        <div class="hero-visual"><img class="overview" src={media('overview')} alt="LeaguePingo 战绩界面：段位、常用英雄及最近比赛" width="1280" height="900" fetchpriority="high" /><div class="visual-caption"><span>LeaguePingo</span><span>你的下一局，从这里开始。</span></div></div>
+      </section>
+      <section class="stages wrap" id="features">
+        <div class="section-top"><h2>从选人，<br />到最后一张记分板。</h2><div class="stage-controls" role="group" aria-label="选择对局阶段">{stages.map((s,i)=><button type="button" data-stage={s.id} aria-pressed={i===0}>{s.name}</button>)}</div></div>
+        {stages.map((s,i)=><article class={`stage stage-${s.id}`} id={`stage-${s.id}`} hidden={i!==0}><div class="stage-copy"><h3>{s.title}</h3><p>{s.description}</p>{s.id==='pregame'&&<p class="small-note">资料跟随当前模式，海克斯与排位分别统计。</p>}{s.id==='ingame'&&<p class="shortcut"><kbd>~</kbd> 按住查看，松开收起</p>}{s.id==='review'&&<a href={repo+'/releases'}>看看最新版本 <span aria-hidden="true">↗</span></a>}</div><div class="stage-image"><img src={media(s.image)} alt={s.alt} width={s.id==='pregame'?320:s.id==='review'?1280:1100} height={s.id==='pregame'?720:s.id==='review'?900:640} loading="eager" /></div></article>)}
+        <noscript><p>安装后可使用赛前侧栏、加载与局内快览，以及赛后双方详情。</p></noscript>
+      </section>
+      <section class="mayhem" aria-labelledby="mayhem-heading"><div class="wrap mayhem-layout"><div><h2 id="mayhem-heading">海克斯大乱斗，<br />强化选择有参考。</h2><p>查看当前英雄的强化与出装。<br />选中三个候选，放在一起比较。</p><a href={current.files['leaguepingo-setup.exe'].url}>下载体验 <span aria-hidden="true">↗</span></a></div><div class="mayhem-image"><img src={media('mayhem')} alt="海克斯大乱斗强化攻略与三个候选的比较界面" width="1100" height="640" loading="eager" /></div></div></section>
+      <section class="start wrap" id="start"><h2>下载，然后开始下一局。</h2><ol><li><h3>选一个版本</h3><p>安装版带快捷方式；免安装版直接运行。</p></li><li><h3>启动助手</h3><p>更新时先从托盘退出旧版，再运行新版。</p></li><li><h3>登录客户端</h3><p>登录腾讯国服客户端，助手会自动连接。</p></li></ol></section>
+      <section class="updates wrap" id="updates"><div><h2>当前版本</h2><p class="version">{current.version}</p><p class="release-meta">{date} · {current.channel==='preview'?'开发测试版':'稳定版'}</p></div><div><img class="update-image" src={media('review')} alt="当前版本的双方复盘界面" width="1280" height="900" loading="eager" /><p class="update-description">多模式玩家资料与近期评级，选人、加载和局内连续查看；公共英雄攻略、战绩与双方详情集中呈现。</p><a href={current.url}>查看本版发布说明 <span aria-hidden="true">↗</span></a><details><summary>其他版本与文件校验</summary><p>安装版 {mb(current.files['leaguepingo-setup.exe'].size)} · 免安装版 {mb(current.files['leaguepingo.exe'].size)}</p><div class="file-links"><a href={current.files['BUILD-INFO.json'].url}>构建信息</a><a href={current.files['SHA256SUMS.txt'].url}>SHA-256 校验值</a><a href={repo+'/releases'}>历史版本</a>{releases.stable&&releases.preview&&<a href={releases.preview.url}>最新测试版</a>}</div><p>提交 {current.commit.slice(0,8)}</p></details></div></section>
+      <section class="help wrap" id="help"><h2>还想了解</h2><div class="questions">
+        <details><summary>支持什么系统和服务器？</summary><p>当前提供 Windows 64 位版本，面向英雄联盟腾讯国服。需要 Microsoft Edge WebView2 Runtime，缺失时程序会引导安装。</p></details>
+        <details><summary>安装后没有连接到客户端？</summary><p>先启动腾讯国服客户端并完成登录，再保持助手运行。仍无法连接时，可在助手中查看连接指引，通过 GitHub 反馈问题。</p></details>
+        <details><summary>自动接受和赛后排队怎么开启？</summary><p>进入“游戏辅助”，分别开启并保存需要的选项。自动接受、跳过点赞、返回房间和排队均默认关闭，随时可以一键停用。</p></details>
+        <details><summary>浏览器或 Windows 提示下载风险？</summary><p>当前为开发测试版，尚未配置发布签名。请核对来源为本项目的 GitHub Releases，并使用校验文件检查下载内容；不要关闭系统安全保护。</p></details>
+        <details><summary>下载缓慢或失败怎么办？</summary><p>程序由 GitHub Releases 分发，不同网络的下载速度可能不同。可稍后重试，或打开<a href={repo+'/releases'}>发布页面</a>重新选择附件。</p></details>
+        <details><summary>玩家数据会上传到官网吗？</summary><p>官网仅提供介绍和下载。客户端连接和玩家查询在本地助手中完成，不向官网上传玩家数据。界面演示使用匿名合成数据。</p></details>
+      </div></section>
+      <section class="closing wrap"><h2>下一局，带上 LeaguePingo。</h2><a class="button" href={current.files['leaguepingo-setup.exe'].url}>{label}<span aria-hidden="true">↓</span></a></section>
+    </main>
+    <footer class="wrap"><a class="brand" href={base}><img src={`${base}icon.png`} width="28" height="28" alt="" />LeaguePingo</a><div><a href={repo}>GitHub</a><a href={repo+'/issues'}>反馈问题</a><a href={`${repo}/blob/dev/THIRD_PARTY_NOTICES.md`}>第三方声明</a></div><p>独立开发的本地助手，与 Riot Games、腾讯或 OP.GG 无隶属关系。产品画面使用演示数据。</p></footer>
+    <script>
+      const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-stage]'));
+      function select(button: HTMLButtonElement) {
+        buttons.forEach(b => b.setAttribute('aria-pressed',String(b===button)));
+        document.querySelectorAll<HTMLElement>('.stage').forEach(p => p.hidden=p.id!==`stage-${button.dataset.stage}`);
+      }
+      buttons.forEach((button,i)=>{button.addEventListener('click',()=>select(button));button.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const next=event.key==='Home'?0:event.key==='End'?buttons.length-1:(i+(event.key==='ArrowRight'?1:-1)+buttons.length)%buttons.length;buttons[next].focus();select(buttons[next]);});});
+      if(!/Windows/i.test(navigator.userAgent)) document.querySelector<HTMLElement>('.platform-note')!.hidden=false;
+      document.querySelector('#copy-link')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(document.querySelector<HTMLAnchorElement>('[data-download="installer"]')!.href);document.querySelector('#copy-status')!.textContent='已复制';}catch{document.querySelector('#copy-status')!.textContent='请长按或右键复制下载按钮的链接';}});
+      if(!matchMedia('(prefers-reduced-motion: reduce)').matches){const observer=new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('entered');observer.unobserve(e.target);}}),{threshold:0.08});document.querySelectorAll('main > section').forEach(el=>observer.observe(el));}
+    </script>
+  </body>
+</html>

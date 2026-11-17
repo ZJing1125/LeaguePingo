@@ -9,7 +9,7 @@ export const policyFiles = ['AGENTS.md', 'Taskfile.yml', 'build/windows/Taskfile
   'scripts/dev.sh', 'scripts/verify.sh', 'scripts/audit-player-data.sh', 'docs/ci/verify.yml.example',
   'scripts/package-windows.sh', 'scripts/sign-windows.sh', 'scripts/verify-installer.sh', 'scripts/version.mjs',
   'frontend/package.json', 'frontend/preview/package.json', 'frontend/preview/histoire.config.ts',
-  '.github/workflows/ci.yml', '.github/dependabot.yml', 'go.mod'];
+  '.github/workflows/ci.yml', '.github/workflows/website.yml', '.github/dependabot.yml', 'go.mod'];
 
 // A deliberately restricted policy check, not a general YAML parser. Keep
 // entry tasks simple and also test their expansion with the real Wails runner.
@@ -55,7 +55,7 @@ function downloadPolicy(ci) {
 function qualityPolicy(ci) {
   const jobs = taskBlocks(ci, 'jobs');
   const quality = jobs.get('quality') || '', windows = jobs.get('windows') || '';
-  if (jobs.size !== 4 || !jobs.has('portable') || !jobs.has('release') || !quality || !windows ||
+  if (jobs.size !== 5 || !jobs.has('portable') || !jobs.has('release') || !jobs.has('website') || !quality || !windows ||
       !/^    needs: portable$/m.test(quality) || !/^    needs: \[portable, quality\]$/m.test(windows) ||
       /^    (?:if|continue-on-error):/m.test(quality + windows) || /continue-on-error:/.test(quality)) {
     throw new Error('Windows must depend on mandatory portable and quality jobs');
@@ -226,7 +226,8 @@ export function checkWorkflow(read) {
     requireText('.github/dependabot.yml', text);
   }
   const updates = dependencies.split(/^  - package-ecosystem:/m).slice(1);
-  if (updates.length !== 4 || updates.some(block => !/^    target-branch: dev$/m.test(block)) ||
+  requireText('.github/dependabot.yml', 'directory: "/website"');
+  if (updates.length !== 5 || updates.some(block => !/^    target-branch: dev$/m.test(block)) ||
       (dependencies.match(/^    multi-ecosystem-group: desktop$/gm) || []).length !== 2) {
     throw new Error('Dependency updates must target dev and review product Go/npm dependencies together');
   }
@@ -254,6 +255,22 @@ export function checkWorkflow(read) {
   qualityPolicy(ci);
   downloadPolicy(ci);
   releasePolicy(ci);
+  const site = contents['.github/workflows/website.yml'];
+  for (const text of ["    branches: [dev]", '  workflow_call:', '    needs: build',
+    "    if: ${{ github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' }}",
+    '      pages: write', '      id-token: write', '        run: npm --prefix website test',
+    '        run: npm --prefix website run sync-release', '        run: npm --prefix website run build',
+    'npm --prefix website run test:browser', '          path: website/dist']) requireText('.github/workflows/website.yml', text);
+  if (/contents: write|continue-on-error:|secrets: inherit/.test(site) ||
+      [...site.matchAll(/uses: (\S+)/g)].some(m => !/^actions\/(checkout|setup-node|upload-pages-artifact|deploy-pages)@[a-f0-9]{40}$/.test(m[1]))) {
+    throw new Error('Website actions must be pinned and have no release write permissions');
+  }
+  const website = taskBlocks(ci, 'jobs').get('website') || '';
+  for (const line of ['    needs: release', "    if: ${{ success() && github.ref == 'refs/heads/dev' }}",
+    '      contents: read', '      pages: write', '      id-token: write', '    uses: ./.github/workflows/website.yml']) {
+    if (!website.split('\n').includes(line)) throw new Error('Website must deploy only after a verified release');
+  }
+  if (/secrets: inherit|contents: write|continue-on-error:/.test(website)) throw new Error('Website cannot acquire release credentials');
   requireText('scripts/verify.sh', 'scripts/ci-download.test.mjs');
   requireText('scripts/verify.sh', 'scripts/publish-release.test.mjs');
   if ((ci.match(/run: bash scripts\/build\.sh bin\/leaguepingo-ci\.exe/g) || []).length !== 1 ||

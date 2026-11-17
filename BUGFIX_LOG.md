@@ -4,6 +4,14 @@
 
 历史条目描述当时行为；如后续需求调整，以较新条目为准。当前局内请求边界见 BUG-0043；BUG-0045 仅为临时按住快览恢复鼠标穿透，手动模式保持可交互。
 
+## BUG-0145 / 下载官网实施与发布同步
+
+2026-11-17。按用户批准方案实施website独立Astro静态站：首屏真实下载、三个阶段演示、海克斯攻略、安装及FAQ，保留现有品牌与匿名产品截图。发布信息在构建时核验Releases、附件摘要及完整构建身份，默认稳定版/无稳定版用测试版；浏览器不取玩家数据或访问GitHub API。
+
+增加固定提交的官方Pages动作、官网独立工作流及软件Release后的显式调用；只有部署任务拥有Pages/OIDC权限，无软件发布写权限，PR不部署。纯官网路径不重编译桌面；官网依赖有独立锁文件和Dependabot更新组。当前集成的Pages管理API返回403，尚需管理员设置Actions来源及允许dev部署，不以本机预览冒充公开上线。
+
+本机发布元数据校验、网站依赖audit、单测、四种宽度浏览器交互及desktop portable已通过；重采产品侧栏/详情/攻略回归通过，图片压缩约0.4MiB。原PNG/HTML和设计工具忽略，仅提交匿名展示WebP及来源。完整CI与实际部署以本批运行记录为准；域名、国内线路和CDN保留待执行。
+
 ## BUG-0144 / 精简界面说明原则与下载官网规划
 
 2026-11-17。按用户要求在AGENTS.md加入原文“Avoid unnecessary secondary labels and descriptions. Let the layout do the explaining.”，适用于助手界面与官网。新增DOWNLOAD_WEBSITE_PLAN：产品演示与首屏下载、现有品牌、静态站点、预发布/稳定版渠道、Release后显式接续部署、下载清单核验及国服下载线路验收；当前只有预发布版本，不能依赖/latest获取下载信息，也不能假定GITHUB_TOKEN创建Release会自动触发独立release事件工作流。

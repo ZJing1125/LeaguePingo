@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "stable": null,
+  "preview": {
+    "version": "0.2.0-dev",
+    "tag": "v0.2.0-dev.g7ac1e9db",
+    "commit": "7ac1e9db076cb60c7a0fc91a391c53f3fcadbb36",
+    "publishedAt": "2026-11-17T09:32:49Z",
+    "channel": "preview",
+    "url": "https://github.com/ZJing1125/LeaguePingo/releases/tag/v0.2.0-dev.g7ac1e9db",
+    "buildURL": "https://github.com/ZJing1125/LeaguePingo/actions/runs/44054856367",
+    "files": {
+      "BUILD-INFO.json": {
+        "url": "https://github.com/ZJing1125/LeaguePingo/releases/download/v0.2.0-dev.g7ac1e9db/BUILD-INFO.json",
+        "size": 650,
+        "sha256": "0bcc39f63c0cec4adc5d9fbf00feb900a93752ea2832aa96e434ba05d502a267"
+      },
+      "SHA256SUMS.txt": {
+        "url": "https://github.com/ZJing1125/LeaguePingo/releases/download/v0.2.0-dev.g7ac1e9db/SHA256SUMS.txt",
+        "size": 329,
+        "sha256": "caf2b4a1e97f9e23e417338336f3d939e5913ec1078e7c7657558067c8f2337a"
+      },
+      "README.txt": {
+        "url": "https://github.com/ZJing1125/LeaguePingo/releases/download/v0.2.0-dev.g7ac1e9db/README.txt",
+        "size": 1007,
+        "sha256": "9e9731d58f58ce85c251ceb76118ead59ad983e6634784457a588e5c09a3bffe"
+      },
+      "leaguepingo.exe": {
+        "url": "https://github.com/ZJing1125/LeaguePingo/releases/download/v0.2.0-dev.g7ac1e9db/leaguepingo.exe",
+        "size": 69447168,
+        "sha256": "f27bbca9081b7d772af2ca0c4202705eaf345b097f3cad8af88b56d4dd779f3b"
+      },
+      "leaguepingo-setup.exe": {
+        "url": "https://github.com/ZJing1125/LeaguePingo/releases/download/v0.2.0-dev.g7ac1e9db/leaguepingo-setup.exe",
+        "size": 60126116,
+        "sha256": "1b5c88b9907d5b7d97c69fcd2a7a7e7c840c0cba4877558da8398e283fda9891"
+      }
+    }
+  }
+}

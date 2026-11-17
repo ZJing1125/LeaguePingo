@@ -13,6 +13,8 @@
 
 每次 dev 更新通过完整 CI 后，自动在 [Releases](https://github.com/ZJing1125/LeaguePingo/releases) 发布 Windows 测试版。展开最新版本的 **Assets**：下载 `leaguepingo.exe` 可直接运行，或选择 `leaguepingo-setup.exe` 安装；无需在游戏电脑构建。发布附件不受 Actions 产物 14 天保留期影响。[完整下载说明](docs/CLOUD_BUILDS.md)。
 
+下载官网源码与部署说明见[官网说明](docs/WEBSITE.md)。
+
 ## 开发与构建
 
 先读 [AGENTS.md](AGENTS.md) 和[当前主机约定](docs/ENVIRONMENTS.md)。依赖需事先配置，使用 Bash；Windows 完整构建需要 Go 1.26.11+、Node 22+、锁定的 Wails CLI 和前端依赖。入口详见[工程结构](docs/PROJECT_STRUCTURE.md)。

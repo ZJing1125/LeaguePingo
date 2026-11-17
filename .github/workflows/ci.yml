@@ -3,6 +3,9 @@ name: CI
 on:
   push:
     branches: [dev]
+    paths-ignore:
+      - 'website/**'
+      - '.github/workflows/website.yml'
   pull_request:
     branches: [dev, main]
   workflow_dispatch:
@@ -288,3 +291,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/publish-release.mjs
+
+  website:
+    name: Update download website
+    needs: release
+    if: ${{ success() && github.ref == 'refs/heads/dev' }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/website.yml

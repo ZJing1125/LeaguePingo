@@ -37,6 +37,18 @@ updates:
       preview:
         patterns: ["*"]
 
+  - package-ecosystem: npm
+    directory: "/website"
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:00"
+      timezone: Asia/Shanghai
+    groups:
+      website:
+        patterns: ["*"]
+
   - package-ecosystem: github-actions
     directory: "/"
     target-branch: dev

@@ -144,6 +144,18 @@ test('all CI jobs follow one patched Go version source', () => {
     assert.throws(() => checkWorkflow(f => f === file ? changed : files[f]), /patched Go 1.26.11 minimum/);
   }
 });
+test('website deploy cannot bypass release or inherit release write credentials', () => {
+  for (const [file, before, after] of [
+    ['.github/workflows/ci.yml', '    needs: release', '    needs: portable'],
+    ['.github/workflows/ci.yml', '    uses: ./.github/workflows/website.yml', '    uses: external/unsafe@main'],
+    ['.github/workflows/website.yml', "github.event_name != 'pull_request'", 'true'],
+    ['.github/workflows/website.yml', '        run: npm --prefix website run sync-release', '        run: true'],
+    ['.github/workflows/website.yml', '      pages: write', '      contents: write'],
+  ]) {
+    assert.ok(files[file].includes(before));
+    assert.throws(() => checkWorkflow(f => f === file ? files[f].replace(before, after) : files[f]));
+  }
+});
 test('quality analyzers prepare real embedded assets in their own job', () => {
   const file = '.github/workflows/ci.yml';
   const prepare = '      - name: Prepare embedded frontend for analyzers\n        id: frontend\n        run: |\n          npm --prefix frontend ci\n          npm --prefix frontend run build\n';

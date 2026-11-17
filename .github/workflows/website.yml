@@ -1,0 +1,74 @@
+name: Download website
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - 'website/**'
+      - '.github/workflows/website.yml'
+  pull_request:
+    branches: [dev, main]
+    paths:
+      - 'website/**'
+      - '.github/workflows/website.yml'
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: website-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ASTRO_TELEMETRY_DISABLED: '1'
+
+jobs:
+  build:
+    name: Verify and build website
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - name: Install website dependencies
+        run: npm --prefix website ci
+      - name: Test release selection and policy
+        run: npm --prefix website test
+      - name: Audit website dependencies
+        run: npm --prefix website audit --audit-level=high
+      - name: Read verified releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: npm --prefix website run sync-release
+      - name: Build static website
+        run: npm --prefix website run build
+      - name: Browser verification
+        run: BROWSER_EXECUTABLE="$(command -v google-chrome)" npm --prefix website run test:browser
+      - name: Upload website
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: website/dist
+  deploy:
+    name: Deploy download website
+    needs: build
+    if: ${{ github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

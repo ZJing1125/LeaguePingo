@@ -13,3 +13,6 @@ build/windows/nsis/*-installer.exe
 .DS_Store
 /AGENTS.local.md
 /.leaguepingo/
+/website/node_modules/
+/website/dist/
+/website/.astro/
