@@ -55,12 +55,12 @@ function downloadPolicy(ci) {
 function qualityPolicy(ci) {
   const jobs = taskBlocks(ci, 'jobs');
   const quality = jobs.get('quality') || '', windows = jobs.get('windows') || '';
-  if (jobs.size !== 3 || !jobs.has('portable') || !quality || !windows ||
+  if (jobs.size !== 4 || !jobs.has('portable') || !jobs.has('release') || !quality || !windows ||
       !/^    needs: portable$/m.test(quality) || !/^    needs: \[portable, quality\]$/m.test(windows) ||
       /^    (?:if|continue-on-error):/m.test(quality + windows) || /continue-on-error:/.test(quality)) {
     throw new Error('Windows must depend on mandatory portable and quality jobs');
   }
-  if ([...jobs.values()].some(job => (job.match(/^\s*go-version-file: go\.mod$/gm) || []).length !== 1)) {
+  if (['portable', 'quality', 'windows'].some(name => (jobs.get(name).match(/^\s*go-version-file: go\.mod$/gm) || []).length !== 1)) {
     throw new Error('Each CI job must read the single Go version source');
   }
   const blocks = quality.split(/^      - /m).slice(1);
@@ -95,6 +95,24 @@ function qualityPolicy(ci) {
   if (!summary.split('\n').includes('        if: always()') ||
       ['staticcheck', 'govulncheck', 'npm_audit'].some(id => !summary.includes('${{ steps.' + id + '.outcome }}'))) {
     throw new Error('Quality summary must preserve actual outcomes after failure');
+  }
+}
+
+function releasePolicy(ci) {
+  const jobs = taskBlocks(ci, 'jobs'), release = jobs.get('release') || '';
+  for (const line of ['    needs: [portable, quality, windows]',
+    "    if: ${{ success() && github.ref == 'refs/heads/dev' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.upload_exe)) }}",
+    '    permissions:', '      actions: read', '      contents: write',
+    '          ARTIFACT_NAME: ${{ needs.windows.outputs.download_name }}',
+    '          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$ARTIFACT_NAME" --dir artifacts/release',
+    '        run: node scripts/publish-release.mjs']) {
+    if (!release.split('\n').includes(line)) throw new Error('Release must publish only the verified dev bundle after all checks');
+  }
+  if (/continue-on-error:|--clobber|go-version-file:/.test(release) ||
+      !/^      download_name: \$\{\{ steps.bundle.outputs.artifact_name \}\}$/m.test(jobs.get('windows')) ||
+      (ci.match(/^\s+contents: write$/gm) || []).length !== 1 ||
+      [...jobs].some(([name, block]) => name !== 'release' && /contents: write|GH_TOKEN:/.test(block))) {
+    throw new Error('Only the release job may write releases; build jobs remain read-only');
   }
 }
 
@@ -235,7 +253,9 @@ export function checkWorkflow(read) {
   }
   qualityPolicy(ci);
   downloadPolicy(ci);
+  releasePolicy(ci);
   requireText('scripts/verify.sh', 'scripts/ci-download.test.mjs');
+  requireText('scripts/verify.sh', 'scripts/publish-release.test.mjs');
   if ((ci.match(/run: bash scripts\/build\.sh bin\/leaguepingo-ci\.exe/g) || []).length !== 1 ||
       /^\s*(?:run: |.*&&\s*)(?:go|garble)\s+build\b/m.test(ci) ||
       /run: bash scripts\/verify\.sh(?:\s*\n|\s+windows)/.test(ci) ||

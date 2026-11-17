@@ -28,6 +28,7 @@ test('policy regression mutations are rejected', () => {
     ['scripts/verify.sh', 'scripts/workflow.test.mjs', ''],
     ['scripts/verify.sh', 'scripts/version.test.mjs', ''],
     ['scripts/verify.sh', 'scripts/ci-download.test.mjs', ''],
+    ['scripts/verify.sh', 'scripts/publish-release.test.mjs', ''],
     ['scripts/verify.sh', 'npm --prefix frontend run test:unit', 'echo skipped unit tests'],
     ['scripts/verify.sh', 'go run ./cmd/functioncheck', 'echo skipped function limit'],
     ['scripts/verify.sh', 'node scripts/check-styles.mjs', 'echo skipped style ownership'],
@@ -110,6 +111,23 @@ test('download cannot run before installer and binding verification', () => {
   const changed = files[file].replace(prepare, '').replace('      - name: Verify NSIS install and uninstall',
     prepare + '      - name: Verify NSIS install and uninstall');
   assert.throws(() => checkWorkflow(f => f === file ? changed : files[f]), /Downloads must follow/);
+});
+test('releases cannot publish PRs, skip dependencies or choose an unrelated artifact', () => {
+  const file = '.github/workflows/ci.yml';
+  for (const [before, after] of [
+    ['needs: [portable, quality, windows]', 'needs: [portable]'],
+    ['name: Publish development release', 'name: Publish development release\n    continue-on-error: true'],
+    ['ARTIFACT_NAME: ${{ needs.windows.outputs.download_name }}', 'ARTIFACT_NAME: arbitrary'],
+    ['run: node scripts/publish-release.mjs', 'run: gh release create unsafe'],
+    ['      contents: write', '      contents: read'],
+    ['      download_name: ${{ steps.bundle.outputs.artifact_name }}', '      download_name: wrong'],
+  ]) {
+    assert.ok(files[file].includes(before));
+    const changed = files[file].replace(before, after);
+    assert.throws(() => checkWorkflow(f => f === file ? changed : files[f]));
+  }
+  const changed = files[file].replace(/(  release:[\s\S]+)$/, block => block.replace("github.ref == 'refs/heads/dev'", 'true'));
+  assert.throws(() => checkWorkflow(f => f === file ? changed : files[f]));
 });
 test('all CI jobs follow one patched Go version source', () => {
   for (const [file, before, after] of [

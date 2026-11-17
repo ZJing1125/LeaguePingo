@@ -33,7 +33,7 @@ export function prepareDownload(root, { commit, repository, runID, attempt }) {
   fs.writeFileSync(path.join(folder, 'BUILD-INFO.json'), JSON.stringify(receipt, null, 2) + '\n');
   fs.writeFileSync(path.join(folder, 'README.txt'), `LeaguePingo 开发测试版 ${version} (${commit.slice(0, 8)})
 
-1. 将整个下载 ZIP 解压到一个新的版本目录。
+1. 将下载的程序保存在一个新的版本目录；如果下载的是 ZIP，请先完整解压。
 2. 从托盘退出正在运行的旧版助手，再双击 leaguepingo.exe，即可开始测试。
 3. 如需开始菜单/桌面快捷方式，可改用 leaguepingo-setup.exe 安装；两种方式任选一种。
 

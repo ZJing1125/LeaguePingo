@@ -140,6 +140,8 @@
 
 ## 构建入口与交付（必须遵守）
 
+- BUG-0143：用户明确要求Releases下载入口。成功dev构建后独立release任务自动发布按提交命名的预发布版；只有此任务有contents:write/actions:read，PR和构建任务不获发布权限。复用同次Windows下载包，核对提交、版本、校验值；草稿附件完整且远端哈希一致才发布，不覆盖已发布资产、不自动设为正式Latest。不修改main，不改变游戏验收和本机清理规则。
+
 - BUG-0107：CI静默卸载验证运行本次独有的外部副本，末尾使用NSIS官方未加引号的_?=隔离安装路径，等待实际进程而不是自复制启动器；保留60秒超时及原文件消失断言。只能清理自建副本目录，不允许测试脚本直接删除隔离安装文件来伪造通过；真实交互卸载仍待人工验收。
 
 - BUG-0051：正式 C 款图标以 `build/appicon.png` 为源、`build/brand.json` 为完整性清单；仅显式 `node scripts/app-icons.mjs generate` 使用固定 CLI 派生 Windows ICO/前端 PNG，常规构建只校验资源。Windows 完整验证与热重载必须在 Go 链接前重新生成 `wails_windows_amd64.syso`（当前 ICO/manifest/info、amd64），不提交该对象或绕过统一构建。浏览器、目标编译与 Windows 原生任务栏/托盘/DPI 验收分开报告，见 `docs/APP_ICON.md`。

@@ -138,6 +138,8 @@ jobs:
     needs: [portable, quality]
     runs-on: windows-latest
     timeout-minutes: 30
+    outputs:
+      download_name: ${{ steps.bundle.outputs.artifact_name }}
     defaults:
       run:
         shell: bash
@@ -258,3 +260,31 @@ jobs:
             echo "无需 Go、Node 或 Wails。提交和校验值见 BUILD-INFO.json、SHA256SUMS.txt。"
             echo "此包已通过自动化验证；真实客户端功能仍需本机验收。"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: Publish development release
+    needs: [portable, quality, windows]
+    if: ${{ success() && github.ref == 'refs/heads/dev' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.upload_exe)) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+      - name: Download verified Windows bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_NAME: ${{ needs.windows.outputs.download_name }}
+        run: |
+          test -n "$ARTIFACT_NAME"
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$ARTIFACT_NAME" --dir artifacts/release
+      - name: Verify assets and publish prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/publish-release.mjs

@@ -11,7 +11,7 @@
 
 ## 下载迭代测试版
 
-每次 dev 更新通过 CI 后，自动生成 Windows 下载包并保留 14 天。登录 GitHub，在 [dev 构建列表](https://github.com/ZJing1125/LeaguePingo/actions/workflows/ci.yml?query=branch%3Adev) 打开绿色成功的运行，点击摘要下载链接，解压后运行 `leaguepingo.exe`；无需在游戏电脑构建。[完整下载说明](docs/CLOUD_BUILDS.md)。
+每次 dev 更新通过完整 CI 后，自动在 [Releases](https://github.com/ZJing1125/LeaguePingo/releases) 发布 Windows 测试版。展开最新版本的 **Assets**：下载 `leaguepingo.exe` 可直接运行，或选择 `leaguepingo-setup.exe` 安装；无需在游戏电脑构建。发布附件不受 Actions 产物 14 天保留期影响。[完整下载说明](docs/CLOUD_BUILDS.md)。
 
 ## 开发与构建
 

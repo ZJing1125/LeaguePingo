@@ -14,6 +14,7 @@
 | `bash scripts/build.sh` | 唯一 Windows 交付入口，内含完整验证、编译、登记、留存清理及只读审计 |
 | `npm --prefix frontend run test:unit` | Vue 实际模块的 Node 环境纯逻辑测试，无浏览器/游戏 |
 | `npm --prefix frontend run test:smoke` | 合成桥接的浏览器交互、错误/缓存/身份隔离和布局；先构建 frontend 并设置 `BROWSER_EXECUTABLE` |
+| `node --test scripts/publish-release.test.mjs` | 发布包身份/哈希校验、草稿上传失败、远端冲突拒绝及重跑不覆盖；不连接GitHub |
 | `node scripts/workflow.mjs check` | 构建/CI/依赖配置等工程策略 |
 | `node --test scripts/ci-download.test.mjs` | 临时夹具核验下载包内容、提交/哈希、脏或篡改产物拒绝，不代表真实EXE运行 |
 
