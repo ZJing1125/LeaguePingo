@@ -50,11 +50,16 @@ export function verifyAssets(release, bundle, complete = true) {
   if (complete && seen.size !== bundle.files.length) throw new Error('Release assets are incomplete');
 }
 
-function gh(args, optional = false) {
-  const result = spawnSync('gh', args, { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+export function gh(args, optional = false, run = spawnSync) {
+  const result = run('gh', args, { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
   if (result.status !== 0) {
-    if (optional && /HTTP 404\b/.test(result.stderr || '')) return null;
-    throw new Error(`GitHub ${args[0]} operation failed (exit ${result.status}); release remains unpublished if still a draft`);
+    let status = String(result.stderr || '').match(/HTTP\s+(\d{3})\b/)?.[1];
+    try { status ??= String(JSON.parse(result.stdout).status ?? ''); } catch { /* Not an API JSON response. */ }
+    if (optional && status === '404') return null;
+    const methodIndex = args.indexOf('--method');
+    const method = methodIndex >= 0 ? args[methodIndex + 1] : 'GET';
+    const endpoint = args.find(arg => /^repos\/[\w.-]+\/[\w.-]+\/(git\/|releases)/.test(arg));
+    throw new Error(`GitHub ${args[0]} ${endpoint ? method + ' ' + endpoint : 'operation'} failed (HTTP ${status || 'unknown'}, exit ${result.status}); release remains unpublished if still a draft`);
   }
   return result.stdout;
 }

@@ -4,9 +4,19 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { createHash } from 'node:crypto';
-import { inspectBundle, publish, verifyAssets } from './publish-release.mjs';
+import { gh, inspectBundle, publish, verifyAssets } from './publish-release.mjs';
 
 const identity = { repository: 'example/project', commit: 'a'.repeat(40), runID: '123', version: '0.2.0-dev' };
+test('CLI HTTP status uses structured responses and logs only method and endpoint', () => {
+  const args = ['api', '--method', 'POST', 'repos/example/project/releases', '-f', 'body=private notes'];
+  assert.equal(gh(args, true, () => ({status: 1, stdout: '{"status":"404"}', stderr: 'Not Found'})), null);
+  assert.equal(gh(args, true, () => ({status: 1, stdout: '', stderr: 'gh: Not Found (HTTP 404)'})), null);
+  assert.throws(() => gh(args, true, () => ({status: 1, stdout: '{"status":403}', stderr: 'private notes'})), error => {
+    assert.match(error.message, /POST repos\/example\/project\/releases failed \(HTTP 403/);
+    assert(!error.message.includes('private notes'));
+    return true;
+  });
+});
 const hash = data => createHash('sha256').update(data).digest('hex');
 function fixture(t) {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'leaguepingo-release-'));

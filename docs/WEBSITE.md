@@ -1,6 +1,6 @@
 # 下载官网
 
-源码位于 `website/`，采用 Astro 静态输出。默认部署目标为 GitHub Pages 项目路径 `/LeaguePingo/`，实际上线以 Actions 部署成功返回的网址为准。
+源码位于 `website/`，采用 Astro 静态输出。已于2026-11-18部署到 https://zjing1125.github.io/LeaguePingo/ ，GitHub Pages项目路径为 `/LeaguePingo/`。部署运行44059070286第3次尝试成功，页面源码为261a112；线上桌面1440/手机390、图片、阶段切换及EXE/安装器/构建信息/校验文件HTTP状态均已核验。
 
 ## 已实现
 
@@ -14,7 +14,7 @@
 
 ## 首次开启Pages
 
-仓库管理员打开 Settings → Pages，将 Source 设为 GitHub Actions。若github-pages环境限制部署分支，应允许dev；保留仓库已有审批设置，不擅自解除。当前集成读取Pages管理API返回403，不能据此推断Pages已启用。
+仓库管理员打开 Settings → Pages，将 Source 设为 GitHub Actions。若github-pages环境限制部署分支，应允许dev；保留仓库已有审批设置，不擅自解除。2026-11-18用户已公开仓库、选择Actions来源，并在仅允许main的规则中添加dev；保留原main规则。此前管理写接口返回403，本批没有绕过规则。
 
 发布脚本生成Release后显式调用网站工作流，避免依赖GITHUB_TOKEN写入不能自动触发的release事件。成功部署后返回公开网址。失败可在修复设置后重跑失败任务；单独修改网站也可触发网站构建。
 
