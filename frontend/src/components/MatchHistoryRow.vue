@@ -13,7 +13,7 @@ import RoleIcon from "./RoleIcon.vue";
 import MatchSummary from "./MatchSummary.vue";
 import MatchHistoryRoster from "./MatchHistoryRoster.vue";
 
-const props = defineProps<{ match: Match; expanded: boolean; compact?: boolean; self?: boolean }>();
+const props = defineProps<{ match: Match; expanded: boolean; compact?: boolean; self?: boolean; connectionId?: number }>();
 defineEmits<{ toggle: [] }>();
 
 const teams = computed(() => historyRoster(props.match));
@@ -26,47 +26,50 @@ const arena = computed(() => isArena(props.match));
 
 <template>
   <article class="match-card" :class="[matchTone(match), { 'match-open': expanded, 'match-compact': compact }]">
-    <button type="button" class="match-main" :aria-expanded="expanded" @click="$emit('toggle')">
-      <span class="match-context">
-        <span class="match-result"><b class="outcome">{{ outcome(match) }}</b><small>{{ duration(match.duration) }}</small></span>
-        <strong>{{ queueName(match.queueId) }}</strong>
-        <small>{{ date(match.playedAt) }}</small>
-      </span>
-      <span class="match-build-summary">
-        <span class="match-performance">
-          <span class="match-hero"><GameIcon :id="match.championId" :size="40"/><small v-if="match.championLevel != null" class="champion-level">{{ match.championLevel }}</small></span>
-          <span class="match-systems">
-            <GameIcon kind="spells" :id="match.spell1" :size="16"/>
-            <RuneIcon v-if="match.runeIds?.[0]" :id="match.runeIds[0]" :size="16"/><span v-else></span>
-            <GameIcon kind="spells" :id="match.spell2" :size="16"/>
-            <RuneIcon v-if="match.runeSecondary" :id="match.runeSecondary" :size="16"/>
+    <div class="match-row-layout">
+      <button type="button" class="match-main" :aria-expanded="expanded"
+        :aria-label="uiText.playerHistoryNavigation.matchDetails(historyHeroName(match.championId), date(match.playedAt))" @click="$emit('toggle')">
+        <span class="match-context">
+          <span class="match-result"><b class="outcome">{{ outcome(match) }}</b><small>{{ duration(match.duration) }}</small></span>
+          <strong>{{ queueName(match.queueId) }}</strong>
+          <small>{{ date(match.playedAt) }}</small>
+        </span>
+        <span class="match-build-summary">
+          <span class="match-performance">
+            <span class="match-hero"><GameIcon :id="match.championId" :size="40"/><small v-if="match.championLevel != null" class="champion-level">{{ match.championLevel }}</small></span>
+            <span class="match-systems">
+              <GameIcon kind="spells" :id="match.spell1" :size="16"/>
+              <RuneIcon v-if="match.runeIds?.[0]" :id="match.runeIds[0]" :size="16"/><span v-else></span>
+              <GameIcon kind="spells" :id="match.spell2" :size="16"/>
+              <RuneIcon v-if="match.runeSecondary" :id="match.runeSecondary" :size="16"/>
+            </span>
+            <span class="match-identity">
+              <strong>{{ kda(match) }}</strong>
+              <small v-if="!remake" class="match-kda-rate">{{ decimal(sampleStats([match]).kda) }} KDA</small>
+              <span class="match-role"><span>{{ historyHeroName(match.championId) }}</span><span v-if="role" class="match-role-name"><RoleIcon :role="role"/>{{ positionName(role) }}</span></span>
+            </span>
           </span>
-          <span class="match-identity">
-            <strong>{{ kda(match) }}</strong>
-            <small v-if="!remake" class="match-kda-rate">{{ decimal(sampleStats([match]).kda) }} KDA</small>
-            <span class="match-role"><span>{{ historyHeroName(match.championId) }}</span><span v-if="role" class="match-role-name"><RoleIcon :role="role"/>{{ positionName(role) }}</span></span>
+          <span class="match-items" :aria-label="uiText.matchHistoryRow.finalItems">
+            <GameIcon v-for="slot in 7" :key="slot" kind="items" :id="match.items?.[slot - 1]" :size="20"/>
           </span>
         </span>
-        <span class="match-items" :aria-label="uiText.matchHistoryRow.finalItems">
-          <GameIcon v-for="slot in 7" :key="slot" kind="items" :id="match.items?.[slot - 1]" :size="20"/>
+        <span class="match-efficiency">
+          <span v-if="remake">{{ uiText.common.earlyEnd }}</span>
+          <template v-else>
+            <span v-if="arena && match.arena?.teamCount">{{ uiText.arena.teams(match.arena.teamCount) }}</span>
+            <span v-if="!arena">{{ uiText.matchHistoryRow.participation }}<b>{{ percent(match.participation) }}</b></span>
+            <span>{{ uiText.matchHistoryRow.damage }}<b>{{ matchNumber(match.damage) }}</b></span>
+            <span v-if="role || !arena && match.mapId === 11" class="match-cs" :title="uiText.matchHistoryRow.csHint">
+              {{ uiText.matchHistoryRow.cs }}<b>{{ matchNumber(match.cs) }}</b><span v-if="csRate != null">{{ uiText.matchHistoryRow.perMinute(csRate.toFixed(1)) }}</span>
+            </span>
+            <b v-if="highlight" class="match-facts">{{ uiText.matchHistoryRow[highlight] }}</b>
+          </template>
         </span>
-      </span>
-      <span class="match-efficiency">
-        <span v-if="remake">{{ uiText.common.earlyEnd }}</span>
-        <template v-else>
-          <span v-if="arena && match.arena?.teamCount">{{ uiText.arena.teams(match.arena.teamCount) }}</span>
-          <span v-if="!arena">{{ uiText.matchHistoryRow.participation }}<b>{{ percent(match.participation) }}</b></span>
-          <span>{{ uiText.matchHistoryRow.damage }}<b>{{ matchNumber(match.damage) }}</b></span>
-          <span v-if="role || !arena && match.mapId === 11" class="match-cs" :title="uiText.matchHistoryRow.csHint">
-            {{ uiText.matchHistoryRow.cs }}<b>{{ matchNumber(match.cs) }}</b><span v-if="csRate != null">{{ uiText.matchHistoryRow.perMinute(csRate.toFixed(1)) }}</span>
-          </span>
-          <b v-if="highlight" class="match-facts">{{ uiText.matchHistoryRow[highlight] }}</b>
-        </template>
-      </span>
-      <MatchHistoryRoster v-if="teams.length" class="match-row-roster" :groups="teams" :self="self"/>
+        <span class="expand-indicator" aria-hidden="true"><AppIcon name="chevron" :size="16"/></span>
+      </button>
+      <MatchHistoryRoster v-if="teams.length" class="match-row-roster" :groups="teams" :self="self" :connection-id="connectionId"/>
       <span v-else-if="!arena" class="match-row-roster match-roster-missing">{{ uiText.matchHistoryRow.missingRoster }}</span>
-      <span class="expand-indicator" aria-hidden="true"><AppIcon name="chevron" :size="16"/></span>
-    </button>
+    </div>
     <div v-if="expanded" class="match-expanded"><slot name="details"><MatchSummary :match="match"/></slot></div>
   </article>
 </template>
@@ -82,7 +85,7 @@ const arena = computed(() => isArena(props.match));
 .match-card.won { background:color-mix(in srgb,var(--win) 11%,var(--panel)); border-color:var(--win); }
 .match-card.lost { background:color-mix(in srgb,var(--loss) 11%,var(--panel)); border-color:var(--loss); }
 .match-card.remake { border-color:var(--muted); }
-.match-main {
+.match-row-layout {
   width:100%;
   display:grid;
   grid-template-columns:100px minmax(170px,205px) minmax(150px,1fr) minmax(185px,.9fr) 16px;
@@ -91,6 +94,16 @@ const arena = computed(() => isArena(props.match));
   gap:10px;
   min-height:79px;
   padding:5px 10px;
+}
+.match-main {
+  display:grid;
+  grid-column:1/-1;
+  grid-row:1/-1;
+  grid-template-columns:subgrid;
+  grid-template-rows:subgrid;
+  align-items:center;
+  min-width:0;
+  padding:0;
   border:0;
   border-radius:inherit;
   text-align:left;
@@ -98,8 +111,8 @@ const arena = computed(() => isArena(props.match));
   color:var(--text);
   font-variant-numeric:tabular-nums;
 }
-.match-compact .match-main { padding-inline:8px; }
-.match-main:hover { background:color-mix(in srgb,var(--text) 5%,transparent); }
+.match-compact .match-row-layout { padding-inline:8px; }
+.match-row-layout:hover { background:color-mix(in srgb,var(--text) 5%,transparent); }
 .match-main:focus-visible { outline-offset:-2px; }
 .match-context { grid-area:context; display:grid; gap:3px; min-width:0; font-size:12px; }
 .match-context small { font-size:11px; color:var(--muted); }
@@ -123,7 +136,8 @@ const arena = computed(() => isArena(props.match));
 .match-efficiency { grid-area:metrics; display:grid; gap:2px; font-size:11px; color:var(--muted); white-space:nowrap; }
 .match-efficiency b { color:var(--text); font-weight:650; }
 .match-efficiency .match-facts { color:var(--accent); }
-.match-row-roster { grid-area:roster; }
+.match-row-roster { grid-area:roster; z-index:1; pointer-events:none; }
+.match-row-roster :deep(button) { pointer-events:auto; }
 .match-roster-missing { color:var(--muted); font-size:11px; text-align:center; }
 .expand-indicator { grid-area:arrow; display:grid; place-items:center; color:var(--muted); }
 .match-open .expand-indicator { transform:rotate(90deg); }
@@ -134,17 +148,17 @@ const arena = computed(() => isArena(props.match));
   .match-efficiency .match-facts { justify-self:start; }
 }
 @container (max-width:755px) {
-  .match-main { grid-template-columns:84px minmax(155px,1fr) 115px 106px 16px; gap:8px; }
+  .match-row-layout { grid-template-columns:84px minmax(155px,1fr) 115px 106px 16px; gap:8px; }
 }
 @container (max-width:545px) {
-  .match-main { grid-template-columns:79px minmax(155px,1fr) 16px; grid-template-areas:"context build arrow" "roster metrics arrow"; gap:7px; }
+  .match-row-layout { grid-template-columns:79px minmax(155px,1fr) 16px; grid-template-areas:"context build arrow" "roster metrics arrow"; gap:7px; }
   .match-efficiency { display:flex; flex-wrap:wrap; column-gap:8px; white-space:normal; }
   .match-efficiency>span { white-space:nowrap; }
   .match-row-roster :deep(.roster-team) { gap:1px; padding-inline-start:2px; }
   .match-row-roster :deep(.game-icon) { width:13px!important; height:13px!important; }
 }
 @container (max-width:285px) {
-  .match-main { grid-template-columns:minmax(0,1fr) 16px; grid-template-areas:"context arrow" "build arrow" "metrics arrow" "roster arrow"; }
+  .match-row-layout { grid-template-columns:minmax(0,1fr) 16px; grid-template-areas:"context arrow" "build arrow" "metrics arrow" "roster arrow"; }
   .match-context { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px; }
 }
 </style>

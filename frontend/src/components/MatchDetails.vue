@@ -142,8 +142,8 @@ watch([key, canLoad, detail], ([requestKey, allowed, current]) => {
     </div>
     <div :id="`${scopeId}-panel-${gameId}`" role="tabpanel" :aria-labelledby="`${scopeId}-${gameId}-${tab}`" class="analysis-tab-content">
       <template v-if="tab === 'overview'">
-        <ArenaScoreboard v-if="detail && arena && hasScoreboard" :detail="detail"/>
-        <MatchScoreboard v-else-if="detail && hasScoreboard" :detail="detail" :self="self"/>
+        <ArenaScoreboard v-if="detail && arena && hasScoreboard" :detail="detail" :connection-id="player.connectionId"/>
+        <MatchScoreboard v-else-if="detail && hasScoreboard" :detail="detail" :self="self" :connection-id="player.connectionId"/>
         <template v-else>
           <div class="analysis-load summary-status">
             <span role="status">{{ fallbackStatus }}</span>
@@ -162,10 +162,10 @@ watch([key, canLoad, detail], ([requestKey, allowed, current]) => {
             </div>
           </div>
         </template>
-        <div v-if="showRoster" class="saved-roster"><MatchHistoryRoster :groups="roster" :self="self" detail/></div>
+        <div v-if="showRoster" class="saved-roster"><MatchHistoryRoster :groups="roster" :self="self" :connection-id="player.connectionId" detail/></div>
       </template>
       <template v-else-if="tab === 'team'">
-        <TeamAnalysis v-if="detail && hasScoreboard" :detail="detail"/>
+        <TeamAnalysis v-if="detail && hasScoreboard" :detail="detail" :connection-id="player.connectionId"/>
         <div v-else class="analysis-load">
           <span role="status">{{ busy === 'detail' ? uiText.matchDetails.loadingScoreboardShort : detailError && canLoad ? detailError : uiText.matchDetails.teamAnalysisHint }}</span>
           <button v-if="canLoad && !busy" class="secondary" @click="load('detail')">{{ detailError ? uiText.matchDetails.retryScoreboard : uiText.matchDetails.readScoreboard }}</button>

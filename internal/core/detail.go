@@ -38,8 +38,6 @@ func ParseMatchDetail(raw []byte, gameID int64, target string) (MatchDetail, err
 			}
 			if identity.Player.GameName != "" && identity.Player.TagLine != "" {
 				name = identity.Player.GameName + "#" + identity.Player.TagLine
-			} else if identity.Player.SummonerName != "" {
-				name = identity.Player.SummonerName
 			}
 		}
 		out.Players = append(out.Players, MatchPlayer{ParticipantID: p.ParticipantID, DisplayName: name, TeamID: p.TeamID, Target: verified, Summary: matchSummary(game, p, now)})

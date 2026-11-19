@@ -254,6 +254,7 @@ function toggle(id: number) {
               v-for="match in pageMatches"
               :key="match.gameId"
               :match="match"
+              :connection-id="player.connectionId"
               :expanded="state.expanded.includes(match.gameId)"
               :self="self"
               :compact="compact"

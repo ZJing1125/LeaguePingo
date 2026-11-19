@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { uiText } from "../uiText";
-import { nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { inject, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { playerHistoryNavigation } from "../playerHistoryNavigation";
+import TransientNotice from "./TransientNotice.vue";
+
+const navigation = inject(playerHistoryNavigation, null);
 const props = defineProps<{
   modal: boolean;
   active: boolean;
@@ -51,7 +55,7 @@ function restoreFocus() {
       document.querySelectorAll<HTMLElement>(".player-row"),
     ).find((row) => row.dataset.playerKey === props.playerKey);
     const target = [
-      selectedRow,
+      selectedRow?.querySelector<HTMLElement>(".player-row-preview") ?? selectedRow,
       opener,
       document.querySelector<HTMLElement>(
         '.players-workspace [role="tab"][aria-selected="true"]',
@@ -117,6 +121,7 @@ onBeforeUnmount(() => {
         @keydown="trapFocus"
         @keydown.esc.stop="emit('close')"
       >
+        <TransientNotice v-if="modal && active && navigation" :message="navigation.error.value" banner-class="quality-warning"/>
         <slot />
       </aside>
     </div>

@@ -10,9 +10,11 @@ import MatchDetails from './MatchDetails.vue';
 import QueueSwitch from './QueueSwitch.vue';
 import PlayerDrawer from './PlayerDrawer.vue';
 import PlayerView from './PlayerView.vue';
+import { roomHistoryTarget } from "../playerHistoryNavigation";
+import PlayerHistoryAction from "./PlayerHistoryAction.vue";
 import AppIcon from './AppIcon.vue';
 const props=defineProps<{review:MatchReview|null;connected:boolean;active:boolean;inGame:boolean}>();
-const emit=defineEmits<{query:[player:Participant];snapshot:[value:Snapshot];modal:[open:boolean]}>();
+const emit=defineEmits<{snapshot:[value:Snapshot];modal:[open:boolean]}>();
 const queue=ref(0), selectedKey=ref(''), busy=ref(false), error=ref('');
 const scope=ref('result');
 const states=reactive<Record<string,PlayerViewState>>({});
@@ -44,7 +46,7 @@ async function refresh(){if(busy.value || !props.review)return;busy.value=true;e
       </template>
     </template>
     <PlayerDrawer v-if="selected" :player-key="selected.key" modal :active="active" @close="selectedKey=''">
-      <div class="drawer-toolbar"><button class="text-button" :disabled="!connected || !selected.displayName.includes('#')" @click="$emit('query',selected)">{{ uiText.matchRoom.latestHistory }}</button><span class="drawer-player-switch"><button class="text-button" :aria-label="uiText.matchRoom.previousPlayer" @click="adjacent(-1)">{{ uiText.matchRoom.previous }}</button><button class="text-button" :aria-label="uiText.matchRoom.nextPlayer" @click="adjacent(1)">{{ uiText.matchRoom.next }}</button></span><button class="icon-button" :aria-label="uiText.matchRoom.closePlayer" @click="selectedKey=''"><AppIcon name="close"/></button></div>
+      <div class="drawer-toolbar"><PlayerHistoryAction class="text-button" :target="roomHistoryTarget(selected, true)" show-disabled>{{ uiText.matchRoom.latestHistory }}</PlayerHistoryAction><span class="drawer-player-switch"><button class="text-button" :aria-label="uiText.matchRoom.previousPlayer" @click="adjacent(-1)">{{ uiText.matchRoom.previous }}</button><button class="text-button" :aria-label="uiText.matchRoom.nextPlayer" @click="adjacent(1)">{{ uiText.matchRoom.next }}</button></span><button class="icon-button" :aria-label="uiText.matchRoom.closePlayer" @click="selectedKey=''"><AppIcon name="close"/></button></div>
       <p class="review-note">{{ uiText.reviewRoom.playerHint }}</p>
       <PlayerView :player="selected" :state="stateFor(selected.key)" :scout-queue="queue" :connected="false" :active="active" compact captured/>
     </PlayerDrawer>

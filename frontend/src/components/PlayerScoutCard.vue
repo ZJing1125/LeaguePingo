@@ -8,19 +8,21 @@ import type { Participant } from "../../bindings/leaguepingo/internal/core/model
 import { playerName, preparationLabel } from "../presentation";
 import ParticipantAvatar from "./ParticipantAvatar.vue";
 import PlayerCardData from "./PlayerCardData.vue";
+import { type PlayerHistoryTarget } from "../playerHistoryNavigation";
+import PlayerHistoryAction from "./PlayerHistoryAction.vue";
 import AppIcon from "./AppIcon.vue";
-const props = defineProps<{ player: Participant; frozen?: boolean; party?: boolean; queue?: number; captured?: boolean }>();
+const props = defineProps<{ player: Participant; frozen?: boolean; party?: boolean; queue?: number; captured?: boolean; history?: PlayerHistoryTarget }>();
 const data = computed(() => scoutStats(props.player, props.queue ?? 0));
 </script>
 <template>
-  <span class="scout-identity card-portrait">
+  <component :is="history ? PlayerHistoryAction : 'span'" class="scout-identity card-portrait" :target="history" :label="history ? playerName(player) : undefined">
     <ParticipantAvatar class="card-avatar" :player="player" :size="34" account />
     <span class="card-identity">
       <strong :title="playerName(player)">{{ playerName(player) }}</strong>
       <span class="scout-level"><RatingBadge v-if="data.rating || data.analysis?.score == null" :analysis="data.ratingAnalysis ?? data.analysis" :rating="data.rating" :pending="player.identityState === 'known' && (!data.report || data.report.state === 'loading' && !data.report.read)" compact/><template v-if="data.rating || data.analysis?.score == null"> · </template>{{ player.profile?.level != null ? uiText.playerProfileHeader.level(player.profile.level) : uiText.playerScoutCard.missingLevel }} <PremadeBadge :player="player"/><small v-if="player.stale">{{ uiText.homeView.stale }}</small><small v-if="player.identityState === 'known' && ['loading', 'pending', 'failed'].includes(player.historyState)" class="history-preparation" :title="uiText.playerScoutCard.recentHistory(preparationLabel(player, frozen))"> · <span>{{ player.historyState === 'loading' ? uiText.playerScoutCard.loading : preparationLabel(player, frozen) }}</span></small></span>
     </span>
     <AppIcon v-if="player.stale" class="scout-retained" name="history" :size="13" />
-  </span>
+  </component>
   <PlayerCardData :player="player" :frozen="frozen" :party="party" :queue="queue" :captured="captured" />
 </template>
 <style scoped>

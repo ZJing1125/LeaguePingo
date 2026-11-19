@@ -5,6 +5,7 @@ import type {
   Snapshot as SnapshotModel,
 } from "../../bindings/leaguepingo/internal/core/models";
 import { errorMessage, normalizeRiotIDInput } from "../presentation";
+import { completeRiotID, type PlayerHistoryTarget } from "../playerHistoryNavigation";
 import { newestPlayer, operationKey } from "../playerState";
 import type { usePlayerWorkspace } from "./usePlayerWorkspace";
 
@@ -130,11 +131,46 @@ export function usePlayerActions(
       playerOperation.value.kind === "history"
     );
   }
+  watch(workspace.view, () => setMessage("historyJump", ""));
+  function canOpenHistory(target?: PlayerHistoryTarget): target is PlayerHistoryTarget {
+    return !!target && !!snapshot.value?.connected && target.connectionId === snapshot.value.connectionId;
+  }
+
+  async function openHistory(target: PlayerHistoryTarget) {
+    if (manualBusy.value || !canOpenHistory(target)) return;
+    const existing = tabs.value.find(player => !player.stale && player.connectionId === target.connectionId && (
+      target.kind === "livePlayer" ? player.key === target.key
+        : completeRiotID(player.displayName).toLowerCase() === target.riotId.toLowerCase()
+    ));
+    setMessage("historyJump", "");
+    setMessage("search", "");
+    if (existing) {
+      openPlayer(existing);
+      return existing;
+    }
+    const origin = workspace.view.value;
+    const tab = workspace.activeKey.value;
+    const stillCurrent = () => componentAlive && canOpenHistory(target)
+      && workspace.view.value === origin && workspace.activeKey.value === tab;
+    searching.value = true;
+    try {
+      const player = target.kind === "livePlayer" ? await Service.LookupPlayer(target.key) : await Service.Lookup(target.riotId);
+      if (!stillCurrent() || player.connectionId !== target.connectionId) return;
+      openPlayer(player);
+      return player;
+    } catch (reason) {
+      if (stillCurrent()) setMessage("historyJump", errorMessage(reason));
+    } finally {
+      searching.value = false;
+    }
+  }
+
   async function search() {
     if (manualBusy.value) return;
     const id = normalizeRiotIDInput(query.value);
     query.value = id;
-    if (!/^[^#]+#[^#]+$/.test(id) || /[\u0000-\u001f\u007f-\u009f]/.test(id)) {
+    setMessage("historyJump", "");
+    if (!completeRiotID(id)) {
       setMessage("search", "请输入完整的 玩家名#标签");
       return;
     }
@@ -205,6 +241,8 @@ export function usePlayerActions(
     refreshing,
     openPlayerDetails,
     search,
+    canOpenHistory,
+    openHistory,
     refreshPlayer,
     selectPlayer,
     refreshRoster,

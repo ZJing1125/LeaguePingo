@@ -63,3 +63,14 @@ func TestMatchDetailRejectsWrongGameIdentityAndIncompleteTotals(t *testing.T) {
 		}
 	}
 }
+
+func TestMatchDetailKeepsKnownRiotIDAlongsideLegacyName(t *testing.T) {
+	raw := []byte(`{"gameId":42,"participants":[{"participantId":1,"puuid":"target","teamId":100,"riotIdGameName":"Fixture","riotIdTagline":"TEST"}],"participantIdentities":[{"participantId":1,"player":{"puuid":"target","summonerName":"Legacy"}}]}`)
+	detail, err := ParseMatchDetail(raw, 42, "target")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := detail.Players[0].DisplayName; got != "Fixture#TEST" {
+		t.Fatalf("verified full ID was replaced by legacy name: %q", got)
+	}
+}

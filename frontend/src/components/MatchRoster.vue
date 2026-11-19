@@ -3,6 +3,8 @@ import { uiText } from "../uiText";
 import { computed } from "vue";
 import type { Participant } from "../../bindings/leaguepingo/internal/core/models";
 import { rankedPlayers } from "../playerAnalysis";
+import { roomHistoryTarget } from "../playerHistoryNavigation";
+import { playerName } from "../presentation";
 import PlayerScoutCard from "./PlayerScoutCard.vue";
 import ExperimentalBadge from "./ExperimentalBadge.vue";
 
@@ -50,17 +52,18 @@ const teams = computed(() =>
         ><small><ExperimentalBadge v-if="team.players.some(p => p.premadeGroup && (p.premadeSize || 0) > 1)" :feature="uiText.clientSidebar.groups" :label="uiText.clientSidebar.groupExperimental"/>{{ uiText.matchRoster.members(team.players.length) }}</small>
       </h2>
       <div class="team-player-list">
-        <button
+        <div
           v-for="player in team.players"
           :key="player.key"
           class="player-row hero-card scout-card"
           :class="{ selected: selectedKey === player.key, 'scout-enemy': team.key === 'enemy' }"
-          :aria-pressed="selectedKey === player.key"
           :data-player-key="player.key"
-          @click="$emit('select', player)"
         >
-          <PlayerScoutCard :player="player" :frozen="frozen" :party="party" :queue="queue" :captured="captured" />
-        </button>
+          <button type="button" class="player-row-preview" :aria-pressed="selectedKey === player.key"
+            :aria-label="uiText.playerHistoryNavigation.roomPreview(playerName(player))" @click="$emit('select', player)" />
+          <PlayerScoutCard :player="player" :frozen="frozen" :party="party" :queue="queue" :captured="captured"
+            :history="roomHistoryTarget(player, !!captured)" />
+        </div>
       </div>
       <p v-if="!team.players.length" class="team-empty">
         {{
@@ -436,4 +439,15 @@ const teams = computed(() =>
 }
 :where(.team-columns):is(.review-room>.team-columns) {flex:none;min-height:680px;overflow:visible;}
 :where(.team-columns):is(.current-match>.team-columns) {flex:none;overflow:visible;}
+.player-row-preview {
+  position:absolute;
+  z-index:3;
+  inset:0;
+  padding:0;
+  background:none;
+  border:0;
+  border-radius:inherit;
+}
+.player-row-preview:focus-visible { outline-offset:-3px; }
+.player-row :deep(button.scout-identity) { z-index:4; text-align:left; }
 </style>

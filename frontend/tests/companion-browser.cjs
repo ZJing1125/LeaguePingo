@@ -55,6 +55,7 @@ async function main(){
     else if(method==='Snapshot')result=snapshot;
     else if(method==='OverlayStatus')result=state;
     else if(method==='CurrentPlayer')result=players[0];
+    else if(method==='LookupPlayer')result=snapshot.participants.find(p=>p.key===args[0]);
     else if(method==='AuxiliaryReady'){}
     else if(method==='SetSidebarCollapsed'){state={...state,collapsed:args[0],mode:args[0]?'rail':'sidebar',revision:state.revision+1};result=state;}
     else if(method==='SetScoutQueue'){snapshot={...snapshot,scoutQueue:args[0] || snapshot.queueId,generation:snapshot.generation+1,updatedAt:new Date().toISOString()};result=snapshot;await emit('leaguepingo:snapshot',snapshot);}
@@ -390,6 +391,17 @@ async function main(){
   assert.equal(await review.getByRole('tab',{name:'团队分析',exact:true}).count(),0);
   await shot(main,'arena-scoreboard');
   assert(!calls.slice(modeCalls).some(c=>/Lookup|HistoryPage|EnsureProfile|RefreshData|MatchTimeline/.test(c.method)),'Arena mode switch fetched player or timeline data');
+  const livePlayer={...snapshot.participants[0],displayName:'仅有客户端身份'};
+  snapshot={...snapshot,phase:'Lobby',stage:'party',participants:[livePlayer]};
+  await publish();
+  await roomNav.getByRole('button',{name:'当前对局',exact:true}).click();
+  const openHistory=current.getByRole('button',{name:'查看 仅有客户端身份 的战绩',exact:true});
+  await openHistory.locator('.card-avatar').click();
+  const liveTab=main.getByRole('tab',{name:livePlayer.displayName,exact:true});
+  await liveTab.waitFor();
+  assert.equal(await liveTab.getAttribute('aria-selected'),'true');
+  assert.deepEqual(calls.filter(c=>c.method==='LookupPlayer').map(c=>c.args),[[livePlayer.key]]);
+  assert.equal(await main.locator('.player-drawer').count(),0,'avatar click opened the preparation drawer');
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
   console.log('PASS: independent Arena 1700/1710, first-place/average/top-half metrics, missing fields, 280/320 themes, 236 preview and sixteen-player result without 5v5 grouping; cache-only');
   console.log('PASS: mayhem without season, no lane, rank reference, 280/320 geometry and cache-only mode switches');

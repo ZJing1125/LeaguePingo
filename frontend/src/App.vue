@@ -3,7 +3,7 @@ import { uiText } from "./uiText";
 import { useGuide } from "./useGuide";
 import AutoAcceptNotice from "./components/AutoAcceptNotice.vue";
 import PostGameNotice from "./components/PostGameNotice.vue";
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, provide, ref, watch } from "vue";
 import { Events } from "@wailsio/runtime";
 import * as Service from "../bindings/leaguepingo/appservice";
 import type { Snapshot as SnapshotModel } from "../bindings/leaguepingo/internal/core/models";
@@ -27,12 +27,14 @@ import { usePlayerWorkspace } from "./composables/usePlayerWorkspace";
 import { usePlayerActions } from "./composables/usePlayerActions";
 import { useOverlayControls } from "./composables/useOverlayControls";
 import { useTheme, type ThemePreference } from "./composables/useTheme";
+import { playerHistoryNavigation } from "./playerHistoryNavigation";
 import { useHomePlayer } from "./composables/useHomePlayer";
 
 const { preference: themePreference, resolved: resolvedTheme, saveError: themeError, setTheme } = useTheme();
 const settingsOpen = ref(false);
 const mainElement = ref<HTMLElement | null>(null);
 const { messages: playerErrors, setMessage } = useTransientMessages();
+const historyJumpError = computed(() => playerErrors.historyJump || "");
 const searchError = computed(() => playerErrors.search || "");
 const league = useLeagueSnapshot();
 useGuide(); // Subscribe once at startup; navigating to the guide is a memory-only view.
@@ -52,11 +54,6 @@ const {
 const reviewModalOpen = ref(false);
 const homeModalOpen = ref(false);
 const matchModalOpen = computed(() => view.value === "match" && reviewModalOpen.value || view.value === "home" && homeModalOpen.value);
-function queryReviewPlayer(player: import("../bindings/leaguepingo/internal/core/models").Participant) {
-  query.value = player.displayName;
-  view.value = "players";
-  submitSearch();
-}
 function acceptSnapshot(next: SnapshotModel) {
   if (league.acceptSnapshot(next)) workspace.acceptSnapshot(next);
 }
@@ -68,8 +65,22 @@ const {
   refreshing,
   openPlayerDetails,
   search,
+  canOpenHistory,
+  openHistory,
   refreshPlayer,
 } = usePlayerActions(snapshot, workspace, acceptSnapshot, setMessage);
+provide(playerHistoryNavigation, {
+  available: canOpenHistory,
+  busy: manualBusy,
+  error: historyJumpError,
+  async open(target) {
+    const player = await openHistory(target);
+    if (player) {
+      await nextTick();
+      document.getElementById(playerTabId(player.key))?.focus({ preventScroll: true });
+    }
+  },
+});
 const home = useHomePlayer(snapshot, view, computed(() => manualBusy.value || rosterBusy.value));
 const { player: homePlayer, loading: homeLoading, error: homeError } = home;
 const queuedSearch = ref(false);
@@ -274,7 +285,7 @@ onUnmounted(() => {
         {{ snapshot.message }}
       </p>
       <TransientNotice
-        :message="searchError"
+        :message="searchError || historyJumpError"
         banner-class="workspace-message"
       />
       <AutoAcceptNotice class="workspace-message" />
@@ -327,7 +338,7 @@ onUnmounted(() => {
         </div>
       </section>
       <section v-show="view === 'match'" class="match-workspace review-host">
-        <MatchRoom :snapshot="snapshot" :active="view === 'match'" @snapshot="acceptSnapshot" @query="queryReviewPlayer" @modal="reviewModalOpen = $event" @companion="showCompanion"/>
+        <MatchRoom :snapshot="snapshot" :active="view === 'match'" @snapshot="acceptSnapshot" @modal="reviewModalOpen = $event" @companion="showCompanion"/>
       </section>
       <section v-if="view === 'automation'" class="automation-host">
         <AutomationView @settings="settingsOpen = true" />

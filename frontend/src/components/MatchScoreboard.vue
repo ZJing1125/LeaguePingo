@@ -6,10 +6,12 @@ import { hasFullScoreboard, historyHeroName, historyPosition, matchDamageLeader,
 import { isRemake } from "../matchStats";
 import { decimal, kda, percent, positionName, sampleStats } from "../presentation";
 import { uiText } from "../uiText";
+import { historyTarget } from "../playerHistoryNavigation";
+import PlayerHistoryAction from "./PlayerHistoryAction.vue";
 import GameIcon from "./GameIcon.vue";
 import RuneIcon from "./RuneIcon.vue";
 
-const props = defineProps<{ detail: MatchDetail; self?: boolean }>();
+const props = defineProps<{ detail: MatchDetail; self?: boolean; connectionId?: number }>();
 const players = computed(() => props.detail.players ?? []);
 const full = computed(() => hasFullScoreboard(props.detail));
 const targetTeam = computed(() => targetPlayer(props.detail)?.teamId);
@@ -83,7 +85,7 @@ function participation(player: MatchPlayer) {
               </tr></thead>
               <tbody>
                 <tr v-for="player in group.players" :key="player.participantId" :class="{ target: player.target }">
-                  <td><div class="scoreboard-player">
+                  <td><PlayerHistoryAction class="scoreboard-player" :target="historyTarget(player.displayName, connectionId)">
                     <span class="scoreboard-hero"><GameIcon :id="player.summary.championId" :size="30"/><small v-if="player.summary.championLevel != null">{{ player.summary.championLevel }}</small></span>
                     <span class="scoreboard-systems">
                       <GameIcon kind="spells" :id="player.summary.spell1" :size="14"/>
@@ -96,7 +98,7 @@ function participation(player: MatchPlayer) {
                       <small>{{ historyHeroName(player.summary.championId) }}<template v-if="historyPosition(player.summary)"> · {{ positionName(player.summary.position) }}</template></small>
                     </span>
                     <span v-if="player.target" class="target-label">{{ self ? uiText.matchDetails.self : uiText.matchDetails.lookedUp }}</span>
-                  </div></td>
+                  </PlayerHistoryAction></td>
                   <td><b>{{ kda(player.summary) }}</b><small>{{ uiText.matchDetails.kdaRate(decimal(sampleStats([player.summary]).kda), percent(participation(player))) }}</small></td>
                   <td>
                     <b>{{ matchNumber(player.summary.damage) }}</b><span v-if="damageLeader === player.participantId" class="damage-leader" :title="uiText.matchDetails.damageLeader" :aria-label="uiText.matchDetails.damageLeader"> ◆</span>
@@ -150,7 +152,7 @@ th:nth-child(3) { width:15%; }
 th:nth-child(4) { width:15%; }
 th:nth-child(5) { width:8%; }
 th:last-child,td:last-child { width:22%; text-align:left; }
-.scoreboard-player { display:flex; align-items:center; gap:5px; min-width:0; }
+.scoreboard-player { display:flex; max-width:100%; align-items:center; gap:5px; min-width:0; }
 .scoreboard-hero { position:relative; display:flex; flex:none; }
 .scoreboard-hero small { position:absolute; right:-2px; bottom:-2px; background:var(--text); color:var(--surface); padding:0 2px; border-radius:3px; font-size:10px; }
 .scoreboard-systems { display:grid; grid-template-columns:repeat(2,14px); gap:2px; flex:none; }

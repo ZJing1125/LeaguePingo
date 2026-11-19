@@ -389,6 +389,13 @@ export const uiText = {
     buildHint: "终局符文已展示，读取时间线后查看出装与加点顺序。",
     matchStatistics: (gameId: unknown) => `对局 #${toDisplayString(gameId)}。未取得的数值显示 —；明确提前结束且不超过 5 分钟的记录标为重开，不计入胜率或 KDA。`,
   },
+  playerHistoryNavigation: {
+    open: (name: string) => `查看 ${name} 的战绩`,
+    player: "该玩家",
+    unavailable: "当前无法查询这位玩家",
+    matchDetails: (hero: string, time: string) => `查看 ${hero} · ${time} 的对局详情`,
+    roomPreview: (name: string) => `查看 ${name} 的已准备资料`,
+  },
   matchHistoryRow: {
     finalItems: "本玩家终局装备",
     participation: "参团 ",

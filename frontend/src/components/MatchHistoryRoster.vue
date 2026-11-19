@@ -1,22 +1,51 @@
 <script setup lang="ts">
-import { historyHeroName, historyRoster, peerShortName } from "../historyMatch";
+import { computed, inject, ref } from "vue";
+import { historyRoster, peerShortName } from "../historyMatch";
+import { historyTarget, playerHistoryNavigation } from "../playerHistoryNavigation";
+import PlayerHistoryAction from "./PlayerHistoryAction.vue";
 import { uiText } from "../uiText";
 import GameIcon from "./GameIcon.vue";
 
-defineProps<{ groups: ReturnType<typeof historyRoster>; self?: boolean; detail?: boolean }>();
+const props = defineProps<{ groups: ReturnType<typeof historyRoster>; self?: boolean; detail?: boolean; connectionId?: number }>();
+
+const navigation = inject(playerHistoryNavigation, null);
+const focusedPeer = ref<number>();
+const availablePeers = computed(() => props.groups.flatMap(team => team.peers)
+  .filter(peer => navigation?.available(historyTarget(peer.displayName, props.connectionId)))
+  .map(peer => peer.participantId));
+const tabStop = computed(() => {
+  const available = availablePeers.value;
+  return focusedPeer.value != null && available.includes(focusedPeer.value) ? focusedPeer.value : available[0];
+});
+
+function moveWithinRoster(event: KeyboardEvent) {
+  const next = ["ArrowRight", "ArrowDown"].includes(event.key);
+  const previous = ["ArrowLeft", "ArrowUp"].includes(event.key);
+  if (!next && !previous && event.key !== "Home" && event.key !== "End") return;
+  const root = event.currentTarget as HTMLElement;
+  const buttons = Array.from(root.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"));
+  const current = buttons.indexOf(event.target as HTMLButtonElement);
+  if (current === -1) return;
+  const index = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1
+    : (current + (next ? 1 : -1) + buttons.length) % buttons.length;
+  event.preventDefault();
+  buttons[index]?.focus();
+}
 </script>
 
 <template>
-  <span class="match-mini-roster" :class="{ 'roster-names': detail }" :aria-label="uiText.common.roster">
+  <span class="match-mini-roster" :class="{ 'roster-names': detail }" :aria-label="uiText.common.roster" :role="availablePeers.length ? 'toolbar' : 'group'" @keydown="moveWithinRoster">
     <span v-for="team in groups" :key="team.teamId" :aria-label="team.opposing ? uiText.matchDetails.opposingSide : uiText.matchDetails.targetSide" class="roster-team" :class="{ 'roster-red': team.teamId === 200 }">
       <b v-if="detail" class="roster-heading">{{ team.opposing ? uiText.matchDetails.opposingSide : uiText.matchDetails.targetSide }} <small>{{ team.teamId === 100 ? uiText.common.blue : uiText.common.red }}</small></b>
       <span v-if="!team.peers.length" class="roster-empty">{{ uiText.matchHistoryRow.missingRoster }}</span>
-      <span v-for="peer in team.peers" :key="peer.participantId" class="roster-peer" :class="{ 'roster-target': peer.target }"
-        :title="[peer.displayName, historyHeroName(peer.championId), peer.target ? self ? uiText.matchDetails.self : uiText.matchDetails.lookedUp : ''].filter(Boolean).join(' · ')">
+      <PlayerHistoryAction v-for="peer in team.peers" :key="peer.participantId" class="roster-peer" :class="{ 'roster-target': peer.target }"
+        :target="historyTarget(peer.displayName, connectionId)"
+        :tabindex="availablePeers.includes(peer.participantId) ? peer.participantId === tabStop ? 0 : -1 : undefined"
+        @focus="focusedPeer = peer.participantId">
         <GameIcon :id="peer.championId" :size="detail ? 22 : 14" />
         <span class="roster-label">{{ peerShortName(peer) }}</span>
         <small v-if="detail && peer.target" class="roster-focus">{{ self ? uiText.matchDetails.self : uiText.matchDetails.lookedUp }}</small>
-      </span>
+      </PlayerHistoryAction>
     </span>
   </span>
 </template>

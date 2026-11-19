@@ -5,6 +5,8 @@ import * as Service from '../../bindings/leaguepingo/appservice';
 import type { Participant, Snapshot } from '../../bindings/leaguepingo/internal/core/models';
 import { errorMessage, queueName, type PlayerViewState } from '../presentation';
 import { hasCurrentMatch } from '../matchRoom';
+import { roomHistoryTarget } from "../playerHistoryNavigation";
+import PlayerHistoryAction from "./PlayerHistoryAction.vue";
 import AppIcon from './AppIcon.vue';
 import GuidePanel from './GuidePanel.vue';
 import MatchRoster from './MatchRoster.vue';
@@ -16,7 +18,7 @@ import ReviewRoom from './ReviewRoom.vue';
 import RosterProgress from './RosterProgress.vue';
 
 const props = defineProps<{ snapshot: Snapshot | null; active: boolean }>();
-const emit = defineEmits<{ query: [player: Participant]; snapshot: [value: Snapshot]; modal: [open: boolean]; companion: [] }>();
+const emit = defineEmits<{ snapshot: [value: Snapshot]; modal: [open: boolean]; companion: [] }>();
 const scope = ref<'current' | 'review'>('current');
 const selectedKey = ref(''), error = ref(''), changingQueue = ref(false);
 const states = reactive<Record<string, PlayerViewState>>({});
@@ -90,12 +92,12 @@ async function changeQueue(value: number) {
       </template>
       <div v-else class="review-empty"><AppIcon name="match" :size="36"/><h2>{{ uiText.matchRoom.noMatch }}</h2><p>{{ uiText.matchRoom.reviewHint }}</p></div>
       <PlayerDrawer v-if="selected" :player-key="selected.key" modal :active="active && scope === 'current'" @close="selectedKey = ''">
-        <div class="drawer-toolbar"><button class="text-button" :disabled="!snapshot?.connected || !selected.displayName.includes('#')" @click="$emit('query', selected)">{{ uiText.matchRoom.latestHistory }}</button><span class="drawer-player-switch"><button class="text-button" :aria-label="uiText.matchRoom.previousPlayer" @click="adjacent(-1)">{{ uiText.matchRoom.previous }}</button><button class="text-button" :aria-label="uiText.matchRoom.nextPlayer" @click="adjacent(1)">{{ uiText.matchRoom.next }}</button></span><button class="icon-button" :aria-label="uiText.matchRoom.closePlayer" @click="selectedKey = ''"><AppIcon name="close"/></button></div>
+        <div class="drawer-toolbar"><PlayerHistoryAction class="text-button" :target="roomHistoryTarget(selected, false)" show-disabled>{{ uiText.matchRoom.latestHistory }}</PlayerHistoryAction><span class="drawer-player-switch"><button class="text-button" :aria-label="uiText.matchRoom.previousPlayer" @click="adjacent(-1)">{{ uiText.matchRoom.previous }}</button><button class="text-button" :aria-label="uiText.matchRoom.nextPlayer" @click="adjacent(1)">{{ uiText.matchRoom.next }}</button></span><button class="icon-button" :aria-label="uiText.matchRoom.closePlayer" @click="selectedKey = ''"><AppIcon name="close"/></button></div>
         <p class="review-note">{{ uiText.matchRoom.capturedHint }}</p>
         <PlayerView :player="selected" :state="stateFor(selected.key)" :scout-queue="queue" :connected="false" :active="active && scope === 'current'" compact prepared/>
       </PlayerDrawer>
     </section>
-    <ReviewRoom v-show="scope === 'review'" :review="snapshot?.review ?? null" :connected="snapshot?.connected ?? false" :active="active && scope === 'review'" :in-game="inGame" @snapshot="$emit('snapshot', $event)" @query="$emit('query', $event)" @modal="$emit('modal', $event)"/>
+    <ReviewRoom v-show="scope === 'review'" :review="snapshot?.review ?? null" :connected="snapshot?.connected ?? false" :active="active && scope === 'review'" :in-game="inGame" @snapshot="$emit('snapshot', $event)" @modal="$emit('modal', $event)"/>
   </section>
 </template>
 <style scoped>

@@ -51,11 +51,54 @@ async function verifyIncompleteDetails(page, calls, publish, snapshot, releaseDe
  assert.equal(detailCalls(),baseline+2,'offline browsing requested a match or partial detail was fetched twice');
 }
 
+async function verifyPlayerHistoryJumps(page, lookups, calls) {
+ const home = page.locator('.home-workspace');
+ const nav = page.getByRole('navigation',{name:'工作区'});
+ const cards = home.locator('.home-match');
+ const details = () => calls.filter(name => name === 'MatchDetail').length;
+ const beforeDetails = details();
+ const beforeLookups = lookups.length;
+ const teammate = '暮色旅人#演示';
+ const opponent = '秋日序曲#演示';
+
+ const firstCard = cards.first();
+ assert.equal(await firstCard.locator('.match-mini-roster button[tabindex="0"]').count(),1);
+ await firstCard.locator('.match-main').press('Tab');
+ await page.keyboard.press('ArrowDown');
+ assert.match(await page.evaluate(()=>document.activeElement?.getAttribute('aria-label') || ''),/暮色旅人#演示/);
+ await cards.first().getByRole('button',{name:`查看 ${teammate} 的战绩`,exact:true}).locator('.game-icon').click();
+ const teammateTab = page.getByRole('tab',{name:teammate,exact:true});
+ await teammateTab.waitFor();
+ assert.equal(await teammateTab.getAttribute('aria-selected'),'true');
+ assert.equal(details(),beforeDetails,'clicking the roster avatar opened match details');
+ assert.deepEqual(lookups.slice(beforeLookups),[teammate]);
+
+ await nav.getByRole('button',{name:'首页',exact:true}).click();
+ assert.equal(await cards.nth(3).locator('.roster-peer button, button.roster-peer').count(),0,'anonymous records rendered history links');
+ await cards.first().locator('.match-main').click();
+ const dialog = page.getByRole('dialog',{name:'对局详情',exact:true});
+ const opponentAction = dialog.getByRole('button',{name:`查看 ${opponent} 的战绩`,exact:true});
+ await opponentAction.press('Enter');
+ await dialog.waitFor({state:'detached'});
+ const opponentTab = page.getByRole('tab',{name:opponent,exact:true});
+ await opponentTab.waitFor();
+ assert.equal(await opponentTab.getAttribute('aria-selected'),'true');
+ await page.waitForFunction(name=>document.activeElement?.textContent?.includes(name),opponent);
+ assert.deepEqual(lookups.slice(beforeLookups),[teammate,opponent]);
+
+ await nav.getByRole('button',{name:'首页',exact:true}).click();
+ await cards.first().getByRole('button',{name:`查看 ${teammate} 的战绩`,exact:true}).click();
+ await teammateTab.waitFor();
+ assert.equal(await teammateTab.getAttribute('aria-selected'),'true');
+ assert.equal(lookups.length,beforeLookups+2,'existing player tab was queried again');
+ await nav.getByRole('button',{name:'首页',exact:true}).click();
+}
+
 async function main(){
  const browser=await chromium.launch({headless:true,executablePath:process.env.BROWSER_EXECUTABLE});
  try{
   const page=await browser.newPage({viewport:{width:1280,height:900}});page.setDefaultTimeout(15000);
-  const calls=[],errors=[],external=[];page.on('pageerror',e=>errors.push(e.message));const desktop=mockWindowRuntime(page);
+  const calls=[],lookups=[],errors=[],external=[];page.on('pageerror',e=>errors.push(e.message));const desktop=mockWindowRuntime(page);
   const binding=await fs.readFile(path.join(__dirname,'../bindings/leaguepingo/appservice.ts'),'utf8');
   const methods=Object.fromEntries([...binding.matchAll(/export function (\w+)\([^]*?\$Call.ByID\((\d+)/g)].map(m=>[m[2],m[1]]));
   const player=makePlayer();
@@ -80,7 +123,12 @@ async function main(){
     else if(name==='Snapshot')result=snapshot;
     else if(name==='Info')result={version:'synthetic',commit:'analysis-test',requests:{},shortcut:'Ctrl+Shift+P',holdEnabled:true,holdKey:'Backquote'};
     else if(name==='OverlayStatus')result={revision:0,visible:false,sidebarEnabled:true,sidebarWidth:320};
-    else if(['CurrentPlayer','Lookup','RefreshData','EnsureProfile'].includes(name))result=player;
+    else if(name==='Lookup'){
+     const id=args[0];
+     lookups.push(id);
+     result=id===player.displayName?player:{...player,key:id,puuid:id,displayName:id};
+    }
+    else if(['CurrentPlayer','RefreshData','EnsureProfile'].includes(name))result=player;
     else if(name==='HistoryPage'){assert.equal(args[2],20,'analysis fixture must not scan beyond its one bounded warm/page read');result={matches:Array.from({length:20},(_,i)=>({...player.history[i],gameId:70021+i,playedAt:new Date(Date.parse(now)-(20+i)*4*3600000).toISOString()})),meta:{fetchedAt:now,returned:20,parsed:20,excluded:0},offset:args[2],nextOffset:args[2]+20,hasMore:false};}
     else if(name==='MatchDetail'){
      if(args[2]===70006)await delayedDetail;
@@ -230,6 +278,7 @@ async function main(){
    await home.getByRole('button',{name:'上一页',exact:true}).click();
    await home.locator('.home-pagination').filter({hasText:'第 1 页'}).waitFor();
   }
+  await verifyPlayerHistoryJumps(page,lookups,calls);
   await verifyIncompleteDetails(page,calls,publish,snapshot,releaseDetail,shot);
   assert.deepEqual(external,[]);assert.deepEqual(errors,[]);
   console.log('PASS: professional overview, rich match rows, click-authorized scoreboard, opt-in timeline, six team metrics, build/runes, cached tab changes, 1280/1100/880; keyboard-only home/query/history/settings/navigation, dialog focus, theme text/focus contrast and reduced motion in both themes; synthetic bridge.');
