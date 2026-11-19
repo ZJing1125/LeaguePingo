@@ -11,7 +11,9 @@ function analysis(patch: Partial<PlayerAnalysis> = {}): PlayerAnalysis {
 describe('recent player analysis presentation', () => {
   it('keeps unknown and a real zero distinct', () => {
     expect(analysisSummary(null)).toBe('资料不足');
-    expect(analysisTitle(analysis({score: 0, grade: 'D'}))).toContain('D · 0.0 / 10');
+    const title = analysisTitle(analysis({score: 0, grade: 'D'}));
+    expect(title).toContain('0.0 / 10');
+    expect(title).not.toContain('D ·');
   });
   it('shows evidence and its valid sample without inventing a live rating', () => {
     const title = analysisTitle(analysis());

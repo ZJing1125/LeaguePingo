@@ -13,7 +13,7 @@ import ParticipantAvatar from './ParticipantAvatar.vue';
 import RankEmblem from './RankEmblem.vue';
 import GameIcon from './GameIcon.vue';
 import PlayerCardData from './PlayerCardData.vue';
-const props=defineProps<{player:Participant;queue:number;picking:boolean}>();
+const props=defineProps<{player:Participant;queue:number;picking:boolean;showHero?:boolean}>();
 const data=computed(()=>scoutStats(props.player,props.queue));
 const coverage=computed(()=>scoutCoverageText(data.value.report));
 const periodValue=(p:ReturnType<typeof scoutStats>["periods"][number])=>{
@@ -31,13 +31,27 @@ const heroRate = computed(() => data.value.arena ? heroArena.value?.firstPlaceRa
 <template>
   <details class="sidebar-player" :data-player-key="player.key">
     <summary>
-      <span class="sidebar-identity"><ParticipantAvatar :player="player" account :size="30"/><span><strong :title="playerName(player)">{{ playerName(player) }}</strong><span class="sidebar-rank" :title="uiText.sidebarPlayer.summary(data.queueLabel, rank.title, player.profile?.level ?? '—')"><RatingBadge :analysis="data.analysis" :pending="player.identityState === 'known' && (!data.report || data.report.state === 'loading' && !data.report.read)" compact/> · {{ data.ranked ? rank.label : uiText.modeScouting.reference + ' · ' + uiText.common.solo + ' · ' + rank.label }} <PremadeBadge :player="player"/><small v-if="player.stale">{{ uiText.playerProfileHeader.old }}</small></span></span><RankEmblem v-if="data.ranked" :tier="rank.rank?.tier"/></span>
-      <span v-if="picking" class="sidebar-hero"><GameIcon v-if="player.championId" :id="player.championId" :size="26"/><span><span class="sidebar-hero-title"><strong :title="hero">{{ hero }}<small v-if="player.championState==='intent'">{{ uiText.sidebarPlayer.intent }}</small></strong><b>{{ heroRate }}<small v-if="data.arena && heroArena?.averagePlace != null"> · {{ uiText.arena.average(decimal(heroArena.averagePlace)) }}</small><small v-else-if="data.champion.kda!=null"> · {{ decimal(data.champion.kda) }} KDA</small></b></span><span class="sidebar-experience"><small v-for="tag in data.tags" :key="tag.label" :title="tag.title">{{ tag.label }}</small></span></span></span>
-      <small v-if="picking && !data.ranked">{{ uiText.modeScouting.hero30 }} · {{ data.queueLabel }}</small>
+      <span class="sidebar-identity">
+        <ParticipantAvatar :player="player" account :size="30"/>
+        <span>
+          <span class="sidebar-name-row"><strong :title="playerName(player)">{{ playerName(player) }}</strong><RatingBadge v-if="queue && (data.rating || data.analysis?.score == null)" :analysis="data.ratingAnalysis ?? data.analysis" :rating="data.rating" :pending="player.identityState === 'known' && (!data.report || data.report.state === 'loading')" compact/></span>
+          <span class="sidebar-rank" :title="data.rating?.reason ?? rank.title">
+            <template v-if="data.ranked">{{ rank.label }}</template>
+            <template v-if="data.rating?.queueId === queue && data.analysis && data.mode">
+              <span>{{ uiText.playerAnalysis.metricGames(data.analysis.scoredGames) }}</span>
+              <span v-if="data.mode.month.kda != null">KDA {{ decimal(data.mode.month.kda) }}</span>
+            </template>
+            <PremadeBadge :player="player"/><small v-if="player.stale">{{ uiText.playerProfileHeader.old }}</small>
+          </span>
+        </span>
+        <RankEmblem v-if="data.ranked" :tier="rank.rank?.tier"/>
+      </span>
+      <span v-if="picking || showHero" class="sidebar-hero"><GameIcon v-if="player.championId" :id="player.championId" :size="26"/><span><span class="sidebar-hero-title"><strong :title="hero">{{ hero }}<small v-if="player.championState==='intent'">{{ uiText.sidebarPlayer.intent }}</small></strong><b>{{ heroRate }}<small v-if="data.arena && heroArena?.averagePlace != null"> · {{ uiText.arena.average(decimal(heroArena.averagePlace)) }}</small><small v-else-if="data.champion.kda!=null"> · {{ decimal(data.champion.kda) }} KDA</small></b></span><span class="sidebar-experience"><small v-for="tag in data.tags" :key="tag.label" :title="tag.title">{{ tag.label }}</small></span></span></span>
+      <small v-if="(picking || showHero) && !data.ranked">{{ uiText.modeScouting.hero30 }} · {{ data.queueLabel }}</small>
       <span class="sidebar-metrics" :style="data.roles ? undefined : {gridTemplateColumns: 'repeat(2,minmax(0,1fr))'}"><span><small>{{ uiText.sidebarPlayer.last12Hours }}{{ data.arena ? ' · ' + uiText.arena.firstRate : '' }}</small><b>{{ periodValue(data.periods[0]!) }}</b></span><span v-if="data.roles"><small>{{ uiText.playerCardData.role30Days }}</small><b>{{ data.role.key?data.role.label:data.report?'—':uiText.common.pending }}</b></span><span><small>{{ uiText.sidebarPlayer.last30Days }}{{ data.arena ? ' · ' + uiText.arena.firstRate : '' }}</small><b>{{ periodValue(data.periods[1]!) }}</b></span></span>
       <small v-if="!data.report" class="sidebar-coverage">{{ uiText.sidebarPlayer.pendingStatistics }}</small><small v-else-if="data.report.state==='loading'" class="sidebar-coverage">{{ data.report.read ? uiText.modeScouting.scope(data.queueLabel,data.overall.games) : uiText.sidebarPlayer.preparing }}</small><small v-else-if="!data.report.complete30" class="sidebar-coverage">{{ data.report.read ? uiText.sidebarPlayer.partialRange : coverage }}</small>
     </summary>
-    <div class="scout-card sidebar-expanded"><PlayerCardData :player="player" :queue="queue" :party="!picking"/></div>
+    <div class="scout-card sidebar-expanded"><PlayerCardData :player="player" :queue="queue" :party="!picking && !showHero"/></div>
   </details>
 </template>
 <style scoped>
@@ -73,4 +87,10 @@ const heroRate = computed(() => data.value.arena ? heroArena.value?.firstPlaceRa
 :where(.sidebar-hero-title):is(.sidebar-hero-title) :deep(b small) {font-weight:400;}
 :where(.sidebar-experience):is(.sidebar-experience) :deep(small) {font-size:11px;}
 :where(.sidebar-hero):is(.sidebar-hero) :deep(>span:not(.game-icon)) {flex:1;min-width:0;}
+</style>
+
+
+<style scoped>
+.sidebar-name-row { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; min-width: 0; }
+.sidebar-rank { display: flex; align-items: baseline; gap: 6px; }
 </style>

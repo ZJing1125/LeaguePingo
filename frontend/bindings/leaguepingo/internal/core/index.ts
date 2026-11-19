@@ -37,6 +37,7 @@ export type {
     ScoutSeason,
     Snapshot,
     Stats,
+    TeamRating,
     TimelineEvent,
     TimelineFrame,
     TimelinePlayer,

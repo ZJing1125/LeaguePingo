@@ -44,6 +44,7 @@ type Participant struct {
 	Error         string        `json:"error,omitempty"`
 	Profile       *Profile      `json:"profile,omitempty"`
 	Scout         *ScoutReport  `json:"scout,omitempty"`
+	TeamRating    *TeamRating   `json:"teamRating,omitempty"`
 }
 
 // Optional capabilities: absent fields are never presented as unranked or zero.

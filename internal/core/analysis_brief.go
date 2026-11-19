@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -14,75 +15,69 @@ type AnalysisBriefState struct {
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
-// No names, PUUIDs, source IDs or arbitrary templates enter the message.
-// Positions refer to this snapshot's current ally order, including the self row.
+// Chat identifies players by their selection-list order and never includes account identities.
 func AnalysisBriefLines(snapshot Snapshot, includeSelf bool) ([]string, bool, int) {
 	mode, ok := ScoutModeFor(snapshot.QueueID)
-	if !ok || !mode.Matches(snapshot.MapID, snapshot.GameMode) {
+	if !ok || mode.Arena || !mode.Matches(snapshot.MapID, snapshot.GameMode) {
 		return nil, true, 0
 	}
-	lines := []string{"LeaguePingo｜" + mode.Label + "｜近30天已读表现分析"}
-	ready, rated, allies := true, 0, 0
+	type row struct {
+		seat   int
+		player Participant
+	}
+	var rows []row
+	allies := 0
 	for _, p := range snapshot.Participants {
 		if p.Team != "ally" {
 			continue
 		}
 		allies++
-		if allies > 5 {
-			return nil, true, 0
-		}
 		if !includeSelf && snapshot.SelfKey != "" && (p.Key == snapshot.SelfKey || p.PUUID == snapshot.SelfKey) {
 			continue
 		}
-		var queue *ScoutQueue
-		if p.IdentityState == IdentityKnown && p.Scout != nil {
-			for i := range p.Scout.Queues {
-				if p.Scout.Queues[i].QueueID == snapshot.QueueID {
-					queue = &p.Scout.Queues[i]
-					break
-				}
-			}
-		}
-		prefix := fmt.Sprintf("%dL｜", allies)
-		if queue == nil || queue.Analysis == nil || queue.Analysis.Score == nil {
-			lines = append(lines, prefix+"资料不足，无法评级")
-			if p.IdentityState == IdentityKnown && (p.Scout == nil || p.Scout.State == "loading") {
+		rows = append(rows, row{allies, p})
+	}
+	if allies > len(teamRatingLabels) || len(rows) == 0 {
+		return nil, false, 0
+	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		a, b := rows[i].player.TeamRating, rows[j].player.TeamRating
+		return a != nil && (b == nil || a.Place < b.Place)
+	})
+	lines := []string{mode.Label + "｜我方近30天表现"}
+	ready, rated := true, 0
+	for _, r := range rows {
+		prefix := fmt.Sprintf("%d楼 ", r.seat)
+		q := participantScoutQueue(r.player, snapshot.QueueID)
+		if r.player.TeamRating == nil || q == nil || q.Analysis == nil {
+			lines = append(lines, prefix+"资料不足")
+			if r.player.IdentityState == IdentityKnown && (r.player.Scout == nil || r.player.Scout.State == "loading") {
 				ready = false
 			}
 			continue
 		}
-		a := queue.Analysis
-		mark := ""
-		if a.Provisional {
-			mark = "暂定"
-		}
-		line := fmt.Sprintf("%s%s%s级 %.1f分｜有效%d场", prefix, mark, a.Grade, *a.Score, a.ScoredGames)
-		line += "｜" + AnalysisReason(a)
-		if !mode.Arena {
-			if queue.Month.WinRate != nil {
-				line += fmt.Sprintf("｜胜率%.0f%%", *queue.Month.WinRate)
-			}
-			if queue.Month.KDA != nil {
-				line += fmt.Sprintf("｜KDA %.2f", *queue.Month.KDA)
-			}
-		} else if arena := queue.Month.Arena; arena != nil {
-			if arena.AveragePlace != nil {
-				line += fmt.Sprintf("｜均%.2f名", *arena.AveragePlace)
-			}
-			if arena.FirstPlaceRate != nil {
-				line += fmt.Sprintf("｜夺冠%.0f%%", *arena.FirstPlaceRate)
-			}
-		}
-		lines = append(lines, line)
+		lines = append(lines, prefix+analysisBriefRating(r.player.TeamRating, q))
 		rated++
 	}
-	if allies < 5 {
-		return nil, false, 0 // Partial rosters cannot establish all five seats.
-	}
-	if len(lines) == 1 {
-		return nil, ready, 0
-	}
 	return lines, ready, rated
+}
+
+func analysisBriefRating(rating *TeamRating, q *ScoutQueue) string {
+	label := rating.Label
+	if q.Analysis.Provisional {
+		label += "·暂定"
+	}
+	line := fmt.Sprintf("【%s %d/%d】%d场", label, rating.Place, rating.Rated, q.Analysis.ScoredGames)
+	if q.Month.WinRate != nil {
+		line += fmt.Sprintf(" · 胜率%.0f%%", *q.Month.WinRate)
+	}
+	if q.Month.KDA != nil {
+		line += fmt.Sprintf(" · KDA %.1f", *q.Month.KDA)
+	}
+	if q.Analysis.Basis != "basic" {
+		line += " · " + rating.Reason
+	}
+	return line
 }
 
 func AnalysisBriefBody(lines []string) string { return strings.Join(lines, "\n") }

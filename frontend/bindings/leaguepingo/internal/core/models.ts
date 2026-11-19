@@ -243,6 +243,7 @@ export interface Participant {
     "error"?: string;
     "profile"?: Profile | null;
     "scout"?: ScoutReport | null;
+    "teamRating"?: TeamRating | null;
 }
 
 export interface PerformanceMetric {
@@ -402,6 +403,18 @@ export interface Stats {
     "kdaGames": number;
     "winRate": number | null;
     "kda": number | null;
+}
+
+/**
+ * TeamRating describes a player's standing among the rated members of this
+ * roster. The underlying analysis can be reused for a different roster.
+ */
+export interface TeamRating {
+    "queueId": number;
+    "place": number;
+    "rated": number;
+    "label": string;
+    "reason": string;
 }
 
 export interface TimelineEvent {

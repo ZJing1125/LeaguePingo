@@ -149,7 +149,12 @@ func TestLateDataResumesWithoutFetchingAndNoBlankMessage(t *testing.T) {
 	if f.count() != 0 {
 		t.Fatal("blank analysis sent")
 	}
-	frame.Rated, frame.Lines = 1, []string{"one rated player; rest unknown"}
+	frame.Rated, frame.Lines = 1, []string{"one rated player, rest pending"}
+	c.Observe(context.Background(), f, frame)
+	if f.count() != 0 || c.Snapshot().Status != "waiting-data" {
+		t.Fatal("partial analysis used the send opportunity")
+	}
+	frame.Ready = true
 	c.Observe(context.Background(), f, frame)
 	awaitStatus(t, c, "sent")
 	if f.count() != 1 {

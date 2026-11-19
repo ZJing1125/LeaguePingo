@@ -1,13 +1,18 @@
 <script setup lang="ts">
-import type { PlayerAnalysis } from '../../bindings/leaguepingo/internal/core/models';
+import type { PlayerAnalysis, TeamRating } from '../../bindings/leaguepingo/internal/core/models';
 import { analysisTitle } from '../playerAnalysis';
 import { uiText } from '../uiText';
-defineProps<{ analysis?: PlayerAnalysis | null; compact?: boolean; pending?: boolean }>();
+defineProps<{ analysis?: PlayerAnalysis | null; rating?: TeamRating | null; compact?: boolean; pending?: boolean }>();
 </script>
 <template>
-  <span class="player-rating" :class="{compact}" :title="analysisTitle(analysis)" :aria-label="analysisTitle(analysis)">
-    <template v-if="analysis?.score != null"><b>{{ uiText.playerAnalysis.grade(analysis.grade) }}</b><span>{{ analysis.score.toFixed(1) }}</span><small v-if="!compact && analysis.provisional">{{ uiText.playerAnalysis.provisional }}</small></template>
-    <small v-else>{{ pending ? uiText.playerAnalysis.preparing : uiText.playerAnalysis.insufficient }}</small>
+  <span class="player-rating" :class="{compact}" :title="analysisTitle(analysis, rating)" :aria-label="analysisTitle(analysis, rating)">
+    <template v-if="rating && analysis?.score != null">
+      <b>{{ rating.label }}</b><span>{{ uiText.playerAnalysis.teamPlace(rating.place, rating.rated) }}</span><small v-if="analysis.provisional">{{ uiText.playerAnalysis.provisional }}</small>
+    </template>
+    <template v-else-if="!compact && analysis?.score != null">
+      <b>{{ analysis.score.toFixed(1) }} / 10</b><small v-if="analysis.provisional">{{ uiText.playerAnalysis.provisional }}</small>
+    </template>
+    <small v-else-if="analysis?.score == null">{{ pending ? uiText.playerAnalysis.preparing : uiText.playerAnalysis.insufficient }}</small>
   </span>
 </template>
 <style scoped>

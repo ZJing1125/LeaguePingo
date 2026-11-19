@@ -12,13 +12,6 @@ import (
 )
 
 func (s *TencentLCU) ScoutSeason(ctx context.Context) (*core.ScoutSeason, error) {
-	// A cold start directly in champion select may not have visited the lobby.
-	// Probe queue identity once with this bounded preparation, not on UI renders.
-	if s.CurrentQueue() == 0 {
-		if session, err := s.client.Get(ctx, "/lol-gameflow/v1/session"); err == nil {
-			s.rememberQueue(session, false)
-		}
-	}
 	raw, err := s.client.Get(ctx, "/lol-seasons/v1/season/product/LOL")
 	if err != nil {
 		return nil, err

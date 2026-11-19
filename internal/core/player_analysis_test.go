@@ -138,22 +138,23 @@ func TestAnalysisExactQueueWindowDedupRemakeAndArena(t *testing.T) {
 }
 
 func TestBriefUsesActualModeAndSameGradeWithoutNames(t *testing.T) {
-	score := 7.2
 	s := Snapshot{QueueID: 2400, ScoutQueue: 420, MapID: 12, GameMode: "ARAM", SelfKey: "self"}
 	for i := 0; i < 5; i++ {
+		score := 5 + float64(i)/2
 		p := Participant{Key: fmt.Sprint(i), PUUID: fmt.Sprint("private-", i), DisplayName: "PrivateName#DO-NOT-SEND", Team: "ally", IdentityState: IdentityKnown, Scout: &ScoutReport{State: "partial", Queues: []ScoutQueue{{QueueID: 2400, Analysis: &PlayerAnalysis{Grade: "A", Score: &score, ScoredGames: 3, Provisional: true}, Month: Stats{Games: 3}}, {QueueID: 420, Analysis: &PlayerAnalysis{Grade: "D", Score: &score}}}}}
 		if i == 0 {
 			p.Key = "self"
 		}
 		s.Participants = append(s.Participants, p)
 	}
+	ApplyTeamRatings(s.Participants, s.QueueID)
 	lines, ready, rated := AnalysisBriefLines(s, true)
 	body := AnalysisBriefBody(lines)
-	if !ready || rated != 5 || len(lines) != 6 || !strings.Contains(body, "暂定A级 7.2分") || strings.Contains(body, "D级") || strings.Contains(body, "PrivateName") || strings.Contains(body, "private-") {
+	if !ready || rated != 5 || len(lines) != 6 || !strings.HasPrefix(lines[1], "5楼 【大腿·暂定 1/5】3场") || strings.Contains(body, "D级") || strings.Contains(body, "PrivateName") || strings.Contains(body, "private-") {
 		t.Fatal("brief differed from actual mode or leaked names")
 	}
 	lines, _, _ = AnalysisBriefLines(s, false)
-	if len(lines) != 5 || strings.Contains(AnalysisBriefBody(lines), "1L｜") {
+	if len(lines) != 5 || strings.Contains(AnalysisBriefBody(lines), "1楼") {
 		t.Fatal("self exclusion changed seat numbers")
 	}
 }

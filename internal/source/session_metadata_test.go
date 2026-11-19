@@ -24,3 +24,20 @@ func TestSessionMetadataActualLayers(t *testing.T) {
 		t.Fatal("mode remained stale after new lobby")
 	}
 }
+
+func TestLobbyRandomMapUsesExactQueue(t *testing.T) {
+	for _, input := range []struct {
+		body string
+		want int
+	}{
+		{`{"gameConfig":{"queueId":2400,"mapId":-1,"gameMode":"ARAM"}}`, 2400},
+		{`{"gameConfig":{"queueId":450,"mapId":-1,"gameMode":"ARAM"}}`, 450},
+		{`{"gameConfig":{"queueId":2400,"mapId":-1,"gameMode":"ARAM","isCustom":true}}`, 0},
+		{`{"gameConfig":{"mapId":12,"gameMode":"ARAM"}}`, 0},
+	} {
+		meta, ok := parseSessionMetadata([]byte(input.body), true)
+		if !ok || meta.QueueID != input.want || meta.MapID != 0 {
+			t.Fatalf("expected queue %d with unselected map, got %+v", input.want, meta)
+		}
+	}
+}

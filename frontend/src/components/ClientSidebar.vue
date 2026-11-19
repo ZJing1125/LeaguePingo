@@ -2,22 +2,30 @@
 import { uiText } from "../uiText";
 import AutoAcceptNotice from "./AutoAcceptNotice.vue";
 import PostGameNotice from "./PostGameNotice.vue";
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import GuidePanel from './GuidePanel.vue';
 import type { Snapshot } from '../../bindings/leaguepingo/internal/core/models';
 import type { OverlayState } from '../../bindings/leaguepingo/models';
 import BrandIcon from './BrandIcon.vue';
 import AppIcon from './AppIcon.vue';
 import QueueSwitch from './QueueSwitch.vue';
+import { rankedPlayers } from '../playerAnalysis';
+import { liveScoutMode } from '../scoutStats';
 import SidebarPlayer from './SidebarPlayer.vue';
 import ExperimentalBadge from './ExperimentalBadge.vue';
 const props=defineProps<{snapshot:Snapshot|null;state:OverlayState|null;status:string;error:string}>();
 defineEmits<{collapse:[value:boolean];queue:[value:number]}>();
 const tab=ref('players');
-const players=computed(()=>props.snapshot?.participants?.filter(p=>p.team==='ally') ?? []);
+const activeTeam = ref<'ally' | 'enemy'>('ally');
+const hasEnemies = computed(() => props.snapshot?.stage === 'in-game' && !!props.snapshot.participants?.some(p => p.team === 'enemy'));
+const players = computed(() => rankedPlayers(
+  props.snapshot?.participants?.filter(p => p.team === (hasEnemies.value ? activeTeam.value : 'ally')) ?? [],
+));
 const hasGroups=computed(()=>players.value.some(p=>p.premadeGroup && (p.premadeSize||0)>1));
 function expandPlayer(event:Event){const item=event.target as HTMLDetailsElement;if(item.open) item.parentElement?.querySelectorAll('details[open]').forEach(other=>{if(other!==item)other.removeAttribute('open');});}
 const picking=computed(()=>props.snapshot?.phase==='ChampSelect');
+watch([() => props.snapshot?.connectionId, () => props.snapshot?.gameId, hasEnemies], () => { activeTeam.value = 'ally'; });
+
 </script>
 <template>
   <main v-if="state?.mode==='rail'" class="sidebar-rail desktop-app">
@@ -25,14 +33,17 @@ const picking=computed(()=>props.snapshot?.phase==='ChampSelect');
   </main>
   <main v-else class="client-sidebar desktop-app" :data-side="state?.sidebarSide" :aria-label="uiText.clientSidebar.label">
     <header class="sidebar-header"><BrandIcon/><strong>LeaguePingo</strong><button class="icon-button" :aria-label="uiText.clientSidebar.collapse" :title="uiText.clientSidebar.collapseShort" @click="$emit('collapse',true)"><AppIcon name="minimise" :size="17"/></button></header>
-    <div class="sidebar-heading"><div><h1><button class="sidebar-tab" :aria-label="uiText.clientSidebar.playerData" :aria-pressed="tab==='players'" @click="tab='players'">{{ picking?uiText.common.allies:uiText.common.party }}</button></h1><button class="sidebar-tab guide-tab" :aria-pressed="tab==='guide'" @click="tab='guide'">{{ uiText.clientSidebar.guide }}</button><small><ExperimentalBadge v-if="hasGroups" :feature="uiText.clientSidebar.groups" :label="uiText.clientSidebar.groupExperimental"/><template v-else>{{ status.split(' · ')[0] }}</template>{{ uiText.clientSidebar.members(players.length) }}</small></div><QueueSwitch v-if="tab==='players'" :current="snapshot?.queueId ?? 0" :value="snapshot?.scoutQueue ?? 0" compact @change="$emit('queue',$event)"/></div>
+    <div class="sidebar-heading"><div><h1><button class="sidebar-tab" :aria-label="uiText.clientSidebar.playerData" :aria-pressed="tab==='players'" @click="tab='players'">{{ hasEnemies ? uiText.clientSidebar.playerData : picking ? uiText.common.allies : uiText.common.party }}</button></h1><button class="sidebar-tab guide-tab" :aria-pressed="tab==='guide'" @click="tab='guide'">{{ uiText.clientSidebar.guide }}</button><small><ExperimentalBadge v-if="hasGroups" :feature="uiText.clientSidebar.groups" :label="uiText.clientSidebar.groupExperimental"/><template v-else>{{ status.split(' · ')[0] }}</template>{{ uiText.clientSidebar.members(players.length) }}</small></div><QueueSwitch v-if="tab==='players'" :current="liveScoutMode(snapshot)" :value="snapshot?.scoutQueue ?? 0" compact @change="$emit('queue',$event)"/></div>
     <p v-if="error || state?.warning || snapshot?.rosterError" class="quality-warning" role="status">{{ error || state?.warning || snapshot?.rosterError }}</p>
     <AutoAcceptNotice compact />
     <PostGameNotice compact />
 
     <GuidePanel v-show="tab==='guide'" :snapshot="snapshot" compact/>
-    <section v-show="tab==='players'" class="sidebar-players" @toggle.capture="expandPlayer" :aria-label="uiText.clientSidebar.alliesLabel">
-      <SidebarPlayer v-for="p in players" :key="p.key" :player="p" :queue="snapshot?.scoutQueue ?? 0" :picking="picking"/>
+    <div v-if="tab === 'players' && hasEnemies" class="sidebar-team-switch" role="group" :aria-label="uiText.matchRoster.title">
+      <button v-for="team in ['ally', 'enemy'] as const" :key="team" type="button" :aria-pressed="activeTeam === team" @click="activeTeam = team">{{ uiText.common[team] }}</button>
+    </div>
+    <section v-show="tab==='players'" class="sidebar-players" @toggle.capture="expandPlayer" :aria-label="hasEnemies ? uiText.common[activeTeam] : uiText.clientSidebar.alliesLabel">
+      <SidebarPlayer v-for="p in players" :key="p.key" :player="p" :queue="snapshot?.scoutQueue ?? 0" :picking="picking" :show-hero="hasEnemies"/>
       <p v-if="!players.length" class="sidebar-empty">{{ picking?uiText.clientSidebar.loadingAllies:uiText.clientSidebar.waitingParty }}</p>
     </section>
     <footer class="sidebar-footer"><span>{{ picking?uiText.clientSidebar.expandHelp:uiText.clientSidebar.selectionHelp }}</span><small>{{ state?.holdEnabled && state?.holdAvailable ? uiText.clientSidebar.holdHelp(state?.holdKey==='Backquote'?'~':state?.holdKey || '~') : state?.shortcutAvailable ? uiText.clientSidebar.shortcutHelp(state.shortcut) : uiText.clientSidebar.previewHelp }}</small></footer>
@@ -61,3 +72,10 @@ const picking=computed(()=>props.snapshot?.phase==='ChampSelect');
 :where(.sidebar-rail):is(.sidebar-rail) :deep(b) {font-size:12px;color:var(--accent);}
 </style>
 <style scoped>.sidebar-tab{border:0;border-radius:0;background:none;color:var(--muted);font:inherit;padding:0;min-height:22px;cursor:pointer;}.sidebar-tab[aria-pressed="true"]{color:var(--text);border-bottom:1px solid var(--accent);}.guide-tab{font-size:12px;}.client-sidebar > .guide-panel{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;}</style>
+
+
+<style scoped>
+.sidebar-team-switch { display: flex; gap: 6px; padding: 0 10px 8px; }
+.sidebar-team-switch button { flex: 1; min-height: 28px; background: var(--surface); color: var(--muted); border: 1px solid var(--border); border-radius: 6px; }
+.sidebar-team-switch button[aria-pressed="true"] { background: var(--raised); color: var(--text); }
+</style>

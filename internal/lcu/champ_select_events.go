@@ -45,7 +45,11 @@ func champSelectSignature(raw []byte) string {
 		ChampionPickIntent *int   `json:"championPickIntent"`
 	}
 	var data struct {
-		GameID    int64    `json:"gameId"`
+		GameID  int64 `json:"gameId"`
+		QueueID int   `json:"queueId"`
+		Chat    struct {
+			ID json.RawMessage `json:"multiUserChatId"`
+		} `json:"chatDetails"`
 		MyTeam    []member `json:"myTeam"`
 		TheirTeam []member `json:"theirTeam"`
 	}

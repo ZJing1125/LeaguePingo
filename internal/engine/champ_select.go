@@ -4,18 +4,8 @@ import (
 	"context"
 	"time"
 
-	"leaguepingo/internal/core"
 	"leaguepingo/internal/source"
 )
-
-func readRoster(ctx context.Context, client Client, stage Stage) (int64, []core.Participant, error) {
-	if stage == StagePreparing {
-		if selection, ok := client.(source.ChampSelectSource); ok {
-			return selection.ChampSelectRoster(ctx)
-		}
-	}
-	return client.Roster(ctx)
-}
 
 func (e *Engine) syncChampSelectEvents(ctx context.Context) {
 	e.mu.Lock()
@@ -64,6 +54,7 @@ func (e *Engine) observeChampSelect(version, sequence uint64) {
 func (e *Engine) refreshChampSelect(ctx context.Context) {
 	e.mu.RLock()
 	client, version, generation, epoch, phaseEpoch := e.client, e.clientVersion, e.snapshot.Generation, e.champEpoch, e.phaseEpoch
+	previous := e.selectionModeLocked(StagePreparing)
 	eligible := e.snapshot.Connected && snapshotStage(e.snapshot.Stage) == StagePreparing && (e.phaseHint == PhaseUnknown || e.phaseHint == PhaseChampSelect)
 	e.mu.RUnlock()
 	if client == nil || !eligible {
@@ -91,7 +82,7 @@ func (e *Engine) refreshChampSelect(ctx context.Context) {
 	if !stillEligible {
 		return
 	}
-	gameID, roster, err := readRoster(requestCtx, client, StagePreparing)
+	gameID, roster, mode, err := readStageRoster(requestCtx, client, StagePreparing, previous)
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.clientVersion != version || e.snapshot.Generation != generation || e.champEpoch != epoch || e.phaseEpoch != phaseEpoch || snapshotStage(e.snapshot.Stage) != StagePreparing {
@@ -103,10 +94,15 @@ func (e *Engine) refreshChampSelect(ctx context.Context) {
 	for i := range roster {
 		roster[i].ConnectionID = version
 	}
-	if gameID == 0 {
+	if gameID == 0 && !e.newSelectionLocked(mode) {
 		gameID = e.snapshot.GameID
 	}
+	modeChanged := e.updateSessionLocked(StagePreparing, gameID, mode, true, nil)
 	if gameID != e.snapshot.GameID || rosterChanged(e.snapshot.Participants, roster) {
 		e.replaceLocked(StagePreparing, PhaseChampSelect, gameID, roster, "")
+	} else if modeChanged {
+		e.snapshot.Generation++
+		e.snapshot.UpdatedAt = time.Now()
+		e.publishLocked()
 	}
 }

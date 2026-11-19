@@ -20,7 +20,9 @@ async function main(){
   const players=Array.from({length:10},(_,i)=>{
    const history=Array.from({length:20},(_,j)=>({gameId:9000+j,playedAt:time,queueId:j%2?440:420,championId:23,win:j%3!==0,kills:5,deaths:3,assists:10,duration:1800,cs:180+i*5,damage:24000+i*1200,gold:12000+i*250,position:j%2?'UTILITY':'TOP',items:[3006,3078,0,0,0,0,3364],spell1:4,spell2:14}));
    const p={connectionId:1,key:`synthetic-${i}`,puuid:`synthetic-${i}`,displayName:`合成玩家${i+1}#DEMO`,team:i<5?'ally':'enemy',championId:23,championState:'selected',identityState:'known',privacyState:'private',historyState:'ready',history,historyMeta:{fetchedAt:time,parsed:20,returned:20},stats:stats(history),profile:{updatedAt:time,profileIconData:avatar,level:200+i,rankState:'ready',privacyState:'private',fields:{rank:{state:'ready',fetchedAt:time}},ranks:[{queue:'RANKED_SOLO_5x5',tier:'EMERALD',division:'II',lp:86,wins:154,losses:166,source:'sgp',seasonId:37},{queue:'RANKED_FLEX_SR',tier:'GOLD',division:'III',lp:27,wins:117,losses:135,source:'sgp',seasonId:38}]}};
-   p.scout=scoutFixture(p);p.scout.champions[0].games=1360;p.scout.champions[0].mastery={level:35,points:910000,championId:23};
+   p.scout=scoutFixture(p);
+   const place=i%5+1;
+   p.teamRating={queueId:420,place,rated:5,label:['大腿','主力','中坚','待起势','需支援'][place-1],reason:'输出较好'};p.scout.champions[0].games=1360;p.scout.champions[0].mastery={level:35,points:910000,championId:23};
    const season=(games,rate,kda)=>({games,wins:games*rate/100,losses:games*(100-rate)/100,outcomeGames:games,kdaGames:games,winRate:rate,kda});
    p.scout.champions[0].queues=[{queueId:420,stats:season(800,60,5),average:[8,3,7]},{queueId:440,stats:season(360,40,4.4),average:[4,5,18]}];
    p.scout.queues[0].month=season(100,58,3);p.scout.queues[1].month=season(72,50,4);
@@ -95,6 +97,14 @@ async function main(){
   assert((await side.locator('.sidebar-rank').innerText()).includes('翡翠 II'));
   assert(!calls.some(c=>/CurrentPlayer|Lookup|History|Profile/.test(c.method)),'sidebar startup performed player queries');
   await shot(side,'sidebar-party');
+  const roomReads = calls.length;
+  for (const [queueId, label] of [[2400, '海克斯大乱斗'], [450, '极地大乱斗'], [420, '单双排']]) {
+   snapshot={...snapshot,queueId,scoutQueue:queueId};
+   await publish();
+   await side.locator('.queue-switch option:checked').filter({hasText:label}).waitFor({state:'attached'});
+   assert.equal(await side.locator('.sidebar-player').first().getAttribute('data-player-key'),players[0].key);
+  }
+  assert.equal(calls.length,roomReads,'room mode switch queried player data');
   const reads=calls.length;
   snapshot={...snapshot,phase:'ChampSelect',stage:'preparing',gameId:42,participants:structuredClone(players)};await publish();
   assert.equal(await side.locator('.sidebar-player').count(),5,'pregame sidebar exposed enemy slots');
@@ -140,12 +150,22 @@ async function main(){
   await side.getByRole('button',{name:'展开客户端侧栏'}).click();
   await side.locator('.sidebar-player').waitFor();assert.equal(await side.locator('.sidebar-hero').count(),0);
   snapshot={...snapshot,phase:'GameStart',stage:'in-game',participants:structuredClone(players),gameId:42};await publish();
+  await side.locator('.sidebar-team-switch button').last().click();
+  assert.equal(await side.locator('.sidebar-player').first().getAttribute('data-player-key'),players[5].key);
+  await publish();
+  assert.equal(await side.locator('.sidebar-player').first().getAttribute('data-player-key'),players[5].key,'ordinary updates reset the active side');
+  await side.locator('.sidebar-team-switch button').first().click();
+  assert.equal(await side.locator('.sidebar-player').first().getAttribute('data-player-key'),players[0].key);
+
   await side.setViewportSize({width:1100,height:640});await overlay('preview');
   await side.locator('.overlay-player').nth(9).waitFor();
   await side.getByText(/载入快览 · 6 秒后收起/).waitFor();
   await rankFits(side);
   assert.equal(await side.locator('.overlay-player .player-rating b').count(),10,'loading must show both teams grades');
-  assert.equal(await side.locator('.overlay-player .player-rating').first().getAttribute('title').then(t=>t.includes('B') && t.includes('6.4')),true);
+  assert.equal(await side.locator('.overlay-player .player-rating').first().getAttribute('title').then(t=>t.includes('大腿') && t.includes('第 1 名') && t.includes('6.4')),true);
+  snapshot={...snapshot,participants:[...snapshot.participants].reverse()};await publish();
+  assert((await side.locator('.overlay-player .player-rating').first().innerText()).includes('1/5'),'display did not sort by team rating');
+  snapshot={...snapshot,participants:structuredClone(players)};await publish();
   await shot(side,'loading-preview');
   snapshot={...snapshot,phase:'InProgress'};await publish();
   await side.getByText(/开局快览 · 6 秒后收起/).waitFor();

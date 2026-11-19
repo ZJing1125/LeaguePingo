@@ -18,14 +18,21 @@ func (e *Engine) observeAnalysisBriefLocked() {
 	}
 	lines, ready, rated := core.AnalysisBriefLines(e.snapshot, state.IncludeSelf)
 	selection := fmt.Sprintf("phase-%d", e.phaseEpoch)
-	if src, ok := e.client.(source.SelectionIdentitySource); ok {
-		if value := src.SelectionIdentity(); value != "" {
-			selection = value
-		}
+	if e.session.SelectionKey != "" {
+		selection = e.session.SelectionKey
+	} else if e.snapshot.GameID > 0 {
+		selection = fmt.Sprintf("game-%d", e.snapshot.GameID)
 	}
-	frame := teambrief.Frame{Scope: fmt.Sprintf("%d:%s:%s:%d", e.clientVersion, e.snapshot.SelfKey, selection, e.snapshot.QueueID), Active: e.snapshot.Connected && e.snapshot.SelfKey != "" && snapshotPhase(e.snapshot.Phase) == PhaseChampSelect, Lines: lines, Ready: ready, Rated: rated}
+	active := e.snapshot.Connected && e.snapshot.SelfKey != "" &&
+		snapshotPhase(e.snapshot.Phase) == PhaseChampSelect &&
+		(e.phaseHint == PhaseUnknown || e.phaseHint == PhaseChampSelect)
+	frame := teambrief.Frame{
+		Scope:        fmt.Sprintf("%d:%s:%s:%d", e.clientVersion, e.snapshot.SelfKey, selection, e.snapshot.QueueID),
+		SelectionKey: e.session.SelectionKey, GameID: e.snapshot.GameID, QueueID: e.snapshot.QueueID,
+		Active: active, Lines: lines, Ready: ready, Rated: rated,
+	}
 	src, _ := e.client.(source.AnalysisBriefSource)
-	if mode, ok := core.ScoutModeFor(e.snapshot.QueueID); !ok || mode.Arena {
+	if mode, ok := core.ScoutModeFor(e.snapshot.QueueID); !ok || mode.Arena || e.scoutModeLocked() == 0 {
 		src = nil
 	}
 	value := e.brief.Observe(e.initialMatch.parentContext(), src, frame)

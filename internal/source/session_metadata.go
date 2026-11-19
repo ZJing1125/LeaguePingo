@@ -11,8 +11,22 @@ func (s *TencentLCU) SessionMetadata() SessionMetadata {
 	return s.meta
 }
 func (s *TencentLCU) rememberMetadata(raw []byte, lobby bool) {
+	m, ok := parseSessionMetadata(raw, lobby)
+	if ok {
+		s.rememberSession(m)
+	}
+}
+
+func (s *TencentLCU) rememberSession(m SessionMetadata) {
+	s.metaMu.Lock()
+	s.meta = m
+	s.metaMu.Unlock()
+}
+
+func parseSessionMetadata(raw []byte, lobby bool) (SessionMetadata, bool) {
 	var v struct {
-		Map struct {
+		PartyID string `json:"partyId"`
+		Map     struct {
 			ID       int    `json:"id"`
 			GameMode string `json:"gameMode"`
 		} `json:"map"`
@@ -30,13 +44,14 @@ func (s *TencentLCU) rememberMetadata(raw []byte, lobby bool) {
 			GameVersion string `json:"gameVersion"`
 		} `json:"gameData"`
 		GameConfig struct {
+			Custom   bool   `json:"isCustom"`
 			QueueID  int    `json:"queueId"`
 			GameMode string `json:"gameMode"`
 			MapID    int    `json:"mapId"`
 		} `json:"gameConfig"`
 	}
 	if json.Unmarshal(raw, &v) != nil {
-		return
+		return SessionMetadata{}, false
 	}
 	m := SessionMetadata{QueueID: v.GameData.Queue.ID, GameMode: v.GameData.GameMode, MapID: v.GameData.Map.ID, Version: v.GameData.GameVersion}
 	if v.GameData.Queue.GameMode != "" {
@@ -63,9 +78,21 @@ func (s *TencentLCU) rememberMetadata(raw []byte, lobby bool) {
 		m.MapID = v.GameData.MapID
 	}
 	if lobby {
-		m = SessionMetadata{QueueID: v.GameConfig.QueueID, GameMode: v.GameConfig.GameMode, MapID: v.GameConfig.MapID}
+		m = lobbyMetadata(v.PartyID, v.GameConfig.QueueID, v.GameConfig.MapID, v.GameConfig.GameMode, v.GameConfig.Custom)
 	}
-	s.metaMu.Lock()
-	s.meta = m
-	s.metaMu.Unlock()
+	return m, true
+}
+
+func lobbyMetadata(room string, queue, mapID int, mode string, custom bool) SessionMetadata {
+	m := SessionMetadata{RoomKey: room}
+	if !custom && queue > 0 {
+		m.QueueID, m.GameMode = queue, mode
+		m.MapID = max(0, mapID)
+		// The ARAM lobby can select a random map. Its exact queue identifies
+		// the ruleset before the client has chosen the actual map.
+		if queue == 450 || queue == 2400 {
+			m.MapID = 0
+		}
+	}
+	return m
 }

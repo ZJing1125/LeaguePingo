@@ -11,6 +11,7 @@ import MatchRoster from './MatchRoster.vue';
 import PlayerDrawer from './PlayerDrawer.vue';
 import PlayerView from './PlayerView.vue';
 import QueueSwitch from './QueueSwitch.vue';
+import { liveScoutMode } from '../scoutStats';
 import ReviewRoom from './ReviewRoom.vue';
 import RosterProgress from './RosterProgress.vue';
 
@@ -79,7 +80,7 @@ async function changeQueue(value: number) {
     <section v-show="scope === 'current'" class="current-match" :aria-label="uiText.matchRoom.currentData">
       <header class="review-heading"><div><h1>{{ uiText.matchRoom.current }}</h1><p>{{ currentAvailable ? subtitle : uiText.matchRoom.waitingDescription }}<span v-if="currentAvailable && snapshot?.queueId"> · {{ queueName(snapshot.queueId) }}</span></p></div><button v-if="currentAvailable && snapshot?.connected && snapshot.phase !== 'Reconnect'" class="secondary" @click="$emit('companion')">{{ inGame ? uiText.matchRoom.showPreview : uiText.clientSidebar.expand }}</button></header>
       <template v-if="currentAvailable">
-        <div class="review-section-title"><h2>{{ party ? uiText.common.party : uiText.common.pregame }}</h2><QueueSwitch :current="snapshot?.queueId ?? 0" :value="queue" :busy="changingQueue || !snapshot?.connected" @change="changeQueue"/></div>
+        <div class="review-section-title"><h2>{{ party ? uiText.common.party : uiText.common.pregame }}</h2><QueueSwitch :current="liveScoutMode(snapshot)" :value="queue" :busy="changingQueue || !snapshot?.connected" @change="changeQueue"/></div>
         <p v-if="error || snapshot?.rosterError" class="quality-warning" role="status">{{ error || snapshot?.rosterError }}</p>
         <GuidePanel :snapshot="snapshot"/>
         <p v-if="inGame && snapshot?.groupCoverage" class="review-note">{{ uiText.matchRoom.groupCoverage(snapshot.groupCoverage, players.length) }}</p>

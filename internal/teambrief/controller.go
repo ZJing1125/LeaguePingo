@@ -12,11 +12,14 @@ import (
 )
 
 type Frame struct {
-	Scope  string // transient connection/account/selection identity
-	Active bool
-	Lines  []string
-	Ready  bool
-	Rated  int
+	Scope        string // transient connection/account/selection identity
+	SelectionKey string
+	GameID       int64
+	QueueID      int
+	Active       bool
+	Lines        []string
+	Ready        bool
+	Rated        int
 }
 
 type Controller struct {
@@ -28,7 +31,6 @@ type Controller struct {
 	sequence    uint64
 	cancel      context.CancelFunc
 	attempted   bool
-	deferred    bool
 	result      string
 	rooms       map[string]uint64
 	changes     chan struct{}
@@ -113,11 +115,7 @@ func (c *Controller) Observe(parent context.Context, src source.AnalysisBriefSou
 	}
 	if c.scope != frame.Scope {
 		c.stopLocked()
-		c.scope, c.attempted, c.result, c.deferred = frame.Scope, false, "", false
-	}
-	if c.deferred && frame.Rated == 0 {
-		c.statusLocked("waiting-data")
-		return c.state
+		c.scope, c.attempted, c.result = frame.Scope, false, ""
 	}
 	if c.attempted || c.cancel != nil {
 		return c.state
@@ -130,15 +128,13 @@ func (c *Controller) Observe(parent context.Context, src source.AnalysisBriefSou
 	c.cancel = cancel
 	c.sequence++
 	token := c.sequence
-	resume := c.deferred
-	c.deferred = false
 	c.statusLocked("waiting")
 	c.workers.Add(1)
-	go func() { defer c.workers.Done(); c.run(ctx, token, resume) }()
+	go func() { defer c.workers.Done(); c.run(ctx, token) }()
 	return c.state
 }
 
-func (c *Controller) run(ctx context.Context, token uint64, resume bool) {
+func (c *Controller) run(ctx context.Context, token uint64) {
 	delay, deadline := time.NewTimer(c.delay), time.NewTimer(c.wait)
 	defer delay.Stop()
 	defer deadline.Stop()
@@ -158,47 +154,64 @@ func (c *Controller) run(ctx context.Context, token uint64, resume bool) {
 			c.mu.Unlock()
 			return
 		}
-		ready := due && (c.frame.Ready || expired || resume)
+		ready := due && c.frame.Ready && c.frame.Rated > 0
+		if expired && !ready {
+			c.statusLocked("waiting-data")
+		}
 		c.mu.Unlock()
-		if ready {
-			c.send(ctx, token)
+		if ready && c.send(ctx, token) {
 			return
 		}
 	}
 }
 
-func (c *Controller) send(parent context.Context, token uint64) {
+func (c *Controller) send(parent context.Context, token uint64) bool {
 	request, cancel := context.WithTimeout(parent, 4*time.Second)
 	defer cancel()
 	c.mu.Lock()
-	if c.sequence != token || c.frame.Rated == 0 || len(c.frame.Lines) == 0 {
-		if c.sequence == token {
-			c.deferred = true
-			if c.cancel != nil {
-				c.cancel()
-				c.cancel = nil
-			}
-			c.statusLocked("waiting-data")
-		}
+	if c.sequence != token {
 		c.mu.Unlock()
-		return
+		return true
 	}
-	src := c.source
+	if !c.frame.Ready || c.frame.Rated == 0 || len(c.frame.Lines) == 0 {
+		c.mu.Unlock()
+		return false
+	}
+	src, frame := c.source, c.frame
 	c.mu.Unlock()
 	room, err := readConversation(request, src)
 	if err != nil {
 		c.finish(token, "unavailable", true)
-		return
+		return true
+	}
+	if verifier, ok := src.(source.SelectionVerifier); ok {
+		if err := verifier.VerifySelection(request, frame.SelectionKey, frame.GameID, frame.QueueID); err != nil {
+			c.finish(token, "unavailable", true)
+			return true
+		}
 	}
 	c.mu.Lock()
-	if c.sequence != token || request.Err() != nil || !c.state.Enabled || !c.frame.Active {
+	if c.sequence != token || !c.state.Enabled || !c.frame.Active {
 		c.mu.Unlock()
-		return
+		return true
+	}
+	if request.Err() != nil {
+		c.mu.Unlock()
+		c.finish(token, "unavailable", true)
+		return true
+	}
+	if c.frame.SelectionKey != frame.SelectionKey || c.frame.GameID != frame.GameID || c.frame.QueueID != frame.QueueID {
+		c.mu.Unlock()
+		return false
+	}
+	if !c.frame.Ready || c.frame.Rated == 0 || len(c.frame.Lines) == 0 {
+		c.mu.Unlock()
+		return false
 	}
 	if _, used := c.rooms[room]; used {
 		c.mu.Unlock()
 		c.finish(token, "skipped", true)
-		return
+		return true
 	}
 	// Reserve before POST. Even an error or cancellation cannot authorize replay.
 	c.rooms[room], c.attempted = token, true
@@ -212,6 +225,7 @@ func (c *Controller) send(parent context.Context, token uint64) {
 		status = "uncertain"
 	}
 	c.finish(token, status, true)
+	return true
 }
 
 func (c *Controller) finish(token uint64, status string, attempted bool) {

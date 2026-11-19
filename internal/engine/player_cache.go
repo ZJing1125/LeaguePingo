@@ -44,6 +44,7 @@ func (c *playerCache) byAlias(alias string) (core.Participant, bool) {
 // restorePlayer restores already-verified disk history without turning it into a
 // fresh network result or binding a new name alias. Normal writes use remember.
 func (c *playerCache) restorePlayer(p core.Participant) {
+	p.TeamRating = nil
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.players == nil {
@@ -53,6 +54,7 @@ func (c *playerCache) restorePlayer(p core.Participant) {
 }
 
 func (c *playerCache) remember(p core.Participant) core.Participant {
+	p.TeamRating = nil
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if old, ok := c.players[p.PUUID]; ok && old.ConnectionID == p.ConnectionID && core.IsPlaceholderName(p.DisplayName) && !core.IsPlaceholderName(old.DisplayName) {

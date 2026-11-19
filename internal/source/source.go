@@ -77,8 +77,12 @@ type CachedAccountSource interface {
 	CachedAccountIdentity() string
 }
 
-// Optional phase-only notifications. The callback is a wake-up hint; the engine
-// still verifies state through Phase. Implementations block until cancelled or failed.
+// Optional phase and lobby notifications are hints for checked local reads.
+type SessionEventSource interface {
+	WatchSession(context.Context, func(string), func()) error
+}
+
+// Optional phase-only notifications for sources without a lobby stream.
 type PhaseEventSource interface {
 	WatchPhase(context.Context, func(string)) error
 }
@@ -130,13 +134,21 @@ type PostGameSequenceSource interface {
 }
 
 // Current-session metadata is obtained with existing roster/lobby reads.
-type SessionMetadata struct {
-	QueueID  int
-	GameMode string
-	MapID    int
-	Version  string
+// SessionRosterSource returns mode and roster from the same stage read.
+type SessionRosterSource interface {
+	ReadLobby(context.Context) ([]core.Participant, SessionMetadata, error)
+	ReadSelection(context.Context, SessionMetadata) (int64, []core.Participant, SessionMetadata, error)
+	ReadGame(context.Context) (int64, []core.Participant, SessionMetadata, error)
 }
-type SessionMetadataSource interface{ SessionMetadata() SessionMetadata }
+
+type SessionMetadata struct {
+	RoomKey      string // transient lobby identity, never serialized
+	SelectionKey string // transient selection identity, never serialized
+	QueueID      int
+	GameMode     string
+	MapID        int
+	Version      string
+}
 type GroupingSource interface {
 	Grouping(context.Context, int64) ([]core.Participant, error)
 }

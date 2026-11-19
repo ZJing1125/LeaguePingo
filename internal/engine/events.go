@@ -15,8 +15,9 @@ func (e *Engine) syncPhaseEvents(ctx context.Context) {
 	if ctx.Err() != nil || e.client == nil {
 		return
 	}
-	stream, ok := e.client.(source.PhaseEventSource)
-	if !ok {
+	stream, hasPhase := e.client.(source.PhaseEventSource)
+	session, hasSession := e.client.(source.SessionEventSource)
+	if !hasPhase && !hasSession {
 		return
 	}
 	version := e.clientVersion
@@ -26,7 +27,12 @@ func (e *Engine) syncPhaseEvents(ctx context.Context) {
 	}
 	go func() {
 		defer cancel()
-		_ = stream.WatchPhase(watchCtx, func(phase string) { e.observePhase(version, sequence, phase) })
+		phase := func(phase string) { e.observePhase(version, sequence, phase) }
+		if hasSession {
+			_ = session.WatchSession(watchCtx, phase, func() { e.observeLobby(version, sequence) })
+		} else {
+			_ = stream.WatchPhase(watchCtx, phase)
+		}
 		e.mu.Lock()
 		defer e.mu.Unlock()
 		if e.clientVersion == version {
@@ -68,10 +74,25 @@ func (e *Engine) observePhase(version, sequence uint64, phase string) {
 		e.stopInitialMatchLocked()
 	}
 	if observed != PhaseChampSelect {
+		e.observeAnalysisBriefLocked()
 		e.stopChampSelectEventsLocked()
 	}
 	if !preparationStage(stage) || stage != snapshotStage(e.snapshot.Stage) {
 		e.preparation.stop() // Stop prefetch before waiting for a confirming HTTP response.
 	}
 	e.phaseEvents.notify()
+}
+
+func (e *Engine) observeLobby(version, sequence uint64) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.client == nil || e.clientVersion != version || !e.phaseEvents.current(sequence) ||
+		snapshotStage(e.snapshot.Stage) != StageParty || e.phaseHint != PhaseUnknown && stageForPhase(e.phaseHint) != StageParty {
+		return
+	}
+	e.phaseEpoch++ // Reject a lobby result which started before the change.
+	select {
+	case e.lobbyWake <- struct{}{}:
+	default:
+	}
 }

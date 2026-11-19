@@ -2,6 +2,7 @@
 import { uiText } from "../uiText";
 import { computed } from "vue";
 import type { Participant } from "../../bindings/leaguepingo/internal/core/models";
+import { rankedPlayers } from "../playerAnalysis";
 import PlayerScoutCard from "./PlayerScoutCard.vue";
 import ExperimentalBadge from "./ExperimentalBadge.vue";
 
@@ -25,7 +26,7 @@ const teams = computed(() =>
       : key === "ally"
         ? uiText.common.ally
         : uiText.common.enemy,
-    players: props.players.filter((player) => player.team === key),
+    players: rankedPlayers(props.players.filter((player) => player.team === key)),
   })),
 );
 </script>

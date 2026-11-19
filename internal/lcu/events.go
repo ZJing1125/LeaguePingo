@@ -19,16 +19,34 @@ const champSelectTopic = "OnJsonApiEvent_lol-champ-select_v1_session"
 // WatchPhase subscribes only to the local phase endpoint, never the entire LCU
 // event stream. Credentials and event payloads must not reach logs or the UI.
 func (c *Client) WatchPhase(ctx context.Context, notify func(string)) error {
-	previous := ""
-	return c.watchTopic(ctx, phaseTopic, "/phase-events", 16<<10, func(payload []byte) {
+	return c.watchPhaseAndTopics(ctx, nil, notify, nil)
+}
+
+func (c *Client) WatchSession(ctx context.Context, phase func(string), lobby func()) error {
+	return c.watchPhaseAndTopics(ctx, []string{lobbyTopic}, phase, lobby)
+}
+
+func (c *Client) watchPhaseAndTopics(ctx context.Context, extra []string, notify func(string), lobby func()) error {
+	previous, previousLobby := "", ""
+	return c.watchTopics(ctx, append([]string{phaseTopic}, extra...), "/phase-events", 256<<10, func(payload []byte) {
 		if phase := parsePhaseEvent(payload); phase != "" && phase != previous {
 			previous = phase
 			notify(phase)
+		}
+		if lobby != nil {
+			if signature := lobbyEventSignature(payload); signature != "" && signature != previousLobby {
+				previousLobby = signature
+				lobby()
+			}
 		}
 	})
 }
 
 func (c *Client) watchTopic(ctx context.Context, topic, category string, limit int64, notify func([]byte)) error {
+	return c.watchTopics(ctx, []string{topic}, category, limit, notify)
+}
+
+func (c *Client) watchTopics(ctx context.Context, topics []string, category string, limit int64, notify func([]byte)) error {
 	client := *c.HTTP
 	client.Timeout = 0 // Only the handshake is bounded; an idle stream is normal.
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
@@ -51,7 +69,12 @@ func (c *Client) watchTopic(ctx context.Context, topic, category string, limit i
 	defer conn.CloseNow()
 	conn.SetReadLimit(limit)
 	writeCtx, stopWrite := context.WithTimeout(ctx, 3*time.Second)
-	err = conn.Write(writeCtx, websocket.MessageText, []byte(`[5,"`+topic+`"]`))
+	for _, topic := range topics {
+		err = conn.Write(writeCtx, websocket.MessageText, []byte(`[5,"`+topic+`"]`))
+		if err != nil {
+			break
+		}
+	}
 	stopWrite()
 	if err != nil {
 		return errors.New("本地阶段通知订阅失败，继续有限轮询")

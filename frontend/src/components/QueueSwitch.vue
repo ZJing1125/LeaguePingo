@@ -7,9 +7,9 @@ function change(event:Event){const select=event.target as HTMLSelectElement;cons
 </script>
 <template>
   <div class="queue-switch" :class="{ compact }" role="group" :aria-label="uiText.queueSwitch.label">
-    <small v-if="current && value && value!==current" class="mode-actual">{{ uiText.modeScouting.current(rankedMode(current)) }}</small>
+    <small v-if="current != null && value && value!==current" class="mode-actual">{{ uiText.modeScouting.current(rankedMode(current)) }}</small>
     <select v-if="current != null" :aria-label="uiText.queueSwitch.label" :disabled="busy" :value="value === current ? 0 : value" @change="change">
-      <option :value="0">{{ uiText.modeScouting.auto(rankedMode(value===0 ? 0 : current)) }}</option>
+      <option :value="0">{{ uiText.modeScouting.auto(rankedMode(current)) }}</option>
       <option v-for="mode in scoutModes" :key="mode.queueId" :value="mode.queueId">{{ uiText.modeScouting.viewing(mode.label) }}</option>
     </select>
     <button v-else v-for="mode in [{ id: 420, label: uiText.common.solo }, { id: 440, label: uiText.queueSwitch.flex }]" :key="mode.id" type="button" :aria-pressed="value === mode.id" :disabled="busy" @click="$emit('change', mode.id)">{{ mode.label }}</button>

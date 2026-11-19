@@ -86,10 +86,7 @@ func (e *Engine) syncScoutingLocked() {
 			e.publishLocked()
 		}
 	}()
-	if q, ok := e.client.(source.QueueSource); ok {
-		e.snapshot.QueueID = q.CurrentQueue()
-	}
-	e.snapshot.ScoutQueue = e.scouting.queueFor(e.scoutModeLocked())
+	e.applySessionLocked()
 	parent := e.initialMatch.parentContext()
 	if parent == nil || parent.Err() != nil || (!preparationStage(snapshotStage(e.snapshot.Stage)) && !activeMatch(snapshotPhase(e.snapshot.Phase))) || e.phaseHint != PhaseUnknown && stageForPhase(e.phaseHint) != snapshotStage(e.snapshot.Stage) {
 		if e.scouting.hasTask() {

@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"leaguepingo/internal/apperrors"
@@ -17,7 +16,6 @@ import (
 )
 
 type TencentLCU struct {
-	selectChat  string // transient selection identity; never exported or logged
 	client      *lcu.Client
 	selfMu      sync.Mutex
 	selfPUUID   string
@@ -27,7 +25,6 @@ type TencentLCU struct {
 	historyAuth sgpAuthLane
 	rankAuth    sgpAuthLane
 	channels    sgpChannels
-	queueID     atomic.Int32
 	metaMu      sync.Mutex
 	meta        SessionMetadata
 	masteryMu   sync.Mutex
@@ -36,10 +33,8 @@ type TencentLCU struct {
 
 func (*TencentLCU) Region() string { return "CN" }
 func (s *TencentLCU) ResetIdentity() {
-	s.queueID.Store(0)
 	s.metaMu.Lock()
 	s.meta = SessionMetadata{}
-	s.selectChat = ""
 	s.metaMu.Unlock()
 	s.selfMu.Lock()
 	s.selfPUUID = ""
@@ -88,6 +83,10 @@ func (s *TencentLCU) WatchPhase(ctx context.Context, notify func(string)) error 
 	return s.client.WatchPhase(ctx, notify)
 }
 
+func (s *TencentLCU) WatchSession(ctx context.Context, phase func(string), lobby func()) error {
+	return s.client.WatchSession(ctx, phase, lobby)
+}
+
 func (s *TencentLCU) ReadyCheck(ctx context.Context) (core.ReadyCheck, error) {
 	return s.client.ReadyCheck(ctx)
 }
@@ -103,100 +102,32 @@ func (s *TencentLCU) WatchChampSelect(ctx context.Context, notify func()) error 
 }
 
 func (s *TencentLCU) ChampSelectRoster(ctx context.Context) (int64, []core.Participant, error) {
-	raw, err := s.client.Get(ctx, "/lol-champ-select/v1/session")
-	if err != nil {
-		return 0, nil, err
+	id, roster, meta, err := s.ReadSelection(ctx, s.SessionMetadata())
+	if err == nil {
+		s.rememberSession(meta)
 	}
-	var queue struct {
-		QueueID int             `json:"queueId"`
-		Chat    json.RawMessage `json:"chatDetails"`
-	}
-	if json.Unmarshal(raw, &queue) == nil {
-		var chat struct {
-			ID json.RawMessage `json:"multiUserChatId"`
-		}
-		_ = json.Unmarshal(queue.Chat, &chat)
-		var id string
-		_ = json.Unmarshal(chat.ID, &id)
-		s.metaMu.Lock()
-		s.selectChat = id
-		s.metaMu.Unlock()
-	}
-	if json.Unmarshal(raw, &queue) == nil && queue.QueueID > 0 {
-		s.queueID.Store(int32(queue.QueueID))
-		s.metaMu.Lock()
-		if s.meta.QueueID != queue.QueueID {
-			s.meta.MapID = 0
-			s.meta.GameMode = ""
-		}
-		s.meta.QueueID = queue.QueueID
-		s.metaMu.Unlock()
-	}
-	return core.ParseChampSelectSession(raw)
+	return id, roster, err
 }
 
 func (s *TencentLCU) Roster(ctx context.Context) (int64, []core.Participant, error) {
-	var gameID int64
-	var roster []core.Participant
-	var firstErr error
-	if raw, err := s.client.Get(ctx, "/lol-gameflow/v1/session"); err == nil {
-		s.rememberQueue(raw, false)
-		self, selfErr := s.currentPUUID(ctx)
-		if selfErr == nil {
-			gameID, roster, firstErr = core.ParseGameflowRosterForPlayer(raw, self)
-		} else {
-			firstErr = selfErr
-		}
-	} else {
-		firstErr = err
+	id, roster, meta, err := s.ReadGame(ctx)
+	if err == nil {
+		s.rememberSession(meta)
 	}
-	if len(roster) >= 10 && knownCount(roster) == len(roster) {
-		return gameID, roster, nil
-	}
-	if raw, err := s.client.Get(ctx, "/lol-champ-select/v1/session"); err == nil {
-		if selectRoster, parseErr := core.ParseChampSelectRoster(raw); parseErr == nil && (knownCount(selectRoster) > knownCount(roster) || (knownCount(selectRoster) == knownCount(roster) && len(selectRoster) > len(roster))) {
-			return gameID, selectRoster, nil
-		}
-	}
-	if len(roster) > 0 {
-		return gameID, roster, nil
-	}
-	return gameID, roster, firstErr
+	return id, roster, err
 }
 
 func (s *TencentLCU) Lobby(ctx context.Context) ([]core.Participant, error) {
-	raw, err := s.client.Get(ctx, "/lol-lobby/v2/lobby")
-	if err != nil {
-		return nil, err
+	roster, meta, err := s.ReadLobby(ctx)
+	if err == nil {
+		s.rememberSession(meta)
 	}
-	s.rememberQueue(raw, true)
-	return core.ParseLobbyRoster(raw)
+	return roster, err
 }
 
-func (s *TencentLCU) CurrentQueue() int { return int(s.queueID.Load()) }
-func (s *TencentLCU) rememberQueue(raw []byte, lobby bool) {
-	s.rememberMetadata(raw, lobby)
-	var v struct {
-		GameData struct {
-			Queue struct {
-				ID *int `json:"id"`
-			} `json:"queue"`
-		} `json:"gameData"`
-		GameConfig struct {
-			QueueID *int `json:"queueId"`
-		} `json:"gameConfig"`
-	}
-	if json.Unmarshal(raw, &v) != nil {
-		return
-	}
-	q := v.GameData.Queue.ID
-	if lobby {
-		q = v.GameConfig.QueueID
-	}
-	if q != nil && *q >= 0 {
-		s.queueID.Store(int32(*q))
-	}
-}
+func (s *TencentLCU) CurrentQueue() int { return s.SessionMetadata().QueueID }
+
+func (s *TencentLCU) rememberQueue(raw []byte, lobby bool) { s.rememberMetadata(raw, lobby) }
 
 func knownCount(players []core.Participant) int {
 	n := 0

@@ -1,5 +1,6 @@
-import type { PlayerAnalysis } from '../bindings/leaguepingo/internal/core/models';
+import type { Participant, PlayerAnalysis, TeamRating } from '../bindings/leaguepingo/internal/core/models';
 import { uiText } from './uiText';
+import { rankedMode } from './scoutStats';
 
 export function analysisSummary(a?: PlayerAnalysis | null) {
   if (a?.score == null) return uiText.playerAnalysis.insufficient;
@@ -13,9 +14,19 @@ export function analysisSummary(a?: PlayerAnalysis | null) {
   return uiText.playerAnalysis.balanced;
 }
 
-export function analysisTitle(a?: PlayerAnalysis | null) {
+export function analysisTitle(a?: PlayerAnalysis | null, rating?: TeamRating | null) {
   if (a?.score == null) return uiText.playerAnalysis.insufficientHint;
   const text = uiText.playerAnalysis;
   const basis = ({comparative:text.comparative,mixed:text.mixed,basic:text.basic,placement:text.placement} as Record<string,string>)[a.basis] ?? text.basic;
-  return `${text.scope} · ${a.grade} · ${a.score.toFixed(1)} / 10 · ${text.samples(a.scoredGames,a.games)} · ${basis} · ${a.provisional ? text.provisional : text.confidence[a.confidence as keyof typeof text.confidence] ?? text.confidence.low} · ${analysisSummary(a)}`;
+  const scope = rating ? text.modeScope(rankedMode(rating.queueId)) : text.scope;
+  const standing = rating ? `${rating.label} · ${text.teamPlaceHint(rating.place, rating.rated)} · ` : '';
+  return `${scope} · ${standing}${a.score.toFixed(1)} / 10 · ${text.samples(a.scoredGames,a.games)} · ${basis} · ${a.provisional ? text.provisional : text.confidence[a.confidence as keyof typeof text.confidence] ?? text.confidence.low} · ${analysisSummary(a)}`;
+}
+
+export function rankedPlayers(players: Participant[]) {
+  const place = (p: Participant) => p.teamRating?.place ?? Number.POSITIVE_INFINITY;
+  return [...players].sort((a, b) => {
+    const left = place(a), right = place(b);
+    return left === right ? 0 : left < right ? -1 : 1;
+  });
 }
