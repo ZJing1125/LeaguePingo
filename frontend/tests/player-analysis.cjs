@@ -6,6 +6,51 @@ const {mockWindowRuntime}=require('./window-runtime.cjs');
 const {saveUIArtifact}=require('./ui-artifacts.cjs');
 const {makePlayer,makeDetail,makeTimeline,now}=require('./analysis-fixture.cjs');
 const {verifyKeyboardAccess}=require('./keyboard-access.cjs');
+async function verifyIncompleteDetails(page, calls, publish, snapshot, releaseDetail, shot) {
+ const home = page.locator('.home-workspace');
+ const rows = home.locator('.home-match .match-main');
+ const dialog = page.getByRole('dialog',{name:'对局详情',exact:true});
+ const detailCalls = () => calls.filter(name => name === 'MatchDetail').length;
+ const baseline = detailCalls();
+ await rows.nth(5).click();
+ await dialog.getByText('正在读取双方详情…',{exact:true}).waitFor();
+ assert.equal(await dialog.locator('.saved-roster .roster-peer').count(),10);
+ await dialog.press('Escape');
+ await dialog.waitFor({state:'detached'});
+ await rows.nth(5).click();
+ await dialog.getByText('正在读取双方详情…',{exact:true}).waitFor();
+ releaseDetail();
+ await dialog.locator('tr.target').waitFor();
+ assert.equal(detailCalls(),baseline+1,'reopening an in-flight match read duplicated it');
+ await dialog.press('Escape');
+ await rows.nth(2).click();
+ await dialog.getByText('已取得 6 / 10 人资料',{exact:true}).waitFor();
+ assert.equal(await dialog.locator('tbody tr').count(),6);
+ assert.equal(await dialog.locator('.scoreboard-totals, .damage-leader').count(),0,'partial data advertised whole-match comparisons');
+ assert.equal(await dialog.locator('.saved-roster .roster-peer').count(),10,'partial detail discarded prior roster');
+ assert.match(await dialog.locator('.team-summary').first().innerText(),/本方.*红方/s,'red-side target did not stay first');
+ await shot('partial-scoreboard');
+ await dialog.press('Escape');
+
+ snapshot.connected = false;
+ await publish();
+ await home.locator('.connection-guide').waitFor();
+ await rows.nth(3).click();
+ await dialog.getByText('已保留个人表现和阵容',{exact:true}).waitFor();
+ assert.equal(await dialog.locator('.saved-roster .roster-peer').count(),10);
+ assert.match(await dialog.locator('.saved-roster').innerText(),/泰达米尔/,'anonymous roster did not fall back to champion name');
+ assert.equal(await dialog.locator('.personal-content .summary-items .game-icon').count(),7);
+ assert.equal(await dialog.locator('.target-label').count(),0);
+ await shot('offline-roster');
+ await dialog.press('Escape');
+
+ await rows.nth(4).click();
+ await dialog.getByText('仅保留个人表现',{exact:true}).waitFor();
+ assert.equal(await dialog.locator('.saved-roster').count(),0);
+ await dialog.press('Escape');
+ assert.equal(detailCalls(),baseline+2,'offline browsing requested a match or partial detail was fetched twice');
+}
+
 async function main(){
  const browser=await chromium.launch({headless:true,executablePath:process.env.BROWSER_EXECUTABLE});
  try{
@@ -13,7 +58,13 @@ async function main(){
   const calls=[],errors=[],external=[];page.on('pageerror',e=>errors.push(e.message));const desktop=mockWindowRuntime(page);
   const binding=await fs.readFile(path.join(__dirname,'../bindings/leaguepingo/appservice.ts'),'utf8');
   const methods=Object.fromEntries([...binding.matchAll(/export function (\w+)\([^]*?\$Call.ByID\((\d+)/g)].map(m=>[m[2],m[1]]));
-  let player=makePlayer();let failTimeline=false;
+  const player=makePlayer();
+  let failTimeline=false;
+  let releaseDetail;
+  const delayedDetail = new Promise(resolve=>{releaseDetail=resolve;});
+  player.history[3].roster.forEach(peer => { peer.displayName = ""; });
+  delete player.history[4].roster;
+  player.history[2].roster.forEach(peer => { peer.teamId = 300 - peer.teamId; });
   const snapshot={connectionId:1,selfKey:player.key,generation:1,connected:true,phase:'None',stage:'idle',updatedAt:now,participants:[]};
   await page.route('**/*',r=>{external.push(r.request().url());return r.abort()});
   await page.route('http://127.0.0.1:43208/**',async route=>{
@@ -31,7 +82,15 @@ async function main(){
     else if(name==='OverlayStatus')result={revision:0,visible:false,sidebarEnabled:true,sidebarWidth:320};
     else if(['CurrentPlayer','Lookup','RefreshData','EnsureProfile'].includes(name))result=player;
     else if(name==='HistoryPage'){assert.equal(args[2],20,'analysis fixture must not scan beyond its one bounded warm/page read');result={matches:Array.from({length:20},(_,i)=>({...player.history[i],gameId:70021+i,playedAt:new Date(Date.parse(now)-(20+i)*4*3600000).toISOString()})),meta:{fetchedAt:now,returned:20,parsed:20,excluded:0},offset:args[2],nextOffset:args[2]+20,hasMore:false};}
-    else if(name==='MatchDetail')result=makeDetail(args[2]);
+    else if(name==='MatchDetail'){
+     if(args[2]===70006)await delayedDetail;
+     result=makeDetail(args[2]);
+     if(args[2]===70003){
+      result.players=result.players.filter(p=>![4,5,9,10].includes(p.participantId));
+      result.players.forEach(p=>{p.teamId=300-p.teamId;});
+      result.partial=true;
+     }
+    }
     else if(name==='MatchTimeline'){
      if(failTimeline)return route.fulfill({status:500,json:{message:'本场时间线暂未取得'}});
      result={...makeTimeline(args[2]),detail:makeDetail(args[2])};
@@ -63,12 +122,17 @@ async function main(){
   await page.locator('.players-workspace .match-card').first().waitFor();
   assert((await page.locator('.players-workspace .overview-performance .performance-roles h3').textContent()).includes('20 场已记录'),'queried-player analysis lost normalized match positions');
   await shot('history-dark');
+  assert.equal(calls.filter(n=>n==='MatchDetail').length,0,'list prefetched details');
+  assert.equal(await page.locator('.players-workspace .match-mini-roster').first().locator('.roster-peer').count(),10);
   await page.locator('.players-workspace .match-main').first().click();
   await page.locator('.full-match-detail tr.target').waitFor();
   await shot('scoreboard-dark');
   if(process.env.ANALYSIS_BASELINE==='1'){assert.deepEqual(errors,[]);return;}
   assert.equal(calls.filter(n=>n==='MatchDetail').length,1,'opening one game must load exactly that game detail');
   assert.equal(await page.locator('.full-match-detail tbody tr').count(),10);
+  const totals = page.locator('.scoreboard-totals');
+  assert.match(await totals.innerText(),/31.*总击杀.*21/s);
+  assert.equal(await page.locator('.damage-leader').count(),1);
   assert.equal(await page.locator('.detail-loadout').first().locator('.game-icon').count(),7);
   // Existing idle ranked warm-up may finish while switching analysis tabs.
   // Its single bounded HistoryPage is checked above; all other calls stay fixed.
@@ -155,6 +219,18 @@ async function main(){
   await homeGame.press('Escape');
   assert.equal(calls.filter(n=>n==='CurrentPlayer').length,1,'analysis navigation restarted automatic home loading');
   await verifyKeyboardAccess(page, player, calls, shot);
+  const publish = async () => {
+   snapshot.generation++;
+   snapshot.updatedAt = new Date().toISOString();
+   await page.evaluate(data=>window._wails.dispatchWailsEvent({name:'leaguepingo:snapshot',data}),snapshot);
+  };
+  await page.setViewportSize({width:1280,height:800});
+  await page.getByRole('navigation',{name:'工作区'}).getByRole('button',{name:'首页',exact:true}).click();
+  if (await home.locator('.home-pagination').textContent().then(text=>text.includes('第 2 页'))) {
+   await home.getByRole('button',{name:'上一页',exact:true}).click();
+   await home.locator('.home-pagination').filter({hasText:'第 1 页'}).waitFor();
+  }
+  await verifyIncompleteDetails(page,calls,publish,snapshot,releaseDetail,shot);
   assert.deepEqual(external,[]);assert.deepEqual(errors,[]);
   console.log('PASS: professional overview, rich match rows, click-authorized scoreboard, opt-in timeline, six team metrics, build/runes, cached tab changes, 1280/1100/880; keyboard-only home/query/history/settings/navigation, dialog focus, theme text/focus contrast and reduced motion in both themes; synthetic bridge.');
  }finally{await browser.close()}

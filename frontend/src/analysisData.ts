@@ -16,7 +16,14 @@ export function overviewData(matches:Match[]){
 export function heroRows(matches:Match[]){return [...new Set(matches.map(m=>m.championId).filter(id=>id>0))].map(id=>{const games=matches.filter(m=>m.championId===id);return {id,...overviewData(games),csRate:average(games.map(m=>perMinute(m.cs,m.duration)))};}).sort((a,b)=>b.games-a.games || a.id-b.id);}
 export function recentSeven(matches:Match[],fetchedAt:string|null|undefined){const cutoff=fetchedAt?Date.parse(fetchedAt):NaN;return Number.isFinite(cutoff)?matches.filter(m=>m.playedAt && Date.parse(m.playedAt)<=cutoff && Date.parse(m.playedAt)>=cutoff-7*86400000):[];}
 export function masteryData(player:Participant){const values=player.profile?.masteries ?? (player.scout?.champions??[]).flatMap(h=>h.mastery?[h.mastery]:[]);return [...values].sort((a,b)=>b.points-a.points || b.level-a.level || a.championId-b.championId);}
-export function matchBadges(match:Match){const badges:string[]=[];if(isRemake(match))return ['重开记录'];if((match.pentaKills??0)>0)badges.push('五杀');else if((match.quadraKills??0)>0)badges.push('四杀');else if((match.tripleKills??0)>0)badges.push('三杀');if(match.deaths===0 && match.kills!=null && match.assists!=null)badges.push('零死亡');if(match.earlyEnd===true)badges.push('提前结束');return badges;}
+export function matchHighlight(match: Match) {
+  if (isRemake(match)) return null;
+  if ((match.pentaKills ?? 0) > 0) return "penta";
+  if ((match.quadraKills ?? 0) > 0) return "quadra";
+  if ((match.tripleKills ?? 0) > 0) return "triple";
+  return match.deaths === 0 && match.kills != null && match.assists != null && match.kills + match.assists > 0
+    ? "deathless" : null;
+}
 export const teamMetrics=[{key:'kills',label:'击杀'},{key:'gold',label:'金币'},{key:'damage',label:'英雄伤害'},{key:'visionScore',label:'视野得分'},{key:'damageTaken',label:'承受伤害'},{key:'cs',label:'补刀'}] as const;
 export type TeamMetricKey=typeof teamMetrics[number]['key'];
 export function teamMetric(detail:MatchDetail,key:TeamMetricKey){

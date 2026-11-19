@@ -309,6 +309,7 @@ onUnmounted(() => {
           tabindex="0"
           :player="active"
           :state="stateFor(active.key)"
+          :self="active.key === snapshot?.selfKey && active.connectionId === snapshot?.connectionId"
           :active="view === 'players'"
           :busy="manualBusy"
           :refreshing="refreshing(active)"

@@ -715,7 +715,7 @@ async function main() {
       await page
         .locator(".players-workspace .match-main")
         .first()
-        .locator(".match-spells .game-icon")
+        .locator(".match-systems .game-icon")
         .count(),
       2,
       "spells must be visible without expanding",

@@ -100,14 +100,14 @@ async function main() {
     await singleGame.waitFor();
     await singleGame.locator('tr.target').waitFor();
     assert.equal(await nav.getByRole('button',{name:'首页',exact:true}).getAttribute('aria-current'),'page','single match left the home workspace');
-    assert((await singleGame.innerText()).includes('双方详情'));
+    assert.equal(await singleGame.getByRole('region',{name:'双方对局记分板'}).count(),1);
     assert((await singleGame.locator('.analysis-tabs [role=tab]').first().getAttribute('id')).includes('50000'),'home detail opened a different game');
     assert.equal(await singleGame.locator('.detail-loadout').count(),10);
     assert.equal(calls.filter(call=>call==='MatchDetail').length,detailsBeforeSingleGame+1,'opening one home game must load one detail');
     for(const [width,height] of [[1280,800],[1100,760],[880,620]]){
       await page.setViewportSize({width,height});
       assert(await singleGame.evaluate(el=>el.scrollWidth<=el.clientWidth+1),'single-game dialog overflow');
-      assert(await singleGame.locator('.match-items').evaluate(el=>new Set([...el.children].map(child=>Math.round(child.getBoundingClientRect().top))).size===1),'seven equipment slots wrapped in single-game header');
+      assert(await singleGame.locator('.detail-loadout').first().evaluate(el=>new Set([...el.children].map(child=>Math.round(child.getBoundingClientRect().top))).size===1),'seven equipment slots wrapped in the scoreboard');
       const fit=await singleGame.boundingBox();assert(fit.x>=0 && fit.y>=0 && fit.x+fit.width<=width+1 && fit.y+fit.height<=height+1,`single-game dialog escaped ${width}x${height}: ${JSON.stringify(fit)}`);
       await screenshot(`single-game-${width}`);
     }

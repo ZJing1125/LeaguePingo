@@ -2,7 +2,7 @@
 import { uiText } from "../uiText";
 import { computed, reactive, ref, watch } from "vue";
 import type { Participant, Snapshot } from "../../bindings/leaguepingo/internal/core/models";
-import { date, playerName, queueName, sampleStats, type PlayerViewState } from "../presentation";
+import { date, duration, outcome, playerName, positionName, queueName, sampleStats, type PlayerViewState } from "../presentation";
 import { SAMPLE_SIZES, useHistoryBrowser } from "../historyBrowser";
 import AppIcon from "./AppIcon.vue";
 import ChampionSplash from "./ChampionSplash.vue";
@@ -20,6 +20,8 @@ import HistoryNotice from "./HistoryNotice.vue";
 import PlayerDrawer from './PlayerDrawer.vue';
 import MatchHistoryRow from './MatchHistoryRow.vue';
 import MatchDetails from './MatchDetails.vue';
+import { historyHeroName, historyPosition } from '../historyMatch';
+import GameIcon from './GameIcon.vue';
 import { hasCurrentMatch } from '../matchRoom';
 import HistoryServiceStatus from './HistoryServiceStatus.vue';
 
@@ -68,7 +70,7 @@ const historyMessage = computed(() => !props.snapshot?.connected ? uiText.homeVi
         <div v-if="state.pageBusy || state.warmBusy || state.sourceLimit || state.pageError || state.browseNotice" class="home-browse-status" role="status"><span>{{ state.pageBusy ? uiText.homeView.loadingMore : state.warmBusy ? uiText.homeView.preparingRanked : state.pageError || state.sourceLimit || state.browseNotice }}</span><button v-if="state.pageBusy" class="text-button" @click="state.stopRequested = true">{{ uiText.homeView.stop }}</button><button v-else-if="!state.warmBusy && needsSamples && canFetch" class="text-button" :disabled="busy" @click="fill()">{{ uiText.homeView.continueSearch }}</button></div>
         <div ref="historyScroll" class="home-match-list">
           <div v-if="!pageMatches.length" class="home-no-history"><AppIcon name="history" :size="34" /><h3>{{ loading || player?.historyState === 'loading' ? uiText.homeView.preparingHistory : uiText.homeView.recentHistory }}</h3><p>{{ historyMessage }}</p></div>
-          <MatchHistoryRow v-for="match in pageMatches" :key="match.gameId" class="home-match" :match="match" :expanded="false" @toggle="!busy && !loading && (selectedGame=match.gameId)"/>
+          <MatchHistoryRow v-for="match in pageMatches" :key="match.gameId" class="home-match" :match="match" :expanded="false" self @toggle="!busy && !loading && (selectedGame=match.gameId)"/>
         </div>
         <nav class="home-pagination" :aria-label="uiText.homeView.pagination"><button class="secondary" :disabled="busy || state.pageBusy || (state.page ?? 1) <= 1" @click="goPage((state.page ?? 1) - 1)">{{ uiText.common.previous }}</button><span>{{ uiText.common.page(state.page ?? 1) }}<small>{{ uiText.common.pageSize }}</small></span><button class="secondary" :disabled="busy || state.pageBusy || ((state.page ?? 1) >= knownPages && (!state.hasMore || !canFetch))" @click="goPage((state.page ?? 1) + 1)">{{ uiText.common.next }}</button><form class="home-page-jump" @submit.prevent="jumpPage"><input v-model="jumpDraft" :aria-label="uiText.homeView.jumpLabel" :aria-invalid="!!jumpError" :title="uiText.homeView.pageRange(maxJumpPage)" inputmode="numeric" maxlength="3" :disabled="busy || state.pageBusy" /><button class="secondary" :disabled="busy || state.pageBusy">{{ uiText.common.jump }}</button></form></nav>
         <p v-if="jumpError" class="page-jump-error" role="alert">{{ jumpError }}</p>
@@ -77,8 +79,17 @@ const historyMessage = computed(() => !props.snapshot?.connected ? uiText.homeVi
       </div>
     </div>
     <PlayerDrawer v-if="selectedMatch && player" :player-key="`home-game-${selectedMatch.gameId}`" :label="uiText.common.details" modal fit :active="active ?? true" @close="selectedGame=null">
-      <header class="home-game-heading"><div><h2>{{ uiText.common.details }}</h2><p>{{ queueName(selectedMatch.queueId) }} · {{ date(selectedMatch.playedAt) }} · {{ playerName(player) }}</p></div><button class="icon-button" :aria-label="uiText.common.closeDetails" @click="selectedGame=null"><AppIcon name="close"/></button></header>
-      <div class="home-game-content"><MatchHistoryRow :match="selectedMatch" expanded fixed><template #details><MatchDetails :player="player" :game-id="selectedMatch.gameId" :match="selectedMatch" :connected="snapshot?.connected"/></template></MatchHistoryRow></div>
+      <header class="home-game-heading">
+        <div class="home-game-identity">
+          <GameIcon :id="selectedMatch.championId" :size="32"/>
+          <div>
+            <h2>{{ historyHeroName(selectedMatch.championId) }} · {{ outcome(selectedMatch) }}</h2>
+            <p><span v-if="historyPosition(selectedMatch)">{{ positionName(selectedMatch.position) }}</span><span>{{ queueName(selectedMatch.queueId) }}</span><span>{{ date(selectedMatch.playedAt) }}</span><span>{{ duration(selectedMatch.duration) }}</span></p>
+          </div>
+        </div>
+        <button class="icon-button" :aria-label="uiText.common.closeDetails" @click="selectedGame=null"><AppIcon name="close"/></button>
+      </header>
+      <div class="home-game-content"><MatchDetails :player="player" :game-id="selectedMatch.gameId" :match="selectedMatch" :connected="snapshot?.connected" self/></div>
     </PlayerDrawer>
   </section>
 </template>
@@ -163,9 +174,10 @@ const historyMessage = computed(() => !props.snapshot?.connected ? uiText.homeVi
 }
 </style>
 <style scoped>
-.home-game-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:20px;border-bottom:1px solid var(--border);flex:none;}
-.home-game-heading h2{font-size:20px;margin:0 0 6px;}.home-game-heading p{font-size:12px;color:var(--muted);margin:0;}
-.home-game-content{padding:16px;min-height:0;overflow:auto;}.home-game-content .match-card{margin:0;}
-.home-game-content :deep(.match-items){max-width:none;flex-wrap:nowrap;}
-.home-game-content :deep(.match-items .game-icon){flex:none;}
+.home-game-heading { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 14px; flex:none; }
+.home-game-identity { display:flex; align-items:center; gap:8px; min-width:0; }
+.home-game-heading h2 { margin:0; font-size:15px; }
+.home-game-heading p { display:flex; gap:4px 9px; flex-wrap:wrap; margin:2px 0 0; font-size:11px; color:var(--muted); }
+.home-game-content { min-height:0; overflow:auto; background:var(--panel); container-type:inline-size; }
+
 </style>

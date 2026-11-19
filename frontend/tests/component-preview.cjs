@@ -122,7 +122,7 @@ async function main() {
             7,
           );
           assert.equal(
-            await page.locator(".match-spells .game-icon").count(),
+            await page.locator(".match-systems .game-icon").count(),
             2,
           );
         }

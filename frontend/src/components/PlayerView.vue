@@ -46,6 +46,7 @@ const props = defineProps<{
   captured?: boolean;
   prepared?: boolean;
   automaticHistory?: boolean;
+  self?: boolean;
 }>();
 const emit = defineEmits<{
   refresh: [player: Participant];
@@ -254,6 +255,7 @@ function toggle(id: number) {
               :key="match.gameId"
               :match="match"
               :expanded="state.expanded.includes(match.gameId)"
+              :self="self"
               :compact="compact"
               @toggle="toggle(match.gameId)"
             >
@@ -262,6 +264,7 @@ function toggle(id: number) {
                   :player="player"
                   :game-id="match.gameId"
                   :match="match"
+                  :self="self"
                   :connected="connected"
                 />
               </template>

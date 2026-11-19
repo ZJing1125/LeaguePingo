@@ -354,8 +354,8 @@ async function main() {
     const remakeCard = page.locator(".players-workspace .match-card.remake");
     assert.equal(await remakeCard.count(), 1);
     assert.match(await remakeCard.locator(".outcome").textContent(), /^重开/);
-    assert.equal(await remakeCard.locator(".match-performance small").textContent(), "— KDA");
-    assert.match(await remakeCard.locator(".match-facts").textContent(), /重开记录/);
+    assert.equal(await remakeCard.locator(".match-facts").count(), 0);
+    assert.match(await remakeCard.locator(".match-efficiency").textContent(), /提前结束/);
     assert.doesNotMatch(await remakeCard.textContent(), /零死亡/);
     assert.deepEqual(
       pageCalls().map((c) => c.args[2]),
