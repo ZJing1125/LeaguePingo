@@ -2,10 +2,14 @@ package core
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
 )
+
+// The helper uses a smaller UTF-8 budget than the old multiline brief.
+const AnalysisBriefMaxBytes = 256
 
 type AnalysisBriefState struct {
 	Enabled     bool      `json:"enabled"`
@@ -44,7 +48,7 @@ func AnalysisBriefLines(snapshot Snapshot, includeSelf bool) ([]string, bool, in
 		a, b := rows[i].player.TeamRating, rows[j].player.TeamRating
 		return a != nil && (b == nil || a.Place < b.Place)
 	})
-	lines := []string{mode.Label + "｜我方近30天表现"}
+	lines := []string{mode.Label + " 近30天"}
 	ready, rated := true, 0
 	for _, r := range rows {
 		prefix := fmt.Sprintf("%d楼 ", r.seat)
@@ -65,22 +69,27 @@ func AnalysisBriefLines(snapshot Snapshot, includeSelf bool) ([]string, bool, in
 func analysisBriefRating(rating *TeamRating, q *ScoutQueue) string {
 	label := rating.Label
 	if q.Analysis.Provisional {
-		label += "·暂定"
+		label += "暂"
 	}
-	line := fmt.Sprintf("【%s %d/%d】%d场", label, rating.Place, rating.Rated, q.Analysis.ScoredGames)
-	if q.Month.WinRate != nil {
-		line += fmt.Sprintf(" · 胜率%.0f%%", *q.Month.WinRate)
+	games := fmt.Sprint(q.Analysis.ScoredGames)
+	if q.Analysis.ScoredGames > 999 {
+		games = "999+"
 	}
-	if q.Month.KDA != nil {
-		line += fmt.Sprintf(" · KDA %.1f", *q.Month.KDA)
+	line := fmt.Sprintf("%s%d/%d %s场", label, rating.Place, rating.Rated, games)
+	if rate := q.Month.WinRate; rate != nil && *rate >= 0 && *rate <= 100 {
+		line += fmt.Sprintf(" %.0f%%", *rate)
 	}
-	if q.Analysis.Basis != "basic" {
-		line += " · " + rating.Reason
+	if kda := q.Month.KDA; kda != nil && *kda >= 0 && !math.IsInf(*kda, 0) {
+		value := "999+"
+		if *kda < 999.95 {
+			value = fmt.Sprintf("%.1f", *kda)
+		}
+		line += " " + value + "KDA"
 	}
 	return line
 }
 
-func AnalysisBriefBody(lines []string) string { return strings.Join(lines, "\n") }
+func AnalysisBriefBody(lines []string) string { return strings.Join(lines, " | ") }
 
 func AnalysisReason(a *PlayerAnalysis) string {
 	if a == nil || a.Score == nil {

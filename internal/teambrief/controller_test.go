@@ -6,15 +6,20 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"leaguepingo/internal/apperrors"
 )
 
 type fakeChat struct {
-	mu      sync.Mutex
-	room    string
-	posts   int
-	fail    bool
-	entered chan struct{}
-	release chan struct{}
+	mu               sync.Mutex
+	room             string
+	rooms            []string
+	reads            int
+	preflightBlocked bool
+	posts            int
+	fail             bool
+	entered          chan struct{}
+	release          chan struct{}
 }
 
 func (f *fakeChat) ChampSelectConversation(context.Context) (string, error) {
@@ -27,16 +32,26 @@ func (f *fakeChat) ChampSelectConversation(context.Context) (string, error) {
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.room, nil
+	f.reads++
+	if len(f.rooms) == 0 || f.reads > len(f.rooms) {
+		return f.room, nil
+	}
+	if room := f.rooms[f.reads-1]; room != "" {
+		return room, nil
+	}
+	return "", apperrors.New(apperrors.DataUnavailable)
 }
-func (f *fakeChat) SendAnalysisBrief(context.Context, string, string, string) error {
+func (f *fakeChat) SendAnalysisBrief(context.Context, string, string, string) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.preflightBlocked {
+		return false, apperrors.New(apperrors.DataUnavailable)
+	}
 	f.posts++
 	if f.fail {
-		return errors.New("synthetic uncertain send")
+		return true, errors.New("synthetic uncertain send")
 	}
-	return nil
+	return true, nil
 }
 func (f *fakeChat) count() int { f.mu.Lock(); defer f.mu.Unlock(); return f.posts }
 func testController(t *testing.T) *Controller {
@@ -44,6 +59,7 @@ func testController(t *testing.T) *Controller {
 	c := New()
 	c.delay = time.Millisecond
 	c.wait = 15 * time.Millisecond
+	c.chatPoll = 2 * time.Millisecond
 	t.Cleanup(c.Stop)
 	return c
 }
@@ -159,5 +175,31 @@ func TestLateDataResumesWithoutFetchingAndNoBlankMessage(t *testing.T) {
 	awaitStatus(t, c, "sent")
 	if f.count() != 1 {
 		t.Fatal("late data did not resume once")
+	}
+}
+
+func TestTransientChatRecoveryWaitsForSameReadyRoomThenSendsOnce(t *testing.T) {
+	c := testController(t)
+	f := &fakeChat{room: "new", rooms: []string{"old", "", "", "new", "", "new", "new"}}
+	_ = c.Configure(true, "team", true)
+	frame := Frame{Scope: "same", Active: true, Ready: true, Rated: 5, Lines: []string{"one short brief"}}
+	c.Observe(context.Background(), f, frame)
+	awaitStatus(t, c, "sent")
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.posts != 1 || f.reads != 7 {
+		t.Fatalf("waited for %d observations and sent %d times", f.reads, f.posts)
+	}
+}
+
+func TestChatDroppedDuringFinalCheckIsReportedAsUnavailable(t *testing.T) {
+	c := testController(t)
+	f := &fakeChat{room: "stable", preflightBlocked: true}
+	_ = c.Configure(true, "team", true)
+	frame := Frame{Scope: "same", Active: true, Ready: true, Rated: 1, Lines: []string{"one short brief"}}
+	c.Observe(context.Background(), f, frame)
+	awaitStatus(t, c, "unavailable")
+	if f.count() != 0 {
+		t.Fatal("a preflight failure was treated as a POST")
 	}
 }

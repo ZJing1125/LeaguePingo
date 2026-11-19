@@ -742,7 +742,7 @@ export const uiText = {
     preview: "预览当前我方分析",
     previewLabel: "选人分析简报预览",
     emptyPreview: "当前暂无可预览的选人数据。",
-    state: {off:"自动发送已关闭",idle:"等待进入选人",waiting:"正在等待本局玩家分析","waiting-data":"等待其余玩家资料，分析完成后发送",sending:"正在发送分析简报",sent:"本次选人简报已发送",skipped:"当前会话已发送，已跳过重复发送",unavailable:"暂无可发送的分析或当前聊天不可用",unsupported:"当前模式或客户端暂不支持自动简报",uncertain:"发送结果待确认，请先查看聊天；本次不会自动重发"},
+    state: {off:"自动发送已关闭",idle:"等待进入选人",waiting:"正在等待本局玩家分析","waiting-data":"等待其余玩家资料，分析完成后发送","waiting-chat":"等待英雄联盟客户端聊天就绪",sending:"正在发送分析简报",sent:"选人简报已提交给英雄联盟客户端",skipped:"当前会话已发送，已跳过重复发送",unavailable:"暂无可发送的分析或当前聊天不可用",unsupported:"当前模式或客户端暂不支持自动简报",uncertain:"发送结果待确认，请先查看聊天；本次不会自动重发"},
   },
   playerAnalysis: {
     title: "近期表现分析",

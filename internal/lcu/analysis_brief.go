@@ -6,12 +6,43 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"leaguepingo/internal/apperrors"
+	"leaguepingo/internal/core"
+	"leaguepingo/internal/diagnostics"
 )
 
-const conversationsPath = "/lol-chat/v1/conversations"
+const (
+	conversationsPath = "/lol-chat/v1/conversations"
+	chatSessionPath   = "/lol-chat/v1/session"
+)
+
+func (c *Client) requireChatReady(ctx context.Context) error {
+	raw, err := c.Get(ctx, chatSessionPath)
+	if apperrors.Status(err) == http.StatusNotFound || apperrors.Status(err) == http.StatusMethodNotAllowed {
+		return apperrors.New(apperrors.Unsupported)
+	}
+	if err != nil {
+		return err
+	}
+	var session struct {
+		State string `json:"sessionState"`
+	}
+	if json.Unmarshal(raw, &session) != nil || session.State == "" {
+		return apperrors.New(apperrors.InvalidResponse)
+	}
+	switch session.State {
+	case "loaded", "connected":
+		return nil
+	case "initializing", "connecting", "disconnected":
+		diagnostics.Default.Record("/chat-session/not-ready", 0, 0, false)
+		return apperrors.New(apperrors.DataUnavailable)
+	default:
+		return apperrors.New(apperrors.StaleData)
+	}
+}
 
 func validConversationID(id string) bool {
 	if len(id) == 0 || len(id) > 256 {
@@ -42,6 +73,9 @@ func (c *Client) ChampSelectConversation(ctx context.Context) (string, error) {
 	if json.Unmarshal(raw, &phase) != nil || phase != "ChampSelect" {
 		return "", apperrors.New(apperrors.StaleData)
 	}
+	if err := c.requireChatReady(ctx); err != nil {
+		return "", err
+	}
 	raw, err = c.Get(ctx, conversationsPath)
 	if err != nil {
 		return "", err
@@ -71,16 +105,18 @@ func (c *Client) ChampSelectConversation(ctx context.Context) (string, error) {
 
 // A single fixed mutation for the current champ-select conversation. No generic
 // chat API is exposed to the desktop bridge, and no failed POST is retried here.
-func (c *Client) SendAnalysisBrief(ctx context.Context, id, body, audience string) error {
-	if !validConversationID(id) || !utf8.ValidString(body) || utf8.RuneCountInString(body) > 450 || len(body) > 1800 || body == "" || audience != "team" && audience != "self" {
-		return apperrors.New(apperrors.InvalidResponse)
+func (c *Client) SendAnalysisBrief(ctx context.Context, id, body, audience string) (bool, error) {
+	if !validConversationID(id) || strings.TrimSpace(body) == "" || !utf8.ValidString(body) ||
+		len(body) > core.AnalysisBriefMaxBytes || strings.ContainsFunc(body, invalidBriefRune) ||
+		audience != "team" && audience != "self" {
+		return false, apperrors.New(apperrors.InvalidResponse)
 	}
 	current, err := c.ChampSelectConversation(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
-	if current != id {
-		return apperrors.New(apperrors.StaleData)
+	if current != id || ctx.Err() != nil {
+		return false, apperrors.New(apperrors.StaleData)
 	}
 	kind := "chat"
 	if audience == "self" {
@@ -88,5 +124,9 @@ func (c *Client) SendAnalysisBrief(ctx context.Context, id, body, audience strin
 	}
 	raw, _ := json.Marshal(map[string]string{"body": body, "type": kind})
 	_, err = c.request(ctx, http.MethodPost, conversationsPath+"/"+url.PathEscape(id)+"/messages", raw)
-	return err
+	return true, err
+}
+
+func invalidBriefRune(r rune) bool {
+	return unicode.IsControl(r) || r == '\u2028' || r == '\u2029'
 }

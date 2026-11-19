@@ -150,11 +150,39 @@ func TestBriefUsesActualModeAndSameGradeWithoutNames(t *testing.T) {
 	ApplyTeamRatings(s.Participants, s.QueueID)
 	lines, ready, rated := AnalysisBriefLines(s, true)
 	body := AnalysisBriefBody(lines)
-	if !ready || rated != 5 || len(lines) != 6 || !strings.HasPrefix(lines[1], "5楼 【大腿·暂定 1/5】3场") || strings.Contains(body, "D级") || strings.Contains(body, "PrivateName") || strings.Contains(body, "private-") {
+	if !ready || rated != 5 || len(lines) != 6 || !strings.HasPrefix(lines[1], "5楼 大腿暂1/5 3场") || strings.Contains(body, "D级") || strings.Contains(body, "PrivateName") || strings.Contains(body, "private-") {
 		t.Fatal("brief differed from actual mode or leaked names")
 	}
 	lines, _, _ = AnalysisBriefLines(s, false)
 	if len(lines) != 5 || strings.Contains(AnalysisBriefBody(lines), "1楼") {
 		t.Fatal("self exclusion changed seat numbers")
+	}
+}
+
+func TestBriefFitsSingleLineByteBudgetForAllModes(t *testing.T) {
+	for _, mode := range ScoutModes() {
+		if mode.Arena {
+			continue
+		}
+		snapshot := Snapshot{QueueID: mode.QueueID}
+		for i := 0; i < 5; i++ {
+			winRate, kda := 99.99, 999.94
+			queue := ScoutQueue{
+				QueueID:  mode.QueueID,
+				Analysis: &PlayerAnalysis{Provisional: true, ScoredGames: 10000},
+				Month:    Stats{WinRate: &winRate, KDA: &kda},
+			}
+			snapshot.Participants = append(snapshot.Participants, Participant{
+				Team: "ally", IdentityState: IdentityKnown,
+				TeamRating: &TeamRating{Label: teamRatingLabels[i], Place: i + 1, Rated: 5},
+				Scout:      &ScoutReport{Queues: []ScoutQueue{queue}},
+			})
+		}
+		lines, ready, rated := AnalysisBriefLines(snapshot, true)
+		body := AnalysisBriefBody(lines)
+		if !ready || rated != 5 || strings.Count(body, "楼 ") != 5 ||
+			strings.Count(body, "100% 999.9KDA") != 5 || len(body) > AnalysisBriefMaxBytes || strings.ContainsAny(body, "\r\n") {
+			t.Fatalf("queue %d produced %d bytes and %d ratings", mode.QueueID, len(body), rated)
+		}
 	}
 }

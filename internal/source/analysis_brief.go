@@ -8,7 +8,8 @@ import (
 
 type AnalysisBriefSource interface {
 	ChampSelectConversation(context.Context) (string, error)
-	SendAnalysisBrief(context.Context, string, string, string) error
+	// Reports whether the POST was attempted, independently of its outcome.
+	SendAnalysisBrief(context.Context, string, string, string) (bool, error)
 }
 
 func (s *TencentLCU) SelectionIdentity() string { return s.SessionMetadata().SelectionKey }
@@ -16,7 +17,7 @@ func (s *TencentLCU) SelectionIdentity() string { return s.SessionMetadata().Sel
 func (s *TencentLCU) ChampSelectConversation(ctx context.Context) (string, error) {
 	return s.client.ChampSelectConversation(ctx)
 }
-func (s *TencentLCU) SendAnalysisBrief(ctx context.Context, id, body, audience string) error {
+func (s *TencentLCU) SendAnalysisBrief(ctx context.Context, id, body, audience string) (bool, error) {
 	return s.client.SendAnalysisBrief(ctx, id, body, audience)
 }
 

@@ -91,9 +91,7 @@ func (e *Engine) refreshChampSelect(ctx context.Context) {
 	if err != nil || len(roster) == 0 {
 		return
 	} // Never erase a usable roster on a transient failure.
-	for i := range roster {
-		roster[i].ConnectionID = version
-	}
+	roster = rosterForConnection(roster, version)
 	if gameID == 0 && !e.newSelectionLocked(mode) {
 		gameID = e.snapshot.GameID
 	}

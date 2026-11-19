@@ -36,11 +36,12 @@ type Controller struct {
 	changes     chan struct{}
 	wake        chan struct{}
 	wait, delay time.Duration
+	chatPoll    time.Duration
 	workers     sync.WaitGroup
 }
 
 func New() *Controller {
-	return &Controller{state: core.AnalysisBriefState{Audience: "team", IncludeSelf: true, Status: "off"}, changes: make(chan struct{}, 1), wake: make(chan struct{}, 1), rooms: map[string]uint64{}, wait: 8 * time.Second, delay: 1500 * time.Millisecond}
+	return &Controller{state: core.AnalysisBriefState{Audience: "team", IncludeSelf: true, Status: "off"}, changes: make(chan struct{}, 1), wake: make(chan struct{}, 1), rooms: map[string]uint64{}, wait: 8 * time.Second, delay: 1500 * time.Millisecond, chatPoll: 750 * time.Millisecond}
 }
 func (c *Controller) Snapshot() core.AnalysisBriefState {
 	c.mu.Lock()
@@ -166,8 +167,6 @@ func (c *Controller) run(ctx context.Context, token uint64) {
 }
 
 func (c *Controller) send(parent context.Context, token uint64) bool {
-	request, cancel := context.WithTimeout(parent, 4*time.Second)
-	defer cancel()
 	c.mu.Lock()
 	if c.sequence != token {
 		c.mu.Unlock()
@@ -178,12 +177,21 @@ func (c *Controller) send(parent context.Context, token uint64) bool {
 		return false
 	}
 	src, frame := c.source, c.frame
+	c.statusLocked("waiting-chat")
 	c.mu.Unlock()
-	room, err := readConversation(request, src)
+	discovery, stopDiscovery := context.WithTimeout(parent, 8*time.Second)
+	room, err := readConversation(discovery, src, c.chatPoll)
+	stopDiscovery()
 	if err != nil {
-		c.finish(token, "unavailable", true)
+		status := "unavailable"
+		if apperrors.CodeOf(err) == apperrors.Unsupported {
+			status = "unsupported"
+		}
+		c.finish(token, status, true)
 		return true
 	}
+	request, cancel := context.WithTimeout(parent, 4*time.Second)
+	defer cancel()
 	if verifier, ok := src.(source.SelectionVerifier); ok {
 		if err := verifier.VerifySelection(request, frame.SelectionKey, frame.GameID, frame.QueueID); err != nil {
 			c.finish(token, "unavailable", true)
@@ -219,9 +227,11 @@ func (c *Controller) send(parent context.Context, token uint64) bool {
 	body, audience := core.AnalysisBriefBody(c.frame.Lines), c.state.Audience
 	c.statusLocked("sending")
 	c.mu.Unlock()
-	err = src.SendAnalysisBrief(request, room, body, audience)
+	dispatched, err := src.SendAnalysisBrief(request, room, body, audience)
 	status := "sent"
-	if err != nil {
+	if !dispatched {
+		status = "unavailable"
+	} else if err != nil {
 		status = "uncertain"
 	}
 	c.finish(token, status, true)
@@ -255,12 +265,13 @@ func (c *Controller) pruneRoomsLocked() {
 	delete(c.rooms, oldest)
 }
 
-// Only the read-only discovery may retry; the POST below it remains one-shot.
-func readConversation(ctx context.Context, src source.AnalysisBriefSource) (string, error) {
-	var last error
-	for attempt := 0; attempt < 3; attempt++ {
+// Only discovery retries. Require the same ready room across two observations
+// so an open conversation from a reconnecting chat session cannot send a brief.
+func readConversation(ctx context.Context, src source.AnalysisBriefSource, interval time.Duration) (string, error) {
+	previous := ""
+	for attempt := 0; attempt < 8 && ctx.Err() == nil; attempt++ {
 		if attempt > 0 {
-			timer := time.NewTimer(250 * time.Millisecond)
+			timer := time.NewTimer(interval)
 			select {
 			case <-ctx.Done():
 				timer.Stop()
@@ -269,10 +280,17 @@ func readConversation(ctx context.Context, src source.AnalysisBriefSource) (stri
 			}
 		}
 		room, err := src.ChampSelectConversation(ctx)
-		if err == nil {
-			return room, nil
+		switch apperrors.CodeOf(err) {
+		case "":
+			if room != "" && room == previous {
+				return room, nil
+			}
+			previous = room
+		case apperrors.DataUnavailable, apperrors.ServiceBusy, apperrors.RequestTimeout:
+			previous = ""
+		default:
+			return "", err
 		}
-		last = err
 	}
-	return "", last
+	return "", apperrors.New(apperrors.DataUnavailable)
 }

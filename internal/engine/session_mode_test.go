@@ -38,6 +38,9 @@ func TestSameLobbySwitchUpdatesModeFromPollAndIgnoresLateResult(t *testing.T) {
 	if s := e.Snapshot(); s.QueueID != 420 || s.ScoutQueue != 420 || len(s.Participants) != 1 {
 		t.Fatalf("initial mode/read failed: queue %d, view %d, players %d", s.QueueID, s.ScoutQueue, len(s.Participants))
 	}
+	if client.roster[0].ConnectionID != 0 {
+		t.Fatal("poll mutated the source's reusable roster")
+	}
 	if _, err := e.SetScoutQueue(440); err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +56,9 @@ func TestSameLobbySwitchUpdatesModeFromPollAndIgnoresLateResult(t *testing.T) {
 	default:
 		t.Fatal("mode change event did not schedule a read")
 	}
+	e.mu.Lock()
 	e.finishPollLocked(results)
+	e.mu.Unlock()
 	if e.Snapshot().QueueID != 420 {
 		t.Fatal("pre-event data replaced the current mode")
 	}
@@ -68,7 +73,9 @@ func TestSameLobbySwitchUpdatesModeFromPollAndIgnoresLateResult(t *testing.T) {
 	if s := e.Snapshot(); s.QueueID != 450 || s.ScoutQueue != 450 {
 		t.Fatalf("normal and Mayhem ARAM were not distinguished: %+v", s)
 	}
+	client.mu.Lock()
 	client.phase = "ChampSelect"
+	client.mu.Unlock()
 	e.poll(ctx)
 	if client.last.QueueID != 450 || e.Snapshot().QueueID != 450 {
 		t.Fatal("verified room mode did not reach the selection reader")

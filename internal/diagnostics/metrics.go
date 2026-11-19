@@ -82,6 +82,10 @@ func Category(path string) string {
 		return "roster"
 	case path == "/lol-champ-select/v1/session":
 		return "champ-select"
+	case path == "/chat-session/not-ready":
+		return "chat-not-ready"
+	case path == "/lol-chat/v1/session":
+		return "chat-session"
 	case path == "/lol-chat/v1/conversations":
 		return "chat-list"
 	case strings.HasPrefix(path, "/lol-chat/v1/conversations/"):

@@ -37,7 +37,7 @@ const {mockWindowRuntime}=require('./window-runtime.cjs');
  info={...info,autoReturnEnabled:args[0],autoQueueEnabled:args[1],autoQueueDelay:args[2],autoSkipHonor:args[3]};postState={...postState,revision:postState.revision+1,returnEnabled:args[0],queueEnabled:args[1],delaySeconds:args[2],skipHonor:args[3],status:(args[0]||args[1]||args[3])?'armed':'off'};result=info;
  }else if(method==='ConfigureAnalysisBrief'){
  info={...info,autoAnalysisBrief:args[0],analysisAudience:args[1],analysisIncludeSelf:args[2]};result=info;
- }else if(method==='PreviewAnalysisBrief')result='LeaguePingo｜单双排｜近30天已读表现分析\n1L｜暂定B级 6.4分｜有效8场｜输出较好';
+ }else if(method==='PreviewAnalysisBrief')result='单双排 近30天 | 1楼 大腿暂1/5 8场 63% 2.1KDA | 2楼 主力2/5 9场 56% 1.8KDA';
  else if(method==='SkipAutoAccept'){assert.equal(state.status,'countdown');result=state={...state,revision:state.revision+1,status:'skipped'};}
  else if(method!=='AuxiliaryReady')throw Error('unexpected service '+method);
  return route.fulfill({json:result});
@@ -87,7 +87,9 @@ const {mockWindowRuntime}=require('./window-runtime.cjs');
  const briefEnabled=page.getByRole('checkbox',{name:'选人阶段自动发送玩家分析',exact:true});
  assert.equal(await briefEnabled.isChecked(),false,'analysis chat defaults off');
  await page.getByRole('button',{name:'预览当前我方分析',exact:true}).click();
- assert.match(await page.getByRole('textbox',{name:'选人分析简报预览',exact:true}).inputValue(),/B级 6.4分/);
+ const preview = await page.getByRole('textbox',{name:'选人分析简报预览',exact:true}).inputValue();
+ assert.match(preview,/1楼 大腿暂1\/5 8场 63% 2.1KDA/);
+ assert.doesNotMatch(preview,/[\r\n]/);
  assert.equal(calls.filter(c=>c==='ConfigureAnalysisBrief').length,0,'preview cannot enable or send chat');
  await briefEnabled.check();
  await page.getByRole('combobox',{name:'简报接收范围',exact:true}).selectOption('self');

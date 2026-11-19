@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -25,6 +26,8 @@ func TestAnalysisChatOnlyUsesCurrentChampSelectAndFixedAudience(t *testing.T) {
 				switch r.URL.Path {
 				case "/lol-gameflow/v1/gameflow-phase":
 					_, _ = w.Write([]byte(`"ChampSelect"`))
+				case chatSessionPath:
+					_, _ = w.Write([]byte(`{"sessionState":"loaded"}`))
 				case conversationsPath:
 					_, _ = w.Write([]byte(`[{"id":"synthetic@champsel","type":"championSelect"},{"id":"friend-chat","type":"chat"}]`))
 				case conversationsPath + "/synthetic@champsel/messages":
@@ -47,7 +50,7 @@ func TestAnalysisChatOnlyUsesCurrentChampSelectAndFixedAudience(t *testing.T) {
 					w.WriteHeader(404)
 				}
 			})
-			if err := c.SendAnalysisBrief(context.Background(), "synthetic@champsel", "synthetic analysis", audience); err != nil || posts != 1 {
+			if attempted, err := c.SendAnalysisBrief(context.Background(), "synthetic@champsel", "synthetic analysis", audience); !attempted || err != nil || posts != 1 {
 				t.Fatalf("chat status %d: %v / %d", status, err, posts)
 			}
 		}
@@ -68,28 +71,70 @@ func TestAnalysisChatRejectsStaleRoomsPhasesAndUntrustedInput(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(phase)
 			return
 		}
+		if r.URL.Path == chatSessionPath {
+			_, _ = w.Write([]byte(`{"sessionState":"loaded"}`))
+			return
+		}
 		_, _ = w.Write([]byte(`[{"id":"new-room","type":"championSelect"}]`))
 	})
-	if c.SendAnalysisBrief(context.Background(), "old-room", "text", "team") == nil || posts != 0 {
+	if attempted, err := c.SendAnalysisBrief(context.Background(), "old-room", "text", "team"); attempted || err == nil || posts != 0 {
 		t.Fatal("sent in game")
 	}
 	phase = "ChampSelect"
-	if c.SendAnalysisBrief(context.Background(), "old-room", "text", "team") == nil || posts != 0 {
+	if attempted, err := c.SendAnalysisBrief(context.Background(), "old-room", "text", "team"); attempted || err == nil || posts != 0 {
 		t.Fatal("sent to stale room")
 	}
 	before := requests
 	for _, id := range []string{"../friend", "id/messages", "id?query", "%2e%2e", ""} {
-		if c.SendAnalysisBrief(context.Background(), id, "text", "team") == nil {
+		if attempted, err := c.SendAnalysisBrief(context.Background(), id, "text", "team"); attempted || err == nil {
 			t.Fatal("invalid room accepted")
 		}
 	}
-	if c.SendAnalysisBrief(context.Background(), "new-room", strings.Repeat("字", 451), "team") == nil {
-		t.Fatal("long text accepted")
+	for _, body := range []string{strings.Repeat("字", 86), "玩家一\n玩家二", "玩家一\u2028玩家二", "\x00", " "} {
+		if attempted, err := c.SendAnalysisBrief(context.Background(), "new-room", body, "team"); attempted || err == nil {
+			t.Fatal("invalid byte length or multiline text accepted")
+		}
 	}
-	if c.SendAnalysisBrief(context.Background(), "new-room", "text", "all") == nil {
+	if attempted, err := c.SendAnalysisBrief(context.Background(), "new-room", "text", "all"); attempted || err == nil {
 		t.Fatal("arbitrary audience accepted")
 	}
 	if requests != before {
 		t.Fatal("untrusted input caused a request")
+	}
+}
+
+func TestAnalysisChatDoesNotWriteDuringReconnectOrTreatItAsAnAttempt(t *testing.T) {
+	for _, tc := range []struct {
+		name, response string
+		status         int
+	}{
+		{"initializing", `{"sessionState":"initializing"}`, 200},
+		{"reconnecting", `{"sessionState":"connecting"}`, 200},
+		{"disconnected", `{"sessionState":"disconnected"}`, 200},
+		{"unknown state", `{"sessionState":"unknown"}`, 200},
+		{"missing state", `{}`, 200},
+		{"unsupported route", `{}`, 404},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var posts atomic.Int32
+			c := briefClient(t, func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/lol-gameflow/v1/gameflow-phase":
+					_, _ = w.Write([]byte(`"ChampSelect"`))
+				case chatSessionPath:
+					w.WriteHeader(tc.status)
+					_, _ = w.Write([]byte(tc.response))
+				case conversationsPath:
+					_, _ = w.Write([]byte(`[{"id":"open-room","type":"championSelect"}]`))
+				default:
+					posts.Add(1)
+					w.WriteHeader(http.StatusNoContent)
+				}
+			})
+			attempted, err := c.SendAnalysisBrief(context.Background(), "open-room", "valid brief", "team")
+			if attempted || err == nil || posts.Load() != 0 {
+				t.Fatal("a listed chat room allowed writing without a ready chat session")
+			}
+		})
 	}
 }

@@ -290,10 +290,7 @@ func readPollRoster(ctx context.Context, client Client, stage Stage, refresh boo
 		return 0, nil, source.SessionMetadata{}, nil
 	}
 	gameID, roster, mode, err := readStageRoster(ctx, client, stage, previous)
-	for i := range roster {
-		roster[i].ConnectionID = version
-	}
-	return gameID, roster, mode, err
+	return gameID, rosterForConnection(roster, version), mode, err
 }
 
 func (e *Engine) finishPollLocked(result pollRosterResult) {
@@ -915,9 +912,7 @@ func (e *Engine) RefreshRoster(ctx context.Context) (core.Snapshot, error) {
 		e.mu.Unlock()
 		return e.Snapshot(), apperrors.New(apperrors.StaleData)
 	}
-	for i := range roster {
-		roster[i].ConnectionID = version
-	}
+	roster = rosterForConnection(roster, version)
 	if stage == StagePreparing && snapshotStage(e.snapshot.Stage) == stage && gameID == 0 && !e.newSelectionLocked(mode) {
 		gameID = e.snapshot.GameID
 	}

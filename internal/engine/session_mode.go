@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"slices"
 
 	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/core"
@@ -35,6 +36,16 @@ func readStageRoster(ctx context.Context, client Client, stage Stage, previous s
 	}
 	id, players, err := client.Roster(ctx)
 	return id, players, source.SessionMetadata{}, err
+}
+
+// The engine updates its roster while preparing player data. A source may
+// return the same slice on successive reads, so take ownership before editing.
+func rosterForConnection(players []core.Participant, version uint64) []core.Participant {
+	roster := slices.Clone(players)
+	for i := range roster {
+		roster[i].ConnectionID = version
+	}
+	return roster
 }
 
 func (e *Engine) selectionModeLocked(next Stage) source.SessionMetadata {
