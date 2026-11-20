@@ -26,6 +26,8 @@ export interface BuildSection {
 }
 
 export interface Guide {
+    "augmentsFetchedAt"?: string | null;
+    "buildsFetchedAt"?: string | null;
     "query": Query;
     "version": string;
     "fetchedAt": string;

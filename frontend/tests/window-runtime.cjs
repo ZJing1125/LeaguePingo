@@ -7,6 +7,9 @@ const methods = Object.fromEntries(
   [...source.matchAll(/const (\w+)Method = (\d+);/g)].map((m) => [m[2], m[1]]),
 );
 
+const binding = fs.readFileSync(path.join(__dirname, "../bindings/leaguepingo/appservice.ts"), "utf8");
+const responseMethod = binding.match(/export function RecordUIResponse[\s\S]*?\$Call\.ByID\((\d+)/)?.[1];
+
 function mockWindowRuntime(page) {
   return {
     calls: [],
@@ -22,6 +25,18 @@ function mockWindowRuntime(page) {
       );
     },
     async handle(route, request) {
+      if (request.object === 10) {
+        await route.fulfill({ json: null });
+        return true;
+      }
+      if (String(request.args?.methodID) === responseMethod) {
+        const [category, elapsed] = request.args.args;
+        if (!["player-history-ready", "history-feedback", "history-cache-ready", "history-first-ready", "rating-render", "guide-render"].includes(category) || !Number.isFinite(elapsed) || elapsed < 0) {
+          throw new Error("Invalid anonymous response measurement");
+        }
+        await route.fulfill({ json: null });
+        return true;
+      }
       if (request.object !== 6) return false; // Wails beta.29 Window object.
       const method = methods[request.method];
       this.calls.push(method);

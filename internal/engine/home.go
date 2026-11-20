@@ -54,7 +54,7 @@ func (e *Engine) CurrentPlayer(ctx context.Context, connectionID uint64) (core.P
 			return player, nil
 		}
 	}
-	result, err := e.loadManualHistoryGuarded(ctx, client, generation, version, player, false, true, func() bool {
+	result, err := e.loadManualHistoryGuarded(ctx, client, generation, version, player, false, false, func() bool {
 		return ctx.Err() != context.Canceled && e.client != nil && e.clientVersion == version && e.accountIdentity == key && snapshotStage(e.snapshot.Stage) == StageIdle && (e.phaseHint == PhaseUnknown || stageForPhase(e.phaseHint) == StageIdle)
 	})
 	// An optional profile timeout must not discard a completed first history.

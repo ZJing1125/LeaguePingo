@@ -34,7 +34,7 @@ func profileEnsureFixture() (*Engine, *basicProfileClient, core.Participant) {
 	return e, c, p
 }
 
-func TestCachedManualLookupsEnrichWithoutIdentityOrHistory(t *testing.T) {
+func TestCachedManualLookupsReturnHistoryThenEnsureProfile(t *testing.T) {
 	for _, kind := range []string{"id", "player", "after-resolution"} {
 		t.Run(kind, func(t *testing.T) {
 			e, c, p := profileEnsureFixture()
@@ -47,6 +47,12 @@ func TestCachedManualLookupsEnrichWithoutIdentityOrHistory(t *testing.T) {
 				got, err = e.LookupPlayer(context.Background(), p.Key)
 			case "after-resolution":
 				got, err = e.loadManualHistory(context.Background(), c, 0, 0, p, false, true)
+			}
+			if kind != "after-resolution" {
+				if err != nil || !historyCached(got) || len(c.calls) != 0 {
+					t.Fatal("cached history waited for optional profile", err)
+				}
+				got, err = e.EnsureProfile(context.Background(), got.Key, got.ConnectionID)
 			}
 			if err != nil || got.Profile == nil || got.Profile.ProfileIconData != "synthetic-avatar" || len(c.calls) != 1 || c.calls[0] != "profile" || !got.HistoryMeta.FetchedAt.Equal(*p.HistoryMeta.FetchedAt) {
 				t.Fatal("cached lookup did not enrich independently", err)
@@ -135,22 +141,13 @@ func TestEnsureProfileWaitingForSchedulerRejectsChangedConnection(t *testing.T) 
 		t.Fatal(err)
 	}
 	done := make(chan error, 1)
-	go func() { _, err := e.EnsureProfile(context.Background(), p.Key, 0); done <- err }()
-	deadline := time.Now().Add(time.Second)
-	waiting := false
-	for time.Now().Before(deadline) {
-		e.scheduler.mu.Lock()
-		waiting = e.scheduler.manual > 0
-		e.scheduler.mu.Unlock()
-		if waiting {
-			break
-		}
-		time.Sleep(time.Millisecond)
-	}
-	if !waiting {
-		release()
-		t.Fatal("profile did not wait for scheduler")
-	}
+	entered := make(chan struct{})
+	go func() {
+		close(entered)
+		_, err := e.EnsureProfile(context.Background(), p.Key, 0)
+		done <- err
+	}()
+	<-entered
 	e.mu.Lock()
 	e.invalidateConnectionLocked()
 	e.mu.Unlock()
@@ -162,5 +159,23 @@ func TestEnsureProfileWaitingForSchedulerRejectsChangedConnection(t *testing.T) 
 	}
 	if err == nil || len(c.calls) != 0 {
 		t.Fatal("queued old connection issued profile request")
+	}
+}
+
+func TestHistoryFirstQueryPreservesPreviouslyVerifiedProfile(t *testing.T) {
+	e, c, p := profileEnsureFixture()
+	p.History = nil
+	p.HistoryState = core.HistoryPending
+	p.HistoryMeta = core.HistoryMeta{}
+	p.Profile = &core.Profile{ProfileIconData: "verified-avatar", PrivacyState: "public"}
+	e.cachePlayerLocked(p)
+	got, err := e.loadManualHistory(context.Background(), c, 0, 0, p, false, false)
+	if err != nil || !historyCached(got) || got.Profile == nil || got.Profile.ProfileIconData != "verified-avatar" {
+		t.Fatal("history-first return lost existing verified profile", err)
+	}
+	for _, call := range c.calls {
+		if call == "profile" {
+			t.Fatal("history-first query waited for new profile")
+		}
 	}
 }

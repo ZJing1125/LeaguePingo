@@ -8,6 +8,22 @@ export function useHomePlayer(snapshot: Ref<Snapshot | null>, view: Ref<string>,
   const result = ref<Participant | null>(null);
   const loading = ref(false), error = ref("");
   let attempted = "", alive = true;
+  let profileCall: ReturnType<typeof Service.EnsureProfile> | undefined;
+  async function completeProfile(p: Participant) {
+    if (p.profile?.profileIconData && p.profile.level != null && p.profile.rankState === "ready") return;
+    if (view.value !== "home" || snapshot.value?.stage !== "idle" || busy.value) return;
+    const call = Service.EnsureProfile(p.key, p.connectionId);
+    profileCall = call;
+    try {
+      const updated = await call;
+      if (alive && snapshot.value?.connected && snapshot.value.connectionId === p.connectionId && snapshot.value.selfKey === p.key)
+        result.value = newestPlayer(updated, result.value);
+    } catch { /* Optional profile keeps the already visible history. */ }
+    finally { if (profileCall === call) profileCall = undefined; }
+  }
+  watch(() => [view.value, snapshot.value?.stage, snapshot.value?.connected, snapshot.value?.connectionId, busy.value], () => {
+    if (view.value !== "home" || snapshot.value?.stage !== "idle" || !snapshot.value?.connected || busy.value) profileCall?.cancel();
+  });
   const player = computed(() => {
     const s = snapshot.value;
     if (!s?.selfKey) return null;
@@ -30,8 +46,10 @@ export function useHomePlayer(snapshot: Ref<Snapshot | null>, view: Ref<string>,
     error.value = "";
     try {
       const p = await Service.CurrentPlayer(s.connectionId);
-      if (alive && snapshot.value?.connected && snapshot.value.connectionId === s.connectionId && snapshot.value.selfKey === p.key)
+      if (alive && snapshot.value?.connected && snapshot.value.connectionId === s.connectionId && snapshot.value.selfKey === p.key) {
         result.value = newestPlayer(p, result.value);
+        void completeProfile(p);
+      }
     } catch (reason) {
       if (alive && snapshot.value?.connectionId === s.connectionId && (explicit || snapshot.value.stage === "idle")) error.value = errorMessage(reason);
     } finally { loading.value = false; }
@@ -41,6 +59,6 @@ export function useHomePlayer(snapshot: Ref<Snapshot | null>, view: Ref<string>,
     if (player.key === snapshot.value?.selfKey && player.connectionId === snapshot.value.connectionId)
       result.value = newestPlayer(player, result.value);
   }
-  onUnmounted(() => { alive = false; });
+  onUnmounted(() => { alive = false; profileCall?.cancel(); });
   return { player, loading, error, accept, retry: () => load(true) };
 }

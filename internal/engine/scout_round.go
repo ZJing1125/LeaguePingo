@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -42,7 +43,15 @@ func (e *Engine) scoutPageRound(ctx context.Context, version uint64, scope strin
 			}
 		}()
 	}
-	for i := range cursors {
+	order := make([]int, len(cursors))
+	for i := range order {
+		order[i] = i
+	}
+	queue := e.Snapshot().QueueID
+	sort.SliceStable(order, func(i, j int) bool {
+		return !scoutHasSample(cursors[order[i]], queue) && scoutHasSample(cursors[order[j]], queue)
+	})
+	for _, i := range order {
 		if cursors[i].done {
 			continue
 		}
@@ -79,4 +88,24 @@ func (e *Engine) scoutMasteries(ctx context.Context, version uint64, scope strin
 	}
 	close(work)
 	wg.Wait()
+}
+
+// Current-mode coverage takes precedence over optional mastery and deep history.
+func scoutHasSample(c scoutCursor, queue int) bool {
+	for _, m := range c.matches {
+		if m.QueueID == queue && !core.IsRemake(m) && m.PlayedAt != nil {
+			if m.Win != nil || m.Performance != nil || m.Kills != nil && m.Deaths != nil && m.Assists != nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+func scoutSamplesReady(cursors []scoutCursor, queue int) bool {
+	for _, c := range cursors {
+		if !c.done && !scoutHasSample(c, queue) {
+			return false
+		}
+	}
+	return true
 }

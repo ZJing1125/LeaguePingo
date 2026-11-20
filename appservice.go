@@ -150,3 +150,8 @@ func (s *AppService) SelectGuide(position string, opponent int, retry bool) (ser
 	}
 	return s.guides.Select(position, opponent, retry)
 }
+
+func (s *AppService) WaitForQueryIdle(ctx context.Context) (serviceErr error) {
+	defer apperrors.Present(&serviceErr)
+	return s.engine.WaitForQueryIdle(ctx)
+}

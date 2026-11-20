@@ -14,6 +14,7 @@ type Metric struct {
 	MaxMS         int64  `json:"maxMs"`
 	LastStatus    int    `json:"lastStatus"`
 	RecentSamples int    `json:"recentSamples"`
+	P50MS         *int64 `json:"p50Ms"`
 	P95MS         *int64 `json:"p95Ms"`
 }
 
@@ -33,6 +34,10 @@ var Default = &Collector{values: map[string]Metric{}}
 
 // Fixed allow-list: never retain paths, player IDs, credentials or error text.
 func Category(path string) string {
+	switch path {
+	case "/ui/player-history-ready", "/ui/history-feedback", "/ui/history-cache-ready", "/ui/history-first-ready", "/ui/rating-render", "/ui/guide-render", "/compute/scout", "/compute/history-parse":
+		return strings.TrimPrefix(path, "/")
+	}
 	switch {
 	case path == "/lol-honor-v2/v1/vote-completion":
 		return "honor-completion"
@@ -172,6 +177,8 @@ func (c *Collector) Snapshot() map[string]Metric {
 		if len(samples) > 0 {
 			p95 := samples[(95*len(samples)+99)/100-1]
 			v.P95MS = &p95
+			p50 := samples[(50*len(samples)+99)/100-1]
+			v.P50MS = &p50
 		}
 		out[k] = v
 	}

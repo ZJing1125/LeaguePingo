@@ -12,7 +12,7 @@ import { sampleStats } from "./matchStats";
 
 export function playerName(player: Participant, position?: number) {
   if (hasPlayerName(player)) return player.displayName;
-  if (player.identityState === "unavailable") return "身份暂不可用";
+  if (player.identityState === "unavailable") return player.historyState === "loading" ? "正在确认玩家身份" : "身份暂不可用";
   const hero = gameAsset("champions", player.championId)?.name;
   return `${hero || (position ? `玩家 ${position}` : "玩家")} · 姓名未获取`;
 }
@@ -135,7 +135,7 @@ export function normalizeRiotIDInput(value: string) {
 
 export { errorMessage } from './errors';
 export function preparationLabel(p: Participant, frozen = false) {
-  if (p.identityState === "unavailable") return "身份未提供";
+  if (p.identityState === "unavailable") return p.historyState === "loading" ? "正在确认玩家身份" : "身份未提供";
   if (p.stale) return "旧资料 · 可主动更新";
   if (p.historyState === "loading") return "正在准备";
   if (p.historyState === "failed") return "准备失败 · 可重试";
@@ -164,6 +164,7 @@ export interface PlayerViewState {
   queue: string;
   expanded: number[];
   sourceStamp?: string;
+  sourceHead?: string;
   extra?: Match[];
   pageMeta?: HistoryMeta[];
   nextOffset?: number;

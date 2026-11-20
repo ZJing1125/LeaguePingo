@@ -56,6 +56,44 @@ describe("history browser request and state boundaries", () => {
     expect(Service.HistoryPage).not.toHaveBeenCalled();
   });
 
+  it("shows the first available target-page row before the rest of the page arrives", async () => {
+    const { props, browser } = setup(matches(1), { queue: "420" });
+    const pending = deferred();
+    vi.mocked(Service.HistoryPage)
+      .mockReturnValueOnce(response(page(20, [...matches(21, 1), ...matches(22, 19, 440)])))
+      .mockReturnValueOnce(pending.call);
+    const filling = browser.goPage(2);
+    await vi.waitFor(() => expect(Service.HistoryPage).toHaveBeenCalledTimes(2));
+    expect(props.state.page).toBe(2);
+    expect(browser.pageMatches.value.map(m => m.gameId)).toEqual([21]);
+    pending.resolve(page(40, matches(41, 19)));
+    await filling;
+    expect(browser.pageMatches.value).toHaveLength(20);
+  });
+
+  it("does not prefetch ranked queues when opening or returning to history", async () => {
+    const { props } = setup(matches(1, 20, 2400));
+    props.compact = false;
+    await vi.advanceTimersByTimeAsync(2000);
+    props.active = false;
+    await nextTick();
+    props.active = true;
+    await nextTick();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(Service.HistoryPage).not.toHaveBeenCalled();
+  });
+
+  it("keeps prepared pages when a refresh confirms the same first-page matches", async () => {
+    const { props, browser } = setup();
+    props.state.extra = matches(21);
+    props.state.page = 2;
+    props.player = player(matches(1), { historyMeta: { ...props.player.historyMeta, fetchedAt: "2026-11-19T12:00:00Z" } });
+    await nextTick();
+    expect(props.state.page).toBe(2);
+    expect(browser.allMatches.value).toHaveLength(40);
+    expect(Service.HistoryPage).not.toHaveBeenCalled();
+  });
+
   it("finds the selected mode across mixed pages rather than filtering only the initial twenty", async () => {
     const { props, browser } = setup(matches(1), { queue: "440" });
     vi.mocked(Service.HistoryPage)
@@ -120,6 +158,7 @@ describe("history browser request and state boundaries", () => {
     pending.resolve(page(20));
     await filling;
     expect(oldState.stopRequested).toBe(true);
+    expect(oldState.pageBusy).toBe(false);
     expect(browser.allMatches.value.map(m => m.gameId)).toEqual(matches(101).map(m => m.gameId));
     expect(Service.HistoryPage).toHaveBeenCalledTimes(1);
   });

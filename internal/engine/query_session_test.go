@@ -99,3 +99,39 @@ func TestQuerySessionHomeCancellationDoesNotCancelManualOrParent(t *testing.T) {
 		t.Fatal("caller cancellation did not reach the next home query")
 	}
 }
+
+func TestNavigationWaitsForWorkerSlotAndCanCancelWaiting(t *testing.T) {
+	q := newQuerySession()
+	_, release, err := q.begin(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	waiting, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- q.waitForIdle(waiting) }()
+	cancel()
+	if err := <-done; err != context.Canceled {
+		t.Fatal("closed view retained navigation wait")
+	}
+	done = make(chan error, 1)
+	go func() { done <- q.waitForIdle(context.Background()) }()
+	select {
+	case <-done:
+		t.Fatal("navigation released a still-running worker's slot")
+	case <-time.After(10 * time.Millisecond):
+	}
+	release()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("navigation did not resume")
+	}
+	_, next, err := q.begin(context.Background())
+	if err != nil {
+		t.Fatal("idle wait consumed query slot")
+	}
+	next()
+}

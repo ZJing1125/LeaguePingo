@@ -120,14 +120,14 @@ func (*homeOptionalClient) AccountIdentity(context.Context) (string, error) {
 	return "verified-self", nil
 }
 
-func TestHomeOptionalDeadlineRetainsCompletedHistory(t *testing.T) {
+func TestHomeHistoryReturnsBeforeOptionalProfile(t *testing.T) {
 	fake := &homeOptionalClient{&optionalProfileClient{fakeClient: &fakeClient{phase: "None"}}}
 	e := New(func() (Client, error) { return fake, nil }, nil)
 	e.poll(context.Background())
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
 	defer cancel()
 	p, err := e.CurrentPlayer(ctx, e.Snapshot().ConnectionID)
-	if err != nil || !historyCached(p) || !fake.cancelled {
+	if err != nil || !historyCached(p) || fake.cancelled {
 		t.Fatalf("optional deadline discarded completed home history: %v", err)
 	}
 }

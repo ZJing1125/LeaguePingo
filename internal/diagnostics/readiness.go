@@ -15,9 +15,11 @@ type ReadinessMetric struct {
 // Readiness is owned by the engine lock. It keeps no account, match or player IDs.
 // Time starts at the first observed ChampSelect, not at the first roster result.
 type Readiness struct {
-	phase  string
-	start  time.Time
-	metric ReadinessMetric
+	phase                     string
+	start                     time.Time
+	metric                    ReadinessMetric
+	ratings                   TeamReadinessMetric
+	ratingActive, ratingFirst bool
 }
 
 func (r *Readiness) Phase(phase string, now time.Time) {
@@ -30,9 +32,18 @@ func (r *Readiness) Phase(phase string, now time.Time) {
 		r.start = now
 		r.metric.Started++
 		r.metric.Pending = true
+		r.ratingActive, r.ratingFirst = true, false
+		r.ratings.Started++
+		r.ratings.LastFirstRatedMS = nil
+		r.ratings.LastVisible, r.ratings.LastKnown, r.ratings.LastRated = 0, 0, 0
+		r.ratings.LastInsufficient, r.ratings.LastReading = 0, 0
 	}
 }
 func (r *Readiness) Reset() {
+	if r.ratingActive {
+		r.ratings.Exited++
+	}
+	r.ratingActive = false
 	if r.metric.Pending {
 		r.metric.Abandoned++
 	}

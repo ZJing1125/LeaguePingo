@@ -25,6 +25,7 @@ type TencentLCU struct {
 	historyAuth sgpAuthLane
 	rankAuth    sgpAuthLane
 	channels    sgpChannels
+	pageReads   sharedHistoryPages
 	metaMu      sync.Mutex
 	meta        SessionMetadata
 	masteryMu   sync.Mutex
@@ -41,6 +42,7 @@ func (s *TencentLCU) ResetIdentity() {
 	s.selfMu.Unlock()
 	s.sgpMu.Lock()
 	s.sgpEpoch++
+	s.pageReads.reset()
 	if s.sgp != nil {
 		s.sgp.token, s.sgp.origin, s.sgp.platform = "", "", ""
 		s.sgp.leagueToken = ""

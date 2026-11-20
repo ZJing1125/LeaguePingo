@@ -2,6 +2,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch, type Ref } from "vue";
 import * as Service from "../bindings/leaguepingo/appservice";
 import type { Participant } from "../bindings/leaguepingo/internal/core/models";
 import { errorMessage, queueName, type PlayerViewState } from "./presentation";
+import { recordVisibleResponse } from "./responseMetrics";
 import { codedError, retryTime } from './errors';
 
 export const HISTORY_PAGE_SIZE = 20;
@@ -22,7 +23,9 @@ export function useHistoryBrowser(
   reveal?: () => void,
 ) {
   let criteriaRevision = 0;
-  let warmRevision = 0;
+  let responseStarted = performance.now();
+  let measuredResponse = -1;
+  let pendingPage: ReturnType<typeof Service.HistoryPage> | undefined;
   watch(
     () => [
       props.state,
@@ -36,7 +39,16 @@ export function useHistoryBrowser(
       state.sampleSize ??= 20;
       state.page ??= 1;
       if (state.sourceStamp === stamp) return;
+      const head = (props.player.history ?? []).map(m => m.gameId).join(",");
+      if (state.sourceHead === head && state.sourceStamp?.startsWith(`${props.player.connectionId}:${props.player.key}:`)) {
+        pendingPage?.cancel();
+        state.sourceStamp = stamp;
+        state.pageBusy = false;
+        state.warmBusy = false;
+        return;
+      }
       Object.assign(state, {
+        sourceHead: head,
         sourceStamp: stamp,
         extra: [],
         pageMeta: [],
@@ -58,8 +70,7 @@ export function useHistoryBrowser(
         browseKind: "samples",
         stopRequested: false,
       });
-      const revision = ++warmRevision;
-      setTimeout(() => void warmRanked(revision), 1200);
+      pendingPage?.cancel();
     },
     { immediate: true },
   );
@@ -73,20 +84,16 @@ export function useHistoryBrowser(
   );
   onBeforeUnmount(() => {
     criteriaRevision++;
-    warmRevision++;
+    pendingPage?.cancel();
     props.state.stopRequested = true;
   });
   watch(
-    () => props.active,
-    (active) => {
-      if (active === false) {
-        warmRevision++;
-        props.state.stopRequested = true;
-      } else {
-        const revision = ++warmRevision;
-        setTimeout(() => void warmRanked(revision), 1200);
-      }
+    () => [props.active, props.state, props.player.key, props.player.connectionId, props.state.queue],
+    () => {
+      pendingPage?.cancel();
+      if (props.active === false) props.state.stopRequested = true;
     },
+    { flush: "sync" },
   );
 
   const allMatchesFor = (player: Participant, state: PlayerViewState) => {
@@ -115,6 +122,14 @@ export function useHistoryBrowser(
       (props.state.page ?? 1) * HISTORY_PAGE_SIZE,
     ),
   );
+  watch(pageMatches, rows => {
+    if (!rows.length || measuredResponse === responseStarted) return;
+    const started = responseStarted;
+    measuredResponse = started;
+    const stamp = props.state.sourceStamp, page = props.state.page;
+    recordVisibleResponse(props.player.cached ? "history-cache-ready" : "history-first-ready", started,
+      () => workspaceActive() && props.state.sourceStamp === stamp && props.state.page === page && responseStarted === started);
+  }, { immediate: true, flush: "post" });
   const knownPages = computed(() =>
     Math.max(1, Math.ceil(matches.value.length / HISTORY_PAGE_SIZE)),
   );
@@ -201,12 +216,12 @@ export function useHistoryBrowser(
       state = props.state,
       stamp = state.sourceStamp;
     const queue = queueOverride;
-    const required = Math.max(state.sampleSize ?? 20, page * HISTORY_PAGE_SIZE);
+    const required = kind === "samples" ? (state.sampleSize ?? 20) : page * HISTORY_PAGE_SIZE;
     const filtered = () =>
       allMatchesFor(target, state).filter(
         (m) => queue === "all" || String(m.queueId) === queue,
       );
-    const current = () => state.sourceStamp === stamp;
+    const current = () => props.state === state && state.sourceStamp === stamp && props.player.key === target.key;
     if (!background) {
       state.browseTarget = page;
       state.browseKind = kind;
@@ -227,6 +242,7 @@ export function useHistoryBrowser(
         if(Date.now()-started>=budget)throw codedError('RequestTimeout');
         requests++;
         const call=Service.HistoryPage(target.key,target.connectionId,offset);
+        pendingPage = call;
         let expired=false;
         const timeout=setTimeout(()=>{expired=true;call.cancel();},Math.max(0,budget-(Date.now()-started)));
         try { return await call; }
@@ -242,10 +258,18 @@ export function useHistoryBrowser(
             await new Promise(resolve=>setTimeout(resolve,Math.min(100,until-Date.now())));
           }
         }
-        finally{clearTimeout(timeout);}
+        finally{clearTimeout(timeout);if(pendingPage===call)pendingPage=undefined;}
       }
     }
+    let pageShown = state.page === page;
+    async function showAvailablePage() {
+      if (background || pageShown || queue !== props.state.queue || filtered().length <= (page - 1) * HISTORY_PAGE_SIZE) return;
+      state.page = page;
+      pageShown = true;
+      await scrollTop();
+    }
     try {
+      if (!pageShown && filtered().length > (page - 1) * HISTORY_PAGE_SIZE) await showAvailablePage();
       while (
         current() &&
         !state.stopRequested &&
@@ -282,7 +306,7 @@ export function useHistoryBrowser(
           break;
         }
         const result = await fetchPage(offset);
-        if (!current()) return;
+        if (!current() || queue !== props.state.queue) return;
         if (
           result.offset !== offset ||
           !Number.isSafeInteger(result.nextOffset) ||
@@ -305,6 +329,7 @@ export function useHistoryBrowser(
         state.nextOffset = result.nextOffset;
         state.hasMore = result.hasMore && result.nextOffset <= 980;
         state.sourceLimit = result.limitReason || "";
+        await showAvailablePage();
         if (result.hasMore && result.nextOffset > 980 && !state.sourceLimit) {
           state.sourceLimit =
             "已达到最近 1000 条混合记录的查询上限，按已找到的模式样本分析。";
@@ -316,7 +341,7 @@ export function useHistoryBrowser(
       const count = filtered().length;
       if (!background && (page === 1 || count > (page - 1) * HISTORY_PAGE_SIZE)) {
         state.page = page;
-        if (props.state === state) await scrollTop();
+        if (props.state === state && !pageShown) await scrollTop();
       }
       if (!background && state.stopRequested)
         state.browseNotice = "已停止查找，已获取记录保留。";
@@ -333,27 +358,17 @@ export function useHistoryBrowser(
         else state.pageError = errorMessage(reason);
       }
     } finally {
-      if (current()) {
+      if (state.sourceStamp === stamp) {
+        if (state.stopRequested && !state.browseNotice) state.browseNotice = "已停止查找，已获取记录保留。";
         if (background) state.warmBusy = false;
         else state.pageBusy = false;
       }
     }
   }
-  async function warmRanked(revision: number) {
-    if (props.player.historyMeta?.service || props.compact || !workspaceActive() || props.busy || revision !== warmRevision)
-      return;
-    for (const queue of ["420", "440"]) {
-      if (revision !== warmRevision || !workspaceActive()) return;
-      while (props.state.pageBusy || props.state.warmBusy) {
-        await new Promise((resolve) => setTimeout(resolve, 25));
-        if (revision !== warmRevision || !workspaceActive()) return;
-      }
-      await fill(1, "samples", queue, true);
-    }
-  }
-  function changeCriteria() {
+  function changeCriteria(kind: "page" | "samples" = "page") {
+    responseStarted = performance.now();
     const revision = ++criteriaRevision;
-    warmRevision++;
+    pendingPage?.cancel();
     props.state.stopRequested = true;
     props.state.page = 1;
     props.state.browseTarget = 1;
@@ -365,10 +380,11 @@ export function useHistoryBrowser(
       }
       if (revision !== criteriaRevision || !workspaceActive()) return;
       props.state.stopRequested = false;
-      await fill(1, "samples");
+      await fill(1, kind);
     })();
   }
   async function goPage(page: number) {
+    responseStarted = performance.now();
     if (
       props.busy ||
       !Number.isSafeInteger(page) ||
@@ -378,10 +394,7 @@ export function useHistoryBrowser(
       return;
     jumpError.value = "";
     if (
-      page <= knownPages.value &&
-      (page * HISTORY_PAGE_SIZE <= matches.value.length ||
-        !props.state.hasMore ||
-        !canFetch.value)
+      page <= knownPages.value
     ) {
       props.state.page = page;
       props.state.browseTarget = page;

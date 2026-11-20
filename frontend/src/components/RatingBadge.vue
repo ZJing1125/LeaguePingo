@@ -1,13 +1,20 @@
 <script setup lang="ts">
+import { watch } from "vue";
+import { recordVisibleResponse } from "../responseMetrics";
 import type { PlayerAnalysis, TeamRating } from '../../bindings/leaguepingo/internal/core/models';
 import { analysisTitle } from '../playerAnalysis';
 import { uiText } from '../uiText';
-defineProps<{ analysis?: PlayerAnalysis | null; rating?: TeamRating | null; compact?: boolean; pending?: boolean }>();
+const props = defineProps<{ analysis?: PlayerAnalysis | null; rating?: TeamRating | null; compact?: boolean; pending?: boolean }>();
+watch(() => [props.analysis?.score, props.rating?.place, props.analysis?.scoredGames], () => {
+ if (props.analysis?.score == null) return;
+ const score = props.analysis.score;
+ recordVisibleResponse("rating-render", performance.now(), () => props.analysis?.score === score);
+}, { immediate: true });
 </script>
 <template>
   <span class="player-rating" :class="{compact}" :title="analysisTitle(analysis, rating)" :aria-label="analysisTitle(analysis, rating)">
     <template v-if="rating && analysis?.score != null">
-      <b>{{ rating.label }}</b><span>{{ uiText.playerAnalysis.teamPlace(rating.place, rating.rated) }}</span><small v-if="analysis.provisional">{{ uiText.playerAnalysis.provisional }}</small>
+      <b>{{ rating.label }}</b><span>{{ uiText.playerAnalysis.teamPlace(rating.place, rating.rated) }}</span><small>{{ uiText.common.gamesNative(analysis.scoredGames) }}</small><small v-if="analysis.provisional">{{ uiText.playerAnalysis.provisional }}</small>
     </template>
     <template v-else-if="!compact && analysis?.score != null">
       <b>{{ analysis.score.toFixed(1) }} / 10</b><small v-if="analysis.provisional">{{ uiText.playerAnalysis.provisional }}</small>

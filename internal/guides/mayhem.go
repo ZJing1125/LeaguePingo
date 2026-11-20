@@ -62,6 +62,20 @@ func (o *OPgg) publicPage(ctx context.Context, q Query, tab string) (result *fli
 	return parseFlight(raw, guidePageURL(q, tab))
 }
 func (o *OPgg) fetchAugmentMode(ctx context.Context, q Query) (*Guide, error) {
+	return o.fetchAugmentProgress(ctx, q, nil)
+}
+
+func (o *OPgg) FetchProgressive(ctx context.Context, q Query, publish func(*Guide)) (*Guide, error) {
+	if !validQuery(q) {
+		return o.Fetch(ctx, q)
+	}
+	if q.Mode == "aram-mayhem" || q.Mode == "arena" {
+		return o.fetchAugmentProgress(ctx, q, publish)
+	}
+	return o.Fetch(ctx, q)
+}
+
+func (o *OPgg) fetchAugmentProgress(ctx context.Context, q Query, publish func(*Guide)) (*Guide, error) {
 	g := &Guide{Query: q, FetchedAt: time.Now().UTC(), SourceURL: guidePageURL(q, "build")}
 	aug, aerr := o.publicPage(ctx, q, "augments")
 	if aerr == nil {
@@ -72,8 +86,22 @@ func (o *OPgg) fetchAugmentMode(ctx context.Context, q Query) (*Guide, error) {
 		}
 		g.AugmentsOmitted = aug.omitted
 	}
+	if aerr == nil {
+		now := time.Now().UTC()
+		g.Version, g.AugmentsFetchedAt = aug.version, &now
+		if publish != nil && ctx.Err() == nil {
+			partial := *g
+			partial.Notice = "出装与加点正在读取"
+			publish(&partial)
+		}
+	}
 	build, berr := o.publicPage(ctx, q, "build")
+	if berr == nil && aerr == nil && aug.version != build.version {
+		berr = errors.New("强化与出装版本不同")
+	}
 	if berr == nil {
+		now := time.Now().UTC()
+		g.BuildsFetchedAt = &now
 		g.Builds, g.Skills, g.Version = build.builds()
 		if q.Mode == "arena" {
 			g.Tips = build.arenaSynergies()

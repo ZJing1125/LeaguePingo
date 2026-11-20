@@ -14,7 +14,7 @@ function open() {
 </script>
 
 <template>
-  <button v-if="available || showDisabled" type="button" class="player-history-action" :disabled="!available || navigation?.busy.value"
+  <button v-if="available || showDisabled" type="button" class="player-history-action" :disabled="!available"
     :title="available ? label : uiText.playerHistoryNavigation.unavailable" :aria-label="label" @click.stop="open">
     <slot/>
   </button>

@@ -8,5 +8,6 @@ export interface Metric {
     "maxMs": number;
     "lastStatus": number;
     "recentSamples": number;
+    "p50Ms": number | null;
     "p95Ms": number | null;
 }

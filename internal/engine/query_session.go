@@ -48,3 +48,17 @@ func (q *querySession) stopHome() {
 		q.homeCancel()
 	}
 }
+
+// Wait for the canceled foreground worker to return its slot. This performs no
+// source I/O and cannot release the slot while that worker is still running.
+func (q *querySession) waitForIdle(parent context.Context) error {
+	ctx, cancel := context.WithTimeout(parent, 12*time.Second)
+	defer cancel()
+	select {
+	case q.gate <- struct{}{}:
+		<-q.gate
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}

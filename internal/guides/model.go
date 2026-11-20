@@ -57,19 +57,21 @@ type Augment struct {
 	Games       int      `json:"games,omitempty"`
 }
 type Guide struct {
-	Query           Query          `json:"query"`
-	Version         string         `json:"version"`
-	FetchedAt       time.Time      `json:"fetchedAt"`
-	SourceURL       string         `json:"sourceUrl"`
-	Builds          []BuildSection `json:"builds"`
-	Runes           []int          `json:"runes"`
-	RuneNames       []string       `json:"runeNames"`
-	Skills          []string       `json:"skills"`
-	Tips            []Tip          `json:"tips"`
-	Augments        []Augment      `json:"augments,omitempty"`
-	AugmentsOmitted int            `json:"augmentsOmitted,omitempty"`
-	Notice          string         `json:"notice,omitempty"`
-	ReferenceNote   string         `json:"referenceNote,omitempty"`
+	AugmentsFetchedAt *time.Time     `json:"augmentsFetchedAt,omitempty"`
+	BuildsFetchedAt   *time.Time     `json:"buildsFetchedAt,omitempty"`
+	Query             Query          `json:"query"`
+	Version           string         `json:"version"`
+	FetchedAt         time.Time      `json:"fetchedAt"`
+	SourceURL         string         `json:"sourceUrl"`
+	Builds            []BuildSection `json:"builds"`
+	Runes             []int          `json:"runes"`
+	RuneNames         []string       `json:"runeNames"`
+	Skills            []string       `json:"skills"`
+	Tips              []Tip          `json:"tips"`
+	Augments          []Augment      `json:"augments,omitempty"`
+	AugmentsOmitted   int            `json:"augmentsOmitted,omitempty"`
+	Notice            string         `json:"notice,omitempty"`
+	ReferenceNote     string         `json:"referenceNote,omitempty"`
 }
 type State struct {
 	Revision         uint64 `json:"revision"`

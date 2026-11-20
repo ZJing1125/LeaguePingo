@@ -9,7 +9,6 @@ import type { OverlayState } from '../../bindings/leaguepingo/models';
 import BrandIcon from './BrandIcon.vue';
 import AppIcon from './AppIcon.vue';
 import QueueSwitch from './QueueSwitch.vue';
-import { rankedPlayers } from '../playerAnalysis';
 import { liveScoutMode } from '../scoutStats';
 import SidebarPlayer from './SidebarPlayer.vue';
 import ExperimentalBadge from './ExperimentalBadge.vue';
@@ -18,8 +17,8 @@ defineEmits<{collapse:[value:boolean];queue:[value:number]}>();
 const tab=ref('players');
 const activeTeam = ref<'ally' | 'enemy'>('ally');
 const hasEnemies = computed(() => props.snapshot?.stage === 'in-game' && !!props.snapshot.participants?.some(p => p.team === 'enemy'));
-const players = computed(() => rankedPlayers(
-  props.snapshot?.participants?.filter(p => p.team === (hasEnemies.value ? activeTeam.value : 'ally')) ?? [],
+const players = computed(() => (
+  props.snapshot?.participants?.filter(p => p.team === (hasEnemies.value ? activeTeam.value : 'ally')) ?? []
 ));
 const hasGroups=computed(()=>players.value.some(p=>p.premadeGroup && (p.premadeSize||0)>1));
 function expandPlayer(event:Event){const item=event.target as HTMLDetailsElement;if(item.open) item.parentElement?.querySelectorAll('details[open]').forEach(other=>{if(other!==item)other.removeAttribute('open');});}

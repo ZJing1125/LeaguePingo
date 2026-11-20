@@ -139,6 +139,13 @@ export function PrioritizePlayer(key: string): $CancellablePromise<void> {
     return $Call.ByID(4255655626, key);
 }
 
+/**
+ * RecordUIResponse accepts only fixed, anonymous measurements from local views.
+ */
+export function RecordUIResponse(category: string, elapsedMS: number): $CancellablePromise<void> {
+    return $Call.ByID(2970786350, category, elapsedMS);
+}
+
 export function RefreshData(key: string, connectionID: number): $CancellablePromise<core$0.Participant> {
     return $Call.ByID(983148913, key, connectionID);
 }
@@ -193,4 +200,8 @@ export function Snapshot(): $CancellablePromise<core$0.Snapshot> {
 
 export function ToggleOverlay(): $CancellablePromise<boolean> {
     return $Call.ByID(2694715394);
+}
+
+export function WaitForQueryIdle(): $CancellablePromise<void> {
+    return $Call.ByID(3101986288);
 }

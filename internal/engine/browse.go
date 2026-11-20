@@ -146,7 +146,7 @@ func (e *Engine) loadProfileData(ctx context.Context, key string, connectionID u
 	}
 	profileCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	release, err := e.scheduler.acquire(profileCtx, true)
+	request, release, err := e.acquireProfile(profileCtx, onlyMissing)
 	if err != nil {
 		return core.Participant{}, err
 	}
@@ -158,7 +158,10 @@ func (e *Engine) loadProfileData(ctx context.Context, key string, connectionID u
 		return core.Participant{}, apperrors.New(apperrors.StaleData)
 	}
 	e.markProfileAttempt(connectionID, key)
-	profile := profiles.Profile(profileCtx, player.PUUID)
+	profile := profiles.Profile(request, player.PUUID)
+	if request.Err() != nil {
+		return player, request.Err()
+	}
 	if onlyMissing && !profileAvailable(profile) && (player.Profile == nil || !profileAvailable(*player.Profile)) {
 		return core.Participant{}, apperrors.New(apperrors.DataUnavailable)
 	}
@@ -416,4 +419,12 @@ func (e *Engine) refreshHistoryPage(client Client, player core.Participant, conn
 		defer cancel()
 		_, _ = e.fetchHistoryPage(ctx, client, player, connectionID, offset)
 	}()
+}
+
+func (e *Engine) acquireProfile(ctx context.Context, optional bool) (context.Context, func(), error) {
+	if optional {
+		return e.scheduler.acquireAutomatic(ctx)
+	}
+	release, err := e.scheduler.acquire(ctx, true)
+	return ctx, release, err
 }

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { watch } from "vue";
+import { recordVisibleResponse } from "../responseMetrics";
 import { uiText } from "../uiText";
 import { computed, ref } from 'vue';
 import type { Augment, State } from '../../bindings/leaguepingo/internal/guides/models';
@@ -24,6 +26,11 @@ async function choose(id?: number) {
  catch (e) { error.value = errorMessage(e); }
  finally { busy.value = false; }
 }
+watch(augments, rows => {
+ if (!rows.length) return;
+ const current = rows;
+ recordVisibleResponse("guide-render", performance.now(), () => augments.value === current);
+}, { immediate: true });
 </script>
 <template>
  <section class="mayhem-augments" :class="{ compact, summary }" :aria-label="arena ? uiText.mayhemAugments.arenaTitle : uiText.mayhemAugments.mayhemTitle">

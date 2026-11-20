@@ -37,14 +37,14 @@ func (f *optionalProfileClient) Profile(ctx context.Context, _ string) core.Prof
 	f.cancelled = true
 	return core.Profile{RankState: "unavailable"}
 }
-func TestOptionalProfileTimeoutKeepsSuccessfulHistory(t *testing.T) {
+func TestLookupHistoryReturnsBeforeOptionalProfile(t *testing.T) {
 	fake := &optionalProfileClient{fakeClient: &fakeClient{phase: "Lobby"}}
 	e := New(func() (Client, error) { return fake, nil }, nil)
 	e.poll(context.Background())
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
 	defer cancel()
 	p, err := e.Lookup(ctx, "Player#TEST")
-	if err != nil || !historyCached(p) || !fake.cancelled {
+	if err != nil || !historyCached(p) || fake.cancelled {
 		t.Fatalf("optional profile lost history: %v", err)
 	}
 }

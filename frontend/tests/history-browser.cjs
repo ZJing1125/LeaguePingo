@@ -124,6 +124,7 @@ async function main() {
         else if (method === "RefreshData")
           result = {
             ...player(args[0]),
+            history: [{ ...history[0], gameId: 990000 + refreshStamp + 1 }, ...history.slice(1, 20)],
             historyMeta: {
               ...meta(history.slice(0, 20)),
               fetchedAt: new Date(
@@ -178,7 +179,7 @@ async function main() {
           };
           if (repeatNextPage) {
             repeatNextPage = false;
-            result.matches = history.slice(0, 20);
+            result.matches = [{ ...history[0], gameId: 990000 + refreshStamp }, ...history.slice(1, 20)];
           }
           if (limitedNextPage) {
             limitedNextPage = false;
@@ -261,19 +262,11 @@ async function main() {
         "held pagination request did not arrive before the deadline",
       );
     }
-    async function waitForPageCalls(key, count) {
-      const deadline = Date.now() + 5000;
-      while (
-        pageCalls().filter((call) => call.args[0] === key).length < count &&
-        Date.now() < deadline
-      )
-        await new Promise((resolve) => setTimeout(resolve, 10));
-    }
-    async function checkSample(queue, size) {
+    async function checkSample(queue, size, available = size) {
       const selected = history
         .slice(0, 140)
         .filter((m) => queue === "all" || m.queueId === Number(queue))
-        .slice(0, size);
+        .slice(0, available);
       assert(
         (await page.locator(".players-workspace .analysis-scope").textContent()).includes(
           `${selected.length} / ${size} 场`,
@@ -340,7 +333,8 @@ async function main() {
         .evaluateAll((rows) => rows.map((r) => Number(r.value))),
       [10, 20, 30, 40, 50],
     );
-    await waitForPageCalls("Paged#TEST", 2);
+    await page.waitForTimeout(1700);
+    assert.equal(pageCalls().length, 0, "opening history must not scan unrelated queues");
     assert.equal(
       await page.locator(".players-workspace .match-mini-roster").count(),
       20,
@@ -357,11 +351,7 @@ async function main() {
     assert.equal(await remakeCard.locator(".match-facts").count(), 0);
     assert.match(await remakeCard.locator(".match-efficiency").textContent(), /提前结束/);
     assert.doesNotMatch(await remakeCard.textContent(), /零死亡/);
-    assert.deepEqual(
-      pageCalls().map((c) => c.args[2]),
-      [20, 40],
-      "idle warm-up did not prepare both ranked queues once",
-    );
+    assert.equal(pageCalls().length, 0, "history must wait for the selected operation");
     await checkSample("all", 20);
     await select("分析样本场数", 50);
     assert.deepEqual(
@@ -393,6 +383,8 @@ async function main() {
       "cached navigation repeated requests",
     );
     await select("战绩模式筛选", 440);
+    await page.getByRole("button", { name: "补齐样本", exact: true }).click();
+    await idle();
     await checkSample(440, 50);
     assert.equal(
       await page
@@ -472,7 +464,7 @@ async function main() {
     );
     await page.getByRole("button", { name: "重试", exact: true }).click();
     await idle();
-    await checkSample("all", 50);
+    await checkSample("all", 50, 40);
     assert(
       (await page.locator(".page-indicator").textContent()).includes("第 2 页"),
     );
@@ -494,6 +486,7 @@ async function main() {
     const beforeLate = pageCalls().length;
     advanceBudgetNextPage = 16000;
     await select("战绩模式筛选", 450);
+    await select("分析样本场数", 50);
     await page.evaluate(() => {
       Date.now = window.originalDateNow;
     });
@@ -516,6 +509,7 @@ async function main() {
     await search("Sparse#TEST");
     const beforeSparse = pageCalls().length;
     await select("战绩模式筛选", 440);
+    await select("分析样本场数", 20);
     assert.equal(
       await page.getByRole("button", { name: "继续查找", exact: true }).count(),
       0,
@@ -590,7 +584,7 @@ async function main() {
     );
     await page.getByRole("tab", { name: "Other#TEST", exact: true }).click();
     assert(
-      (await page.locator(".players-workspace .analysis-scope").textContent()).includes("40 / 50"),
+      (await page.locator(".players-workspace .analysis-scope").textContent()).includes("20 / 50"),
     );
     await page.getByRole("button", { name: "继续查找", exact: true }).click();
     await idle();
@@ -704,9 +698,14 @@ async function main() {
 
     // Jump supports cached and unqueried pages; invalid input never sends requests.
     await search("Jump#TEST");
-    await waitForPageCalls("Jump#TEST", 2);
     const jumpInput = page.getByLabel("跳转页码", { exact: true });
     const jumpButton = page.getByRole("button", { name: "跳转", exact: true });
+    await jumpInput.fill("3");
+    await jumpInput.press("Enter");
+    await idle();
+    await jumpInput.fill("1");
+    await jumpButton.click();
+    await idle();
     const beforeBadJump = pageCalls().length;
     for (const input of ["0", "-1", "1.5", "abc", "51", ""]) {
       await jumpInput.fill(input);

@@ -213,11 +213,18 @@ func (e *Engine) prepareScouting(ctx context.Context, version uint64, scope stri
 	boundary := cutoff.Add(-30 * 24 * time.Hour)
 	// First pages publish without waiting for optional season/mastery reads.
 	e.scoutPageRound(ctx, version, scope, token, src, cursors, nil, cutoff, boundary, &pages)
-	select {
-	case season = <-seasonResult:
-	case <-ctx.Done():
-	}
 	mode, _ := core.ScoutModeFor(e.Snapshot().QueueID)
+	if mode.Ranked || mode.QueueID == 0 {
+		select {
+		case season = <-seasonResult:
+		case <-ctx.Done():
+		}
+	} else {
+		select {
+		case season = <-seasonResult:
+		default:
+		}
+	}
 	if mode.Ranked && season != nil && season.Start.Before(boundary) {
 		boundary = season.Start
 	}
@@ -230,8 +237,12 @@ func (e *Engine) prepareScouting(ctx context.Context, version uint64, scope stri
 			c.complete = !c.oldest.IsZero() && !c.oldest.After(season.Start)
 		}
 	}
-	e.scoutMasteries(ctx, version, scope, token, src, cursors, season, cutoff)
+	masteriesDone := false
 	for ctx.Err() == nil {
+		if !masteriesDone && scoutSamplesReady(cursors, mode.QueueID) {
+			e.scoutMasteries(ctx, version, scope, token, src, cursors, season, cutoff)
+			masteriesDone = true
+		}
 		active := false
 		for i := range cursors {
 			active = active || !cursors[i].done
@@ -392,6 +403,8 @@ func (c *scoutCursor) absorbPage(page core.HistoryPage, season *core.ScoutSeason
 }
 
 func (c *scoutCursor) report(season *core.ScoutSeason, cutoff time.Time) core.ScoutReport {
+	started := time.Now()
+	defer func() { diagnostics.Default.Record("/compute/scout", time.Since(started), 200, false) }()
 	if c.invalid {
 		c.complete, c.twelve, c.month = false, false, false
 		c.done = true

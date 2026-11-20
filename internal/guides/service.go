@@ -20,6 +20,7 @@ import (
 
 type Service struct {
 	mu               sync.Mutex
+	cacheWriteMu     sync.Mutex
 	parent           context.Context
 	provider         Provider
 	dir              string
@@ -285,7 +286,7 @@ func (s *Service) load(ctx context.Context, token uint64, base, q Query, force b
 		cached := s.cached(query)
 		failedAt := s.failures[key]
 		s.mu.Unlock()
-		if cached != nil && time.Since(cached.FetchedAt) < 6*time.Hour && !force {
+		if cached != nil && time.Since(cached.FetchedAt) < 6*time.Hour && cached.Notice == "" && !force {
 			continue
 		}
 		if !failedAt.IsZero() && time.Since(failedAt) < 30*time.Second {
@@ -298,7 +299,7 @@ func (s *Service) load(ctx context.Context, token uint64, base, q Query, force b
 		case s.slots <- struct{}{}:
 		}
 		req, cancel := context.WithTimeout(ctx, s.fetchTimeout)
-		g, err := s.provider.Fetch(req, query)
+		g, err := s.fetchGuide(req, token, query)
 		cancel()
 		<-s.slots
 		if ctx.Err() != nil {
@@ -317,6 +318,7 @@ func (s *Service) load(ctx context.Context, token uint64, base, q Query, force b
 		s.updateFreshness()
 		s.publish()
 		s.mu.Unlock()
+		s.persistGuide(ctx, token, key)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -357,11 +359,12 @@ func (s *Service) recordFailureLocked(key string, err error) string {
 }
 
 func (s *Service) acceptGuideLocked(query Query, key string, g *Guide) {
+	g = mergeGuideParts(s.cache[key], g)
 	if g.Notice != "" {
 		s.failures[key] = time.Now()
 	}
 	s.cache[key] = g
-	s.save(key, g)
+	s.trimMemory()
 	if query.Opponent == 0 {
 		s.state.Base = g
 		ids := s.state.Candidates
@@ -424,7 +427,6 @@ func (s *Service) trimMemory() {
 	}
 }
 func (s *Service) save(key string, g *Guide) {
-	s.trimMemory()
 	if s.dir == "" {
 		return
 	}

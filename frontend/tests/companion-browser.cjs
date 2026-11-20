@@ -165,7 +165,7 @@ async function main(){
   assert.equal(await side.locator('.overlay-player .player-rating b').count(),10,'loading must show both teams grades');
   assert.equal(await side.locator('.overlay-player .player-rating').first().getAttribute('title').then(t=>t.includes('大腿') && t.includes('第 1 名') && t.includes('6.4')),true);
   snapshot={...snapshot,participants:[...snapshot.participants].reverse()};await publish();
-  assert((await side.locator('.overlay-player .player-rating').first().innerText()).includes('1/5'),'display did not sort by team rating');
+  assert((await side.locator('.overlay-player .player-rating').first().innerText()).includes('5/5'),'display must follow roster order independently of rating');
   snapshot={...snapshot,participants:structuredClone(players)};await publish();
   await shot(side,'loading-preview');
   snapshot={...snapshot,phase:'InProgress'};await publish();

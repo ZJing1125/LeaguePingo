@@ -117,7 +117,7 @@ function toggle(id: number) {
                 v-model="state.queue"
                 :aria-label="uiText.playerView.modeFilter"
                 :disabled="busy"
-                @change="changeCriteria"
+                @change="changeCriteria()"
               >
                 <option value="all">{{ uiText.common.allModes }}</option>
                 <option
@@ -137,7 +137,7 @@ function toggle(id: number) {
               v-model.number="state.sampleSize"
               :aria-label="uiText.playerView.sampleSize"
               :disabled="busy"
-              @change="changeCriteria"
+              @change="changeCriteria('samples')"
             >
               <option v-for="size in SAMPLE_SIZES" :key="size" :value="size">{{ uiText.playerView.recentGames(size) }}</option>
             </select>
@@ -219,7 +219,7 @@ function toggle(id: number) {
             v-else-if="!state.warmBusy && state.hasMore && canFetch"
             class="text-button"
             :disabled="busy"
-            @click="fill(state.browseTarget ?? state.page ?? 1)"
+            @click="fill(state.browseTarget ?? state.page ?? 1, state.pageError || state.browseNotice ? state.browseKind : 'samples')"
           >
             {{
               state.pageError

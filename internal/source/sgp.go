@@ -185,6 +185,25 @@ func (s *TencentLCU) sgpHistoryPage(ctx context.Context, puuid string, offset in
 }
 
 func (s *TencentLCU) sgpSummaryPage(ctx context.Context, puuid string, offset int) (core.HistoryPage, error) {
+	if offset != 0 {
+		return s.loadSGPSummaryPage(ctx, puuid, offset)
+	}
+	s.sgpMu.Lock()
+	epoch := s.sgpEpoch
+	s.sgpMu.Unlock()
+	key := fmt.Sprintf("%d:%s", epoch, puuid)
+	return s.pageReads.read(ctx, key, func(request context.Context) (core.HistoryPage, error) {
+		s.sgpMu.Lock()
+		current := epoch == s.sgpEpoch
+		s.sgpMu.Unlock()
+		if !current {
+			return core.HistoryPage{}, apperrors.New(apperrors.StaleData)
+		}
+		return s.loadSGPSummaryPage(request, puuid, offset)
+	})
+}
+
+func (s *TencentLCU) loadSGPSummaryPage(ctx context.Context, puuid string, offset int) (core.HistoryPage, error) {
 	gate := &s.channels.history
 	if err := gate.blocked(time.Now()); err != nil {
 		return core.HistoryPage{}, err
@@ -214,7 +233,9 @@ func (s *TencentLCU) sgpSummaryPage(ctx context.Context, puuid string, offset in
 	if err != nil {
 		return core.HistoryPage{}, err
 	}
+	started := time.Now()
 	result, err := core.ParseSGPHistory(raw, puuid, session.platform)
+	diagnostics.Default.Record("/compute/history-parse", time.Since(started), 200, err != nil)
 	if err != nil {
 		return core.HistoryPage{}, err
 	}

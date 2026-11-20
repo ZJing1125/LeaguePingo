@@ -10,7 +10,6 @@ import AppIcon from "./AppIcon.vue";
 import BrandIcon from "./BrandIcon.vue";
 import PlayerScoutCard from "./PlayerScoutCard.vue";
 import { rankedMode, liveScoutMode } from "../scoutStats";
-import { rankedPlayers } from "../playerAnalysis";
 import { scoutStatus } from "../scoutStatus";
 import RosterProgress from "./RosterProgress.vue";
 import ExperimentalBadge from "./ExperimentalBadge.vue";
@@ -26,7 +25,7 @@ watch(()=>`${props.snapshot?.connectionId}:${props.snapshot?.selfKey}:${props.sn
 const hasGuide=computed(()=>guideState.value?.query.champion===props.snapshot?.participants?.find(p=>p.key===props.snapshot?.selfKey)?.championId&&guideState.value?.scope===`${props.snapshot?.connectionId}:${props.snapshot?.selfKey||''}:${props.snapshot?.gameId||0}`&&!!(guideState.value?.base||guideState.value?.matchup));
 const displayGuide=computed(()=>guideOpen.value&&hasGuide.value&&!['hold','preview'].includes(props.state?.mode||''));
 const players = computed(() => props.snapshot?.participants ?? []);
-const teamPlayers = (team: string) => rankedPlayers(players.value.filter(p => p.team === team));
+const teamPlayers = (team: string) => players.value.filter(p => p.team === team);
 const modeLabel = computed(() => {
   const actual = liveScoutMode(props.snapshot);
   const view = props.snapshot?.scoutQueue ?? 0;

@@ -894,7 +894,7 @@ async function main() {
         .locator(".players-workspace .match-card")
         .filter({ hasText: "19 / 2 / 8" })
         .count()) === 1,
-      "an overlapping page must not erase already verified fields",
+      "an overlapping page must not erase already verified fields: " + JSON.stringify(await page.locator(".players-workspace .match-card .match-identity strong").allTextContents()),
     );
     assert.equal(
       await page

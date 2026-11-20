@@ -651,7 +651,7 @@ func (e *Engine) lookup(ctx context.Context, riotID string, force bool) (core.Pa
 		e.refreshHydratedHistory(client, generation, version, player)
 		return player, nil
 	}
-	return e.loadManualHistory(ctx, client, generation, version, player, force, true)
+	return e.loadManualHistory(ctx, client, generation, version, player, force, force)
 }
 
 func (e *Engine) LookupPlayer(ctx context.Context, key string) (core.Participant, error) {
@@ -693,7 +693,7 @@ func (e *Engine) lookupPlayer(ctx context.Context, key string, force bool) (core
 	if client == nil {
 		return core.Participant{}, source.ErrNotConnected
 	}
-	return e.loadManualHistory(ctx, client, snapshot.Generation, version, player, force, true)
+	return e.loadManualHistory(ctx, client, snapshot.Generation, version, player, force, force)
 }
 
 func (e *Engine) beginLookup(ctx context.Context) (context.Context, func(), error) {
@@ -991,4 +991,8 @@ func clone(in core.Snapshot) core.Snapshot {
 		}
 	}
 	return out
+}
+
+func (e *Engine) WaitForQueryIdle(ctx context.Context) error {
+	return e.queries.waitForIdle(ctx)
 }

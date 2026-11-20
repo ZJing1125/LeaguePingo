@@ -74,7 +74,10 @@ provide(playerHistoryNavigation, {
   busy: manualBusy,
   error: historyJumpError,
   async open(target) {
-    const player = await openHistory(target);
+    const opening = openHistory(target);
+    await nextTick();
+    document.getElementById(playerTabId(workspace.activeKey.value))?.focus({ preventScroll: true });
+    const player = await opening;
     if (player) {
       await nextTick();
       document.getElementById(playerTabId(player.key))?.focus({ preventScroll: true });

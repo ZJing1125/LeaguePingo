@@ -18,5 +18,6 @@ func (e *Engine) reuseLookupHistory(ctx context.Context, client Client, generati
 		e.refreshHydratedHistory(client, generation, version, player)
 		return player, true
 	}
-	return e.enrichCachedProfile(ctx, player), true
+	player = e.resolvePlayerName(ctx, client, version, player, true)
+	return player, true
 }

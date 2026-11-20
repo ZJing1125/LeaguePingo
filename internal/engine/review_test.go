@@ -152,7 +152,7 @@ func TestFirstHistoryFailureRetainsQueryableIdentityAndProfile(t *testing.T) {
 	e := New(nil, nil)
 	e.client = fake
 	p, err := e.Lookup(context.Background(), "Manual#TEST")
-	if err != nil || p.IdentityState != core.IdentityKnown || p.HistoryState != core.HistoryFailed || p.PrivacyState != "private" || p.Error == "" {
+	if err != nil || p.IdentityState != core.IdentityKnown || p.HistoryState != core.HistoryFailed || p.Error == "" {
 		t.Fatalf("identity/profile lost on first history failure: %v", err)
 	}
 	if _, err = e.LoadProfile(context.Background(), p.Key, p.ConnectionID); err != nil {

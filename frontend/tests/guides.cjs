@@ -54,7 +54,7 @@ const {makePlayer,now}=require('./analysis-fixture.cjs');
 
  const augments=Array.from({length:8},(_,i)=>({id:1000+i,name:`强化${i+1}`,description:i===0?'对手控制较多时提供护盾，保持生存。':'提升技能与装备的配合效果。',tier:i%6,rarity:[1,4,8][i%3],performance:i===0?0:80+i,popularity:2+i/10}));
  snapshot.queueId=2400;
- state={...state,revision:state.revision+1,status:'ready',message:'',query:{mode:'aram-mayhem',champion:3,position:'mid',opponent:0,patch:''},modeLabel:'海克斯大乱斗',base:{...guide,augments,runes:[],skills:['Q','W','E'],sourceUrl:'https://op.gg/zh-cn/lol/modes/aram-mayhem/galio/build'},matchup:null,candidates:[],stale:false};
+ state={...state,revision:state.revision+1,status:'loading',message:'',query:{mode:'aram-mayhem',champion:3,position:'mid',opponent:0,patch:''},modeLabel:'海克斯大乱斗',base:{...guide,augments,builds:[],runes:[],skills:[],sourceUrl:'https://op.gg/zh-cn/lol/modes/aram-mayhem/galio/build'},matchup:null,candidates:[],stale:false};
  for(const p of pages)await p.evaluate(({snapshot,state})=>{window._wails.dispatchWailsEvent({name:'leaguepingo:snapshot',data:snapshot});window._wails.dispatchWailsEvent({name:'leaguepingo:guide',data:state});},{snapshot,state});
  await side.getByRole('checkbox',{name:'比较强化1',exact:true}).waitFor();
  await side.getByLabel('英雄攻略与模式适配：实验性',{exact:true}).waitFor();
@@ -64,6 +64,9 @@ const {makePlayer,now}=require('./analysis-fixture.cjs');
  await side.getByRole('checkbox',{name:'比较强化1',exact:true}).check();
  await side.getByRole('checkbox',{name:'比较强化2',exact:true}).check();
  await side.getByRole('checkbox',{name:'比较强化3',exact:true}).check();
+ state={...state,revision:state.revision+1,status:'ready',base:{...state.base,builds:guide.builds,skills:['Q','W','E']}};
+ for(const p of pages)await p.evaluate(data=>window._wails.dispatchWailsEvent({name:'leaguepingo:guide',data}),state);
+ assert.equal(await side.getByRole('checkbox',{name:'比较强化1',exact:true}).isChecked(),true,'late build reset available augment selection');
  await overlay.getByRole('button',{name:'本局攻略',exact:true}).click();
  await overlay.locator('.compare-augment').nth(2).waitFor();
  assert.equal(await side.getByRole('checkbox',{name:'比较强化4',exact:true}).isDisabled(),true);

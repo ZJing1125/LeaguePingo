@@ -473,3 +473,7 @@ Windows 后续专项：键盘切换/删除最后一个标签应回到搜索框�
 按照 PERFORMANCE.md，在相同分辨率/画质/游戏负载下对助手退出、局内隐藏、快览可见、显式查询至少各做三次测量。记录助手版本、游戏版本/模式、帧时间 P95/P99、平均 FPS 和游戏显示延迟，以及助手+WebView2 进程树 CPU/私有内存、持续时间和请求量。仅比较可复现负载，不能用不同自然对局简单归因。
 
 进程树工具：`go run ./cmd/perfprobe -pid <助手PID> -seconds 120 -scenario in-game-hidden -out bin/performance-live`。该工具不会测出游戏 FPS 或网络 RTT；不要把 CSV 填进这些指标列。正式通过与否根据测量和用户可接受阈值决定，缺证据保持待测。
+
+## BUG-0151 数据响应集中验收
+
+战绩、海克斯强化、头像跳转与选人评级使用最终候选统一验收，清单及指标见[DATA_RESPONSE.md](DATA_RESPONSE.md)。国服按模式直查仍须有连续两页与混合历史对照证据。

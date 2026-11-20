@@ -1,11 +1,13 @@
 import { computed, onUnmounted, ref, watch, type Ref } from "vue";
 import * as Service from "../../bindings/leaguepingo/appservice";
+import { HistoryState } from "../../bindings/leaguepingo/internal/core/models";
 import type {
   Participant,
   Snapshot as SnapshotModel,
 } from "../../bindings/leaguepingo/internal/core/models";
 import { errorMessage, normalizeRiotIDInput } from "../presentation";
 import { completeRiotID, type PlayerHistoryTarget } from "../playerHistoryNavigation";
+import { recordVisibleResponse } from "../responseMetrics";
 import { newestPlayer, operationKey } from "../playerState";
 import type { usePlayerWorkspace } from "./usePlayerWorkspace";
 
@@ -25,11 +27,17 @@ export function usePlayerActions(
     kind: "history" | "profile";
   } | null>(null);
   const manualBusy = computed(
-    () => searching.value || playerOperation.value !== null,
+    () => searching.value || playerOperation.value?.kind === "history",
   );
   const pendingProfile = ref<Participant | null>(null);
   const profileOpening = ref(false);
   let componentAlive = true;
+  let navigationRevision = 0;
+  let navigationTarget = "";
+  let profileInterrupted = false;
+  let profileCall: ReturnType<typeof Service.EnsureProfile> | undefined;
+  let navigationCall: ReturnType<typeof Service.Lookup> | undefined;
+  let navigationDone: Promise<void> = Promise.resolve();
   const actionBusy = computed(() => manualBusy.value || rosterBusy.value);
   function requestMissingProfile(player: Participant) {
     pendingProfile.value = null;
@@ -100,19 +108,22 @@ export function usePlayerActions(
     )
       return;
     profileOpening.value = true;
+    profileInterrupted = false;
     playerOperation.value = { key: operationKey(target), kind: "profile" };
     try {
-      acceptProfile(
-        await Service.EnsureProfile(target.key, target.connectionId),
-      );
+      const call = Service.EnsureProfile(target.key, target.connectionId);
+      profileCall = call;
+      acceptProfile(await call);
     } catch (reason) {
       if (
+        !profileInterrupted &&
         componentAlive &&
         snapshot.value?.connected &&
         (target.connectionId ?? 0) === (snapshot.value.connectionId ?? 0)
       )
         setMessage(operationKey(target), errorMessage(reason));
     } finally {
+      profileCall = undefined;
       playerOperation.value = null;
       profileOpening.value = false;
       void flushMissingProfile();
@@ -136,37 +147,86 @@ export function usePlayerActions(
     return !!target && !!snapshot.value?.connected && target.connectionId === snapshot.value.connectionId;
   }
 
+  watch(() => [workspace.activeKey.value, workspace.view.value, snapshot.value?.connected, snapshot.value?.connectionId], () => {
+    if (navigationCall && (workspace.activeKey.value !== navigationTarget || workspace.view.value !== "players" || !snapshot.value?.connected))
+      navigationCall.cancel();
+  }, { flush: "sync" });
+
   async function openHistory(target: PlayerHistoryTarget) {
-    if (manualBusy.value || !canOpenHistory(target)) return;
+    if (!canOpenHistory(target)) return;
+    const previousWorking = searching.value;
+    const canceled = navigationCall?.cancel();
+    const request = ++navigationRevision;
+    profileInterrupted = true;
+    profileCall?.cancel();
     const existing = tabs.value.find(player => !player.stale && player.connectionId === target.connectionId && (
       target.kind === "livePlayer" ? player.key === target.key
         : completeRiotID(player.displayName).toLowerCase() === target.riotId.toLowerCase()
     ));
     setMessage("historyJump", "");
     setMessage("search", "");
-    if (existing) {
-      openPlayer(existing);
+    const live = target.kind === "livePlayer"
+      ? snapshot.value?.participants?.find(p => p.key === target.key) : undefined;
+    const placeholder = existing ?? live ?? ({
+      key: `query-${target.connectionId}-${target.kind === "riotId" ? target.riotId : target.key}`,
+      puuid: "", displayName: target.label, connectionId: target.connectionId,
+      identityState: "unavailable", historyState: "loading", history: [], historyMeta: {},
+    } as unknown as Participant);
+    const started = performance.now();
+    navigationTarget = placeholder.key;
+    openPlayer(placeholder);
+    recordVisibleResponse("history-feedback", started, () => componentAlive && request === navigationRevision);
+    const stillCurrent = () => componentAlive && request === navigationRevision && canOpenHistory(target)
+      && workspace.view.value === "players" && workspace.activeKey.value === placeholder.key;
+    if (existing && existing.historyState !== "loading" && existing.historyState !== "pending") {
+      searching.value = false;
+      requestMissingProfile(existing);
+      recordVisibleResponse("player-history-ready", started, () => workspace.activeKey.value === existing.key);
       return existing;
     }
-    const origin = workspace.view.value;
-    const tab = workspace.activeKey.value;
-    const stillCurrent = () => componentAlive && canOpenHistory(target)
-      && workspace.view.value === origin && workspace.activeKey.value === tab;
+    const previous = navigationDone;
+    let finish!: () => void;
+    navigationDone = new Promise(resolve => { finish = resolve; });
     searching.value = true;
     try {
-      const player = target.kind === "livePlayer" ? await Service.LookupPlayer(target.key) : await Service.Lookup(target.riotId);
+      await canceled;
+      await previous;
+      if (previousWorking && stillCurrent()) await Service.WaitForQueryIdle();
+      if (!stillCurrent()) return;
+      const call = target.kind === "livePlayer" ? Service.LookupPlayer(target.key) : Service.Lookup(target.riotId);
+      navigationCall = call;
+      const player = await call;
       if (!stillCurrent() || player.connectionId !== target.connectionId) return;
+      navigationCall = undefined;
+      if (placeholder.key !== player.key) workspace.closeTab(placeholder.key);
       openPlayer(player);
+      // Optional profile is scheduled after the history becomes usable.
+      requestMissingProfile(player);
+      recordVisibleResponse("player-history-ready", started, () => componentAlive && request === navigationRevision && workspace.activeKey.value === player.key);
       return player;
     } catch (reason) {
-      if (stillCurrent()) setMessage("historyJump", errorMessage(reason));
+      if (stillCurrent()) {
+        const pending = tabs.value.find(p => p.key === placeholder.key);
+        if (pending) {
+          pending.historyState = HistoryState.HistoryFailed;
+          pending.error = errorMessage(reason);
+        }
+        setMessage("historyJump", errorMessage(reason));
+      }
     } finally {
-      searching.value = false;
+      finish();
+      if (request === navigationRevision) {
+        navigationCall = undefined;
+        searching.value = false;
+        void flushMissingProfile();
+      }
     }
   }
 
   async function search() {
     if (manualBusy.value) return;
+    profileInterrupted = true;
+    profileCall?.cancel();
     const id = normalizeRiotIDInput(query.value);
     query.value = id;
     setMessage("historyJump", "");
@@ -177,7 +237,9 @@ export function usePlayerActions(
     searching.value = true;
     setMessage("search", "");
     try {
-      openPlayer(await Service.Lookup(id));
+      const player = await Service.Lookup(id);
+      openPlayer(player);
+      requestMissingProfile(player);
     } catch (reason) {
       setMessage("search", errorMessage(reason));
     } finally {
@@ -230,6 +292,9 @@ export function usePlayerActions(
 
   onUnmounted(() => {
     componentAlive = false;
+    navigationRevision++;
+    navigationCall?.cancel();
+    profileCall?.cancel();
     pendingProfile.value = null;
   });
   return {

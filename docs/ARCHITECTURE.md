@@ -58,7 +58,7 @@ Engine的独立锁组件包括：`eventSubscription`管理事件取消/序号/�
 
 `playerQueries`负责手动历史读取、缓存命中、失败保留与可选资料编排；`queryState`仅提供受保护的值读取、姓名/资料能力及原子提交，服务不持Engine指针，不在会话锁内调用来源或状态端口。Engine提交时继续核对首页guard、连接/代次和较新的资料时钟。
 
-手动查询共用`querySession`的一个独占槽，沿用12秒及调用方更短的context期限，忙时立即拒绝、不增加排队或重试；任务取消后仍由原worker退出时释放槽。只有已核验、空闲且无缓存的首页查询创建额外子context，离idle/换连接/退出只取消该子任务，不取消其他手动查询或父context；原身份/阶段/代次守卫留在Engine。
+手动查询共用`querySession`的一个独占槽，沿用12秒及调用方更短的context期限，忙时立即拒绝；玩家头像的最新导航意图可通过只读WaitForQueryIdle等待旧worker归还槽后再开始；任务取消后仍由原worker退出时释放槽。只有已核验、空闲且无缓存的首页查询创建额外子context，离idle/换连接/退出只取消该子任务，不取消其他手动查询或父context；原身份/阶段/代次守卫留在Engine。
 
 本地名单读取预算由`rosterDiscovery`拥有。每个加载/正式游戏就绪窗口最多三次，加载→正式游戏仅在名单未完整时续窗；已完整后停止自动读取，同局手动刷新不续窗，新比赛或离局才按原规则重置。Engine在调用前后核验阶段/连接，组件不读来源、不发布快照。
 
@@ -76,7 +76,7 @@ Engine的独立锁组件包括：`eventSubscription`管理事件取消/序号/�
 
 身份仅接受当前客户端核验的 PUUID，姓名清理不改变有效内部字符。LCU 别名查询使用结构化名称/标签并核验唯一结果；名单不完整不伪造对手，不从姓名反推身份或从查询失败推断隐私。
 
-历史首页和后续页统一优先 SGP SUMMARY，SGP 不可用时首页可回退 LCU；LCU 偏移不可靠，回退范围上限不表示账号历史终点。段位优先 SGP rankedStats，使用 league-session；SUMMARY 使用 entitlements，两类令牌独立合并/短缓存并在换号清除。SGP 只接受客户端当前大区匹配的固定腾讯 HTTPS 地址，正常证书校验、禁重定向/代理、8 MiB 响应上限。LCU 固定本机回环，目前仍使用自签名兼容传输；严格根证书验证属于尚未完成的 S9，不能宣称已实施。
+同连接同身份的重叠SGP首页按消费者合并在途读取，消费者独立取消，最后一个退出才取消来源请求；已完成首页下次仍检查最新记录。历史首页和后续页统一优先 SGP SUMMARY，SGP 不可用时首页可回退 LCU；LCU 偏移不可靠，回退范围上限不表示账号历史终点。段位优先 SGP rankedStats，使用 league-session；SUMMARY 使用 entitlements，两类令牌独立合并/短缓存并在换号清除。SGP 只接受客户端当前大区匹配的固定腾讯 HTTPS 地址，正常证书校验、禁重定向/代理、8 MiB 响应上限。LCU 固定本机回环，目前仍使用自签名兼容传输；严格根证书验证属于尚未完成的 S9，不能宣称已实施。
 
 SGP 认证/限流/服务错误进入共享冷却：5/15/45/60 秒基线加 0–20% 非负抖动，本机上限 60 秒，服务端更长 Retry-After 优先。并行迟到成功不能清除较新的冷却，重叠拒绝不能缩短等待。无内部无限重试；有限恢复和旧资料策略见 [DATA_RECOVERY.md](DATA_RECOVERY.md)。错误只按固定目录展示，协议见 [ERRORS.md](ERRORS.md)。
 
@@ -107,3 +107,5 @@ SGP 认证/限流/服务错误进入共享冷却：5/15/45/60 秒基线加 0–2
 [TESTING.md](TESTING.md)列出自动与显式实机入口。[ENVIRONMENTS.md](ENVIRONMENTS.md)区分开发机、Windows runner 和游戏电脑；portable 不生成绑定或产品，Windows CI 经统一 `build.sh` 完整验证、构建和审计，成功dev构建自动提供[下载包](CLOUD_BUILDS.md)，保留14天；随后独立发布任务将同批验证产物发布为按提交命名的预发布 Release；附件不受14天保留期影响，不自动部署。工具链和更新配置见 [DEPENDENCIES.md](DEPENDENCIES.md)；Dependabot 需默认分支含配置才激活。
 
 原生/真实客户端验收、干净 Windows 安装、发布证书及整局 FPS/延迟仍单独记录于 [ACCEPTANCE.md](ACCEPTANCE.md)、[INSTALLATION.md](INSTALLATION.md)和 [PERFORMANCE.md](PERFORMANCE.md)。自动化结果不冒称真机通过；当前 S9/S10 的未完成部分以[优化清单](OPTIMIZATION_BACKLOG.md)为准。
+
+数据响应改造的当前浏览、资料分段、强化先发布、匿名时长与集中验收见[DATA_RESPONSE.md](DATA_RESPONSE.md)。
