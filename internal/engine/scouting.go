@@ -312,9 +312,16 @@ func (e *Engine) readScoutPage(ctx context.Context, version uint64, scope string
 		pages.Add(-1)
 		return
 	}
+	responseID := diagnostics.Responses.Begin("scout")
+	ctx = diagnostics.WithResponse(ctx, responseID)
 	request, cancel := context.WithTimeout(ctx, scoutPageTimeout(diagnostics.Default))
+	sourceStarted := time.Now()
 	page, err := src.ScoutPage(request, c.player.PUUID, c.offset)
 	cancel()
+	diagnostics.Responses.Stage(responseID, "source", time.Since(sourceStarted))
+	if err != nil || ctx.Err() != nil {
+		diagnostics.Responses.Discard(responseID)
+	}
 	n := pages.Load()
 	e.mu.Lock()
 	if e.scoutValidLocked(version, scope, token) {
@@ -342,8 +349,15 @@ func (e *Engine) readScoutPage(ctx context.Context, version uint64, scope string
 	} else {
 		c.absorbPage(page, season, cutoff, boundary)
 	}
+	computeStarted := time.Now()
 	r := c.report(season, cutoff)
+	if err == nil {
+		diagnostics.Responses.Stage(responseID, "compute", time.Since(computeStarted))
+		diagnostics.Responses.Ready(responseID)
+		r.ResponseID = responseID
+	}
 	if !e.saveScout(version, scope, token, c.player.PUUID, r) {
+		diagnostics.Responses.Discard(responseID)
 		c.done = true
 	}
 	e.rememberScoutProgress(version, scope, token, c)

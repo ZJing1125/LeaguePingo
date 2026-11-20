@@ -1,0 +1,23 @@
+import { afterEach, expect, it, vi } from "vitest";
+import {nextTick} from "vue";
+import * as Service from "../../bindings/leaguepingo/appservice";
+import {recordVisibleResponse} from "../../src/responseMetrics";
+vi.mock("../../bindings/leaguepingo/appservice",()=>({RecordUIResponse:vi.fn().mockResolvedValue(undefined),AcknowledgeResponse:vi.fn().mockResolvedValue(undefined)}));
+afterEach(()=>{vi.unstubAllGlobals();vi.clearAllMocks();});
+it("acknowledges only a still-current visible response after both animation frames",async()=>{
+ const frames:FrameRequestCallback[]=[];
+ vi.stubGlobal("document",{visibilityState:"visible"});
+ vi.stubGlobal("requestAnimationFrame",(fn:FrameRequestCallback)=>{frames.push(fn);return frames.length;});
+ let current=true;
+ recordVisibleResponse("rating-render",performance.now(),()=>current,42);
+ await nextTick();
+ expect(Service.AcknowledgeResponse).not.toHaveBeenCalled();
+ frames.shift()!(0);
+ expect(Service.AcknowledgeResponse).not.toHaveBeenCalled();
+ frames.shift()!(0);
+ expect(Service.AcknowledgeResponse).toHaveBeenCalledWith(42,expect.any(Number));
+ recordVisibleResponse("rating-render",performance.now(),()=>current,43);
+ await nextTick();current=false;
+ frames.shift()!(0);frames.shift()!(0);
+ expect(Service.AcknowledgeResponse).toHaveBeenCalledTimes(1);
+});

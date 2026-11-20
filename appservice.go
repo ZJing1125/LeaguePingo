@@ -38,12 +38,14 @@ func (s *AppService) SetScoutQueue(queue int) (serviceValue core.Snapshot, servi
 
 func (s *AppService) CurrentPlayer(ctx context.Context, connectionID uint64) (serviceValue core.Participant, serviceErr error) {
 	defer apperrors.Present(&serviceErr)
-	return s.engine.CurrentPlayer(ctx, connectionID)
+	return tracePlayer(ctx, func(request context.Context) (core.Participant, error) {
+		return s.engine.CurrentPlayer(request, connectionID)
+	})
 }
 
 func (s *AppService) Lookup(ctx context.Context, riotID string) (serviceValue core.Participant, serviceErr error) {
 	defer apperrors.Present(&serviceErr)
-	return s.engine.Lookup(ctx, riotID)
+	return tracePlayer(ctx, func(request context.Context) (core.Participant, error) { return s.engine.Lookup(request, riotID) })
 }
 
 func (s *AppService) ToggleOverlay() bool {
@@ -69,7 +71,7 @@ func (s *AppService) SetOverlayPinned(pinned bool) (serviceValue OverlayState, s
 }
 func (s *AppService) LookupPlayer(ctx context.Context, key string) (serviceValue core.Participant, serviceErr error) {
 	defer apperrors.Present(&serviceErr)
-	return s.engine.LookupPlayer(ctx, key)
+	return tracePlayer(ctx, func(request context.Context) (core.Participant, error) { return s.engine.LookupPlayer(request, key) })
 }
 func (s *AppService) RefreshRoster(ctx context.Context) (serviceValue core.Snapshot, serviceErr error) {
 	defer apperrors.Present(&serviceErr)
@@ -77,31 +79,41 @@ func (s *AppService) RefreshRoster(ctx context.Context) (serviceValue core.Snaps
 }
 func (s *AppService) RefreshLookup(ctx context.Context, riotID string) (serviceValue core.Participant, serviceErr error) {
 	defer apperrors.Present(&serviceErr)
-	return s.engine.RefreshLookup(ctx, riotID)
+	return tracePlayer(ctx, func(request context.Context) (core.Participant, error) {
+		return s.engine.RefreshLookup(request, riotID)
+	})
 }
 func (s *AppService) RefreshPlayer(ctx context.Context, key string) (serviceValue core.Participant, serviceErr error) {
 	defer apperrors.Present(&serviceErr)
-	return s.engine.RefreshPlayer(ctx, key)
+	return tracePlayer(ctx, func(request context.Context) (core.Participant, error) { return s.engine.RefreshPlayer(request, key) })
 }
 func (s *AppService) RefreshHistory(ctx context.Context, key string, connectionID uint64) (serviceValue core.Participant, serviceErr error) {
 	defer apperrors.Present(&serviceErr)
-	return s.engine.RefreshHistory(ctx, key, connectionID)
+	return tracePlayer(ctx, func(request context.Context) (core.Participant, error) {
+		return s.engine.RefreshHistory(request, key, connectionID)
+	})
 }
 
 func (s *AppService) RetryHistory(ctx context.Context, key string, connectionID uint64) (serviceValue core.Participant, serviceErr error) {
 	defer apperrors.Present(&serviceErr)
-	return s.engine.RetryHistory(ctx, key, connectionID)
+	return tracePlayer(ctx, func(request context.Context) (core.Participant, error) {
+		return s.engine.RetryHistory(request, key, connectionID)
+	})
 }
 
 func (s *AppService) RefreshData(ctx context.Context, key string, connectionID uint64) (serviceValue core.Participant, serviceErr error) {
 	defer apperrors.Present(&serviceErr)
-	return s.engine.RefreshData(ctx, key, connectionID)
+	return tracePlayer(ctx, func(request context.Context) (core.Participant, error) {
+		return s.engine.RefreshData(request, key, connectionID)
+	})
 }
 func (s *AppService) PrioritizePlayer(key string) { s.engine.PrioritizePlayer(key) }
 
 func (s *AppService) HistoryPage(ctx context.Context, key string, connectionID uint64, offset int) (serviceValue core.HistoryPage, serviceErr error) {
 	defer apperrors.Present(&serviceErr)
-	return s.engine.HistoryPage(ctx, key, connectionID, offset)
+	return traceHistory(ctx, func(request context.Context) (core.HistoryPage, error) {
+		return s.engine.HistoryPage(request, key, connectionID, offset)
+	})
 }
 
 func (s *AppService) MatchDetail(ctx context.Context, key string, connectionID uint64, gameID int64) (serviceValue core.MatchDetail, serviceErr error) {
@@ -154,4 +166,15 @@ func (s *AppService) SelectGuide(position string, opponent int, retry bool) (ser
 func (s *AppService) WaitForQueryIdle(ctx context.Context) (serviceErr error) {
 	defer apperrors.Present(&serviceErr)
 	return s.engine.WaitForQueryIdle(ctx)
+}
+
+func (s *AppService) HistoryPageForQueue(ctx context.Context, key string, connection uint64, request core.HistoryPageRequest) (serviceValue core.HistoryPage, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
+	return traceHistory(ctx, func(ctx context.Context) (core.HistoryPage, error) {
+		return s.engine.HistoryPageForQueue(ctx, key, connection, request)
+	})
+}
+func (s *AppService) VerifyHistoryQueue(ctx context.Context) (serviceValue core.HistoryQueueVerification, serviceErr error) {
+	defer apperrors.Present(&serviceErr)
+	return s.engine.VerifyHistoryQueue(ctx)
 }

@@ -20,6 +20,7 @@ const (
 )
 
 type Participant struct {
+	ResponseID    uint64        `json:"responseId,omitempty"`
 	GroupToken    string        `json:"-"` // transient opaque source ID; never persisted
 	PremadeLabel  string        `json:"premadeLabel,omitempty"`
 	PremadeGroup  string        `json:"premadeGroup,omitempty"`
@@ -164,6 +165,9 @@ type HistoryResult struct {
 }
 
 type HistoryPage struct {
+	ResponseID  uint64      `json:"responseId,omitempty"`
+	QueueID     int         `json:"queueId,omitempty"`
+	Requests    int         `json:"requests,omitempty"`
 	Matches     []Match     `json:"matches"`
 	Meta        HistoryMeta `json:"meta"`
 	Offset      int         `json:"offset"`

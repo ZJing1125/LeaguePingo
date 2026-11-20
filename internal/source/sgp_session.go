@@ -127,6 +127,7 @@ func (s *TencentLCU) fetchSGPToken(ctx context.Context, league bool) (string, er
 
 func (s *TencentLCU) applySGPOriginLocked(r *sgpHistory, origin, platform string) {
 	if r.origin != origin || r.platform != platform {
+		s.verifiedQueues = nil
 		r.token, r.leagueToken = "", ""
 		r.expires, r.leagueExpires = time.Time{}, time.Time{}
 		r.pages.clear()

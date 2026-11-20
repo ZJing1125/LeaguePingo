@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const {chromium}=require('playwright');
-const {mockWindowRuntime}=require('./window-runtime.cjs');
+const {mockWindowRuntime,normalizeServiceRequest}=require('./window-runtime.cjs');
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.BROWSER_EXECUTABLE});
  try {
@@ -22,7 +22,7 @@ const {mockWindowRuntime}=require('./window-runtime.cjs');
  const url=new URL(route.request().url());if(url.origin!=='http://127.0.0.1:43401')throw Error('unexpected external request');
  if(url.pathname==='/wails/custom.js')return route.fulfill({contentType:'text/javascript',body:''});
  if(url.pathname==='/wails/runtime'){
- const request=route.request().postDataJSON();if(await runtime.handle(route,request))return;
+ const request=normalizeServiceRequest(route.request().postDataJSON());if(await runtime.handle(route,request))return;
  const method=methods[request.args?.methodID],args=request.args?.args??[];calls.push(method);let result=null;
  if(method==='Snapshot')result=snapshot;
  else if (method === 'GuideStatus') result={revision:0,status:'idle',query:{},base:null,matchup:null};

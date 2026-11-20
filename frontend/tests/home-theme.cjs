@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
-const { mockWindowRuntime } = require("./window-runtime.cjs");
+const { mockWindowRuntime, normalizeServiceRequest } = require("./window-runtime.cjs");
 const { saveUIArtifact } = require('./ui-artifacts.cjs');
 
 async function main() {
@@ -26,6 +26,7 @@ async function main() {
         profile: { updatedAt: "2026-10-20T03:00:00Z", level: 128, profileIconData: avatar, privacyState: "public", rankState: "ready", ranks: [{ queue: "RANKED_SOLO_5x5", tier: "EMERALD", division: "II", lp: 48, wins: 65, losses: 47 }, { queue: "RANKED_FLEX_SR", tier: "GOLD", division: "I", lp: 23, wins: 25, losses: 21 }], fields: { rank: { state: "ready", fetchedAt: "2026-10-20T03:00:00Z" } } },
       };
     }
+    let queueRelease,queueEntered;
     let self = player(), failHome = false, deferHome = false, releaseHome, homeEntered;
     let snapshot = { connectionId: 1, selfKey: self.key, generation: 1, connected: true, phase: "None", stage: "idle", frozen: false, updatedAt: "2026-10-20T03:00:00Z", participants: [] };
     await page.route("**/*", route => { external.push(route.request().url()); return route.abort(); });
@@ -33,7 +34,7 @@ async function main() {
       const url = new URL(route.request().url());
       if (url.pathname === "/wails/custom.js") return route.fulfill({ contentType: "text/javascript", body: "" });
       if (url.pathname === "/wails/runtime") {
-        const request = route.request().postDataJSON();
+        const request = normalizeServiceRequest(route.request().postDataJSON());
         if (await desktop.handle(route, request)) return;
         const method = methods[request.args?.methodID];
         const args = request.args?.args ?? [];
@@ -55,7 +56,8 @@ async function main() {
           if (deferHome) await new Promise(resolve => { releaseHome = resolve; homeEntered?.(); });
           if (failHome) return route.fulfill({ status: 500, json: { message: "当前账号资料暂不可用" } });
           result = self;
-        } else if (method === "Lookup") result = player("synthetic-other", snapshot.connectionId);
+        } else if (method === "VerifyHistoryQueue") {queueEntered?.();await new Promise(resolve=>{queueRelease=resolve;});result={queueId:2400,state:"verified",compared:30,mixed:60,filtered:40};}
+        else if (method === "Lookup") result = player("synthetic-other", snapshot.connectionId);
         else if (method === "RefreshData") { self = { ...self, profile: { ...self.profile, updatedAt: "2026-10-20T03:02:00Z", level: 129 } }; result = self; }
         else if (method === "MatchDetail") {
           const target = self.history.find(match => match.gameId === args[2]) ?? self.history[0];
@@ -168,6 +170,13 @@ async function main() {
     assert.equal(await settings.getByRole('tab', { name: '游戏辅助' }).getAttribute('aria-selected'), 'true');
     await page.keyboard.press('ArrowLeft');
     assert.equal(await settings.getByRole('tab', { name: '外观', exact: true }).getAttribute('aria-selected'), 'true');
+    await settings.getByRole('tab',{name:'诊断与关于',exact:true}).click();
+    const entered=new Promise(resolve=>{queueEntered=resolve;});
+    await settings.getByRole('button',{name:'核验海克斯模式查询',exact:true}).click();
+    await entered;
+    assert(await settings.getByRole('button',{name:'正在核验，最多45秒…',exact:true}).isDisabled());
+    queueRelease();
+    await settings.getByText('已核对 30 场，本次连接已启用海克斯直查',{exact:true}).waitFor();
     await settings.press("Escape");
     assert(await page.getByRole("button", { name: "设置与诊断", exact: true }).evaluate(el => el === document.activeElement));
     before = calls.length;

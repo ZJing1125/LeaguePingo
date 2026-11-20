@@ -56,7 +56,15 @@ type Augment struct {
 	WinRate     *float64 `json:"winRate,omitempty"`
 	Games       int      `json:"games,omitempty"`
 }
+type GuidePart struct {
+	State     string     `json:"state"`
+	Version   string     `json:"version"`
+	FetchedAt *time.Time `json:"fetchedAt,omitempty"`
+}
 type Guide struct {
+	ResponseID        uint64         `json:"responseId,omitempty"`
+	AugmentsStatus    *GuidePart     `json:"augmentsStatus,omitempty"`
+	BuildsStatus      *GuidePart     `json:"buildsStatus,omitempty"`
 	AugmentsFetchedAt *time.Time     `json:"augmentsFetchedAt,omitempty"`
 	BuildsFetchedAt   *time.Time     `json:"buildsFetchedAt,omitempty"`
 	Query             Query          `json:"query"`

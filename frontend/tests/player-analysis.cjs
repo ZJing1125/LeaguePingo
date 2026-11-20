@@ -2,7 +2,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const {chromium}=require('playwright');
-const {mockWindowRuntime}=require('./window-runtime.cjs');
+const {mockWindowRuntime,normalizeServiceRequest}=require('./window-runtime.cjs');
 const {saveUIArtifact}=require('./ui-artifacts.cjs');
 const {makePlayer,makeDetail,makeTimeline,now}=require('./analysis-fixture.cjs');
 const {verifyKeyboardAccess}=require('./keyboard-access.cjs');
@@ -114,7 +114,7 @@ async function main(){
    const url=new URL(route.request().url());
    if(url.pathname==='/wails/custom.js')return route.fulfill({contentType:'text/javascript',body:''});
    if(url.pathname==='/wails/runtime'){
-    const req=route.request().postDataJSON();if(await desktop.handle(route,req))return;
+    const req=normalizeServiceRequest(route.request().postDataJSON());if(await desktop.handle(route,req))return;
     const name=methods[req.args?.methodID],args=req.args?.args??[];calls.push(name);
     let result=null;
     if (name === 'GuideStatus') result={revision:0,status:'idle',query:{},base:null,matchup:null};

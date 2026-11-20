@@ -77,6 +77,8 @@ func (o *OPgg) FetchProgressive(ctx context.Context, q Query, publish func(*Guid
 
 func (o *OPgg) fetchAugmentProgress(ctx context.Context, q Query, publish func(*Guide)) (*Guide, error) {
 	g := &Guide{Query: q, FetchedAt: time.Now().UTC(), SourceURL: guidePageURL(q, "build")}
+	g.AugmentsStatus = &GuidePart{State: "loading"}
+	g.BuildsStatus = &GuidePart{State: "pending"}
 	aug, aerr := o.publicPage(ctx, q, "augments")
 	if aerr == nil {
 		if q.Mode == "arena" {
@@ -89,6 +91,8 @@ func (o *OPgg) fetchAugmentProgress(ctx context.Context, q Query, publish func(*
 	if aerr == nil {
 		now := time.Now().UTC()
 		g.Version, g.AugmentsFetchedAt = aug.version, &now
+		g.AugmentsStatus = &GuidePart{State: "ready", Version: aug.version, FetchedAt: &now}
+		g.BuildsStatus = &GuidePart{State: "loading"}
 		if publish != nil && ctx.Err() == nil {
 			partial := *g
 			partial.Notice = "出装与加点正在读取"
@@ -101,23 +105,32 @@ func (o *OPgg) fetchAugmentProgress(ctx context.Context, q Query, publish func(*
 	}
 	if berr == nil {
 		now := time.Now().UTC()
-		g.BuildsFetchedAt = &now
-		g.Builds, g.Skills, g.Version = build.builds()
+		var version string
+		g.Builds, g.Skills, version = build.builds()
 		if q.Mode == "arena" {
 			g.Tips = build.arenaSynergies()
 		}
 		if len(g.Builds) == 0 || len(g.Skills) == 0 {
 			berr = errors.New("出装或加点页面结构已变化")
+			g.Builds, g.Skills, g.Tips = nil, nil, nil
+		} else {
+			g.BuildsFetchedAt = &now
+			g.Version = version
 		}
 	}
 	if aerr != nil && berr != nil {
 		return nil, apperrors.Normalize(aerr, apperrors.GuideUnavailable)
 	}
 	if aerr != nil {
+		g.AugmentsStatus = &GuidePart{State: "failed"}
 		g.Notice = "强化符文暂未读取成功，可重试或查看原文。"
 	}
 	if berr != nil {
+		g.BuildsStatus = &GuidePart{State: "failed"}
 		g.Notice = "出装或加点暂未完整读取，可重试或查看原文。"
+	}
+	if berr == nil {
+		g.BuildsStatus = &GuidePart{State: "ready", Version: g.Version, FetchedAt: g.BuildsFetchedAt}
 	}
 	encoded, _ := json.Marshal(g)
 	if len(encoded) > 256<<10 {

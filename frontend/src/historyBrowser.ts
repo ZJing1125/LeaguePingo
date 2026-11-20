@@ -49,6 +49,9 @@ export function useHistoryBrowser(
       }
       Object.assign(state, {
         sourceHead: head,
+        queuePages: {},
+        queueFallbacks: [],
+        mixedHasMore: (props.player.historyMeta?.returned ?? props.player.history?.length ?? 0) >= 20,
         sourceStamp: stamp,
         extra: [],
         pageMeta: [],
@@ -107,12 +110,19 @@ export function useHistoryBrowser(
     );
   };
   const allMatches = computed(() => allMatchesFor(props.player, props.state));
-  const matches = computed(() =>
-    allMatches.value.filter(
-      (m) =>
-        props.state.queue === "all" || String(m.queueId) === props.state.queue,
-    ),
-  );
+  const matchesFor = (player: Participant, state: PlayerViewState, queue: string) => {
+    if (queue === "all") return allMatchesFor(player, state);
+    const seen = new Set<number>();
+    const refreshed = new Map((player.history ?? []).map(m => [m.gameId,m]));
+    return [...(state.queuePages?.[queue]?.matches ?? []), ...allMatchesFor(player, state)]
+      .map(m => refreshed.get(m.gameId) ?? m)
+      .filter(m => {
+        if (String(m.queueId) !== queue || seen.has(m.gameId)) return false;
+        seen.add(m.gameId);
+        return true;
+      });
+  };
+  const matches = computed(() => matchesFor(props.player, props.state, props.state.queue));
   const analysisMatches = computed(() =>
     matches.value.slice(0, props.state.sampleSize ?? 20),
   );
@@ -130,6 +140,10 @@ export function useHistoryBrowser(
     recordVisibleResponse(props.player.cached ? "history-cache-ready" : "history-first-ready", started,
       () => workspaceActive() && props.state.sourceStamp === stamp && props.state.page === page && responseStarted === started);
   }, { immediate: true, flush: "post" });
+  watch(() => props.player.responseId, id => {
+    if (!id || !pageMatches.value.length) return;
+    recordVisibleResponse(null,performance.now(),() => workspaceActive() && props.player.responseId===id,id);
+  }, { immediate:true, flush:"post" });
   const knownPages = computed(() =>
     Math.max(1, Math.ceil(matches.value.length / HISTORY_PAGE_SIZE)),
   );
@@ -170,10 +184,8 @@ export function useHistoryBrowser(
       props.state.hasMore,
   );
   const noticePlayer = computed(() => {
-    const metas = [
-      props.player.historyMeta,
-      ...(props.state.pageMeta ?? []),
-    ].filter(Boolean);
+    const scoped = props.state.queuePages?.[props.state.queue];
+    const metas = [props.player.historyMeta, ...(props.state.pageMeta ?? []), ...(scoped?.meta ?? [])].filter(Boolean);
     const duplicates =
       metas.reduce((n, m) => n + m.parsed, 0) - allMatches.value.length;
     return {
@@ -185,7 +197,7 @@ export function useHistoryBrowser(
         excluded:
           metas.reduce((n, m) => n + (m.excluded ?? 0), 0) +
           Math.max(0, duplicates),
-        scope: `${sampleLabel.value}用于分析；列表每页 ${HISTORY_PAGE_SIZE} 场，翻页不改变分析范围。已核验 ${allMatches.value.length} 场混合模式记录。`,
+        scope: `${sampleLabel.value}用于分析；列表每页 ${HISTORY_PAGE_SIZE} 场，翻页不改变分析范围。已核验 ${allMatches.value.length} 场混合模式记录${scoped?.direct ? `；当前模式直查 ${scoped.matches.length} 场` : ""}。`,
       },
     };
   });
@@ -217,10 +229,7 @@ export function useHistoryBrowser(
       stamp = state.sourceStamp;
     const queue = queueOverride;
     const required = kind === "samples" ? (state.sampleSize ?? 20) : page * HISTORY_PAGE_SIZE;
-    const filtered = () =>
-      allMatchesFor(target, state).filter(
-        (m) => queue === "all" || String(m.queueId) === queue,
-      );
+    const filtered = () => matchesFor(target, state, queue);
     const current = () => props.state === state && state.sourceStamp === stamp && props.player.key === target.key;
     if (!background) {
       state.browseTarget = page;
@@ -241,7 +250,10 @@ export function useHistoryBrowser(
         if(!current() || state.stopRequested || !workspaceActive() || props.busy)throw codedError('RequestCanceled');
         if(Date.now()-started>=budget)throw codedError('RequestTimeout');
         requests++;
-        const call=Service.HistoryPage(target.key,target.connectionId,offset);
+        const scoped = state.queuePages?.[queue];
+        const call=queue !== "all" && Service.HistoryPageForQueue
+          ? Service.HistoryPageForQueue(target.key,target.connectionId,{queueId:Number(queue),offset:scoped?.nextOffset??0,mixedOffset:offset,remainingPages:pageBudget-requests+1,mixedOnly:state.queueFallbacks?.includes(queue)??false})
+          : Service.HistoryPage(target.key,target.connectionId,offset);
         pendingPage = call;
         let expired=false;
         const timeout=setTimeout(()=>{expired=true;call.cancel();},Math.max(0,budget-(Date.now()-started)));
@@ -301,38 +313,59 @@ export function useHistoryBrowser(
           break;
         }
         const offset = state.nextOffset ?? 0;
-        if (offset > 980) {
+        if (offset > 980 && (queue === "all" || state.queueFallbacks?.includes(queue))) {
           state.hasMore = false;
           break;
         }
         const result = await fetchPage(offset);
         if (!current() || queue !== props.state.queue) return;
+        requests += Math.max(0, (result.requests ?? 1) - 1);
+        const scopeQueue = result.queueId ?? 0;
+        const expectedOffset = scopeQueue ? (state.queuePages?.[queue]?.nextOffset ?? 0) : offset;
         if (
-          result.offset !== offset ||
+          scopeQueue !== 0 && scopeQueue !== Number(queue) ||
+          (scopeQueue !== 0 && (result.matches ?? []).some(m => m.queueId !== scopeQueue)) ||
+          result.offset !== expectedOffset ||
           !Number.isSafeInteger(result.nextOffset) ||
-          result.nextOffset < offset ||
-          (result.hasMore && result.nextOffset <= offset)
+          result.nextOffset < expectedOffset ||
+          (result.hasMore && result.nextOffset <= expectedOffset)
         ) {
+          if (scopeQueue) { state.queueFallbacks ??= []; state.queueFallbacks.push(queue); continue; }
           throw codedError('HistoryPageInvalid');
         }
         const existing = new Set(
-          allMatchesFor(target, state).map((m) => m.gameId),
+          (scopeQueue ? state.queuePages?.[queue]?.matches ?? [] : allMatchesFor(target, state)).map((m) => m.gameId),
         );
-        if (
-          result.matches?.length &&
-          result.matches.every((m) => existing.has(m.gameId))
-        ) {
+        const repeated = result.matches?.length && (scopeQueue
+          ? result.matches.some(m => existing.has(m.gameId))
+          : result.matches.every(m => existing.has(m.gameId)));
+        if (repeated) {
+          if (scopeQueue) { state.queueFallbacks ??= []; state.queueFallbacks.push(queue); continue; }
           throw codedError('HistoryRepeated');
         }
-        state.extra = [...(state.extra ?? []), ...(result.matches ?? [])];
-        state.pageMeta = [...(state.pageMeta ?? []), result.meta];
-        state.nextOffset = result.nextOffset;
-        state.hasMore = result.hasMore && result.nextOffset <= 980;
+        if (scopeQueue) {
+          state.queuePages ??= {};
+          const previous = state.queuePages[queue];
+          state.queuePages[queue] = {
+            matches: [...(previous?.matches ?? []), ...(result.matches ?? [])], nextOffset: result.nextOffset,
+            hasMore: result.hasMore && result.nextOffset <= 980, direct: true, meta: [...(previous?.meta ?? []), result.meta],
+          };
+        } else {
+          state.extra = [...(state.extra ?? []), ...(result.matches ?? [])];
+          state.pageMeta = [...(state.pageMeta ?? []), result.meta];
+          state.nextOffset = result.nextOffset;
+          state.mixedHasMore = result.hasMore && result.nextOffset <= 980;
+          if (state.queuePages?.[queue]) state.queuePages[queue].direct = false;
+        }
+        state.hasMore = scopeQueue ? state.queuePages![queue]!.hasMore : state.mixedHasMore;
         state.sourceLimit = result.limitReason || "";
         await showAvailablePage();
+        if (result.responseId) recordVisibleResponse(null,performance.now(),
+          () => current() && workspaceActive() && queue===props.state.queue,result.responseId);
         if (result.hasMore && result.nextOffset > 980 && !state.sourceLimit) {
-          state.sourceLimit =
-            "已达到最近 1000 条混合记录的查询上限，按已找到的模式样本分析。";
+          state.sourceLimit = scopeQueue
+            ? "已达到当前模式最近 1000 条记录的查询上限，按已找到的模式样本分析。"
+            : "已达到最近 1000 条混合记录的查询上限，按已找到的模式样本分析。";
         }
       }
       if (!current()) return;
@@ -370,6 +403,9 @@ export function useHistoryBrowser(
     const revision = ++criteriaRevision;
     pendingPage?.cancel();
     props.state.stopRequested = true;
+    const scoped = props.state.queuePages?.[props.state.queue];
+    props.state.hasMore = scoped?.direct ? scoped.hasMore : props.state.mixedHasMore ||
+      props.state.nextOffset === 1000 && props.state.queue !== "all" && !props.state.queueFallbacks?.includes(props.state.queue);
     props.state.page = 1;
     props.state.browseTarget = 1;
     void scrollTop();

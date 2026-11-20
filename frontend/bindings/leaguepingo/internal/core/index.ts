@@ -14,6 +14,8 @@ export type {
     FieldFreshness,
     HistoryMeta,
     HistoryPage,
+    HistoryPageRequest,
+    HistoryQueueVerification,
     HistoryServiceState,
     Match,
     MatchDetail,

@@ -51,6 +51,7 @@ type ScoutQueue struct {
 	Positions []ScoutPosition `json:"positions"`
 }
 type ScoutReport struct {
+	ResponseID   uint64       `json:"responseId,omitempty"`
 	ModelVersion int          `json:"modelVersion,omitempty"`
 	State        string       `json:"state"`
 	Retained     bool         `json:"retained,omitempty"`

@@ -8,6 +8,7 @@ import (
 	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/companion"
 	"leaguepingo/internal/core"
+	"leaguepingo/internal/diagnostics"
 	"leaguepingo/internal/hold"
 )
 
@@ -25,6 +26,12 @@ func (r *desktopApplication) forwardGuides() {
 		case <-r.ctx.Done():
 			return
 		case state := <-r.backend.guides.Changes():
+			if state.Base != nil {
+				diagnostics.Responses.Published(state.Base.ResponseID)
+			}
+			if state.Matchup != nil {
+				diagnostics.Responses.Published(state.Matchup.ResponseID)
+			}
 			r.app.Event.Emit("leaguepingo:guide", state)
 		}
 	}

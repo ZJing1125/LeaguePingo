@@ -4,11 +4,11 @@ import { recordVisibleResponse } from "../responseMetrics";
 import type { PlayerAnalysis, TeamRating } from '../../bindings/leaguepingo/internal/core/models';
 import { analysisTitle } from '../playerAnalysis';
 import { uiText } from '../uiText';
-const props = defineProps<{ analysis?: PlayerAnalysis | null; rating?: TeamRating | null; compact?: boolean; pending?: boolean }>();
-watch(() => [props.analysis?.score, props.rating?.place, props.analysis?.scoredGames], () => {
+const props = defineProps<{ responseId?: number; analysis?: PlayerAnalysis | null; rating?: TeamRating | null; compact?: boolean; pending?: boolean }>();
+watch(() => [props.analysis?.score, props.rating?.place, props.analysis?.scoredGames, props.responseId], () => {
  if (props.analysis?.score == null) return;
- const score = props.analysis.score;
- recordVisibleResponse("rating-render", performance.now(), () => props.analysis?.score === score);
+ const score = props.analysis.score, id = props.responseId;
+ recordVisibleResponse("rating-render", performance.now(), () => props.analysis?.score === score && props.responseId === id, id);
 }, { immediate: true });
 </script>
 <template>

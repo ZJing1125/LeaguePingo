@@ -26,6 +26,9 @@ export interface BuildSection {
 }
 
 export interface Guide {
+    "responseId"?: number;
+    "augmentsStatus"?: GuidePart | null;
+    "buildsStatus"?: GuidePart | null;
     "augmentsFetchedAt"?: string | null;
     "buildsFetchedAt"?: string | null;
     "query": Query;
@@ -41,6 +44,12 @@ export interface Guide {
     "augmentsOmitted"?: number;
     "notice"?: string;
     "referenceNote"?: string;
+}
+
+export interface GuidePart {
+    "state": string;
+    "version": string;
+    "fetchedAt"?: string | null;
 }
 
 export interface Query {

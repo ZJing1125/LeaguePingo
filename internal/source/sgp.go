@@ -204,12 +204,21 @@ func (s *TencentLCU) sgpSummaryPage(ctx context.Context, puuid string, offset in
 }
 
 func (s *TencentLCU) loadSGPSummaryPage(ctx context.Context, puuid string, offset int) (core.HistoryPage, error) {
+	return s.loadSGPQueuePage(ctx, puuid, offset, 0, false)
+}
+func (s *TencentLCU) loadSGPQueuePage(ctx context.Context, puuid string, offset, queue int, requireVerified bool) (core.HistoryPage, error) {
 	gate := &s.channels.history
 	if err := gate.blocked(time.Now()); err != nil {
 		return core.HistoryPage{}, err
 	}
 	version := gate.version()
-	path := "/match-history-query/v1/products/lol/player/" + url.PathEscape(puuid) + "/SUMMARY?" + url.Values{"startIndex": {fmt.Sprint(offset)}, "count": {"20"}}.Encode()
+	params := url.Values{"startIndex": {fmt.Sprint(offset)}, "count": {"20"}}
+	headKey := puuid
+	if queue > 0 {
+		params.Set("tag", fmt.Sprintf("q_%d", queue))
+		headKey = fmt.Sprintf("%s/q_%d", puuid, queue)
+	}
+	path := "/match-history-query/v1/products/lol/player/" + url.PathEscape(puuid) + "/SUMMARY?" + params.Encode()
 	session, err := s.sgpSession(ctx, false, gate)
 	if err != nil {
 		return core.HistoryPage{}, gate.failedFor(version, err, "", time.Now())
@@ -219,8 +228,12 @@ func (s *TencentLCU) loadSGPSummaryPage(ctx context.Context, puuid string, offse
 		s.sgpMu.Unlock()
 		return core.HistoryPage{}, apperrors.New(apperrors.StaleData)
 	}
+	if requireVerified && !s.verifiedQueues[session.platform][queue] {
+		s.sgpMu.Unlock()
+		return core.HistoryPage{}, apperrors.New(apperrors.Unsupported)
+	}
 	r := session.client
-	headBefore, hadHead := r.heads[puuid]
+	headBefore, hadHead := r.heads[headKey]
 	if cached, ok := r.pages.get(path, time.Now()); offset > 0 && ok {
 		s.sgpMu.Unlock()
 		return cached, nil
@@ -236,27 +249,32 @@ func (s *TencentLCU) loadSGPSummaryPage(ctx context.Context, puuid string, offse
 	started := time.Now()
 	result, err := core.ParseSGPHistory(raw, puuid, session.platform)
 	diagnostics.Default.Record("/compute/history-parse", time.Since(started), 200, err != nil)
+	diagnostics.ResponseStage(ctx, "parse", time.Since(started))
 	if err != nil {
-		return core.HistoryPage{}, err
+		return core.HistoryPage{}, s.queueContractFailure(session, queue, err)
 	}
 	if result.Meta.Returned > 20 {
-		return core.HistoryPage{}, errors.New("战绩服务返回超出请求的页范围")
+		return core.HistoryPage{}, s.queueContractFailure(session, queue, errors.New("战绩服务返回超出请求的页范围"))
 	}
-	page := core.HistoryPage{Matches: result.Matches, Meta: result.Meta, Offset: offset, NextOffset: offset + result.Meta.Returned, HasMore: result.Meta.Returned == 20}
+	page := core.HistoryPage{QueueID: queue, Matches: result.Matches, Meta: result.Meta, Offset: offset, NextOffset: offset + result.Meta.Returned, HasMore: result.Meta.Returned == 20}
 	s.sgpMu.Lock()
 	defer s.sgpMu.Unlock()
 	if ctx.Err() != nil || !s.sessionValidLocked(session) {
 		return core.HistoryPage{}, apperrors.New(apperrors.StaleData)
 	}
-	if headAfter, hasHead := r.heads[puuid]; offset > 0 && (hadHead != hasHead || headBefore.gameID != headAfter.gameID) {
+	if headAfter, hasHead := r.heads[headKey]; offset > 0 && (hadHead != hasHead || headBefore.gameID != headAfter.gameID) {
 		return core.HistoryPage{}, apperrors.New(apperrors.StaleData)
+	}
+	if queue > 0 && !validQueuePage(r, path, page, queue) {
+		delete(s.verifiedQueues[session.platform], queue)
+		return core.HistoryPage{}, apperrors.New(apperrors.Unsupported)
 	}
 	if offset == 0 {
 		var head int64
 		if len(result.Matches) > 0 {
 			head = result.Matches[0].GameID
 		}
-		r.rememberHead(puuid, head)
+		r.rememberHead(headKey, head)
 	}
 	r.pages.put(path, page, time.Now())
 	return page, nil
@@ -268,8 +286,24 @@ func (r *sgpHistory) rememberHead(puuid string, head int64) {
 		r.heads = make(map[string]cachedSGPHead, sgpHeadCacheCapacity)
 	}
 	if previous, ok := r.heads[puuid]; !ok || previous.gameID != head {
-		prefix := "/match-history-query/v1/products/lol/player/" + url.PathEscape(puuid) + "/SUMMARY?"
-		r.pages.removePrefix(prefix)
+		identity := strings.SplitN(puuid, "/q_", 2)[0]
+		prefix := "/match-history-query/v1/products/lol/player/" + url.PathEscape(identity) + "/SUMMARY?"
+		if puuid == identity {
+			for key := range r.heads {
+				if strings.HasPrefix(key, identity+"/q_") {
+					delete(r.heads, key)
+				}
+			}
+			r.pages.removePrefix(prefix)
+		} else {
+			tag := "&tag=q_" + strings.SplitN(puuid, "/q_", 2)[1]
+			for key, element := range r.pages.items {
+				if strings.HasPrefix(key, prefix) && strings.HasSuffix(key, tag) {
+					r.pages.order.Remove(element)
+					delete(r.pages.items, key)
+				}
+			}
+		}
 	}
 	if _, exists := r.heads[puuid]; !exists && len(r.heads) >= sgpHeadCacheCapacity {
 		var oldestKey string
@@ -280,7 +314,7 @@ func (r *sgpHistory) rememberHead(puuid string, head int64) {
 			}
 		}
 		delete(r.heads, oldestKey)
-		r.pages.removePrefix("/match-history-query/v1/products/lol/player/" + url.PathEscape(oldestKey) + "/SUMMARY?")
+		r.pages.removePrefix("/match-history-query/v1/products/lol/player/" + url.PathEscape(strings.SplitN(oldestKey, "/q_", 2)[0]) + "/SUMMARY?")
 	}
 	r.heads[puuid] = cachedSGPHead{gameID: head, usedAt: now}
 }
@@ -290,9 +324,11 @@ func (r *sgpHistory) getAuthorized(ctx context.Context, origin, path, token, cat
 }
 
 func (r *sgpHistory) getAuthorizedChecked(ctx context.Context, origin, path, token, category string, gate *serviceGate, check func() error) (raw []byte, status int, resultErr error) {
+	queued := time.Now()
 	if err := gate.acquire(ctx); err != nil {
 		return nil, apperrors.Status(err), err
 	}
+	diagnostics.ResponseStage(ctx, "queue", time.Since(queued))
 	defer gate.release()
 	version := gate.version()
 	if check != nil {

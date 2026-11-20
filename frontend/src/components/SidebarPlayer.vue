@@ -34,7 +34,7 @@ const heroRate = computed(() => data.value.arena ? heroArena.value?.firstPlaceRa
       <span class="sidebar-identity">
         <ParticipantAvatar :player="player" account :size="30"/>
         <span>
-          <span class="sidebar-name-row"><strong :title="playerName(player)">{{ playerName(player) }}</strong><RatingBadge v-if="queue && (data.rating || data.analysis?.score == null)" :analysis="data.ratingAnalysis ?? data.analysis" :rating="data.rating" :pending="player.identityState === 'known' && (!data.report || data.report.state === 'loading')" compact/></span>
+          <span class="sidebar-name-row"><strong :title="playerName(player)">{{ playerName(player) }}</strong><RatingBadge :response-id="data.report?.responseId" v-if="queue && (data.rating || data.analysis?.score == null)" :analysis="data.ratingAnalysis ?? data.analysis" :rating="data.rating" :pending="player.identityState === 'known' && (!data.report || data.report.state === 'loading')" compact/></span>
           <span class="sidebar-rank" :title="data.rating?.reason ?? rank.title">
             <template v-if="data.ranked">{{ rank.label }}</template>
             <template v-if="data.rating?.queueId === queue && data.analysis && data.mode">

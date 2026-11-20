@@ -34,6 +34,13 @@ var Default = &Collector{values: map[string]Metric{}}
 
 // Fixed allow-list: never retain paths, player IDs, credentials or error text.
 func Category(path string) string {
+	for _, kind := range []string{"scout", "history", "guide"} {
+		for _, stage := range []string{"queue", "source", "parse", "compute", "ready-to-publish", "publish-to-frame-ack", "end-to-end-ack", "ui"} {
+			if path == "/response/"+kind+"/"+stage {
+				return "response/" + kind + "/" + stage
+			}
+		}
+	}
 	switch path {
 	case "/ui/player-history-ready", "/ui/history-feedback", "/ui/history-cache-ready", "/ui/history-first-ready", "/ui/rating-render", "/ui/guide-render", "/compute/scout", "/compute/history-parse":
 		return strings.TrimPrefix(path, "/")

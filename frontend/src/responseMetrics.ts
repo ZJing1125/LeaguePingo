@@ -5,10 +5,12 @@ export type ResponseCategory = "player-history-ready" | "history-feedback" | "hi
 
 // Two animation frames place the measurement after a visible DOM update.
 // This is a local scheduling measurement; Windows presentation is checked on-device.
-export function recordVisibleResponse(category: ResponseCategory, started: number, valid: () => boolean) {
+export function recordVisibleResponse(category: ResponseCategory | null, started: number, valid: () => boolean, responseID = 0) {
+  const received = performance.now();
   if (typeof document === "undefined" || document.visibilityState !== "visible") return;
   void nextTick().then(() => requestAnimationFrame(() => requestAnimationFrame(() => {
     if (document.visibilityState !== "visible" || !valid()) return;
-    void Service.RecordUIResponse?.(category, performance.now() - started).catch(() => {});
+    if (responseID) void Service.AcknowledgeResponse?.(responseID, performance.now() - received).catch(() => {});
+    if (category) void Service.RecordUIResponse?.(category, performance.now() - started).catch(() => {});
   })));
 }

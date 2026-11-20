@@ -53,12 +53,31 @@ export interface HistoryMeta {
 }
 
 export interface HistoryPage {
+    "responseId"?: number;
+    "queueId"?: number;
+    "requests"?: number;
     "matches": Match[] | null;
     "meta": HistoryMeta;
     "offset": number;
     "nextOffset": number;
     "hasMore": boolean;
     "limitReason"?: string;
+}
+
+export interface HistoryPageRequest {
+    "mixedOnly"?: boolean;
+    "queueId": number;
+    "offset": number;
+    "mixedOffset": number;
+    "remainingPages": number;
+}
+
+export interface HistoryQueueVerification {
+    "queueId": number;
+    "state": string;
+    "mixed": number;
+    "filtered": number;
+    "compared": number;
 }
 
 /**
@@ -216,6 +235,7 @@ export interface MatchTimeline {
 }
 
 export interface Participant {
+    "responseId"?: number;
     "premadeLabel"?: string;
     "premadeGroup"?: string;
     "premadeSize"?: number;
@@ -336,6 +356,7 @@ export interface ScoutQueue {
 }
 
 export interface ScoutReport {
+    "responseId"?: number;
     "modelVersion"?: number;
     "state": string;
     "retained"?: boolean;

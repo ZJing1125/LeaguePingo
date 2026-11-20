@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
-const {mockWindowRuntime}=require('./window-runtime.cjs');
+const {mockWindowRuntime,normalizeServiceRequest}=require('./window-runtime.cjs');
 const {saveUIArtifact}=require('./ui-artifacts.cjs');
 async function main(){
  const browser=await chromium.launch({headless:true,executablePath:process.env.BROWSER_EXECUTABLE});
@@ -21,7 +21,7 @@ async function main(){
    const url=new URL(route.request().url());
    if(url.pathname==='/wails/custom.js')return route.fulfill({contentType:'text/javascript',body:''});
    if(url.pathname==='/wails/runtime'){
-    const request=route.request().postDataJSON();if(await desktop.handle(route,request))return;
+    const request=normalizeServiceRequest(route.request().postDataJSON());if(await desktop.handle(route,request))return;
     const method=methods[request.args?.methodID],args=request.args?.args??[];calls.push(method);let result;
     if(method==='Snapshot')result=snapshot;
     else if(method==='CurrentPlayer')result=self;

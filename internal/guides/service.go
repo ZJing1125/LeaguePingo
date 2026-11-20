@@ -312,6 +312,7 @@ func (s *Service) load(ctx context.Context, token uint64, base, q Query, force b
 		}
 		if err != nil {
 			lastError = s.recordFailureLocked(key, err)
+			s.retainFailedGuide(key)
 		} else {
 			s.acceptGuideLocked(query, key, g)
 		}
@@ -410,6 +411,8 @@ func (s *Service) cached(q Query) *Guide {
 	if json.Unmarshal(raw, &g) != nil || g.Query != q || g.FetchedAt.After(time.Now().Add(time.Minute)) || time.Since(g.FetchedAt) > 7*24*time.Hour || !strings.HasPrefix(g.SourceURL, "https://op.gg/") {
 		return nil
 	}
+	g.ResponseID = 0
+	normalizeGuideParts(&g)
 	s.cache[key] = &g
 	s.trimMemory()
 	return &g
@@ -441,7 +444,9 @@ func (s *Service) save(key string, g *Guide) {
 	if os.MkdirAll(s.dir, 0700) != nil {
 		return
 	}
-	raw, err := json.Marshal(g)
+	copy := *g
+	copy.ResponseID = 0
+	raw, err := json.Marshal(&copy)
 	if err != nil || len(raw) > 256<<10 {
 		return
 	}

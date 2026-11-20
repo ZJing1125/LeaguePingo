@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { recordVisibleResponse } from "../responseMetrics";
 import { uiText } from "../uiText";
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import * as Service from '../../bindings/leaguepingo/appservice';
 import type { Snapshot } from '../../bindings/leaguepingo/internal/core/models';
 import { useGuide, acceptGuide } from '../useGuide';
@@ -17,6 +18,10 @@ const self=computed(()=>props.snapshot?.participants?.find(p=>p.key===props.snap
 const relevant=computed(()=>state.value?.query.champion===self.value?.championId&&state.value?.scope===`${props.snapshot?.connectionId}:${props.snapshot?.selfKey||''}:${props.snapshot?.gameId||0}`);
 const current=computed(()=>relevant.value?state.value:null);
 const guide=computed(()=>current.value?.matchup??current.value?.base);
+watch(() => guide.value?.responseId, id => {
+ if (!id) return;
+ recordVisibleResponse(null,performance.now(),() => shown.value && guide.value?.responseId===id,id);
+}, {flush:"post"});
 const enemies=computed(()=>props.snapshot?.participants?.filter(p=>p.team==='enemy'&&p.championId)||[]);
 const sections=computed(()=>guide.value?.builds?.filter(s=>!condensed.value||s.label===uiText.guidePanel.coreItems)||[]);
 const tips=computed(()=>guide.value?.tips?.slice(0,condensed.value?2:undefined)||[]);
@@ -38,6 +43,8 @@ function changeOpponent(event:Event){void select(current.value?.query.position||
   <p v-if="current?.reference" class="guide-status">{{ uiText.guidePanel.rankedReference }}</p>
   <p v-if="current?.stale||current?.versionMismatch" class="guide-status">{{current.versionMismatch?uiText.guidePanel.versionMismatch:uiText.guidePanel.cached}}</p>
   <div v-if="guide" class="guide-content">
+   <p v-if="guide?.augmentsStatus && guide.augmentsStatus.state!=='ready'" role="status">{{uiText.guidePanel.partStatus(uiText.guidePanel.augments,guide.augmentsStatus.state)}}</p>
+   <p v-if="guide?.buildsStatus && guide.buildsStatus.state!=='ready'" role="status">{{uiText.guidePanel.partStatus(uiText.guidePanel.build,guide.buildsStatus.state)}}</p>
    <MayhemAugments v-if="['aram-mayhem','arena'].includes(current?.query.mode||'') && current?.base?.augments?.length" :key="`${current.scope}:${current.query.champion}`" :state="current" :compact="compact" :summary="summary"/>
    <p v-if="guide.referenceNote" class="guide-status">{{guide.referenceNote}}</p>
    <p v-if="guide.notice && current?.message!==guide.notice" class="guide-status">{{guide.notice}}</p>

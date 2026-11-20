@@ -98,7 +98,7 @@ function toggle(id: number) {
     <TransientNotice :message="error" banner-class="player-error" />
     <div class="player-columns">
       <aside v-if="!compact && !profileCollapsed" class="analysis-sidebar">
-        <PlayerAnalysisPanel v-if="scouting.report" :analysis="scouting.analysis" :rating="scouting.rating?.queueId === scouting.mode?.queueId ? scouting.rating ?? undefined : undefined" :mode="scouting.queueLabel"/>
+        <PlayerAnalysisPanel v-if="scouting.report" :response-id="scouting.report?.responseId" :analysis="scouting.analysis" :rating="scouting.rating?.queueId === scouting.mode?.queueId ? scouting.rating ?? undefined : undefined" :mode="scouting.queueLabel"/>
         <RankPanel :player="player"/>
         <RankPanel :player="player" queue="RANKED_FLEX_SR"/>
         <ChampionAnalysis :matches="analysisMatches" :scope="sampleLabel" :fetched-at="player.historyMeta?.fetchedAt"/>

@@ -165,6 +165,9 @@ export interface PlayerViewState {
   expanded: number[];
   sourceStamp?: string;
   sourceHead?: string;
+  mixedHasMore?: boolean;
+  queueFallbacks?: string[];
+  queuePages?: Record<string, { matches: Match[]; nextOffset: number; hasMore: boolean; direct: boolean; meta: HistoryMeta[] }>;
   extra?: Match[];
   pageMeta?: HistoryMeta[];
   nextOffset?: number;

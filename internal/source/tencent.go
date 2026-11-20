@@ -16,20 +16,21 @@ import (
 )
 
 type TencentLCU struct {
-	client      *lcu.Client
-	selfMu      sync.Mutex
-	selfPUUID   string
-	sgpMu       sync.Mutex
-	sgp         *sgpHistory
-	sgpEpoch    uint64
-	historyAuth sgpAuthLane
-	rankAuth    sgpAuthLane
-	channels    sgpChannels
-	pageReads   sharedHistoryPages
-	metaMu      sync.Mutex
-	meta        SessionMetadata
-	masteryMu   sync.Mutex
-	masteries   map[string]cachedMastery
+	client         *lcu.Client
+	selfMu         sync.Mutex
+	selfPUUID      string
+	sgpMu          sync.Mutex
+	sgp            *sgpHistory
+	sgpEpoch       uint64
+	historyAuth    sgpAuthLane
+	rankAuth       sgpAuthLane
+	channels       sgpChannels
+	pageReads      sharedHistoryPages
+	verifiedQueues map[string]map[int]bool
+	metaMu         sync.Mutex
+	meta           SessionMetadata
+	masteryMu      sync.Mutex
+	masteries      map[string]cachedMastery
 }
 
 func (*TencentLCU) Region() string { return "CN" }
@@ -42,6 +43,7 @@ func (s *TencentLCU) ResetIdentity() {
 	s.selfMu.Unlock()
 	s.sgpMu.Lock()
 	s.sgpEpoch++
+	s.verifiedQueues = nil
 	s.pageReads.reset()
 	if s.sgp != nil {
 		s.sgp.token, s.sgp.origin, s.sgp.platform = "", "", ""

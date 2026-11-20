@@ -7,7 +7,7 @@ import { codedError } from "../../src/errors";
 import { MAX_HISTORY_PAGES, SAMPLE_SCAN_BUDGET, useHistoryBrowser } from "../../src/historyBrowser";
 import { matches, page, player } from "./fixtures";
 
-vi.mock("../../bindings/leaguepingo/appservice", () => ({ HistoryPage: vi.fn() }));
+vi.mock("../../bindings/leaguepingo/appservice", () => ({ HistoryPage: vi.fn(), HistoryPageForQueue: vi.fn() }));
 
 // Mount the actual composable in Vue's lifecycle without a DOM/browser and
 // without loading the Wails runtime. Only the bridge boundary is mocked.
@@ -40,7 +40,8 @@ function deferred() {
   return { resolve, reject, call: response(promise) };
 }
 
-beforeEach(() => { vi.useFakeTimers(); vi.mocked(Service.HistoryPage).mockReset(); });
+beforeEach(() => { vi.useFakeTimers(); vi.mocked(Service.HistoryPage).mockReset();
+  vi.mocked(Service.HistoryPageForQueue).mockImplementation((key,connection,request) => Service.HistoryPage(key,connection,request.mixedOffset)); });
 afterEach(() => { dispose.splice(0).forEach(stop => stop()); vi.clearAllTimers(); vi.useRealTimers(); });
 
 describe("history browser request and state boundaries", () => {
@@ -216,4 +217,62 @@ describe("history browser request and state boundaries", () => {
     expect(props.state.page).toBe(2);
     expect(Service.HistoryPage).not.toHaveBeenCalled();
   });
+});
+
+describe("verified queue pagination", () => {
+  it("keeps filtered and mixed cursors separate across mode changes", async () => {
+    const {props,browser}=setup(matches(1,20,420),{queue:"2400"});
+    vi.mocked(Service.HistoryPageForQueue).mockReturnValueOnce(response({...page(0,matches(101,20,2400)),queueId:2400,requests:1}));
+    await browser.fill();
+    expect(props.state.nextOffset).toBe(20);
+    expect(props.state.queuePages?.["2400"]?.nextOffset).toBe(20);
+    expect(browser.matches.value).toHaveLength(20);
+    expect(browser.allMatches.value).toHaveLength(20);
+    vi.mocked(Service.HistoryPageForQueue).mockReturnValueOnce(response({...page(20,matches(121,20,2400)),queueId:2400,requests:1}));
+    await browser.goPage(2);
+    expect(vi.mocked(Service.HistoryPageForQueue).mock.calls.at(-1)?.[2]).toMatchObject({offset:20,mixedOffset:20});
+    expect(browser.pageMatches.value.map(m=>m.gameId)).toEqual(matches(121,20,2400).map(m=>m.gameId));
+    expect(props.state.nextOffset).toBe(20);
+  });
+  it("retains displayed filtered rows when the source falls back to mixed history",async()=>{
+    const {props,browser}=setup(matches(1),{queue:"2400"});
+    vi.mocked(Service.HistoryPageForQueue)
+      .mockReturnValueOnce(response({...page(0,matches(101,20,2400)),queueId:2400,requests:1}))
+      .mockReturnValueOnce(response({...page(20,matches(121,20,2400)),queueId:0,requests:2}));
+    await browser.fill();await browser.goPage(2);
+    expect(browser.matches.value).toHaveLength(40);
+    expect(props.state.queuePages?.["2400"]?.direct).toBe(false);
+    expect(props.state.nextOffset).toBe(40);
+  });
+  it("falls back from wrong queue content without advancing the filtered cursor",async()=>{
+    const {props,browser}=setup(matches(1),{queue:"2400"});
+    vi.mocked(Service.HistoryPageForQueue)
+      .mockReturnValueOnce(response({...page(0,matches(101,20,420)),queueId:2400,requests:1}))
+      .mockReturnValueOnce(response({...page(20,matches(101,20,2400)),queueId:0,requests:1}));
+    await browser.fill();
+    expect(props.state.queuePages?.["2400"]).toBeUndefined();
+    expect(browser.matches.value).toHaveLength(20);
+    expect(vi.mocked(Service.HistoryPageForQueue).mock.calls.at(-1)?.[2]).toMatchObject({mixedOnly:true,mixedOffset:20,offset:0});
+  });
+  it("falls back from partially repeated filtered pages and retains earlier rows",async()=>{
+    const {props,browser}=setup(matches(1),{queue:"2400"});
+    vi.mocked(Service.HistoryPageForQueue)
+      .mockReturnValueOnce(response({...page(0,matches(101,20,2400)),queueId:2400,requests:1}))
+      .mockReturnValueOnce(response({...page(20,[...matches(120,1,2400),...matches(121,19,2400)]),queueId:2400,requests:1}))
+      .mockReturnValueOnce(response({...page(20,matches(121,20,2400)),queueId:0,requests:1}));
+    await browser.fill();await browser.goPage(2);
+    expect(browser.matches.value).toHaveLength(40);
+    expect(props.state.queuePages?.["2400"]?.matches).toHaveLength(20);
+    expect(vi.mocked(Service.HistoryPageForQueue).mock.calls.at(-1)?.[2].mixedOnly).toBe(true);
+  });
+});
+
+it("can start a separate mode cursor after the mixed query reached its limit",async()=>{
+ const {props,browser}=setup(matches(1),{queue:"all"});
+ props.state.nextOffset=1000;props.state.hasMore=false;props.state.mixedHasMore=false;
+ props.state.queue="2400";
+ vi.mocked(Service.HistoryPageForQueue).mockReturnValueOnce(response({...page(0,matches(101,20,2400)),queueId:2400,requests:1}));
+ browser.changeCriteria();
+ await vi.waitFor(()=>expect(browser.matches.value).toHaveLength(20));
+ expect(vi.mocked(Service.HistoryPageForQueue).mock.calls.at(-1)?.[2]).toMatchObject({offset:0,mixedOffset:1000});
 });

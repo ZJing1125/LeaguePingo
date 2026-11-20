@@ -20,6 +20,18 @@ const metrics = computed(() => Object.entries(info.value?.requests ?? {}).flatMa
 const panel = ref<HTMLElement | null>(null);
 const opener = document.activeElement;
 let alive = true;
+const queueChecking=ref(false), queueResult=ref("");
+let queueCheck:ReturnType<typeof Service.VerifyHistoryQueue>|undefined;
+async function verifyQueue() {
+ if(queueChecking.value) return;
+ queueChecking.value=true;queueResult.value="";
+ try {
+  queueCheck=Service.VerifyHistoryQueue();
+  const result=await queueCheck;
+  if(alive) queueResult.value=uiText.settingsPanel.queueResult(result.state,result.compared);
+ } catch(reason) {if(alive) queueResult.value=errorMessage(reason);}
+ finally {queueChecking.value=false;queueCheck=undefined;}
+}
 function trapFocus(event: KeyboardEvent) {
   if (event.key !== 'Tab' || !panel.value) return;
   const controls = Array.from(panel.value.querySelectorAll<HTMLElement>('button:not(:disabled), select:not(:disabled), input:not(:disabled), summary, [tabindex="0"]')).filter(e => e.getClientRects().length);
@@ -70,7 +82,7 @@ async function exportReport() {
   finally { busy.value = false; }
 }
 onMounted(() => { panel.value?.focus(); void load(); });
-onUnmounted(() => { alive = false; void nextTick(() => { if (opener instanceof HTMLElement && opener.isConnected) opener.focus({ preventScroll: true }); }); });
+onUnmounted(() => { alive = false; queueCheck?.cancel(); void nextTick(() => { if (opener instanceof HTMLElement && opener.isConnected) opener.focus({ preventScroll: true }); }); });
 </script>
 <template>
   <div class="settings-backdrop" @click.self="$emit('close')">
@@ -113,7 +125,7 @@ onUnmounted(() => { alive = false; void nextTick(() => { if (opener instanceof H
           <h2>{{ uiText.settingsPanel.diagnostics }}</h2><p class="muted">{{ uiText.settingsPanel.diagnosticsHelp }}</p>
           <div v-if="info" class="runtime-summary"><span>{{ uiText.settingsPanel.heap((info.goHeapBytes / 1048576).toFixed(1)) }}</span><span>{{ uiText.settingsPanel.goroutines(info.goroutines) }}</span><small>{{ info.performanceScope }}</small></div>
           <table v-if="metrics.length" class="diagnostic-table"><thead><tr><th>{{ uiText.settingsPanel.category }}</th><th>{{ uiText.settingsPanel.requests }}</th><th>{{ uiText.settingsPanel.latency }}</th></tr></thead><tbody><tr v-for="metric in metrics" :key="metric.category"><td>{{ metric.category }}</td><td>{{ metric.calls }} / {{ metric.failed }}</td><td>{{ metric.calls ? Math.round(metric.totalMs / metric.calls) : '—' }} / {{ metric.maxMs }}</td></tr></tbody></table>
-          <div class="settings-actions"><button class="secondary" :disabled="busy" @click="load">{{ uiText.settingsPanel.refreshDiagnostics }}</button><button class="secondary" :disabled="busy" @click="exportReport">{{ uiText.settingsPanel.exportDiagnostics }}</button></div>
+          <div class="settings-actions"><button class="secondary" :disabled="busy" @click="load">{{ uiText.settingsPanel.refreshDiagnostics }}</button><button class="secondary" :disabled="busy" @click="exportReport">{{ uiText.settingsPanel.exportDiagnostics }}</button><button type="button" class="secondary" :disabled="busy || queueChecking" @click="verifyQueue">{{ queueChecking ? uiText.settingsPanel.queueChecking : uiText.settingsPanel.verifyQueue }}</button><span v-if="queueResult" role="status">{{queueResult}}</span></div>
         </template>
         <p v-if="info?.settingsWarning" class="quality-warning" role="status">{{ info.settingsWarning }}</p>
         <p v-if="error" class="error-banner" role="alert">{{ error }}</p><p v-if="message" class="settings-message" role="status">{{ message }}</p>

@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
-const { mockWindowRuntime } = require("./window-runtime.cjs");
+const { mockWindowRuntime, normalizeServiceRequest } = require("./window-runtime.cjs");
 
 async function main() {
   const browser = await chromium.launch({
@@ -106,9 +106,9 @@ async function main() {
       if (url.pathname === "/wails/custom.js")
         return route.fulfill({ contentType: "text/javascript", body: "" });
       if (url.pathname === "/wails/runtime") {
-        if (await desktopWindow.handle(route, route.request().postDataJSON()))
+        if (await desktopWindow.handle(route, normalizeServiceRequest(route.request().postDataJSON())))
           return;
-        const request = route.request().postDataJSON(),
+        const request = normalizeServiceRequest(route.request().postDataJSON()),
           method = methods[request.args?.methodID],
           args = request.args?.args ?? [];
         calls.push({ method, args });

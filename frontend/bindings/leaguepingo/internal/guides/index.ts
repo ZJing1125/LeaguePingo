@@ -6,6 +6,7 @@ export type {
     Build,
     BuildSection,
     Guide,
+    GuidePart,
     Query,
     State,
     Tip

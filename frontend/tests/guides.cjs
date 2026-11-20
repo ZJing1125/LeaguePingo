@@ -1,7 +1,7 @@
 ﻿// Synthetic bridge only; no live client, OP.GG traffic, or player identifiers.
 const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');const path=require('node:path');
-const {chromium}=require('playwright');const {mockWindowRuntime}=require('./window-runtime.cjs');
+const {chromium}=require('playwright');const {mockWindowRuntime,normalizeServiceRequest}=require('./window-runtime.cjs');
 const {makePlayer,now}=require('./analysis-fixture.cjs');
 (async()=>{const browser=await chromium.launch({headless:true,executablePath:process.env.BROWSER_EXECUTABLE});try{
  const context=await browser.newContext({viewport:{width:1280,height:900}});
@@ -16,7 +16,7 @@ const {makePlayer,now}=require('./analysis-fixture.cjs');
  async function open(view,width){const page=await context.newPage();pages.push(page);await page.setViewportSize({width,height:900});page.on('pageerror',e=>errors.push(e.message));const runtime=mockWindowRuntime(page);
  await page.route('**/*',async route=>{const url=new URL(route.request().url());assert.equal(url.origin,'http://127.0.0.1:43411');
  if(url.pathname==='/wails/custom.js')return route.fulfill({contentType:'text/javascript',body:''});
- if(url.pathname==='/wails/runtime'){const r=route.request().postDataJSON();if(await runtime.handle(route,r))return;const name=methods[r.args?.methodID],args=r.args?.args||[];calls.push({name,args});let result=null;
+ if(url.pathname==='/wails/runtime'){const r=normalizeServiceRequest(route.request().postDataJSON());if(await runtime.handle(route,r))return;const name=methods[r.args?.methodID],args=r.args?.args||[];calls.push({name,args});let result=null;
  if(name==='Snapshot')result=snapshot;
  else if(name==='GuideStatus')result=state;
  else if(name==='GuideCandidates'){assert.equal(args[0],state.scope);assert.equal(args[1],state.query.champion);state={...state,revision:state.revision+1,candidates:args[2]};result=state;for(const p of pages)await p.evaluate(data=>window._wails.dispatchWailsEvent({name:'leaguepingo:guide',data}),state);}
@@ -54,8 +54,9 @@ const {makePlayer,now}=require('./analysis-fixture.cjs');
 
  const augments=Array.from({length:8},(_,i)=>({id:1000+i,name:`强化${i+1}`,description:i===0?'对手控制较多时提供护盾，保持生存。':'提升技能与装备的配合效果。',tier:i%6,rarity:[1,4,8][i%3],performance:i===0?0:80+i,popularity:2+i/10}));
  snapshot.queueId=2400;
- state={...state,revision:state.revision+1,status:'loading',message:'',query:{mode:'aram-mayhem',champion:3,position:'mid',opponent:0,patch:''},modeLabel:'海克斯大乱斗',base:{...guide,augments,builds:[],runes:[],skills:[],sourceUrl:'https://op.gg/zh-cn/lol/modes/aram-mayhem/galio/build'},matchup:null,candidates:[],stale:false};
+ state={...state,revision:state.revision+1,status:'loading',message:'',query:{mode:'aram-mayhem',champion:3,position:'mid',opponent:0,patch:''},modeLabel:'海克斯大乱斗',base:{...guide,responseId:41,augmentsStatus:{state:'ready',version:'16.21',fetchedAt:now},buildsStatus:{state:'loading',version:'',fetchedAt:null},augments,builds:[],runes:[],skills:[],sourceUrl:'https://op.gg/zh-cn/lol/modes/aram-mayhem/galio/build'},matchup:null,candidates:[],stale:false};
  for(const p of pages)await p.evaluate(({snapshot,state})=>{window._wails.dispatchWailsEvent({name:'leaguepingo:snapshot',data:snapshot});window._wails.dispatchWailsEvent({name:'leaguepingo:guide',data:state});},{snapshot,state});
+ await side.getByText('出装读取中',{exact:true}).waitFor();
  await side.getByRole('checkbox',{name:'比较强化1',exact:true}).waitFor();
  await side.getByLabel('英雄攻略与模式适配：实验性',{exact:true}).waitFor();
  assert.equal(calls.filter(c=>c.name==='SelectGuide').length,1,'experimental labels must not fetch guides');
@@ -64,8 +65,9 @@ const {makePlayer,now}=require('./analysis-fixture.cjs');
  await side.getByRole('checkbox',{name:'比较强化1',exact:true}).check();
  await side.getByRole('checkbox',{name:'比较强化2',exact:true}).check();
  await side.getByRole('checkbox',{name:'比较强化3',exact:true}).check();
- state={...state,revision:state.revision+1,status:'ready',base:{...state.base,builds:guide.builds,skills:['Q','W','E']}};
+ state={...state,revision:state.revision+1,status:'ready',base:{...state.base,responseId:42,buildsStatus:{state:'ready',version:'16.21',fetchedAt:now},builds:guide.builds,skills:['Q','W','E']}};
  for(const p of pages)await p.evaluate(data=>window._wails.dispatchWailsEvent({name:'leaguepingo:guide',data}),state);
+ await side.getByText('出装读取中',{exact:true}).waitFor({state:'detached'});
  assert.equal(await side.getByRole('checkbox',{name:'比较强化1',exact:true}).isChecked(),true,'late build reset available augment selection');
  await overlay.getByRole('button',{name:'本局攻略',exact:true}).click();
  await overlay.locator('.compare-augment').nth(2).waitFor();

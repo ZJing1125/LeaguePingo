@@ -204,6 +204,7 @@ func validStoredPage(page core.HistoryPage, offset int) bool {
 }
 
 func sanitizeHistoryPage(page core.HistoryPage) core.HistoryPage {
+	page.ResponseID, page.QueueID, page.Requests = 0, 0, 0
 	page.Meta.Service = nil
 	page.Meta.CheckedAt = nil
 	if page.Meta.Reasons != nil {

@@ -27,6 +27,10 @@ import * as readycheck$0 from "./internal/readycheck/models.js";
 // @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
+export function AcknowledgeResponse(id: number, uiMS: number): $CancellablePromise<void> {
+    return $Call.ByID(3184842309, id, uiMS);
+}
+
 export function AutoAcceptStatus(): $CancellablePromise<readycheck$0.State> {
     return $Call.ByID(1282781515);
 }
@@ -93,6 +97,10 @@ export function HideOverlay(): $CancellablePromise<$models.OverlayState> {
 
 export function HistoryPage(key: string, connectionID: number, offset: number): $CancellablePromise<core$0.HistoryPage> {
     return $Call.ByID(536984513, key, connectionID, offset);
+}
+
+export function HistoryPageForQueue(key: string, connection: number, request: core$0.HistoryPageRequest): $CancellablePromise<core$0.HistoryPage> {
+    return $Call.ByID(1281589643, key, connection, request);
 }
 
 export function Info(): $CancellablePromise<$models.AppInfo> {
@@ -200,6 +208,10 @@ export function Snapshot(): $CancellablePromise<core$0.Snapshot> {
 
 export function ToggleOverlay(): $CancellablePromise<boolean> {
     return $Call.ByID(2694715394);
+}
+
+export function VerifyHistoryQueue(): $CancellablePromise<core$0.HistoryQueueVerification> {
+    return $Call.ByID(2483849952);
 }
 
 export function WaitForQueryIdle(): $CancellablePromise<void> {

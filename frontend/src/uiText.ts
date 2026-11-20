@@ -228,6 +228,9 @@ export const uiText = {
     unknownResource: (id: unknown) => `未知资源 #${id}`,
   },
   guidePanel: {
+    augments: "强化",
+    build: "出装",
+    partStatus: (kind:string,state:string) => `${kind}${({pending:"待加载",loading:"读取中",failed:"读取失败",retained:"暂用上次结果"} as Record<string,string>)[state] ?? ""}`,
     coreItems: "核心装备",
     liveTitle: "本局英雄攻略",
     label: "英雄攻略与模式适配",
@@ -870,6 +873,9 @@ export const uiText = {
     missingShards: "属性碎片未记录",
   },
   settingsPanel: {
+    verifyQueue: "核验海克斯模式查询",
+    queueChecking: "正在核验，最多45秒…",
+    queueResult: (state:string,compared:number) => state==="verified" ? `已核对 ${compared} 场，本次连接已启用海克斯直查` : state==="insufficient" ? "海克斯样本不足21场，继续使用现有查询" : "对照结果未通过，继续使用现有查询",
     appearance: "外观",
     about: "诊断与关于",
     saved: "游戏辅助设置已保存。",

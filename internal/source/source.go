@@ -152,3 +152,10 @@ type SessionMetadata struct {
 type GroupingSource interface {
 	Grouping(context.Context, int64) ([]core.Participant, error)
 }
+
+// Queue reads use a separately verified scope and never populate mixed disk pages.
+type QueueHistorySource interface {
+	SupportsHistoryQueue(int) bool
+	HistoryPageForQueue(context.Context, string, int, int) (core.HistoryPage, error)
+	VerifyHistoryQueue(context.Context, int) (core.HistoryQueueVerification, error)
+}

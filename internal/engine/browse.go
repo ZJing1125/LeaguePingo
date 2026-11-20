@@ -7,6 +7,7 @@ import (
 
 	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/core"
+	"leaguepingo/internal/diagnostics"
 	"leaguepingo/internal/source"
 )
 
@@ -384,7 +385,9 @@ func (e *Engine) fetchHistoryPage(ctx context.Context, client Client, player cor
 	if !ok {
 		return core.HistoryPage{}, apperrors.New(apperrors.Unsupported)
 	}
+	queued := time.Now()
 	requestCtx, release, err := e.scheduler.acquireAutomatic(ctx)
+	diagnostics.ResponseStage(ctx, "queue", time.Since(queued))
 	if err != nil {
 		return core.HistoryPage{}, err
 	}
