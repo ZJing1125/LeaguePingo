@@ -12,6 +12,7 @@ func MergeScoutReports(old *ScoutReport, next ScoutReport) ScoutReport {
 		return next
 	}
 	result := *old
+	result.ResponseID = next.ResponseID
 	result.ModelVersion = max(old.ModelVersion, next.ModelVersion)
 	result.State, result.Retained, result.Message = next.State, true, "保留上次统计"
 	result.Queues = append([]ScoutQueue(nil), old.Queues...)
