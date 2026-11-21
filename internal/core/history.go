@@ -302,16 +302,6 @@ func historyPosition(game historyGame, p historyParticipant) string {
 	}
 }
 
-func positiveIDs(values ...*int) []int {
-	result := []int{}
-	for _, value := range values {
-		if value != nil && *value > 0 {
-			result = append(result, *value)
-		}
-	}
-	return result
-}
-
 func historyName(game historyGame, p historyParticipant) string {
 	if p.GameName != "" && p.TagLine != "" {
 		return p.GameName + "#" + p.TagLine
