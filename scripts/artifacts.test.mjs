@@ -65,6 +65,87 @@ test('running obsolete build and its evidence survive; later cleanup removes the
   assert.ok(!exists('bin/ui-v1.png'));
 });
 
+test('reconciliation previews deleted builds and missing evidence, preserves survivors and unknown files', t => {
+  const { root, m, exists } = fixture(t, [true, false]);
+  m.migrateEvidence();
+  fs.unlinkSync(path.join(root, 'bin/leaguepingo-v1.exe'));
+  fs.unlinkSync(path.join(root, 'artifacts/leaguepingo-v2/ui-v2.png'));
+  fs.writeFileSync(path.join(root, 'artifacts/leaguepingo-v1/settings.json'), '{}');
+  const manifest = path.join(root, 'bin/artifacts.json');
+  const before = fs.readFileSync(manifest);
+  const survivor = m.read().builds[1];
+  assert.throws(() => m.audit(true)); // The former build entry failed here.
+  const preview = m.reconcile();
+  assert.deepEqual(preview.removedBuilds, ['bin/leaguepingo-v1.exe']);
+  assert.deepEqual(preview.missingEvidence, ['artifacts/leaguepingo-v2/ui-v2.png']);
+  assert.deepEqual(preview.files, ['artifacts/leaguepingo-v1/ui-v1.png']);
+  assert.deepEqual(fs.readFileSync(manifest), before);
+  assert.ok(exists(preview.files[0]));
+  m.reconcile(true);
+  assert.deepEqual(m.read().builds, [{ ...survivor, evidence: [] }]);
+  assert.ok(exists('bin/leaguepingo-v2.exe'));
+  assert.ok(!exists(preview.files[0]));
+  assert.ok(exists('artifacts/leaguepingo-v1/settings.json'));
+  assert.equal(m.audit().current.accepted, false);
+  const repaired = fs.readFileSync(manifest);
+  assert.deepEqual(m.reconcile(true).removedBuilds, []);
+  assert.deepEqual(fs.readFileSync(manifest), repaired);
+});
+
+test('reconciliation handles deleted current/all builds and missing retired evidence', t => {
+  const { root, m, exists } = fixture(t, [true, false]);
+  const state = m.read();
+  state.retired.push(state.builds[1].evidence.pop());
+  fs.writeFileSync(path.join(root, 'bin/artifacts.json'), JSON.stringify(state));
+  fs.unlinkSync(path.join(root, 'bin/ui-v2.png'));
+  fs.unlinkSync(path.join(root, 'bin/leaguepingo-v2.exe'));
+  m.reconcile(true);
+  assert.equal(m.audit().current.file, 'bin/leaguepingo-v1.exe');
+  assert.deepEqual(m.read().retired, []);
+  fs.unlinkSync(path.join(root, 'bin/leaguepingo-v1.exe'));
+  m.reconcile(true);
+  assert.deepEqual(m.read().builds, []);
+  assert.equal(m.audit(true).current, null);
+  assert.ok(!exists('bin/ui-v1.png'));
+  fs.unlinkSync(path.join(root, 'bin/artifacts.json'));
+  assert.deepEqual(m.reconcile(true).removedBuilds, []);
+  assert.ok(!exists('bin/artifacts.json'), 'a fresh checkout is still initialized by prepare');
+});
+
+test('reconciliation refuses running paths, failed process discovery and changed orphan evidence before writes', t => {
+  const { root, m, exists } = fixture(t);
+  fs.unlinkSync(path.join(root, 'bin/leaguepingo-v1.exe'));
+  const manifest = path.join(root, 'bin/artifacts.json');
+  const before = fs.readFileSync(manifest);
+  const busy = manager(root, () => [path.join(root, 'bin/leaguepingo-v1.exe')]);
+  assert.throws(() => busy.reconcile(true), /running/i);
+  const unavailable = manager(root, () => { throw new Error('process discovery failed'); });
+  assert.throws(() => unavailable.reconcile(true), /process discovery failed/);
+  fs.appendFileSync(path.join(root, 'bin/ui-v1.png'), 'changed');
+  assert.throws(() => m.reconcile(true), /Changed file/);
+  assert.deepEqual(fs.readFileSync(manifest), before);
+  assert.ok(exists('bin/ui-v1.png') && exists('bin/leaguepingo-v2.exe'));
+});
+
+test('reconciliation preflights pending manifest writes and a deleted executable reappearing', t => {
+  const { root, m, exists } = fixture(t);
+  fs.unlinkSync(path.join(root, 'bin/leaguepingo-v1.exe'));
+  fs.writeFileSync(path.join(root, 'bin/artifacts-next.json'), 'pending write');
+  const manifest = path.join(root, 'bin/artifacts.json');
+  const before = fs.readFileSync(manifest);
+  assert.throws(() => m.reconcile(true), /manifest|exists/i);
+  assert.ok(exists('bin/ui-v1.png'));
+  assert.deepEqual(fs.readFileSync(manifest), before);
+  fs.unlinkSync(path.join(root, 'bin/artifacts-next.json'));
+  const reappeared = manager(root, () => {
+    fs.writeFileSync(path.join(root, 'bin/leaguepingo-v1.exe'), 'replacement');
+    return [];
+  });
+  assert.throws(() => reappeared.reconcile(true), /reappeared/i);
+  assert.ok(exists('bin/ui-v1.png'));
+  assert.deepEqual(fs.readFileSync(manifest), before);
+});
+
 test('process discovery failure, modified old files, and missing survivors fail closed', t => {
   const { root, m, exists } = fixture(t);
   const unavailable = manager(root, () => { throw new Error('process discovery failed'); });
@@ -171,13 +252,22 @@ test('CLI write approval and exclusive lock cannot be bypassed by failed invocat
   fs.copyFileSync(fileURLToPath(new URL('./artifacts.mjs', import.meta.url)), path.join(root, 'scripts/artifacts.mjs'));
   const cli = (...args) => spawnSync(process.execPath, ['scripts/artifacts.mjs', ...args], { cwd: root, encoding: 'utf8' });
   assert.notEqual(cli('accept', '--file', 'bin/leaguepingo-v3.exe').status, 0);
+  fs.unlinkSync(path.join(root, 'bin/ui-v2.png'));
+  const before = fs.readFileSync(path.join(root, 'bin/artifacts.json'));
+  const preview = cli('reconcile');
+  assert.equal(preview.status, 0, preview.stderr);
+  assert.deepEqual(JSON.parse(preview.stdout).missingEvidence, ['bin/ui-v2.png']);
+  assert.deepEqual(fs.readFileSync(path.join(root, 'bin/artifacts.json')), before);
   fs.writeFileSync(path.join(root, 'bin/artifacts.lock'), 'another process');
   assert.notEqual(cli('accept', '--file', 'bin/leaguepingo-v3.exe', '--apply').status, 0);
+  assert.notEqual(cli('reconcile', '--apply').status, 0);
   assert.equal(fs.readFileSync(path.join(root, 'bin/artifacts.lock'), 'utf8'), 'another process');
+  assert.deepEqual(fs.readFileSync(path.join(root, 'bin/artifacts.json')), before);
   assert.ok(exists('bin/leaguepingo-v1.exe'));
 });
 
-test('build shell: test/compiler failure preserves old builds; success registers then rotates', { skip: process.platform !== 'win32' || process.env.LEAGUEPINGO_VERIFY_SCOPE === 'portable' }, t => {
+const nativeBuild = { skip: process.platform !== 'win32' || process.env.LEAGUEPINGO_VERIFY_SCOPE === 'portable' };
+function buildFixture(t) {
   const { root, m, exists } = fixture(t, [true, true]);
   fs.mkdirSync(path.join(root, 'scripts'));
   fs.mkdirSync(path.join(root, 'test-tools'));
@@ -204,8 +294,13 @@ test('build shell: test/compiler failure preserves old builds; success registers
   const binary = 'bin/leaguepingo-v3.exe';
   const bash = process.env.LEAGUEPINGO_BASH || 'bash';
   const nodeFolder = path.dirname(process.execPath).replaceAll('\\', '/');
-  const run = () => spawnSync(bash, ['-c', `export PATH="$PWD/test-tools:${nodeFolder}:$PATH"; bash scripts/build.sh ${binary}`],
+  const run = (output = binary) => spawnSync(bash, ['-c', `export PATH="$PWD/test-tools:${nodeFolder}:$PATH"; bash scripts/build.sh ${output}`],
     { cwd: root, encoding: 'utf8', timeout: 30000 });
+  return { root, m, exists, binary, run };
+}
+
+test('build shell: test/compiler failure preserves old builds; success registers then rotates', nativeBuild, t => {
+  const { root, m, exists, binary, run } = buildFixture(t);
   fs.writeFileSync(path.join(root, 'scripts/verify.sh'), 'exit 5\n');
   const verifyFailure = run();
   assert.equal(verifyFailure.status, 5, verifyFailure.stderr + verifyFailure.stdout);
@@ -222,4 +317,31 @@ test('build shell: test/compiler failure preserves old builds; success registers
   assert.ok(exists(binary) && exists('bin/leaguepingo-v2.exe') && !exists('bin/leaguepingo-v1.exe'));
   assert.equal(m.read().builds.at(-1).accepted, false);
   assert.notEqual(run().status, 0); // Existing output is never overwritten.
+});
+
+test('build shell: deleted old files do not block verification, recovery from failure or a new build', nativeBuild, t => {
+  const { root, m, exists, binary, run } = buildFixture(t);
+  fs.unlinkSync(path.join(root, 'bin/leaguepingo-v1.exe'));
+  fs.unlinkSync(path.join(root, 'bin/ui-v2.png'));
+  fs.writeFileSync(path.join(root, 'scripts/verify.sh'), 'exit 5\n');
+  const failure = run();
+  assert.equal(failure.status, 5, failure.stderr + failure.stdout);
+  assert.ok(!exists(binary) && !exists('bin/.build-lock'));
+  assert.ok(exists('bin/leaguepingo-v2.exe') && !exists('bin/ui-v1.png'));
+  assert.deepEqual(m.read().builds.map(b => [b.file, b.evidence]), [['bin/leaguepingo-v2.exe', []]]);
+  fs.writeFileSync(path.join(root, 'scripts/verify.sh'), 'exit 0\n');
+  fs.writeFileSync(path.join(root, 'fail-compiler'), 'yes');
+  const compilerFailure = run();
+  assert.equal(compilerFailure.status, 7, compilerFailure.stderr + compilerFailure.stdout);
+  assert.ok(!exists(binary) && exists('bin/leaguepingo-v2.exe'));
+  fs.unlinkSync(path.join(root, 'fail-compiler'));
+  const success = run();
+  assert.equal(success.status, 0, success.stderr + success.stdout);
+  assert.ok(exists(binary) && exists('bin/leaguepingo-v2.exe'));
+  assert.equal(m.audit().current.accepted, false);
+  fs.unlinkSync(path.join(root, 'bin/leaguepingo-v2.exe'));
+  fs.unlinkSync(path.join(root, binary));
+  const allDeleted = run('bin/leaguepingo-v4.exe');
+  assert.equal(allDeleted.status, 0, allDeleted.stderr + allDeleted.stdout);
+  assert.deepEqual(m.audit().retained, ['bin/leaguepingo-v4.exe']);
 });

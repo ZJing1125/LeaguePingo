@@ -23,6 +23,8 @@ test('policy regression mutations are rejected', () => {
     ['build/windows/Taskfile.yml', '      - bash scripts/build.sh', '      - bash scripts/build.sh\n      - go build .'],
     ['build/config.yml', 'cmd: wails3 task windows:dev:build', 'cmd: wails3 build DEV=true'],
     ['scripts/build.sh', 'bash scripts/verify.sh', 'echo skipped verification'],
+    ['scripts/build.sh', 'node scripts/artifacts.mjs reconcile --apply', 'echo skipped reconciliation'],
+    ['scripts/build.sh', 'trap finish_build EXIT\n', ''],
     ['scripts/build.sh', 'node scripts/artifacts.mjs audit\n', 'echo no audit\n'],
     ['scripts/dev.sh', '-o artifacts/hot-reload/leaguepingo-hot-reload.exe', '-o bin/leaguepingo.exe'],
     ['scripts/verify.sh', 'scripts/workflow.test.mjs', ''],
@@ -52,6 +54,12 @@ test('policy regression mutations are rejected', () => {
     const changed = files[file].replace(before, after);
     assert.throws(() => checkWorkflow(f => f === file ? changed : files[f]), undefined, file);
   }
+});
+test('historical artifact reconciliation cannot move outside the build lock', () => {
+  const command = 'node scripts/artifacts.mjs reconcile --apply\n';
+  const beforeLock = files['scripts/build.sh'].replace(command, '')
+    .replace('mkdir "$task_lock"', command + 'mkdir "$task_lock"');
+  assert.throws(() => checkWorkflow(f => f === 'scripts/build.sh' ? beforeLock : files[f]), /step order/);
 });
 test('unsupported environment flags fail instead of silently changing the target', () => {
   assert.doesNotThrow(() => checkEnvironment({}, 'win32', 'x64'));

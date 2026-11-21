@@ -95,6 +95,55 @@ export function manager(root, processes = runningExecutables) {
     const rollback = previous.findLast(b => b.accepted) ?? previous.at(-1);
     return new Set([latest.file, rollback?.file].filter(Boolean));
   }
+  function removeEmptyDirectories(items) {
+    for (const item of items) {
+      let dir = path.posix.dirname(item.file);
+      while (dir !== 'bin' && dir !== 'artifacts') {
+        const target = safe(dir);
+        if (!fs.existsSync(target) || fs.readdirSync(target).length) break;
+        fs.rmdirSync(target);
+        dir = path.posix.dirname(dir);
+      }
+    }
+  }
+  // Historical output may have been deleted outside this manager. Reconcile
+  // only absent files; never reconstruct hashes or infer acceptance from disk.
+  function reconcile(apply = false) {
+    const report = { removedBuilds: [], missingEvidence: [], files: [], applied: apply };
+    if (!fs.existsSync(safe(manifest))) return report;
+    const state = read();
+    const missing = state.builds.filter(b => !fs.existsSync(executable(b.file)));
+    const absent = [...state.builds.flatMap(b => b.evidence), ...state.retired]
+      .filter(e => !fs.existsSync(evidence(e.file)));
+    report.removedBuilds = missing.map(b => b.file);
+    report.missingEvidence = absent.map(e => e.file);
+    if (!missing.length && !absent.length) return report;
+    if (missing.length) {
+      const running = new Set(processes().map(p => path.resolve(p).toLowerCase()));
+      if (missing.some(b => running.has(executable(b.file).toLowerCase()))) {
+        throw new Error('Missing build path is still running; reconciliation refused');
+      }
+    }
+    // Check the entire orphan-evidence batch before deleting anything. These
+    // files belong to an already absent EXE; available old programs stay intact.
+    const targets = missing.flatMap(b => b.evidence).filter(e => fs.existsSync(evidence(e.file)));
+    targets.forEach(item => verified(item));
+    const folders = missing.map(b => safe(`artifacts/${path.basename(b.file, '.exe')}`));
+    if (missing.some(b => fs.existsSync(executable(b.file)))) throw new Error('Deleted build reappeared; reconciliation refused');
+    report.files = targets.map(e => e.file);
+    if (!apply) return report;
+    if (fs.existsSync(safe('bin/artifacts-next.json'))) throw new Error('Pending manifest write; reconciliation refused');
+    for (const item of targets) if (verified(item, true)) fs.unlinkSync(safe(item.file));
+    state.builds = state.builds.filter(b => !missing.includes(b));
+    for (const b of state.builds) b.evidence = b.evidence.filter(e => fs.existsSync(evidence(e.file)));
+    state.retired = state.retired.filter(e => fs.existsSync(evidence(e.file)));
+    save(state);
+    removeEmptyDirectories(targets);
+    for (const folder of folders) {
+      if (fs.existsSync(folder) && !fs.readdirSync(folder).length) fs.rmdirSync(folder);
+    }
+    return report;
+  }
   function clean(apply = false) {
     const state = read();
     const retained = keep(state);
@@ -120,15 +169,7 @@ export function manager(root, processes = runningExecutables) {
       save(state);
       // Remove only empty directories belonging to deleted files. Unknown files,
       // including isolated settings, keep their directories intact.
-      for (const item of targets) {
-        let dir = path.posix.dirname(item.file);
-        while (dir !== 'bin' && dir !== 'artifacts') {
-          const target = safe(dir);
-          if (!fs.existsSync(target) || fs.readdirSync(target).length) break;
-          fs.rmdirSync(target);
-          dir = path.posix.dirname(dir);
-        }
-      }
+      removeEmptyDirectories(targets);
     }
     return report;
   }
@@ -282,7 +323,7 @@ export function manager(root, processes = runningExecutables) {
     for (const item of originals) { verified(item); fs.unlinkSync(safe(item.file)); }
     return moves.length;
   }
-  return { safe, read, clean, audit, checkOutput, prepare, register, accept, attachEvidence, bootstrap, migrateEvidence, discard };
+  return { safe, read, reconcile, clean, audit, checkOutput, prepare, register, accept, attachEvidence, bootstrap, migrateEvidence, discard };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -303,6 +344,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       ownsLock = true;
     }
     if (command === 'plan' || command === 'clean') console.log(JSON.stringify(m.clean(command === 'clean' && apply), null, 2));
+    else if (command === 'reconcile') console.log(JSON.stringify(m.reconcile(apply), null, 2));
     else if (command === 'audit') console.log(JSON.stringify(m.audit(args.includes('--allow-empty')), null, 2));
     else if (command === 'current') console.log(m.audit().current.file);
     else if (command === 'check-output') m.checkOutput(value('--file'));

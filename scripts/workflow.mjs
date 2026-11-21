@@ -162,13 +162,15 @@ export function checkWorkflow(read) {
   if (/cmd: wails3 (?:build|task run)/.test(contents['build/config.yml'])) throw new Error('Hot reload routes through delivery');
   for (const text of ['bash scripts/build.sh', 'node scripts/artifacts.mjs audit', '最近已验收', '用户明确验收']) requireText('AGENTS.md', text);
   for (const text of ['node scripts/workflow.mjs environment', 'node scripts/workflow.mjs check',
-    'node scripts/artifacts.mjs audit --allow-empty', 'bash scripts/verify.sh',
+    'node scripts/artifacts.mjs reconcile --apply', 'node scripts/artifacts.mjs audit --allow-empty', 'bash scripts/verify.sh',
     'node scripts/artifacts.mjs register', 'node scripts/artifacts.mjs clean --apply',
     'node scripts/artifacts.mjs audit\n']) requireText('scripts/build.sh', text);
   requireText('scripts/build.sh', 'node scripts/version.mjs check');
   requireText('scripts/build.sh', 'bash scripts/sign-windows.sh "$output"');
   const build = contents['scripts/build.sh'];
-  const order = ['audit --allow-empty', 'bash scripts/verify.sh', '\ngo build ', 'artifacts.mjs register', 'artifacts.mjs clean --apply', 'artifacts.mjs audit\n'];
+  const order = ['mkdir "$task_lock"', 'trap finish_build EXIT', 'artifacts.mjs reconcile --apply',
+    'audit --allow-empty', 'artifacts.mjs prepare', 'bash scripts/verify.sh', '\ngo build ',
+    'artifacts.mjs register', 'artifacts.mjs clean --apply', 'artifacts.mjs audit\n'];
   const indices = order.map(s => build.indexOf(s));
   if (indices.some((n, i) => n < 0 || (i > 0 && n <= indices[i - 1]))) throw new Error('Delivery step order changed');
   requireText('scripts/run.sh', 'node scripts/artifacts.mjs audit');

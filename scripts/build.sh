@@ -6,7 +6,6 @@ source "$task_root/scripts/env.sh"
 node scripts/workflow.mjs environment
 node scripts/workflow.mjs check
 node scripts/version.mjs check
-node scripts/artifacts.mjs audit --allow-empty
 task_commit=$(git rev-parse --short HEAD)
 if [[ -n "$(git status --porcelain)" ]]; then task_commit+=-dirty; fi
 task_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -29,6 +28,9 @@ finish_build() {
   return "$task_status"
 }
 trap finish_build EXIT
+# Reconcile deleted historical output under the build lock before auditing it.
+node scripts/artifacts.mjs reconcile --apply
+node scripts/artifacts.mjs audit --allow-empty
 node scripts/artifacts.mjs prepare --file "$output" --apply
 task_prepared=1
 task_id=$(basename "$output" .exe)
