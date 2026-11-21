@@ -6,6 +6,7 @@ import type { Snapshot as SnapshotModel } from "../../bindings/leaguepingo/inter
 // Snapshot ordering is independent from the workspace that presents it.
 export function useLeagueSnapshot() {
   const snapshot = ref<SnapshotModel | null>(null);
+  let observedReports = new Map<string, number>();
   function acceptSnapshot(next: SnapshotModel) {
     const current = snapshot.value;
     if (
@@ -20,9 +21,16 @@ export function useLeagueSnapshot() {
     if (["party", "preparing"].includes(next.stage)) {
       const category = typeof location !== "undefined" && new URLSearchParams(location.search).get("view") === "companion" ? "sidebar-render" : "room-render";
       recordVisibleResponse(category, started, () => snapshot.value === next || snapshot.value?.updatedAt === next.updatedAt);
+      const reports = new Map<string, number>();
       for (const player of next.participants ?? []) {
-        if (player.scout?.responseId) recordVisibleResponse(null, started, () => snapshot.value?.connectionId === next.connectionId && snapshot.value.participants?.some(p => p.key === player.key && p.scout?.responseId === player.scout?.responseId) === true, player.scout.responseId);
+        const id = player.scout?.responseId;
+        const key = `${next.connectionId}:${player.key}`;
+        if (!id || typeof document === "undefined" || document.visibilityState !== "visible") continue;
+        reports.set(key, id);
+        if (observedReports.get(key) === id) continue;
+        recordVisibleResponse(null, started, () => snapshot.value?.connectionId === next.connectionId && snapshot.value.participants?.some(p => p.key === player.key && p.scout?.responseId === id) === true, id);
       }
+      observedReports = reports;
     }
     applyAnalysisBrief(next.analysisBrief);
     return true;
