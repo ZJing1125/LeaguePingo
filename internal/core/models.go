@@ -220,30 +220,31 @@ type Stats struct {
 }
 
 type Snapshot struct {
-	AnalysisBrief *AnalysisBriefState `json:"analysisBrief,omitempty"`
-	GroupCoverage int                 `json:"groupCoverage"`
-	GroupStatus   string              `json:"groupStatus"`
-	GameMode      string              `json:"gameMode,omitempty"`
-	MapID         int                 `json:"mapId,omitempty"`
-	GameVersion   string              `json:"gameVersion,omitempty"`
-	ConnectionID  uint64              `json:"connectionId"`
-	SelfKey       string              `json:"selfKey"`
-	KnownCount    int                 `json:"knownCount"`
-	ReadyCount    int                 `json:"readyCount"`
-	RosterError   string              `json:"rosterError"`
-	Generation    uint64              `json:"generation"`
-	Phase         string              `json:"phase"`
-	Stage         string              `json:"stage"`
-	Connected     bool                `json:"connected"`
-	Region        string              `json:"region"`
-	GameID        int64               `json:"gameId"`
-	QueueID       int                 `json:"queueId"`
-	ScoutQueue    int                 `json:"scoutQueue"`
-	Frozen        bool                `json:"frozen"`
-	UpdatedAt     time.Time           `json:"updatedAt"`
-	Participants  []Participant       `json:"participants"`
-	Message       string              `json:"message,omitempty"`
-	Review        *MatchReview        `json:"review,omitempty"`
+	AnalysisBrief    *AnalysisBriefState `json:"analysisBrief,omitempty"`
+	GroupCoverage    int                 `json:"groupCoverage"`
+	GroupStatus      string              `json:"groupStatus"`
+	GameMode         string              `json:"gameMode,omitempty"`
+	MapID            int                 `json:"mapId,omitempty"`
+	GameVersion      string              `json:"gameVersion,omitempty"`
+	ConnectionID     uint64              `json:"connectionId"`
+	SelfKey          string              `json:"selfKey"`
+	KnownCount       int                 `json:"knownCount"`
+	ReadyCount       int                 `json:"readyCount"`
+	RosterError      string              `json:"rosterError"`
+	Generation       uint64              `json:"generation"`
+	Phase            string              `json:"phase"`
+	Stage            string              `json:"stage"`
+	Connected        bool                `json:"connected"`
+	Region           string              `json:"region"`
+	GameID           int64               `json:"gameId"`
+	QueueID          int                 `json:"queueId"`
+	ScoutQueue       int                 `json:"scoutQueue"`
+	ActualScoutQueue int                 `json:"actualScoutQueue"`
+	Frozen           bool                `json:"frozen"`
+	UpdatedAt        time.Time           `json:"updatedAt"`
+	Participants     []Participant       `json:"participants"`
+	Message          string              `json:"message,omitempty"`
+	Review           *MatchReview        `json:"review,omitempty"`
 }
 
 // MatchReview is the latest finished match in memory. Participants contain the

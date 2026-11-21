@@ -11,7 +11,7 @@ export function rankPresentation(
     profile?.rankState === "ready"
       ? profile.ranks?.find((r) => r.queue === queue)
       : undefined;
-  const retained = !!rank && profile?.fields?.rank?.state === "retained";
+  const retained = !!rank && (profile?.fields?.["rank/" + queue] ?? profile?.fields?.rank)?.state === "retained";
   let label = "段位暂缺";
   let title = "资料尚未取得；可用“刷新数据”统一重试";
   if (player.identityState !== "known") {
@@ -21,14 +21,14 @@ export function rankPresentation(
     label = ["NONE", "UNRANKED"].includes(rank.tier)
       ? "未定级"
       : `${tierName(rank.tier)} ${rank.division || ""}${rank.lp != null ? ` · ${rank.lp} LP` : ""}`.trim();
-    title = `${retained ? "保留上次段位" : "段位获取时间"} · ${date(profile?.fields?.rank?.fetchedAt)}${profile?.rankMessage ? ` · ${profile.rankMessage}` : ""}`;
+    title = `${retained ? "保留上次段位" : "段位获取时间"} · ${date((profile?.fields?.["rank/" + queue] ?? profile?.fields?.rank)?.fetchedAt)}${profile?.rankMessage ? ` · ${profile.rankMessage}` : ""}`;
   } else if (profile?.rankState === "failed") {
     label = profile.rankMessage?.includes("超时")
       ? "段位查询超时"
       : "段位查询失败";
     title = profile.rankMessage || "查询失败，可重试；战绩仍可独立使用";
   } else if (profile?.rankState === "ready") {
-    label = "该模式段位待确认";
+    label = "该队列段位未取得";
     title = "客户端未返回此模式的可核验段位，不能据此判断未定级";
   } else if (profile?.rankState === "unavailable") {
     label = "段位待确认";

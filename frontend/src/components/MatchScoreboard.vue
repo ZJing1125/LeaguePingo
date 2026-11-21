@@ -45,7 +45,7 @@ const damageLeader = computed(() => matchDamageLeader(props.detail));
 const teamName = (id: number) => id === 100 ? uiText.common.blue : id === 200 ? uiText.common.red : uiText.matchDetails.team(id);
 function playerName(player: MatchPlayer) {
   return player.displayName?.trim() && player.displayName !== uiText.matchDetails.maskedPlayer(player.participantId)
-    ? player.displayName : historyHeroName(player.summary.championId);
+    ? player.displayName : uiText.matchDetails.missingPlayerName;
 }
 function csRate(player: MatchPlayer) {
   const value = perMinute(player.summary.cs, player.summary.duration);

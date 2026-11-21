@@ -1,7 +1,7 @@
 import { computed, onUnmounted, ref, watch, type Ref } from "vue";
 import * as Service from "../../bindings/leaguepingo/appservice";
 import type { Participant, Snapshot } from "../../bindings/leaguepingo/internal/core/models";
-import { newestPlayer } from "../playerState";
+import { newestPlayer, playerProfileComplete } from "../playerState";
 import { errorMessage } from "../presentation";
 
 export function useHomePlayer(snapshot: Ref<Snapshot | null>, view: Ref<string>, busy: Ref<boolean>) {
@@ -10,7 +10,7 @@ export function useHomePlayer(snapshot: Ref<Snapshot | null>, view: Ref<string>,
   let attempted = "", alive = true;
   let profileCall: ReturnType<typeof Service.EnsureProfile> | undefined;
   async function completeProfile(p: Participant) {
-    if (p.profile?.profileIconData && p.profile.level != null && p.profile.rankState === "ready") return;
+    if (playerProfileComplete(p)) return;
     if (view.value !== "home" || snapshot.value?.stage !== "idle" || busy.value) return;
     const call = Service.EnsureProfile(p.key, p.connectionId);
     profileCall = call;

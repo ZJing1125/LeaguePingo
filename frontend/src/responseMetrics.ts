@@ -1,7 +1,7 @@
 import { nextTick } from "vue";
 import * as Service from "../bindings/leaguepingo/appservice";
 
-export type ResponseCategory = "player-history-ready" | "history-feedback" | "history-cache-ready" | "history-first-ready" | "rating-render" | "guide-render";
+export type ResponseCategory = "room-render" | "sidebar-render" | "player-history-ready" | "history-feedback" | "history-cache-ready" | "history-first-ready" | "rating-render" | "guide-render";
 
 // Two animation frames place the measurement after a visible DOM update.
 // This is a local scheduling measurement; Windows presentation is checked on-device.

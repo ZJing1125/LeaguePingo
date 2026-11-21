@@ -56,6 +56,7 @@ async function main(){
     else if(method==='OverlayStatus')result=state;
     else if(method==='CurrentPlayer')result=players[0];
     else if(method==='LookupPlayer')result=snapshot.participants.find(p=>p.key===args[0]);
+    else if(method==='EnsureProfile'){const player=snapshot.participants.find(p=>p.key===args[0]);assert(player);result={...player,profile:{...player.profile,updatedAt:new Date().toISOString()}};}
     else if(method==='AuxiliaryReady'){}
     else if(method==='SetSidebarCollapsed'){state={...state,collapsed:args[0],mode:args[0]?'rail':'sidebar',revision:state.revision+1};result=state;}
     else if(method==='SetScoutQueue'){snapshot={...snapshot,scoutQueue:args[0] || snapshot.queueId,generation:snapshot.generation+1,updatedAt:new Date().toISOString()};result=snapshot;await emit('leaguepingo:snapshot',snapshot);}

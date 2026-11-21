@@ -8,7 +8,9 @@ export function scoutMode(queue: number) { return modes.find(m => m.queueId === 
 export function rankedMode(queue: number) { return scoutMode(queue)?.label ?? "模式待确认"; }
 
 export function liveScoutMode(snapshot?: Snapshot | null) {
+  if (snapshot?.actualScoutQueue != null) return snapshot.actualScoutQueue;
   const mode = scoutMode(snapshot?.queueId ?? 0);
+  if (mode && snapshot?.stage === "party" && snapshot.gameMode !== "CONFLICT") return mode.queueId;
   if (!mode || (snapshot?.mapId && snapshot.mapId !== mode.mapId)
     || (snapshot?.gameMode && !mode.gameModes.includes(snapshot.gameMode.toUpperCase()))) return 0;
   return mode.queueId;

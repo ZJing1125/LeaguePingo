@@ -33,7 +33,7 @@ function mockWindowRuntime(page) {
       }
       if (String(request.args?.methodID) === responseMethod) {
         const [category, elapsed] = request.args.args;
-        if (!["player-history-ready", "history-feedback", "history-cache-ready", "history-first-ready", "rating-render", "guide-render"].includes(category) || !Number.isFinite(elapsed) || elapsed < 0) {
+        if (!["room-render", "sidebar-render", "player-history-ready", "history-feedback", "history-cache-ready", "history-first-ready", "rating-render", "guide-render"].includes(category) || !Number.isFinite(elapsed) || elapsed < 0) {
           throw new Error("Invalid anonymous response measurement");
         }
         await route.fulfill({ json: null });

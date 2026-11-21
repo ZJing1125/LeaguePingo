@@ -42,7 +42,7 @@ const roleTitle = computed(() => uiText.playerCardData.roleHint(data.value.queue
 function periodCaption(p: ReturnType<typeof scoutStats>["periods"][number]) {
   if (!data.value.report || !p.games && data.value.report.state === "loading") return props.captured ? uiText.common.notRetained : uiText.common.preparing;
   if (data.value.arena) return uiText.arena.samples(p.arena?.placementGames ?? 0);
-  return p.outcomeGames ? uiText.playerCardData.validGames(p.outcomeGames) : p.games ? uiText.playerCardData.readGames(p.games) : p.complete ? uiText.playerCardData.zeroGames : uiText.common.pending;
+  return p.outcomeGames ? uiText.playerCardData.validGames(p.outcomeGames) : p.games ? uiText.playerCardData.readGames(p.games) : p.complete ? uiText.playerCardData.zeroGames : uiText.modeScouting.noSample;
 }
 function periodDetail(p: ReturnType<typeof scoutStats>["periods"][number]) {
   if (!p.games) return p.complete ? uiText.sidebarPlayer.zeroGames : data.value.report?.state === "loading" || !data.value.report ? "—" : uiText.common.incompleteRange;

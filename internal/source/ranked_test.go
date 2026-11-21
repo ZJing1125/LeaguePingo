@@ -158,7 +158,7 @@ func TestRankedStatsDecodeDoesNotDependOnContainerOrder(t *testing.T) {
 		}
 	}
 	ranks, err := decodeRankedStats([]byte(`{"queues":[{"queueType":"RANKED_SOLO_5x5","tier":"GOLD","wins":36,"losses":0}],"queueMap":{"RANKED_SOLO_5x5":{"tier":"GOLD","wins":36,"losses":38},"RANKED_FLEX_SR":{"tier":"SILVER","wins":20,"losses":30}}}`), "target", "lcu")
-	if err != nil || len(ranks) != 1 || ranks[0].Queue != "RANKED_FLEX_SR" {
+	if err != nil || len(ranks) != 2 || ranks[0].Tier != "GOLD" || ranks[0].Losses != nil || ranks[0].Wins != nil || ranks[1].Queue != "RANKED_FLEX_SR" {
 		t.Fatal("conflicting duplicates were resolved by guessing or lost the independent queue")
 	}
 }
@@ -235,5 +235,13 @@ func TestRankHistorySurvivesSupplementalQueueContainer(t *testing.T) {
 		if err != nil || len(ranks) != 1 || ranks[0].HighestTier != "DIAMOND" || ranks[0].HighestDivision != "II" || ranks[0].PreviousHighestTier != "MASTER" || ranks[0].PreviousHighestDivision != "I" || ranks[0].PreviousTier != "PLATINUM" || ranks[0].PreviousDivision != "I" || ranks[0].Losses == nil || *ranks[0].Losses != 38 {
 			t.Fatal("supplemental counters erased source-provided rank history")
 		}
+	}
+}
+
+func TestConflictingCounterRemainsUnknownAfterThirdDuplicate(t *testing.T) {
+	raw := `{"queues":[{"queueType":"RANKED_SOLO_5x5","tier":"GOLD","wins":36,"losses":0},{"queueType":"RANKED_SOLO_5x5","tier":"GOLD","wins":36,"losses":38},{"queueType":"RANKED_SOLO_5x5","tier":"GOLD","wins":36,"losses":0}]}`
+	ranks, err := decodeRankedStats([]byte(raw), "target", "lcu")
+	if err != nil || len(ranks) != 1 || ranks[0].Tier != "GOLD" || ranks[0].Wins != nil || ranks[0].Losses != nil {
+		t.Fatal("a later duplicate restored conflicted counters")
 	}
 }

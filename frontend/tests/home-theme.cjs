@@ -23,7 +23,7 @@ async function main() {
         key, puuid: key, connectionId, displayName: key === "synthetic-self" ? "我的合成账号#DEMO" : "查询的其他玩家#DEMO", identityState: "known", historyState: "ready", privacyState: "public", team: "ally", championId: 107,
         history: Array.from({ length: 20 }, (_, i) => ({ gameId: 50000 + i, playedAt: "2026-10-20T03:00:00Z", queueId: i % 3 ? 420 : 440, championId: [107, 23, 25, 99, 17][i % 5], win: i % 4 !== 0, kills: 6 + i % 3, deaths: 3, assists: 8, duration: 1810, cs: 180+i, damage: 24000+i*1000, gold: 12345+i*100, runePrimary:8000,runeSecondary:8100,runeIds:[8005,9111,9104,8014,8139,8135],items: [3006,3078,3031,3153,0,0,3364], spell1: 4, spell2: 14 })),
         historyMeta: { fetchedAt: "2026-10-20T03:00:00Z", returned: 20, parsed: 20 }, stats: { games: 20 },
-        profile: { updatedAt: "2026-10-20T03:00:00Z", level: 128, profileIconData: avatar, privacyState: "public", rankState: "ready", ranks: [{ queue: "RANKED_SOLO_5x5", tier: "EMERALD", division: "II", lp: 48, wins: 65, losses: 47 }, { queue: "RANKED_FLEX_SR", tier: "GOLD", division: "I", lp: 23, wins: 25, losses: 21 }], fields: { rank: { state: "ready", fetchedAt: "2026-10-20T03:00:00Z" } } },
+        profile: { updatedAt: new Date().toISOString(), level: 128, profileIconData: avatar, privacyState: "public", rankState: "ready", ranks: [{ queue: "RANKED_SOLO_5x5", tier: "EMERALD", division: "II", lp: 48, wins: 65, losses: 47 }, { queue: "RANKED_FLEX_SR", tier: "GOLD", division: "I", lp: 23, wins: 25, losses: 21 }], fields: { rank: { state: "ready", fetchedAt: "2026-10-20T03:00:00Z" } } },
       };
     }
     let queueRelease,queueEntered;
@@ -57,8 +57,9 @@ async function main() {
           if (failHome) return route.fulfill({ status: 500, json: { message: "当前账号资料暂不可用" } });
           result = self;
         } else if (method === "VerifyHistoryQueue") {queueEntered?.();await new Promise(resolve=>{queueRelease=resolve;});result={queueId:2400,state:"verified",compared:30,mixed:60,filtered:40};}
+        else if (method === "EnsureProfile") result = args[0] === self.key ? self : player(args[0], snapshot.connectionId);
         else if (method === "Lookup") result = player("synthetic-other", snapshot.connectionId);
-        else if (method === "RefreshData") { self = { ...self, profile: { ...self.profile, updatedAt: "2026-10-20T03:02:00Z", level: 129 } }; result = self; }
+        else if (method === "RefreshData") { self = { ...self, profile: { ...self.profile, updatedAt: new Date(Date.now() + 1000).toISOString(), level: 129 } }; result = self; }
         else if (method === "MatchDetail") {
           const target = self.history.find(match => match.gameId === args[2]) ?? self.history[0];
           result = { gameId: args[2], connectionId: snapshot.connectionId, partial: false, fetchedAt: "2026-10-20T03:04:00Z", players: Array.from({ length: 10 }, (_, i) => ({ participantId: i + 1, teamId: i < 5 ? 100 : 200, displayName: `详情玩家${i + 1}#DEMO`, target: i === 0, summary: { ...target, championId: [107,23,25,99,17,64,103,222,412,111][i], kills: 5 + i % 4, deaths: 2 + i % 3, assists: 7 + i % 5, participation: undefined, position: ["TOP","JUNGLE","MIDDLE","BOTTOM","UTILITY"][i % 5], visionScore: 10 + i, wardsPlaced: 4 + i, wardsKilled: i % 4, controlWards: i % 3, damageTaken: 15000 + i * 600, championLevel: 15 + i % 3 }, participation: 40 + i })) };

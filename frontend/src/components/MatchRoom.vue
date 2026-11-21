@@ -3,7 +3,7 @@ import { uiText } from "../uiText";
 import { computed, reactive, ref, watch } from 'vue';
 import * as Service from '../../bindings/leaguepingo/appservice';
 import type { Participant, Snapshot } from '../../bindings/leaguepingo/internal/core/models';
-import { errorMessage, queueName, type PlayerViewState } from '../presentation';
+import { errorMessage, type PlayerViewState } from '../presentation';
 import { hasCurrentMatch } from '../matchRoom';
 import { roomHistoryTarget } from "../playerHistoryNavigation";
 import PlayerHistoryAction from "./PlayerHistoryAction.vue";
@@ -13,7 +13,7 @@ import MatchRoster from './MatchRoster.vue';
 import PlayerDrawer from './PlayerDrawer.vue';
 import PlayerView from './PlayerView.vue';
 import QueueSwitch from './QueueSwitch.vue';
-import { liveScoutMode } from '../scoutStats';
+import { liveScoutMode, rankedMode } from '../scoutStats';
 import ReviewRoom from './ReviewRoom.vue';
 import RosterProgress from './RosterProgress.vue';
 
@@ -80,7 +80,7 @@ async function changeQueue(value: number) {
       <button class="secondary" :aria-pressed="scope === 'review'" @click="scope = 'review'">{{ uiText.matchRoom.review }}</button>
     </nav>
     <section v-show="scope === 'current'" class="current-match" :aria-label="uiText.matchRoom.currentData">
-      <header class="review-heading"><div><h1>{{ uiText.matchRoom.current }}</h1><p>{{ currentAvailable ? subtitle : uiText.matchRoom.waitingDescription }}<span v-if="currentAvailable && snapshot?.queueId"> · {{ queueName(snapshot.queueId) }}</span></p></div><button v-if="currentAvailable && snapshot?.connected && snapshot.phase !== 'Reconnect'" class="secondary" @click="$emit('companion')">{{ inGame ? uiText.matchRoom.showPreview : uiText.clientSidebar.expand }}</button></header>
+      <header class="review-heading"><div><h1>{{ uiText.matchRoom.current }}</h1><p>{{ currentAvailable ? subtitle : uiText.matchRoom.waitingDescription }}<span v-if="currentAvailable && snapshot?.queueId"> · {{ rankedMode(liveScoutMode(snapshot)) }}</span></p></div><button v-if="currentAvailable && snapshot?.connected && snapshot.phase !== 'Reconnect'" class="secondary" @click="$emit('companion')">{{ inGame ? uiText.matchRoom.showPreview : uiText.clientSidebar.expand }}</button></header>
       <template v-if="currentAvailable">
         <div class="review-section-title"><h2>{{ party ? uiText.common.party : uiText.common.pregame }}</h2><QueueSwitch :current="liveScoutMode(snapshot)" :value="queue" :busy="changingQueue || !snapshot?.connected" @change="changeQueue"/></div>
         <p v-if="error || snapshot?.rosterError" class="quality-warning" role="status">{{ error || snapshot?.rosterError }}</p>

@@ -9,12 +9,24 @@ import (
 )
 
 func automaticProfileFresh(p *core.Profile) bool {
-	return basicProfileComplete(p) && p.RankState == "ready" && p.UpdatedAt != nil && time.Since(*p.UpdatedAt) < 5*time.Minute
+	if !basicProfileComplete(p) || (p.PrivacyState != "public" && p.PrivacyState != "private") || p.RankState != "ready" || p.UpdatedAt == nil || time.Since(*p.UpdatedAt) >= 5*time.Minute {
+		return false
+	}
+	for _, queue := range []string{"RANKED_SOLO_5x5", "RANKED_FLEX_SR"} {
+		ready := false
+		for _, rank := range p.Ranks {
+			ready = ready || rank.Queue == queue
+		}
+		if !ready || p.Fields["rank/"+queue].State == "retained" {
+			return false
+		}
+	}
+	return true
 }
 
 func (e *Engine) needsAutomaticProfileLocked(p core.Participant) bool {
 	_, supported := e.client.(source.ProfileSource)
-	return supported && p.ConnectionID == e.clientVersion && p.IdentityState == core.IdentityKnown && core.IsKnownPUUID(p.PUUID) && !automaticProfileFresh(p.Profile)
+	return supported && p.ConnectionID == e.clientVersion && p.IdentityState == core.IdentityKnown && core.IsKnownPUUID(p.PUUID) && (!automaticProfileFresh(p.Profile) || core.IsPlaceholderName(p.DisplayName))
 }
 
 func (e *Engine) preparationProfilesLocked() []bool {

@@ -407,6 +407,7 @@ export interface Snapshot {
     "gameId": number;
     "queueId": number;
     "scoutQueue": number;
+    "actualScoutQueue": number;
     "frozen": boolean;
     "updatedAt": string;
     "participants": Participant[] | null;

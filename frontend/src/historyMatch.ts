@@ -1,3 +1,4 @@
+import { analysisCache } from "./analysisCache";
 import type { Match, MatchDetail, MatchPeer } from "../bindings/leaguepingo/internal/core/models";
 import modes from "../../internal/core/scout_modes.json";
 import { roleOrder, teamMetric } from "./analysisData";
@@ -15,8 +16,13 @@ export function historyPosition(match: Match) {
   return mode?.roles && roleOrder.includes(match.position) ? match.position : undefined;
 }
 
-export function historyRoster(match: Match) {
-  const peers = match.roster ?? [];
+export function historyRoster(match: Match, connectionId?: number) {
+  const known = connectionId == null ? [] : analysisCache.roster(connectionId, match.gameId);
+  const peers = (match.roster ?? []).map(peer => {
+    if (peer.displayName) return peer;
+    const named = known?.find(player => player.participantId === peer.participantId && player.teamId === peer.teamId && player.summary.championId === peer.championId);
+    return named?.displayName && !named.displayName.includes("身份未提供") ? { ...peer, displayName: named.displayName } : peer;
+  });
   const targets = peers.filter(peer => peer.target);
   const team = targets[0]?.teamId;
   if (isArena(match) || targets.length !== 1 || (team !== 100 && team !== 200)) return [];
@@ -25,7 +31,7 @@ export function historyRoster(match: Match) {
 }
 
 export function peerShortName(peer: MatchPeer) {
-  return peer.displayName?.split("#")[0]?.trim() || historyHeroName(peer.championId);
+  return peer.displayName?.split("#")[0]?.trim() || uiText.matchDetails.missingPlayerName;
 }
 
 export function hasFullScoreboard(detail: MatchDetail) {

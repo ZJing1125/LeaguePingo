@@ -14,7 +14,7 @@ const divisionOrder: Record<string, number> = { IV: 1, III: 2, II: 3, I: 4 };
 
 type RankRecord = { label: string; tier?: string; division?: string; title?: string };
 const title = (tier: string, division?: string) => ['NONE', 'UNRANKED'].includes(tier)
-  ? uiText.common.unranked
+  ? uiText.rankPanel.unrankedSeason
   : `${tierName(tier)} ${['MASTER', 'GRANDMASTER', 'CHALLENGER'].includes(tier) ? '' : division ?? ''}`.trim();
 const score = (record: RankRecord) => (tierOrder[record.tier ?? ''] ?? -1) * 10 + (divisionOrder[record.division ?? ''] ?? 0);
 const valid = (record: RankRecord) => !!record.tier && !['NONE', 'UNRANKED'].includes(record.tier);
@@ -47,8 +47,8 @@ const history = computed<RankRecord[]>(() => [
     <header><h2>{{ label }}</h2><span v-if="data.retained">{{ uiText.playerProfileHeader.stale }}</span></header>
     <div class="rank-current">
       <RankEmblem :tier="data.rank?.tier" />
-      <div><strong>{{ data.rank ? title(data.rank.tier, data.rank.division) : data.label }}</strong><span>{{ data.rank?.lp != null ? `${data.rank.lp.toLocaleString()} LP` : '—' }}</span></div>
-      <div class="rank-record" :title="data.record?.title"><b>{{ percent(data.record?.rate) }}</b><small>{{ data.record ? uiText.rankPanel.outcomes(data.record.wins.toLocaleString(), data.record.losses.toLocaleString()) : uiText.common.pendingOutcome }}</small></div>
+      <div><strong>{{ data.rank ? title(data.rank.tier, data.rank.division) : data.label }}</strong><span v-if="data.rank && !['NONE', 'UNRANKED'].includes(data.rank.tier)">{{ data.rank.lp != null ? `${data.rank.lp.toLocaleString()} LP` : '—' }}</span></div>
+      <div v-if="data.rank && !['NONE', 'UNRANKED'].includes(data.rank.tier)" class="rank-record" :title="data.record?.title"><b>{{ percent(data.record?.rate) }}</b><small>{{ data.record ? uiText.rankPanel.outcomes(data.record.wins.toLocaleString(), data.record.losses.toLocaleString()) : data.rank?.wins != null ? uiText.rankPanel.knownWins(data.rank.wins) : uiText.common.pendingOutcome }}</small></div>
     </div>
     <details v-if="history.length" class="rank-history">
       <summary>{{ uiText.rankPanel.records }}<span>{{ knownBest?.tier ? title(knownBest.tier, knownBest.division) : '' }}</span></summary>

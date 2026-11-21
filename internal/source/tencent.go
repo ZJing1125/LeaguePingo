@@ -19,6 +19,7 @@ type TencentLCU struct {
 	client         *lcu.Client
 	selfMu         sync.Mutex
 	selfPUUID      string
+	selfName       string
 	sgpMu          sync.Mutex
 	sgp            *sgpHistory
 	sgpEpoch       uint64
@@ -39,7 +40,7 @@ func (s *TencentLCU) ResetIdentity() {
 	s.meta = SessionMetadata{}
 	s.metaMu.Unlock()
 	s.selfMu.Lock()
-	s.selfPUUID = ""
+	s.selfPUUID, s.selfName = "", ""
 	s.selfMu.Unlock()
 	s.sgpMu.Lock()
 	s.sgpEpoch++
@@ -154,12 +155,13 @@ func (s *TencentLCU) currentPUUID(ctx context.Context) (string, error) {
 		return "", err
 	}
 	var profile struct {
+		core.NameFields
 		PUUID string `json:"puuid"`
 	}
 	if json.Unmarshal(raw, &profile) != nil || !core.IsKnownPUUID(profile.PUUID) {
 		return "", errors.New("无法确认当前账号的阵营")
 	}
-	s.selfPUUID = profile.PUUID
+	s.selfPUUID, s.selfName = profile.PUUID, profile.Name()
 	return profile.PUUID, nil
 }
 
@@ -169,13 +171,14 @@ func (s *TencentLCU) AccountIdentity(ctx context.Context) (string, error) {
 		return "", err
 	}
 	var p struct {
+		core.NameFields
 		PUUID string `json:"puuid"`
 	}
 	if json.Unmarshal(raw, &p) != nil || !core.IsKnownPUUID(p.PUUID) {
 		return "", errors.New("客户端当前账号身份暂不可核验")
 	}
 	s.selfMu.Lock()
-	s.selfPUUID = p.PUUID
+	s.selfPUUID, s.selfName = p.PUUID, p.Name()
 	s.selfMu.Unlock()
 	return p.PUUID, nil
 }
@@ -187,6 +190,12 @@ func (s *TencentLCU) CachedAccountIdentity() string {
 }
 
 func (s *TencentLCU) Name(ctx context.Context, puuid string) (string, error) {
+	s.selfMu.Lock()
+	name, self := s.selfName, s.selfPUUID
+	s.selfMu.Unlock()
+	if puuid == self && name != "" {
+		return name, nil
+	}
 	if !core.IsKnownPUUID(puuid) {
 		return "", errors.New("玩家名称不可用")
 	}

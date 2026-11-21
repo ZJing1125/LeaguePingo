@@ -445,6 +445,9 @@ func (c *scoutCursor) report(season *core.ScoutSeason, cutoff time.Time) core.Sc
 
 func (e *Engine) scoutModeLocked() int {
 	mode, ok := core.ScoutModeFor(e.snapshot.QueueID)
+	if ok && snapshotStage(e.snapshot.Stage) == StageParty && e.snapshot.GameMode != "CONFLICT" {
+		return mode.QueueID
+	}
 	if !ok || !mode.Matches(e.snapshot.MapID, e.snapshot.GameMode) {
 		return 0
 	}

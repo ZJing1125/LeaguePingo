@@ -8,7 +8,7 @@ import type {
 import { errorMessage, normalizeRiotIDInput } from "../presentation";
 import { completeRiotID, type PlayerHistoryTarget } from "../playerHistoryNavigation";
 import { recordVisibleResponse } from "../responseMetrics";
-import { newestPlayer, operationKey } from "../playerState";
+import { newestPlayer, operationKey, playerProfileComplete } from "../playerState";
 import type { usePlayerWorkspace } from "./usePlayerWorkspace";
 
 // All manual operations still share the same Go scheduler and UI busy lane.
@@ -35,6 +35,7 @@ export function usePlayerActions(
   let navigationRevision = 0;
   let navigationTarget = "";
   let profileInterrupted = false;
+  const profileAttempts = new Map<string, number>();
   let profileCall: ReturnType<typeof Service.EnsureProfile> | undefined;
   let navigationCall: ReturnType<typeof Service.Lookup> | undefined;
   let navigationDone: Promise<void> = Promise.resolve();
@@ -53,11 +54,10 @@ export function usePlayerActions(
     )
       return;
     if (
-      player.profile?.profileIconData &&
-      player.profile?.level != null &&
-      player.profile?.rankState === "ready"
+      playerProfileComplete(player)
     )
       return;
+    if (Date.now() - (profileAttempts.get(operationKey(player)) ?? 0) < 30000) return;
     pendingProfile.value = player;
     void flushMissingProfile();
   }
@@ -111,10 +111,13 @@ export function usePlayerActions(
     profileInterrupted = false;
     playerOperation.value = { key: operationKey(target), kind: "profile" };
     try {
+      if (profileAttempts.size >= 64) profileAttempts.delete(profileAttempts.keys().next().value!);
+      profileAttempts.set(operationKey(target), Date.now());
       const call = Service.EnsureProfile(target.key, target.connectionId);
       profileCall = call;
       acceptProfile(await call);
     } catch (reason) {
+      if (profileInterrupted) profileAttempts.delete(operationKey(target));
       if (
         !profileInterrupted &&
         componentAlive &&
@@ -268,6 +271,9 @@ export function usePlayerActions(
       playerOperation.value = null;
     }
   }
+  watch(() => [workspace.activeKey.value, workspace.view.value], () => {
+    if (workspace.view.value === "players" && workspace.active.value) requestMissingProfile(workspace.active.value);
+  });
   function selectPlayer(player: Participant) {
     selectedKey.value = player.key;
     selectedResult.value = null;

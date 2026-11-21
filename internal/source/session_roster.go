@@ -16,6 +16,13 @@ func (s *TencentLCU) ReadLobby(ctx context.Context) ([]core.Participant, Session
 		return nil, SessionMetadata{}, err
 	}
 	players, err := core.ParseLobbyRoster(raw)
+	s.selfMu.Lock()
+	for i := range players {
+		if players[i].PUUID == s.selfPUUID && s.selfName != "" {
+			players[i].DisplayName = s.selfName
+		}
+	}
+	s.selfMu.Unlock()
 	meta, _ := parseSessionMetadata(raw, true)
 	return players, meta, err
 }

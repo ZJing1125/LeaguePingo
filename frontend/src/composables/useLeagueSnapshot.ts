@@ -1,3 +1,4 @@
+import { recordVisibleResponse } from "../responseMetrics";
 import { applyAnalysisBrief } from "../analysisBriefState";
 import { computed, ref } from "vue";
 import type { Snapshot as SnapshotModel } from "../../bindings/leaguepingo/internal/core/models";
@@ -14,7 +15,15 @@ export function useLeagueSnapshot() {
           Date.parse(next.updatedAt) < Date.parse(current.updatedAt)))
     )
       return false;
+    const started = performance.now();
     snapshot.value = next;
+    if (["party", "preparing"].includes(next.stage)) {
+      const category = typeof location !== "undefined" && new URLSearchParams(location.search).get("view") === "companion" ? "sidebar-render" : "room-render";
+      recordVisibleResponse(category, started, () => snapshot.value === next || snapshot.value?.updatedAt === next.updatedAt);
+      for (const player of next.participants ?? []) {
+        if (player.scout?.responseId) recordVisibleResponse(null, started, () => snapshot.value?.connectionId === next.connectionId && snapshot.value.participants?.some(p => p.key === player.key && p.scout?.responseId === player.scout?.responseId) === true, player.scout.responseId);
+      }
+    }
     applyAnalysisBrief(next.analysisBrief);
     return true;
   }

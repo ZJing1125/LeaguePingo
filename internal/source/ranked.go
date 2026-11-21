@@ -165,6 +165,7 @@ func decodeRankedStats(raw []byte, puuid, source string) ([]core.Rank, error) {
 	}
 	addMap(response.QueueMap)
 	byQueue, conflicts := map[string]core.Rank{}, map[string]bool{}
+	uncertainCounts := map[string]bool{}
 	for _, q := range queues {
 		if (q.Queue != "RANKED_SOLO_5x5" && q.Queue != "RANKED_FLEX_SR") || q.Tier == nil || !validTier(*q.Tier) {
 			continue
@@ -201,6 +202,9 @@ func decodeRankedStats(raw []byte, puuid, source string) ([]core.Rank, error) {
 			}
 		}
 		if old, ok := byQueue[q.Queue]; ok {
+			if (old.Wins != nil && rank.Wins != nil && *old.Wins != *rank.Wins) || (old.Losses != nil && rank.Losses != nil && *old.Losses != *rank.Losses) {
+				uncertainCounts[q.Queue] = true
+			}
 			var conflict bool
 			rank, conflict = mergeRankedQueue(rank, old)
 			if conflict {
@@ -212,6 +216,9 @@ func decodeRankedStats(raw []byte, puuid, source string) ([]core.Rank, error) {
 	out := []core.Rank{}
 	for _, queue := range []string{"RANKED_SOLO_5x5", "RANKED_FLEX_SR"} {
 		if rank, ok := byQueue[queue]; ok && !conflicts[queue] {
+			if uncertainCounts[queue] {
+				rank.Wins, rank.Losses = nil, nil
+			}
 			out = append(out, rank)
 		}
 	}
@@ -223,16 +230,22 @@ func mergeRankedQueue(rank, old core.Rank) (core.Rank, bool) {
 	// Some client versions include both queues and queueMap. Fill truly
 	// missing fields, but do not let container order choose conflicting
 	// counters (in particular 0 losses versus a nonzero second value).
+	counterConflict := false
 	merge := func(next **int, previous *int) {
 		if *next == nil {
 			*next = previous
 		} else if previous != nil && **next != *previous {
-			conflict = true
+			*next = nil
+			counterConflict = true
 		}
 	}
 	merge(&rank.LP, old.LP)
+	counterConflict = false
 	merge(&rank.Wins, old.Wins)
 	merge(&rank.Losses, old.Losses)
+	if counterConflict {
+		rank.Wins, rank.Losses = nil, nil
+	}
 	if rank.Division == "" {
 		rank.Division = old.Division
 	}

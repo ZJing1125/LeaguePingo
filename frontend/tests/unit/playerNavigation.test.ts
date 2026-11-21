@@ -87,3 +87,19 @@ describe("player history navigation", () => {
     expect(Service.EnsureProfile).not.toHaveBeenCalled();
   });
 });
+
+it("repairs missing profiles once while repeatedly reactivating a player", async () => {
+  const update = pending();
+  vi.mocked(Service.EnsureProfile).mockReturnValue(update.call);
+  const { workspace } = setup();
+  const p = player([], { key: "missing", puuid: "missing", connectionId: 1, displayName: "Missing#TEST", profile: undefined });
+  workspace.openPlayer(p);
+  await nextTick();
+  update.resolve(p);
+  await nextTick(); await nextTick();
+  workspace.activeKey.value = "";
+  await nextTick();
+  workspace.activeKey.value = p.key;
+  await nextTick();
+  expect(Service.EnsureProfile).toHaveBeenCalledTimes(1);
+});

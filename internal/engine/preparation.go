@@ -84,6 +84,9 @@ func (e *Engine) prepareNextProfile(ctx context.Context, token uint64, client Cl
 	if player.PUUID == "" {
 		return false
 	}
+	if e.preparation.claimName(token, player.PUUID) {
+		e.resolvePlayerName(ctx, client, version, player, false)
+	}
 	e.prepareOptionalProfile(ctx, client, player, func() bool {
 		return e.client != nil && e.clientVersion == version && e.preparation.current(token) && snapshotStage(e.snapshot.Stage) == stage && (e.phaseHint == PhaseUnknown || stageForPhase(e.phaseHint) == stage)
 	})
@@ -110,7 +113,7 @@ func (e *Engine) prepareHistory(ctx context.Context, token uint64, client Client
 		return true
 	}
 	e.updatePrepared(token, player.PUUID, func(p *core.Participant) { p.HistoryState = core.HistoryLoading; p.Error = "" })
-	if !strings.Contains(player.DisplayName, "#") {
+	if !strings.Contains(player.DisplayName, "#") && e.preparation.claimName(token, player.PUUID) {
 		nameCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		name, err := e.loadName(nameCtx, client, player.PUUID, version, false)
 		cancel()

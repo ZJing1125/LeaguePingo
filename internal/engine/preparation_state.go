@@ -21,6 +21,7 @@ type preparationState struct {
 	retryAt   time.Time
 	attempts  map[string]int
 	profiles  map[string]bool
+	names     map[string]bool
 	preferred string
 }
 
@@ -37,14 +38,14 @@ func (p *preparationState) reset() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.resetLocked()
-	p.attempts, p.profiles = map[string]int{}, map[string]bool{}
+	p.attempts, p.profiles, p.names = map[string]int{}, map[string]bool{}, map[string]bool{}
 }
 
 func (p *preparationState) invalidate() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.resetLocked()
-	p.cancel, p.attempts, p.profiles = nil, nil, nil
+	p.cancel, p.attempts, p.profiles, p.names = nil, nil, nil, nil
 }
 
 func (p *preparationState) resetLocked() {
@@ -96,7 +97,7 @@ func (p *preparationState) begin(players []core.Participant, version uint64, pro
 	}
 	if p.deadline.IsZero() {
 		p.deadline = now.Add(45 * time.Second)
-		p.attempts, p.profiles = map[string]int{}, map[string]bool{}
+		p.attempts, p.profiles, p.names = map[string]int{}, map[string]bool{}, map[string]bool{}
 	}
 	if !now.Before(p.deadline) {
 		return nil, nil, 0, false
@@ -188,5 +189,19 @@ func (p *preparationState) finish(token uint64) bool {
 		return false
 	}
 	p.running = false
+	return true
+}
+
+// Name readiness is independent of history freshness, within the same window.
+func (p *preparationState) claimName(token uint64, key string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.token != token || p.names[key] {
+		return false
+	}
+	if p.names == nil {
+		p.names = map[string]bool{}
+	}
+	p.names[key] = true
 	return true
 }

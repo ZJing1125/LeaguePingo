@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -159,14 +160,14 @@ func (e *Engine) loadProfileData(ctx context.Context, key string, connectionID u
 		return core.Participant{}, apperrors.New(apperrors.StaleData)
 	}
 	e.markProfileAttempt(connectionID, key)
-	profile := profiles.Profile(request, player.PUUID)
-	if request.Err() != nil {
+	profile, fields := readMissingProfile(request, client, profiles, player, onlyMissing)
+	if request.Err() != nil && (errors.Is(request.Err(), context.Canceled) || !profileAvailable(profile)) {
 		return player, request.Err()
 	}
 	if onlyMissing && !profileAvailable(profile) && (player.Profile == nil || !profileAvailable(*player.Profile)) {
 		return core.Participant{}, apperrors.New(apperrors.DataUnavailable)
 	}
-	return e.storeProfile(player, connectionID, profile)
+	return e.storeProfile(player, connectionID, profile, fields...)
 }
 
 func (e *Engine) storeProfile(player core.Participant, connectionID uint64, profile core.Profile, fields ...string) (core.Participant, error) {
@@ -250,6 +251,7 @@ func mergeProfile(next core.Profile, previous *core.Profile, fields ...string) c
 	if previous != nil {
 		old = *previous
 	}
+	mergeProfileRanks(&next, old, rankRequested, now)
 	track("level", next.Level != nil, old.Level != nil)
 	track("icon", next.ProfileIconID != nil, old.ProfileIconID != nil)
 	track("rank", next.RankState == "ready", old.RankState == "ready")

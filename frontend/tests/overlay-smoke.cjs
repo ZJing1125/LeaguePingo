@@ -891,7 +891,7 @@ async function main() {
     assert.equal(await page.locator(".players-workspace .match-card").count(), 20);
     assert(
       (await page
-        .locator(".players-workspace .match-card")
+        .locator(".players-workspace .match-card .match-main .match-identity strong")
         .filter({ hasText: "19 / 2 / 8" })
         .count()) === 1,
       "an overlapping page must not erase already verified fields: " + JSON.stringify(await page.locator(".players-workspace .match-card .match-identity strong").allTextContents()),
@@ -965,11 +965,9 @@ async function main() {
     await assertFocusedTab(0);
     await page.getByRole("tablist", {name:"已查看玩家"}).getByRole("tab", { selected: true }).press("End");
     await assertFocusedTab(7);
-    assert.equal(
-      calls.length,
-      navigationCalls,
-      "keyboard navigation must only switch cached views: " + JSON.stringify(calls.slice(navigationCalls)),
-    );
+    const restoredCalls = calls.slice(navigationCalls);
+    assert(restoredCalls.length <= 2 && restoredCalls.every(method => method === "EnsureProfile"),
+      "reactivation may only repair missing profiles once per player, without refetching history: " + JSON.stringify(restoredCalls));
     await page.getByRole("tablist", {name:"已查看玩家"}).getByRole("tab", { selected: true }).press("Delete");
     assert.equal(await page.getByRole("tab").count(), 7);
     await assertFocusedTab(6);

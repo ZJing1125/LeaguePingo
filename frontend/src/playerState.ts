@@ -57,3 +57,13 @@ export function newestPlayer(
     ? { ...merged, profile, privacyState: profile.privacyState }
     : merged;
 }
+
+export function playerProfileComplete(player: Participant) {
+  const profile = player.profile;
+  return hasPlayerName(player) && !!profile?.profileIconData && profile.level != null
+    && ["public", "private"].includes(profile.privacyState)
+    && ["RANKED_SOLO_5x5", "RANKED_FLEX_SR"].every(queue =>
+      profile.ranks?.some(rank => rank.queue === queue)
+      && profile.fields?.["rank/" + queue]?.state !== "retained")
+    && Date.now() - Date.parse(profile.updatedAt ?? "") < 5 * 60 * 1000;
+}

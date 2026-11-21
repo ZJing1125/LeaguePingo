@@ -4,7 +4,7 @@ import * as Service from "../../bindings/leaguepingo/appservice";
 import type { Match, MatchDetail, MatchTimeline as Timeline, Participant } from "../../bindings/leaguepingo/internal/core/models";
 import { errorMessage, kda, percent } from "../presentation";
 import { targetPlayer } from "../analysisData";
-import { analysisCache } from "../analysisCache";
+import { analysisCache, acquireTimeline } from "../analysisCache";
 import { hasFullScoreboard, historyHeroName, historyRoster, matchNumber } from "../historyMatch";
 import { isArena } from "../matchStats";
 import { uiText } from "../uiText";
@@ -30,10 +30,17 @@ const key = computed(() => `${props.player.connectionId}:${props.player.key}:${p
 const detail = computed(() => props.provided ?? loaded.value);
 const target = computed(() => targetPlayer(detail.value));
 const cachedMatch = computed(() => props.match ?? props.player.history?.find(m => m.gameId === props.gameId));
-const match = computed(() => target.value?.summary ?? cachedMatch.value);
+const match = computed(() => {
+  const current = target.value?.summary;
+  const cached = cachedMatch.value;
+  if (!current || !cached || current.gameId !== cached.gameId || current.championId !== cached.championId) return current ?? cached;
+  const shards = current.runeShards?.length === 3 ? [...current.runeShards] : [0, 0, 0];
+  if (cached.runeShards?.length === 3) cached.runeShards.forEach((value, i) => { if (!shards[i]) shards[i] = value; });
+  return { ...current, runeShards: shards };
+});
 const arena = computed(() => !!match.value && isArena(match.value));
 const hasScoreboard = computed(() => !!detail.value?.players?.length);
-const roster = computed(() => cachedMatch.value ? historyRoster(cachedMatch.value) : []);
+const roster = computed(() => cachedMatch.value ? historyRoster(cachedMatch.value, props.player.connectionId) : []);
 const showRoster = computed(() => {
   if (!roster.value.length) return false;
   const current = detail.value;
@@ -60,8 +67,12 @@ const tabs = computed(() => [
 
 let revision = 0;
 let autoRequested = "";
+let timelineRequested = "";
+let releaseTimeline: (() => void) | undefined;
 watch(key, () => {
   revision++;
+  releaseTimeline?.();
+  timelineRequested = "";
   loaded.value = analysisCache.detail(key.value);
   timeline.value = props.provided ? null : analysisCache.timeline(key.value);
   busy.value = null;
@@ -71,10 +82,11 @@ watch(key, () => {
   autoRequested = "";
 }, { immediate: true });
 watch(arena, () => { if (arena.value) tab.value = "overview"; });
-onBeforeUnmount(() => { revision++; });
+onBeforeUnmount(() => { revision++; releaseTimeline?.(); });
 watch(canLoad, allowed => {
   if (!allowed) {
     revision++;
+    releaseTimeline?.();
     busy.value = null;
   }
 });
@@ -101,7 +113,9 @@ async function load(kind: "detail" | "timeline", scroll = true) {
   error.value = "";
   try {
     if (kind === "timeline") {
-      const result = await Service.MatchTimeline(player.key, player.connectionId, gameId);
+      const task = acquireTimeline(requestKey, () => Service.MatchTimeline(player.key, player.connectionId, gameId));
+      releaseTimeline = task.release;
+      const result = await task.promise;
       if (request !== revision || requestKey !== key.value) return;
       timeline.value = result;
       analysisCache.setTimeline(requestKey, result);
@@ -122,7 +136,7 @@ async function load(kind: "detail" | "timeline", scroll = true) {
   } catch (reason) {
     if (request === revision) error.value = errorMessage(reason);
   } finally {
-    if (request === revision) busy.value = null;
+    if (request === revision) { busy.value = null; releaseTimeline?.(); releaseTimeline = undefined; }
   }
 }
 
@@ -131,6 +145,11 @@ watch([key, canLoad, detail], ([requestKey, allowed, current]) => {
   autoRequested = requestKey;
   void load("detail", false);
 }, { immediate: true });
+watch([key, tab, canLoad, busy, detail], () => {
+  if (!["timeline", "build"].includes(tab.value) || !canLoad.value || busy.value || timeline.value || !detail.value || arena.value || timelineRequested === key.value) return;
+  timelineRequested = key.value;
+  void load("timeline", false);
+});
 </script>
 
 <template>
@@ -172,17 +191,18 @@ watch([key, canLoad, detail], ([requestKey, allowed, current]) => {
         </div>
       </template>
       <template v-else>
-        <p v-if="timelineError" class="error-banner" role="alert">{{ timelineError }}</p>
+        <p v-if="timelineError || detailError" class="error-banner" role="alert">{{ timelineError || detailError }}</p>
+        <div v-if="!detail && detailError && canLoad" class="analysis-load"><button class="secondary" :disabled="!!busy" @click="load('detail', false)">{{ uiText.matchDetails.retryScoreboard }}</button></div>
         <template v-if="tab === 'timeline'">
           <MatchTimeline v-if="timeline && detail" :timeline="timeline" :detail="detail"/>
-          <div v-else class="analysis-load"><span>{{ provided ? uiText.matchDetails.archivedTimeline : uiText.matchDetails.timelineHint }}</span>
-            <button v-if="!provided" class="secondary" :disabled="!!busy || !canLoad" @click="load('timeline')">{{ busy === 'timeline' ? uiText.matchDetails.loadingTimeline : uiText.matchDetails.loadTimeline }}</button>
+          <div v-else class="analysis-load"><span>{{ provided ? uiText.matchDetails.archivedTimeline : busy ? uiText.matchDetails.loadingTimeline : timelineError ? '' : uiText.matchDetails.timelineHint }}</span>
+            <button v-if="!provided && timelineError" class="secondary" :disabled="!!busy || !canLoad" @click="load('timeline')">{{ busy === 'timeline' ? uiText.matchDetails.loadingTimeline : uiText.matchDetails.loadTimeline }}</button>
           </div>
         </template>
         <template v-else>
-          <MatchBuild v-if="match" :match="match" :timeline="timeline" :participant-id="target?.participantId"/>
-          <div v-if="!timeline && !provided" class="analysis-load"><span>{{ uiText.matchDetails.buildHint }}</span>
-            <button class="secondary" :disabled="!!busy || !canLoad" @click="load('timeline')">{{ busy === 'timeline' ? uiText.matchDetails.loadingTimeline : uiText.matchDetails.loadTimeline }}</button>
+          <MatchBuild v-if="match" :match="match" :timeline="timeline" :participant-id="target?.participantId" :loading="!!busy"/>
+          <div v-if="(!timeline || timeline.partial) && !provided" class="analysis-load"><span>{{ busy ? uiText.matchDetails.loadingTimeline : '' }}</span>
+            <button v-if="timelineError || timeline?.partial" class="secondary" :disabled="!!busy || !canLoad" @click="load('timeline')">{{ busy === 'timeline' ? uiText.matchDetails.loadingTimeline : uiText.matchDetails.loadTimeline }}</button>
           </div>
         </template>
       </template>

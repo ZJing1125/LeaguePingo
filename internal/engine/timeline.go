@@ -36,7 +36,7 @@ func (e *Engine) MatchTimeline(ctx context.Context, key string, connectionID uin
 	e.mu.RLock()
 	cached, found, detail, hasDetail := e.players.analysis(cacheKey)
 	e.mu.RUnlock()
-	if found && cached.ConnectionID == connectionID && time.Since(cached.FetchedAt) < 5*time.Minute {
+	if found && !cached.Partial && cached.ConnectionID == connectionID && time.Since(cached.FetchedAt) < 5*time.Minute {
 		return cached, nil
 	}
 	release, err := e.scheduler.acquire(ctx, true)
@@ -73,6 +73,9 @@ func (e *Engine) MatchTimeline(ctx context.Context, key string, connectionID uin
 		return core.MatchTimeline{}, apperrors.New(apperrors.InvalidResponse)
 	}
 	timeline.ConnectionID = connectionID
+	if timeline.Detail != nil {
+		detail = *timeline.Detail
+	}
 	detail.ConnectionID = connectionID
 	timeline.Detail = &detail
 	e.players.rememberTimeline(cacheKey, timeline, detail)

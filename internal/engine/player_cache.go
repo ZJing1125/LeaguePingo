@@ -50,6 +50,17 @@ func (c *playerCache) restorePlayer(p core.Participant) {
 	if c.players == nil {
 		c.players = map[string]core.Participant{}
 	}
+	if old, ok := c.players[p.PUUID]; ok && old.ConnectionID == p.ConnectionID {
+		if core.IsPlaceholderName(p.DisplayName) {
+			p.DisplayName = old.DisplayName
+		}
+		if p.Profile == nil {
+			p.Profile, p.PrivacyState = old.Profile, old.PrivacyState
+		}
+		if p.Scout == nil {
+			p.Scout = old.Scout
+		}
+	}
 	c.players[p.PUUID] = p
 }
 

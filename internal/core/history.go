@@ -220,7 +220,7 @@ func matchSummary(game historyGame, p historyParticipant, now time.Time) Match {
 		ChampionLevel: nonNegative(p.Stats.ChampionLevel), DamageTaken: nonNegative(p.Stats.DamageTaken), VisionScore: nonNegative(p.Stats.VisionScore),
 		WardsPlaced: nonNegative(p.Stats.WardsPlaced), WardsKilled: nonNegative(p.Stats.WardsKilled), ControlWards: nonNegative(p.Stats.ControlWards),
 		TripleKills: nonNegative(p.Stats.TripleKills), QuadraKills: nonNegative(p.Stats.QuadraKills), PentaKills: nonNegative(p.Stats.PentaKills),
-		RuneShards: positiveIDs(p.Stats.Shard0, p.Stats.Shard1, p.Stats.Shard2),
+		RuneShards: shardSlots(p.Stats.Shard0, p.Stats.Shard1, p.Stats.Shard2),
 	}
 }
 
@@ -377,4 +377,15 @@ func nonNegative(value *int) *int {
 		return nil
 	}
 	return value
+}
+
+// Zero preserves a missing slot; a real shard ID can occur in multiple slots.
+func shardSlots(values ...*int) []int {
+	result := make([]int, len(values))
+	for i, value := range values {
+		if value != nil && *value > 0 {
+			result[i] = *value
+		}
+	}
+	return result
 }

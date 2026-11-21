@@ -104,5 +104,6 @@ func (e *Engine) applySessionLocked() {
 	} else if q, ok := e.client.(source.QueueSource); ok {
 		e.snapshot.QueueID = q.CurrentQueue()
 	}
-	e.snapshot.ScoutQueue = e.scouting.queueFor(e.scoutModeLocked())
+	e.snapshot.ActualScoutQueue = e.scoutModeLocked()
+	e.snapshot.ScoutQueue = e.scouting.queueFor(e.snapshot.ActualScoutQueue)
 }

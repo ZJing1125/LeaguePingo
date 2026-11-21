@@ -16,7 +16,7 @@ import MatchHistoryRoster from "./MatchHistoryRoster.vue";
 const props = defineProps<{ match: Match; expanded: boolean; compact?: boolean; self?: boolean; connectionId?: number }>();
 defineEmits<{ toggle: [] }>();
 
-const teams = computed(() => historyRoster(props.match));
+const teams = computed(() => historyRoster(props.match, props.connectionId));
 const csRate = computed(() => perMinute(props.match.cs, props.match.duration));
 const role = computed(() => historyPosition(props.match));
 const highlight = computed(() => matchHighlight(props.match));

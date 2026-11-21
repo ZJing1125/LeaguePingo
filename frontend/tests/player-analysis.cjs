@@ -38,7 +38,7 @@ async function verifyIncompleteDetails(page, calls, publish, snapshot, releaseDe
  await rows.nth(3).click();
  await dialog.getByText('已保留个人表现和阵容',{exact:true}).waitFor();
  assert.equal(await dialog.locator('.saved-roster .roster-peer').count(),10);
- assert.match(await dialog.locator('.saved-roster').innerText(),/泰达米尔/,'anonymous roster did not fall back to champion name');
+ assert.match(await dialog.locator('.saved-roster').innerText(),/姓名未提供/,'anonymous roster displayed a champion as player name');
  assert.equal(await dialog.locator('.personal-content .summary-items .game-icon').count(),7);
  assert.equal(await dialog.locator('.target-label').count(),0);
  await shot('offline-roster');
@@ -188,12 +188,14 @@ async function main(){
   const before=analysisCalls();
   await page.getByRole('tab',{name:'团队分析',exact:true}).click();
   await page.locator('.team-analysis').waitFor();
-  assert.equal(await page.locator('.team-metric').count(),6);
+  assert.equal(await page.locator('.team-total-row').count(),6);
   assert.equal(analysisCalls(),before,'team analysis fetched unrequested data');
+  assert.equal(await page.locator('.metric-player').count(),10);
+  await page.getByRole('button',{name:/视野得分/}).click();
+  assert.equal(analysisCalls(),before,'changing metric fetched data');
   await shot('team-dark');
   await page.getByRole('tab',{name:'时间线',exact:true}).click();
-  assert.equal(analysisCalls(),before,'opening timeline tab must not scan games');
-  await page.getByRole('button',{name:'读取本场时间线',exact:true}).click();
+
   await page.locator('.match-timeline .timeline-map').waitFor();
   assert.equal(calls.filter(n=>n==='MatchTimeline').length,1);
   await page.getByLabel('对局时间').fill('480000');
@@ -221,13 +223,14 @@ async function main(){
   await page.locator('.players-workspace .match-main').first().click();
   // A different game cannot inherit a cached timeline, and a failed read is retryable.
   await page.locator('.players-workspace .match-main').nth(1).click();
-  await page.getByRole('tab',{name:'时间线',exact:true}).click();
   failTimeline=true;
-  await page.getByRole('button',{name:'读取本场时间线',exact:true}).click();
+  await page.getByRole('tab',{name:'出装符文',exact:true}).click();
   await page.locator('.full-match-detail .error-banner').waitFor();
   assert.equal(await page.locator('.match-timeline').count(),0,'failed game inherited another game timeline');
   failTimeline=false;
   await page.getByRole('button',{name:'读取本场时间线',exact:true}).click();
+  await page.locator('.skill-order').waitFor();
+  await page.getByRole('tab',{name:'时间线',exact:true}).click();
   await page.locator('.match-timeline').waitFor();
   assert.equal(calls.filter(n=>n==='MatchTimeline').length,3,'failed timeline did not retry explicitly');
   await page.locator('.players-workspace .match-main').nth(1).click();
@@ -281,7 +284,7 @@ async function main(){
   await verifyPlayerHistoryJumps(page,lookups,calls);
   await verifyIncompleteDetails(page,calls,publish,snapshot,releaseDetail,shot);
   assert.deepEqual(external,[]);assert.deepEqual(errors,[]);
-  console.log('PASS: professional overview, rich match rows, click-authorized scoreboard, opt-in timeline, six team metrics, build/runes, cached tab changes, 1280/1100/880; keyboard-only home/query/history/settings/navigation, dialog focus, theme text/focus contrast and reduced motion in both themes; synthetic bridge.');
+  console.log('PASS: professional overview, rich match rows, click-authorized scoreboard, automatic single-game timeline, six team metrics, build/runes, cached tab changes, 1280/1100/880; keyboard-only home/query/history/settings/navigation, dialog focus, theme text/focus contrast and reduced motion in both themes; synthetic bridge.');
  }finally{await browser.close()}
 }
 main().catch(e=>{console.error(e);process.exitCode=1});

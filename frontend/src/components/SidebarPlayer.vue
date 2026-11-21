@@ -19,7 +19,7 @@ const coverage=computed(()=>scoutCoverageText(data.value.report));
 const periodValue=(p:ReturnType<typeof scoutStats>["periods"][number])=>{
   if(!data.value.report) return uiText.common.pending;
   if(p.complete&&!p.games) return uiText.sidebarPlayer.zeroGames;
-  if(!p.games) return uiText.common.pending;
+  if(!p.games) return data.value.report.state === "loading" ? uiText.common.preparing : data.value.report.read ? uiText.modeScouting.noSample : uiText.modeScouting.sampleFailed;
   return percent(data.value.arena ? p.arena?.firstPlaceRate : p.winRate);
 };
 const rank=computed(()=>rankPresentation(props.player,props.queue===440?'RANKED_FLEX_SR':'RANKED_SOLO_5x5'));

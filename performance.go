@@ -36,7 +36,7 @@ func (s *AppService) performanceDiagnostics() performanceDiagnostics {
 // RecordUIResponse accepts only fixed, anonymous measurements from local views.
 func (s *AppService) RecordUIResponse(category string, elapsedMS float64) {
 	switch category {
-	case "player-history-ready", "history-feedback", "history-cache-ready", "history-first-ready", "rating-render", "guide-render":
+	case "room-render", "sidebar-render", "player-history-ready", "history-feedback", "history-cache-ready", "history-first-ready", "rating-render", "guide-render":
 	default:
 		return
 	}

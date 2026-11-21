@@ -1,16 +1,75 @@
 <script setup lang="ts">
-import { uiText } from "../uiText";
-import {computed} from 'vue';
-import type {MatchDetail} from '../../bindings/leaguepingo/internal/core/models';
-import {teamMetrics,teamMetric} from '../analysisData';
-const number=(value:number|null|undefined)=>value==null?'—':value.toLocaleString();
+import { computed, ref } from "vue";
+import type { MatchDetail } from "../../bindings/leaguepingo/internal/core/models";
+import { teamMetrics, teamMetric, type TeamMetricKey } from "../analysisData";
 import { historyTarget } from "../playerHistoryNavigation";
+import { uiText } from "../uiText";
 import PlayerHistoryAction from "./PlayerHistoryAction.vue";
-import GameIcon from './GameIcon.vue';
-const props=defineProps<{detail:MatchDetail; connectionId?: number}>();
-const metrics=computed(()=>teamMetrics.map(m=>({...m,...teamMetric(props.detail,m.key)})));
+import GameIcon from "./GameIcon.vue";
+
+const props = defineProps<{ detail: MatchDetail; connectionId?: number }>();
+const selected = ref<TeamMetricKey>("damage");
+const metrics = computed(() => teamMetrics.map(metric => ({ ...metric, ...teamMetric(props.detail, metric.key) })));
+const metric = computed(() => metrics.value.find(item => item.key === selected.value)!);
+const teams = computed(() => metric.value.teams.map(team => ({
+  ...team,
+  players: [...team.players].sort((a, b) =>
+    (b.summary[selected.value] ?? -1) - (a.summary[selected.value] ?? -1)
+    || a.participantId - b.participantId),
+})));
+const number = (value: number | null | undefined) => value == null ? "—" : value.toLocaleString();
+const teamName = (id: number) => id === 100 ? uiText.teamAnalysis.blue : uiText.common.red;
 </script>
-<template><section class="team-analysis" :aria-label="uiText.teamAnalysis.label"><header><h3>{{ uiText.teamAnalysis.title }}</h3><span><i class="blue"/>{{ uiText.teamAnalysis.blue }}<i class="red"/>{{ uiText.common.red }}</span></header><p v-if="detail.partial" class="analysis-note">{{ uiText.teamAnalysis.incompleteTotals }}</p><div class="team-metrics"><section v-for="metric in metrics" :key="metric.key" class="team-metric"><h4>{{metric.label}}</h4><div class="metric-totals"><span v-for="team in metric.teams" :key="team.teamId" :class="team.teamId===100?'blue':'red'">{{number(team.total)}}</span></div><div class="metric-comparison"><div v-for="team in metric.teams" :key="team.teamId" class="metric-team" :class="team.teamId===100?'blue':'red'"><div v-for="p in team.players" :key="p.participantId" class="metric-player" :class="{target:p.target}" :title="p.displayName"><PlayerHistoryAction :target="historyTarget(p.displayName, connectionId)"><GameIcon :id="p.summary.championId" :size="22"/></PlayerHistoryAction><span class="metric-track"><i :style="{width:`${metric.max&&p.summary[metric.key]!=null?100*(p.summary[metric.key]??0)/metric.max:0}%`}"/><b>{{number(p.summary[metric.key])}}</b></span></div></div></div></section></div><p class="analysis-note">{{ uiText.teamAnalysis.scaleHint }}</p></section></template>
+
+<template>
+  <section class="team-analysis" :aria-label="uiText.teamAnalysis.label">
+    <div class="team-totals">
+      <div class="team-total-head"><span>{{ uiText.teamAnalysis.title }}</span><span>{{ uiText.teamAnalysis.blue }}</span><span>{{ uiText.common.red }}</span></div>
+      <button v-for="item in metrics" :key="item.key" class="team-total-row" :aria-pressed="selected === item.key" @click="selected = item.key">
+        <span>{{ item.label }}</span><b v-for="team in item.teams" :key="team.teamId">{{ number(team.total) }}</b>
+      </button>
+    </div>
+    <p v-if="detail.partial" class="analysis-note">{{ uiText.teamAnalysis.incompleteTotals }}</p>
+    <h3>{{ metric.label }}</h3>
+    <div class="metric-comparison">
+      <section v-for="team in teams" :key="team.teamId" class="metric-team" :class="{ red: team.teamId === 200 }" :aria-label="teamName(team.teamId)">
+        <h4>{{ teamName(team.teamId) }}</h4>
+        <div v-for="player in team.players" :key="player.participantId" class="metric-player" :class="{ target: player.target }">
+          <PlayerHistoryAction class="metric-identity" :target="historyTarget(player.displayName, connectionId)">
+            <GameIcon :id="player.summary.championId" :size="24" />
+            <span>{{ player.displayName?.split('#')[0] || uiText.matchDetails.missingPlayerName }}</span>
+          </PlayerHistoryAction>
+          <span class="metric-track"><i :style="{ width: `${metric.max ? 100 * (player.summary[selected] ?? 0) / metric.max : 0}%` }" /></span>
+          <b>{{ number(player.summary[selected]) }}</b>
+        </div>
+      </section>
+    </div>
+  </section>
+</template>
+
 <style scoped>
-.team-analysis{padding:16px;}.team-analysis>header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}.team-analysis h3{margin:0;font-size:14px;}.team-analysis>header>span{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:12px;}.team-analysis header i{width:7px;height:7px;background:var(--ally);border-radius:50%;}.team-analysis header i.red{background:var(--enemy);margin-left:10px;}.team-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px 28px;}.team-metric h4{font-size:13px;margin:0 0 7px;}.metric-totals{display:flex;justify-content:space-between;margin-bottom:9px;font-size:18px;font-variant-numeric:tabular-nums;}.metric-totals .blue{color:var(--ally);}.metric-totals .red{color:var(--enemy);}.metric-comparison{display:grid;grid-template-columns:1fr 1fr;gap:14px;}.metric-player{display:flex;gap:5px;align-items:center;margin-top:5px;}.metric-player.target{outline:1px solid var(--accent);outline-offset:2px;}.metric-track{height:20px;flex:1;position:relative;background:var(--raised);min-width:0;}.metric-track i{display:block;height:100%;background:var(--ally);opacity:.48;}.red .metric-track i{background:var(--enemy);}.metric-track b{position:absolute;right:5px;top:3px;font-size:11px;font-weight:500;font-variant-numeric:tabular-nums;}.analysis-note{font-size:11px;color:var(--muted);line-height:1.6;margin:14px 0 0;}@container(max-width:530px){.team-metrics{grid-template-columns:1fr;}}
+.team-analysis { padding:12px 16px 16px; font-variant-numeric:tabular-nums; }
+.team-totals { max-width:620px; margin-inline:auto; }
+.team-total-head, .team-total-row { display:grid; grid-template-columns:1fr 1fr 1fr; align-items:center; gap:16px; width:100%; text-align:right; }
+.team-total-head { padding:5px 10px; font-size:12px; color:var(--muted); }
+.team-total-head>span:first-child, .team-total-row>span { text-align:left; }
+.team-total-row { min-height:29px; border:0; border-radius:3px; background:transparent; font-size:12px; padding:5px 10px; }
+.team-total-row b { font-weight:500; }
+.team-total-row:hover { background:var(--hover); }
+.team-total-row[aria-pressed=true] { background:var(--raised); box-shadow:inset 2px 0 var(--accent); }
+.team-analysis h3 { font-size:13px; margin:16px 0 8px; }
+.metric-comparison { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+.metric-team { min-width:0; }
+.metric-team h4 { font-size:12px; font-weight:500; color:var(--ally); margin:0 0 6px; }
+.metric-team.red h4 { color:var(--enemy); }
+.metric-player { display:grid; grid-template-columns:minmax(80px,1fr) 1fr 52px; align-items:center; gap:8px; padding:4px; min-height:34px; border-radius:3px; }
+.metric-player.target { background:var(--raised); box-shadow:inset 2px 0 var(--accent); }
+.metric-identity { display:flex; align-items:center; gap:6px; min-width:0; font-size:12px; }
+.metric-identity>span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.metric-track { height:7px; background:var(--raised); }
+.metric-track i { display:block; height:100%; background:var(--ally); }
+.red .metric-track i { background:var(--enemy); }
+.metric-player>b { text-align:right; font-size:12px; font-weight:500; }
+.analysis-note { font-size:11px; color:var(--muted); }
+@container(max-width:620px) { .metric-comparison { grid-template-columns:1fr; gap:16px; } }
 </style>

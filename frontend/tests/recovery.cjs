@@ -25,6 +25,7 @@ async function main(){
     const method=methods[request.args?.methodID],args=request.args?.args??[];calls.push(method);let result;
     if(method==='Snapshot')result=snapshot;
     else if(method==='CurrentPlayer')result=self;
+    else if(method==='EnsureProfile')result=player(args[0]);
     else if(method==='OverlayStatus')result={visible:false,revision:0,pinned:true};
     else if(method==='GuideStatus')result={revision:0,status:'idle',query:{}};
     else if(method==='AutoAcceptStatus')result={revision:0,enabled:false,status:'off',delaySeconds:1};

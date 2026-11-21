@@ -148,9 +148,10 @@ func (e *Engine) Run(ctx context.Context) {
 				lobbyTimer = time.NewTimer(250 * time.Millisecond)
 				lobbyTick = lobbyTimer.C
 			}
-		case <-lobbyTick:
+		case tick := <-lobbyTick:
 			lobbyTick = nil
 			e.poll(ctx)
+			diagnostics.Default.Record("/room/event-to-snapshot", time.Since(tick.Add(-250*time.Millisecond)), 0, false)
 			timer.Reset(e.pollInterval())
 		case <-e.champEvents.wake:
 			if champTick == nil {
