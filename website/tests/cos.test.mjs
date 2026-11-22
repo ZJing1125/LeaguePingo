@@ -73,7 +73,7 @@ test('publishing credentials are restricted to the trusted dev step before Pages
   assert.doesNotMatch(site, /build:mirror|mirror\.tar|secrets: inherit/);
 });
 test('signed uploads keep credentials out of process arguments and use bounded HTTPS transport', async () => {
-  const env = {COS_SECRET_ID: 'fixture-id', COS_SECRET_KEY: 'fixture-key'};
+  const env = {COS_AUTO_UPLOAD: 'true', COS_SECRET_ID: 'fixture-id', COS_SECRET_KEY: 'fixture-key'};
   const upload = uploader(env, (command, args, options) => {
     assert.equal(command, 'curl');
     assert.equal(args.at(-1), `${origin}/dev/${tag}/leaguepingo.exe`);
@@ -98,4 +98,10 @@ test('signed uploads keep credentials out of process arguments and use bounded H
   await assert.rejects(denied(`dev/${tag}/leaguepingo.exe`, '/fixture.exe', {size: 7}, 'a'.repeat(32)), /HTTP 403/);
   const timeout = uploader(env, () => {throw {stdout: '{"status":"000","bytes":5,"seconds":120,"speed":0,"exit":28}'};});
   await assert.rejects(timeout(`dev/${tag}/leaguepingo.exe`, '/fixture.exe', {size: 7}, 'a'.repeat(32)), /curl 28, uploaded 5 bytes/);
+});
+test('manual publication only verifies files until automatic upload is explicitly enabled', () => {
+  const credentials = {COS_SECRET_ID: 'fixture-id', COS_SECRET_KEY: 'fixture-key'};
+  assert.equal(uploader(credentials), null);
+  assert.equal(uploader({}), null);
+  assert.throws(() => uploader({COS_AUTO_UPLOAD: 'true'}), /Both COS upload secrets/);
 });

@@ -61,7 +61,7 @@ function download(url, file, size) {
 }
 
 export function uploader(env, execute = execFileSync) {
-  if (!env.COS_SECRET_ID && !env.COS_SECRET_KEY) return null;
+  if (env.COS_AUTO_UPLOAD !== 'true') return null;
   if (!env.COS_SECRET_ID || !env.COS_SECRET_KEY) throw new Error('Both COS upload secrets are required');
   return async (key, file, spec, md5) => {
     const url = new URL(`${origin}/${key}`);
@@ -117,7 +117,7 @@ export async function publishDownloads(data, {request = fetch, getFile = downloa
         await getFile(spec.url, file, spec.size);
         const md5 = await checksum(createReadStream(file), spec);
         if (!await publicMatch(url, spec, md5, request)) {
-          if (!upload) throw new Error(`Missing ${key}. Add COS_SECRET_ID and COS_SECRET_KEY in Actions or upload the verified release files.`);
+          if (!upload) throw new Error(`Missing ${key}. Upload this release file to COS, then rerun the website workflow. Optional automatic upload requires COS_AUTO_UPLOAD=true and both COS upload secrets.`);
           await upload(key, file, spec, md5);
           if (!await publicMatch(url, spec, md5, request)) throw new Error(`COS object still unavailable: ${key}`);
         }
