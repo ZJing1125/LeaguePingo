@@ -33,7 +33,7 @@ jobs:
   build:
     name: Verify and build website
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 240
     outputs:
       source_sha: ${{ steps.source.outputs.sha }}
     steps:

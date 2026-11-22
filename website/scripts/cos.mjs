@@ -11,7 +11,7 @@ import {repository} from './releases.mjs';
 const bucket = 'pingo-1538719098';
 const region = 'ap-shanghai';
 export const origin = `https://${bucket}.cos.${region}.myqcloud.com`;
-const names = ['leaguepingo-setup.exe', 'leaguepingo.exe', 'BUILD-INFO.json', 'SHA256SUMS.txt', 'README.txt'];
+const names = ['BUILD-INFO.json', 'SHA256SUMS.txt', 'README.txt', 'leaguepingo-setup.exe', 'leaguepingo.exe'];
 const releaseOrigin = `https://github.com/${repository}/releases/download`;
 
 async function checksum(stream, expected) {
@@ -75,7 +75,7 @@ export function uploader(env, execute = execFileSync) {
       'x-cos-forbid-overwrite': 'true',
     };
     const authorization = COS.getAuthorization({SecretId: env.COS_SECRET_ID, SecretKey: env.COS_SECRET_KEY,
-      Method: 'PUT', Pathname: url.pathname, Headers: headers});
+      Method: 'PUT', Pathname: url.pathname, Headers: headers, Expires: 11_700});
     // Supply authorization through stdin so it stays out of process arguments and files.
     const config = Object.entries({...headers, Authorization: authorization})
       .map(([name, value]) => `header = ${JSON.stringify(`${name}: ${value}`)}`).join('\n') + '\nheader = "Expect:"\n';
@@ -83,8 +83,8 @@ export function uploader(env, execute = execFileSync) {
     let result;
     try {
       result = execute('curl', ['--config', '-', '--fail', '--silent', '--show-error', '--http1.1',
-        '--proto', '=https', '--connect-timeout', '15', '--max-time', '120', '--retry', '1',
-        '--retry-delay', '1', '--speed-time', '30', '--speed-limit', '16384', '--upload-file', file,
+        '--proto', '=https', '--connect-timeout', '15', '--max-time', '5400', '--retry', '1',
+        '--retry-delay', '5', '--speed-time', '120', '--speed-limit', '1024', '--upload-file', file,
         '--output', os.devNull, '--write-out',
         '{"status":"%{http_code}","bytes":%{size_upload},"seconds":%{time_total},"speed":%{speed_upload},"exit":%{exitcode}}', url.href],
       {input: config, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe']}).trim();
