@@ -80,20 +80,24 @@ export function uploader(env, execute = execFileSync) {
     const config = Object.entries({...headers, Authorization: authorization})
       .map(([name, value]) => `header = ${JSON.stringify(`${name}: ${value}`)}`).join('\n') + '\nheader = "Expect:"\n';
     console.log('Uploading COS object:', key);
-    let status;
+    let result;
     try {
-      status = execute('curl', ['--config', '-', '--fail', '--silent', '--show-error', '--http1.1',
+      result = execute('curl', ['--config', '-', '--fail', '--silent', '--show-error', '--http1.1',
         '--proto', '=https', '--connect-timeout', '15', '--max-time', '120', '--retry', '1',
         '--retry-delay', '1', '--speed-time', '30', '--speed-limit', '16384', '--upload-file', file,
-        '--output', os.devNull, '--write-out', '%{http_code}', url.href],
+        '--output', os.devNull, '--write-out',
+        '{"status":%{http_code},"bytes":%{size_upload},"seconds":%{time_total},"speed":%{speed_upload},"exit":%{exitcode}}', url.href],
       {input: config, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe']}).trim();
     } catch (error) {
-      status = String(error.stdout || '').trim();
+      result = String(error.stdout || '').trim();
     }
-    if (status !== '200' && status !== '409')
-      throw new Error(`COS upload failed for ${key} (HTTP ${/^\d{3}$/.test(status) ? status : '000'}, check upload permissions and network)`);
+    let transfer;
+    try { transfer = JSON.parse(result); } catch { transfer = {status: 0, exit: 'unknown', bytes: 0}; }
+    console.log('COS transfer:', JSON.stringify(transfer));
+    if (transfer.status !== 200 && transfer.status !== 409)
+      throw new Error(`COS upload failed for ${key} (HTTP ${transfer.status}, curl ${transfer.exit}, uploaded ${transfer.bytes} bytes)`);
     // A concurrent publisher may have won the write. Its public bytes are checked below.
-    console.log(status === '200' ? 'COS object uploaded:' : 'COS object already exists:', key);
+    console.log(transfer.status === 200 ? 'COS object uploaded:' : 'COS object already exists:', key);
   };
 }
 

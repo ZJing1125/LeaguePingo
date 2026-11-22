@@ -89,11 +89,11 @@ test('signed uploads keep credentials out of process arguments and use bounded H
     assert.match(options.input, /x-cos-forbid-overwrite: true/);
     assert.match(options.input, /content-md5:/);
     assert.ok(!options.input.includes(env.COS_SECRET_KEY));
-    return '200';
+    return '{"status":200,"bytes":7,"seconds":0.1,"speed":70,"exit":0}';
   });
   await upload(`dev/${tag}/leaguepingo.exe`, '/fixture.exe', {size: 7}, 'a'.repeat(32));
-  const conflict = uploader(env, () => {throw {stdout: '409'};});
+  const conflict = uploader(env, () => {throw {stdout: '{"status":409,"bytes":0,"seconds":0.1,"speed":0,"exit":22}'};});
   await conflict(`dev/${tag}/leaguepingo.exe`, '/fixture.exe', {size: 7}, 'a'.repeat(32));
-  const denied = uploader(env, () => {throw {stdout: '403', message: env.COS_SECRET_KEY};});
+  const denied = uploader(env, () => {throw {stdout: '{"status":403,"bytes":0,"seconds":0.1,"speed":0,"exit":22}', message: env.COS_SECRET_KEY};});
   await assert.rejects(denied(`dev/${tag}/leaguepingo.exe`, '/fixture.exe', {size: 7}, 'a'.repeat(32)), /HTTP 403/);
 });
