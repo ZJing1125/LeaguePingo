@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "astro dev --host 127.0.0.1",
     "build": "astro build",
+    "build:mirror": "node scripts/mirror-bundle.mjs",
     "preview": "astro preview --host 127.0.0.1",
     "sync-release": "node scripts/releases.mjs",
     "test": "node --test tests/*.test.mjs",

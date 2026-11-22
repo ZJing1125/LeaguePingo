@@ -1,9 +1,13 @@
 ---
-import releases from '../data/releases.json';
+import published from '../data/releases.json';
+import { localDownloads } from '../../scripts/mirror-bundle.mjs';
 import '../styles/site.css';
+const mirror = import.meta.env.WEBSITE_MIRROR === '1';
+const releases = mirror ? localDownloads(published) : published;
 const current = releases.stable ?? releases.preview;
 if (!current) throw new Error('No verified download available');
 const base = import.meta.env.BASE_URL;
+const canonicalBase = import.meta.env.WEBSITE_CANONICAL_BASE || base;
 const media = (name: string) => `${base}media/${name}.webp`;
 const repo = 'https://github.com/ZJing1125/LeaguePingo';
 const label = current.channel === 'preview' ? '下载 Windows 测试版' : '下载 Windows 版';
@@ -23,11 +27,11 @@ const stages = [
     <title>LeaguePingo — 腾讯国服英雄联盟助手下载</title>
     <meta name="description" content="LeaguePingo，面向腾讯国服的本地英雄联盟助手。赛前资料、局内快览、赛后复盘与海克斯大乱斗攻略。下载 Windows 版。" />
     <link rel="icon" href={`${base}icon.png`} />
-    <link rel="canonical" href={new URL(base, Astro.site)} />
+    <link rel="canonical" href={new URL(canonicalBase, Astro.site)} />
     <meta property="og:title" content="LeaguePingo · 看清对局，再进峡谷" />
     <meta property="og:description" content="腾讯国服本地助手。赛前资料、局内快览与赛后复盘。" />
     <meta property="og:type" content="website" /><meta property="og:locale" content="zh_CN" />
-    <meta property="og:image" content={new URL(`${base}media/overview.webp`, Astro.site)} />
+    <meta property="og:image" content={new URL(`${canonicalBase}media/overview.webp`, Astro.site)} />
   </head>
   <body>
     <a class="skip" href="#main">跳到正文</a>
@@ -58,8 +62,8 @@ const stages = [
         <details><summary>支持什么系统和服务器？</summary><p>当前提供 Windows 64 位版本，面向英雄联盟腾讯国服。需要 Microsoft Edge WebView2 Runtime，缺失时程序会引导安装。</p></details>
         <details><summary>安装后没有连接到客户端？</summary><p>先启动腾讯国服客户端并完成登录，再保持助手运行。仍无法连接时，可在助手中查看连接指引，通过 GitHub 反馈问题。</p></details>
         <details><summary>自动接受和赛后排队怎么开启？</summary><p>进入“游戏辅助”，分别开启并保存需要的选项。自动接受、跳过点赞、返回房间和排队均默认关闭，随时可以一键停用。</p></details>
-        <details><summary>浏览器或 Windows 提示下载风险？</summary><p>当前为开发测试版，尚未配置发布签名。请核对来源为本项目的 GitHub Releases，并使用校验文件检查下载内容；不要关闭系统安全保护。</p></details>
-        <details><summary>下载缓慢或失败怎么办？</summary><p>程序由 GitHub Releases 分发，不同网络的下载速度可能不同。可稍后重试，或打开<a href={repo+'/releases'}>发布页面</a>重新选择附件。</p></details>
+        <details><summary>浏览器或 Windows 提示下载风险？</summary><p>当前为开发测试版，尚未配置发布签名。请从本官网或本项目的 GitHub Releases 下载，并使用校验文件检查下载内容；不要关闭系统安全保护。</p></details>
+        <details><summary>下载缓慢或失败怎么办？</summary><p>{mirror ? '本官网提供与 GitHub Releases 校验值一致的程序文件。可重试下载，或打开' : '程序由 GitHub Releases 分发，不同网络的下载速度可能不同。可稍后重试，或打开'}<a href={repo+'/releases'}>发布页面</a>重新选择附件。</p></details>
         <details><summary>玩家数据会上传到官网吗？</summary><p>官网仅提供介绍和下载。客户端连接和玩家查询在本地助手中完成，不向官网上传玩家数据。界面演示使用匿名合成数据。</p></details>
       </div></section>
       <section class="closing wrap"><h2>下一局，带上 LeaguePingo。</h2><a class="button" href={current.files['leaguepingo-setup.exe'].url}>{label}<span aria-hidden="true">↓</span></a></section>

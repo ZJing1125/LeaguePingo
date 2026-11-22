@@ -58,6 +58,12 @@ jobs:
         run: npm --prefix website run build
       - name: Browser verification
         run: BROWSER_EXECUTABLE="$(command -v google-chrome)" npm --prefix website run test:browser
+      - name: Verify server mirror updater
+        run: |
+          python3 -m unittest discover -s website/deploy -p 'test_*.py'
+          bash -n website/deploy/install.sh
+      - name: Build and verify root-path mirror bundle
+        run: BROWSER_EXECUTABLE="$(command -v google-chrome)" npm --prefix website run build:mirror -- --browser
       - name: Upload website
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
