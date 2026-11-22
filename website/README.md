@@ -17,8 +17,6 @@ npm --prefix website run preview
 
 官网变动触发独立website工作流，不重建桌面程序；桌面CI成功发布Release后显式调用同一website工作流。网页PR只构建验证；部署只接受dev。仅deploy任务持pages:write/id-token:write，不能写软件Release。仓库Settings → Pages → Source需为GitHub Actions；github-pages环境需允许dev部署，私有/付费仓库需满足GitHub Pages可用条件。设置访问被拒绝时不修改默认分支或绕过权限。
 
-默认 Pages 下载源是现有 GitHub Releases。另由 `npm --prefix website run build:mirror -- --browser` 构建根路径官网镜像，下载链接指向同站点 `/releases/<tag>/`，公开输出 `mirror.json` 与 `mirror.tar.gz`。此步骤在临时目录独立构建，不替换 Pages 的项目路径和下载源。
-
-Ubuntu/Vultr 的安装、五分钟同步、校验、回退和验证边界见 [deploy/README.md](deploy/README.md)。国内网络质量、独立域名及 HTTPS、CDN 仍需在相应环境验证，网址以真实部署结果为准。
+官网在发布时验证上海腾讯云 COS 的公开 HTTPS 对象，五个文件全部通过后生成国内下载链接。仓库 Secrets、对象路径与旧 VPS 清理命令见[下载分发](deploy/README.md)。
 
 发布后调用网站工作流时读取最新dev页面源码；部署前核对源码仍为dev当前提交，避免旧软件CI排队完成后把较新的官网内容覆盖。无脚本时不显示无法使用的阶段切换按钮，默认演示与下载始终可用。

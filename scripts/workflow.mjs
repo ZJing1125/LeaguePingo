@@ -263,6 +263,12 @@ export function checkWorkflow(read) {
     '      pages: write', '      id-token: write', '        run: npm --prefix website test',
     '        run: npm --prefix website run sync-release', '        run: npm --prefix website run build',
     'npm --prefix website run test:browser', '          path: website/dist']) requireText('.github/workflows/website.yml', text);
+  const siteJobs = taskBlocks(site, 'jobs');
+  const publishGuard = "if: ${{ github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' }}";
+  if (!siteJobs.get('build')?.includes('- name: Publish and verify public COS downloads\n        ' + publishGuard) ||
+      !siteJobs.get('deploy')?.split('\n').includes('    ' + publishGuard)) {
+    throw new Error('COS publishing and Pages deployment must independently require trusted dev');
+  }
   if (/contents: write|continue-on-error:|secrets: inherit/.test(site) ||
       [...site.matchAll(/uses: (\S+)/g)].some(m => !/^actions\/(checkout|setup-node|upload-pages-artifact|deploy-pages)@[a-f0-9]{40}$/.test(m[1]))) {
     throw new Error('Website actions must be pinned and have no release write permissions');

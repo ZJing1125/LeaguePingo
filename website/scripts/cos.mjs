@@ -1,0 +1,117 @@
+import {createHash} from 'node:crypto';
+import {execFileSync} from 'node:child_process';
+import {createReadStream} from 'node:fs';
+import {mkdtemp, readFile, rename, rm, writeFile} from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import COS from 'cos-nodejs-sdk-v5';
+import {repository} from './releases.mjs';
+
+const bucket = 'pingo-1538719098';
+const region = 'ap-shanghai';
+export const origin = `https://${bucket}.cos.${region}.myqcloud.com`;
+const names = ['leaguepingo-setup.exe', 'leaguepingo.exe', 'BUILD-INFO.json', 'SHA256SUMS.txt', 'README.txt'];
+const releaseOrigin = `https://github.com/${repository}/releases/download`;
+
+async function checksum(stream, expected) {
+  const sha = createHash('sha256'), md5 = createHash('md5');
+  let bytes = 0;
+  for await (const chunk of stream) {
+    bytes += chunk.length;
+    if (bytes > expected.size) throw new Error('File exceeds release size');
+    sha.update(chunk);
+    md5.update(chunk);
+  }
+  if (bytes !== expected.size || sha.digest('hex') !== expected.sha256) throw new Error('Release checksum mismatch');
+  return md5.digest('hex');
+}
+
+async function publicMatch(url, spec, md5, request) {
+  const get = headers => request(url, {headers, redirect: 'error', signal: AbortSignal.timeout(120_000)});
+  const part = await get({Range: 'bytes=0-0'});
+  if (part.status === 200) {
+    await checksum(part.body, spec);
+    return true;
+  }
+  if (part.status !== 206) {
+    await part.body?.cancel();
+    if (part.status === 404) return false;
+    throw new Error(`Anonymous COS read returned HTTP ${part.status}`);
+  }
+  if (part.headers.get('content-range') !== `bytes 0-0/${spec.size}` || (await part.arrayBuffer()).byteLength !== 1)
+    throw new Error('COS object size differs');
+  // COS single-part PUTs return the content MD5. Multipart and encrypted objects may use other ETags.
+  if (part.headers.get('etag') === `"${md5}"`) return true;
+  const whole = await get({});
+  if (whole.status !== 200) {
+    await whole.body?.cancel();
+    throw new Error(`COS verification returned HTTP ${whole.status}`);
+  }
+  await checksum(whole.body, spec);
+  return true;
+}
+
+function download(url, file, size) {
+  execFileSync('curl', ['--fail', '--location', '--silent', '--show-error', '--proto', '=https',
+    '--proto-redir', '=https', '--max-time', '180', '--retry', '2', '--max-filesize', String(size),
+    '--output', file, url], {stdio: ['ignore', 'ignore', 'inherit']});
+}
+
+function uploader(env) {
+  if (!env.COS_SECRET_ID && !env.COS_SECRET_KEY) return null;
+  if (!env.COS_SECRET_ID || !env.COS_SECRET_KEY) throw new Error('Both COS upload secrets are required');
+  const client = new COS({SecretId: env.COS_SECRET_ID, SecretKey: env.COS_SECRET_KEY, Protocol: 'https:', Timeout: 120_000});
+  return async (key, file, spec, md5) => {
+    try {
+      await client.putObject({Bucket: bucket, Region: region, Key: key, Body: createReadStream(file),
+        ContentLength: spec.size, ContentMD5: Buffer.from(md5, 'hex').toString('base64'),
+        ContentType: 'application/octet-stream', ContentDisposition: 'attachment',
+        CacheControl: 'public, max-age=31536000, immutable', Headers: {'x-cos-forbid-overwrite': 'true'}});
+    } catch (error) {
+      if (error.statusCode !== 409) throw new Error(`COS upload failed for ${key} (${error.code || error.statusCode || 'network error'})`);
+      // A concurrent publisher may have won the write. Its public bytes are checked below.
+    }
+  };
+}
+
+export async function publishDownloads(data, {request = fetch, getFile = download, upload = null} = {}) {
+  const published = structuredClone(data);
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'pingo-cos-'));
+  try {
+    for (const release of [published.stable, published.preview].filter(Boolean)) {
+      if (!/^v\d+\.\d+\.\d+[\w.-]*$/.test(release.tag) || Object.keys(release.files).length !== names.length)
+        throw new Error('Invalid release tag or file list');
+      for (const name of names) {
+        const file = path.join(dir, name), spec = release.files[name];
+        if (spec?.url !== `${releaseOrigin}/${release.tag}/${name}` || !Number.isSafeInteger(spec.size) ||
+            spec.size <= 0 || !/^[a-f0-9]{64}$/.test(spec.sha256)) throw new Error('Invalid release file metadata');
+        const key = `dev/${release.tag}/${name}`, url = `${origin}/${key}`;
+        await getFile(spec.url, file, spec.size);
+        const md5 = await checksum(createReadStream(file), spec);
+        if (!await publicMatch(url, spec, md5, request)) {
+          if (!upload) throw new Error(`Missing ${key}. Add COS_SECRET_ID and COS_SECRET_KEY in Actions or upload the verified release files.`);
+          await upload(key, file, spec, md5);
+          if (!await publicMatch(url, spec, md5, request)) throw new Error(`COS object still unavailable: ${key}`);
+        }
+        spec.url = url;
+      }
+    }
+    return published;
+  } finally {
+    await rm(dir, {recursive: true, force: true});
+  }
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const manifest = fileURLToPath(new URL('../src/data/releases.json', import.meta.url));
+  try {
+    const data = await publishDownloads(JSON.parse(await readFile(manifest, 'utf8')), {upload: uploader(process.env)});
+    await writeFile(manifest + '.tmp', JSON.stringify(data, null, 2) + '\n');
+    await rename(manifest + '.tmp', manifest);
+    console.log('Public COS download files verified for', (data.stable ?? data.preview).tag);
+  } catch (error) {
+    console.error(error.message);
+    process.exitCode = 1;
+  }
+}

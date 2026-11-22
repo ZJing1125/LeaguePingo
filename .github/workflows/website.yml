@@ -12,6 +12,11 @@ on:
       - 'website/**'
       - '.github/workflows/website.yml'
   workflow_call:
+    secrets:
+      COS_SECRET_ID:
+        required: false
+      COS_SECRET_KEY:
+        required: false
   workflow_dispatch:
 
 permissions:
@@ -54,16 +59,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: npm --prefix website run sync-release
+      - name: Publish and verify public COS downloads
+        if: ${{ github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' }}
+        env:
+          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
+          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
+        run: node website/scripts/cos.mjs
       - name: Build static website
         run: npm --prefix website run build
       - name: Browser verification
         run: BROWSER_EXECUTABLE="$(command -v google-chrome)" npm --prefix website run test:browser
-      - name: Verify server mirror updater
-        run: |
-          python3 -m unittest discover -s website/deploy -p 'test_*.py'
-          bash -n website/deploy/install.sh
-      - name: Build and verify root-path mirror bundle
-        run: BROWSER_EXECUTABLE="$(command -v google-chrome)" npm --prefix website run build:mirror -- --browser
       - name: Upload website
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
