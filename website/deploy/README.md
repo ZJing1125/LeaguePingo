@@ -5,7 +5,7 @@
 发布目录为 `https://pingo-1538719098.cos.ap-shanghai.myqcloud.com/dev/<Release 标签>/`，文件名与 Release 一致。测试目录 `dev/v0.0.0-test/` 独立保留。
 
 1. 在 COS 为发布前缀配置匿名读取对象的权限。桶的写权限只授予发布身份。
-2. 默认手动上传。将 GitHub Release 的五个原始附件放入 `dev/<Release 标签>/`，保留文件名，再重跑官网工作流。当前版本 `v0.2.0-dev.g31315fae` 的三份小文件已核验，只需补齐 `leaguepingo-setup.exe` 和 `leaguepingo.exe`。新版按对应 Release 标签创建目录，上传五个附件。
+2. 默认手动上传。将 GitHub Release 的五个原始附件放入 `dev/<Release 标签>/`，保留文件名，再重跑官网工作流。五个附件为 `BUILD-INFO.json`、`SHA256SUMS.txt`、`README.txt`、`leaguepingo-setup.exe` 和 `leaguepingo.exe`。新版按对应 Release 标签创建目录。
 3. 可选自动上传。在 GitHub 仓库 Settings → Secrets and variables → Actions → Secrets 添加 `COS_SECRET_ID`、`COS_SECRET_KEY`，来自仅对该桶 `dev/*` 有 `cos:PutObject` 权限的 CAM 子账号，并在 Variables 添加 `COS_AUTO_UPLOAD=true`。密钥在该选项开启后传给可信 dev 上传步骤。
 4. 官网工作流先按原流程核验 Release，再核对每个源文件的大小、SHA-256。自动上传模式下，缺失对象使用单次 PUT 和 Content-MD5 上传。对默认 HTTPS 地址使用匿名 Range 读取，将返回的大小、单段 ETag 与源文件比对；无法用 ETag 证明一致时，读取完整对象核对 SHA-256。失败可在修复权限或补齐文件后重跑。上一版官网继续提供下载。
 
