@@ -53,9 +53,11 @@ async function publicMatch(url, spec, md5, request) {
 }
 
 function download(url, file, size) {
+  console.log('Downloading release file:', path.basename(file));
   execFileSync('curl', ['--fail', '--location', '--silent', '--show-error', '--proto', '=https',
     '--proto-redir', '=https', '--max-time', '180', '--retry', '2', '--max-filesize', String(size),
     '--output', file, url], {stdio: ['ignore', 'ignore', 'inherit']});
+  console.log('Release file downloaded:', path.basename(file));
 }
 
 function uploader(env) {
@@ -63,11 +65,13 @@ function uploader(env) {
   if (!env.COS_SECRET_ID || !env.COS_SECRET_KEY) throw new Error('Both COS upload secrets are required');
   const client = new COS({SecretId: env.COS_SECRET_ID, SecretKey: env.COS_SECRET_KEY, Protocol: 'https:', Timeout: 120_000});
   return async (key, file, spec, md5) => {
+    console.log('Uploading COS object:', key);
     try {
       await client.putObject({Bucket: bucket, Region: region, Key: key, Body: createReadStream(file),
         ContentLength: spec.size, ContentMD5: Buffer.from(md5, 'hex').toString('base64'),
         ContentType: 'application/octet-stream', ContentDisposition: 'attachment',
         CacheControl: 'public, max-age=31536000, immutable', Headers: {'x-cos-forbid-overwrite': 'true'}});
+      console.log('COS object uploaded:', key);
     } catch (error) {
       if (error.statusCode !== 409) throw new Error(`COS upload failed for ${key} (${error.code || error.statusCode || 'network error'})`);
       // A concurrent publisher may have won the write. Its public bytes are checked below.
