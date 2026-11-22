@@ -116,7 +116,7 @@ if systemctl is-active --quiet nginx; then
 else
   if ! systemctl start nginx; then restore_config; exit 1; fi
 fi
-curl --fail --silent --show-error "http://127.0.0.1:$port/downloads.json" >/dev/null
+curl --noproxy 127.0.0.1 --fail --silent --show-error "http://127.0.0.1:$port/downloads.json" >/dev/null
 systemctl enable --now leaguepingo-mirror.timer
 if command -v ufw >/dev/null && ufw status | grep -q '^Status: active'; then ufw allow "$port/tcp"; fi
 echo "Mirror ready locally. Open http://YOUR_SERVER_IP:$port/ after allowing TCP $port in the Vultr firewall."

@@ -20,6 +20,8 @@ sudo bash /tmp/leaguepingo-install.sh "$mirror_ref" 8080
 
 默认测试网址为 `http://YOUR_SERVER_IP:8080/`。若配置了 Vultr Cloud Firewall，请在该实例关联的防火墙中放行 TCP 8080。脚本仅在 UFW 已启用时添加该端口，不启用或重置防火墙。已有服务使用 8080 时可把命令末尾端口改为其他未占用的 1024–65535 端口。
 
+安装末尾的本机健康检查直接访问127.0.0.1，避免服务器已有代理环境把该请求发到外部；外部下载沿用服务器原网络配置。
+
 安装器只维护 `/srv/leaguepingo/`、`/usr/local/lib/leaguepingo/mirror.py`、专属 Nginx 配置和专属 systemd 服务/定时器。拒绝接管非空未登记目录或同名未登记配置，不更改 Nginx 默认站点、现有其他服务或全局网络参数。依赖包安装仍由管理员先执行，Nginx 安装/start 的系统影响应在当前服务器核对。
 
 这是 **IP＋HTTP 的试用入口**，不是 HTTPS 正式入口。测试通过后再注册域名、配置 DNS 和 HTTPS；不要把 GitHub Pages 的 HTTPS 下载按钮改为 HTTP 文件链接。
