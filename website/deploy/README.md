@@ -8,6 +8,8 @@
 2. 在 GitHub 仓库 Settings → Secrets and variables → Actions → Secrets 添加 `COS_SECRET_ID`、`COS_SECRET_KEY`，来自仅对该桶 `dev/*` 有 `cos:PutObject` 权限的 CAM 子账号。凭据只传给 dev 官网工作流的上传步骤。也可以手工上传原始五个附件后重跑工作流，仅使用匿名验证。
 3. 官网工作流先按原流程核验 Release，再核对每个源文件的大小、SHA-256。缺失对象使用单次 PUT 和 Content-MD5 上传。对默认 HTTPS 地址使用匿名 Range 读取，将返回的大小、单段 ETag 与源文件比对；无法用 ETag 证明一致时，读取完整对象核对 SHA-256。失败可在修复权限或补齐文件后重跑。上一版官网继续提供下载。
 
+上传签名由锁定的腾讯云 SDK 生成，经标准输入交给 curl。传输设置连接、总时长和低速超时，签名保留在进程内存中。日志记录文件名和阶段状态，GitHub Secrets 仅传给上传步骤。
+
 在 [下载清单](https://zjing1125.github.io/LeaguePingo/downloads.json) 查看实际部署版本与地址。云开发机的下载验证不能代替大陆玩家线路测速。
 
 ## 退役东京 Vultr 镜像

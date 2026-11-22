@@ -60,22 +60,40 @@ function download(url, file, size) {
   console.log('Release file downloaded:', path.basename(file));
 }
 
-function uploader(env) {
+export function uploader(env, execute = execFileSync) {
   if (!env.COS_SECRET_ID && !env.COS_SECRET_KEY) return null;
   if (!env.COS_SECRET_ID || !env.COS_SECRET_KEY) throw new Error('Both COS upload secrets are required');
-  const client = new COS({SecretId: env.COS_SECRET_ID, SecretKey: env.COS_SECRET_KEY, Protocol: 'https:', Timeout: 120_000});
   return async (key, file, spec, md5) => {
+    const url = new URL(`${origin}/${key}`);
+    const headers = {
+      host: url.host,
+      'content-length': String(spec.size),
+      'content-md5': Buffer.from(md5, 'hex').toString('base64'),
+      'content-type': 'application/octet-stream',
+      'content-disposition': 'attachment',
+      'cache-control': 'public, max-age=31536000, immutable',
+      'x-cos-forbid-overwrite': 'true',
+    };
+    const authorization = COS.getAuthorization({SecretId: env.COS_SECRET_ID, SecretKey: env.COS_SECRET_KEY,
+      Method: 'PUT', Pathname: url.pathname, Headers: headers});
+    // Supply authorization through stdin so it stays out of process arguments and files.
+    const config = Object.entries({...headers, Authorization: authorization})
+      .map(([name, value]) => `header = ${JSON.stringify(`${name}: ${value}`)}`).join('\n') + '\nheader = "Expect:"\n';
     console.log('Uploading COS object:', key);
+    let status;
     try {
-      await client.putObject({Bucket: bucket, Region: region, Key: key, Body: createReadStream(file),
-        ContentLength: spec.size, ContentMD5: Buffer.from(md5, 'hex').toString('base64'),
-        ContentType: 'application/octet-stream', ContentDisposition: 'attachment',
-        CacheControl: 'public, max-age=31536000, immutable', Headers: {'x-cos-forbid-overwrite': 'true'}});
-      console.log('COS object uploaded:', key);
+      status = execute('curl', ['--config', '-', '--fail', '--silent', '--show-error', '--http1.1',
+        '--proto', '=https', '--connect-timeout', '15', '--max-time', '120', '--retry', '1',
+        '--retry-delay', '1', '--speed-time', '30', '--speed-limit', '16384', '--upload-file', file,
+        '--output', os.devNull, '--write-out', '%{http_code}', url.href],
+      {input: config, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe']}).trim();
     } catch (error) {
-      if (error.statusCode !== 409) throw new Error(`COS upload failed for ${key} (${error.code || error.statusCode || 'network error'})`);
-      // A concurrent publisher may have won the write. Its public bytes are checked below.
+      status = String(error.stdout || '').trim();
     }
+    if (status !== '200' && status !== '409')
+      throw new Error(`COS upload failed for ${key} (HTTP ${/^\d{3}$/.test(status) ? status : '000'}, check upload permissions and network)`);
+    // A concurrent publisher may have won the write. Its public bytes are checked below.
+    console.log(status === '200' ? 'COS object uploaded:' : 'COS object already exists:', key);
   };
 }
 

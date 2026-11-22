@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFile, writeFile} from 'node:fs/promises';
 import {test} from 'node:test';
-import {origin, publishDownloads} from '../scripts/cos.mjs';
+import {origin, publishDownloads, uploader} from '../scripts/cos.mjs';
 
 const tag = 'v1.2.3-dev.gaaaaaaaa';
 const github = 'https://github.com/ZJing1125/LeaguePingo/releases/download';
@@ -71,4 +71,29 @@ test('publishing credentials are restricted to the trusted dev step before Pages
   assert.ok(site.indexOf('run sync-release') < site.indexOf(step));
   assert.equal(site.match(/secrets.COS_SECRET_KEY/g)?.length, 1);
   assert.doesNotMatch(site, /build:mirror|mirror\.tar|secrets: inherit/);
+});
+test('signed uploads keep credentials out of process arguments and use bounded HTTPS transport', async () => {
+  const env = {COS_SECRET_ID: 'fixture-id', COS_SECRET_KEY: 'fixture-key'};
+  const upload = uploader(env, (command, args, options) => {
+    assert.equal(command, 'curl');
+    assert.equal(args.at(-1), `${origin}/dev/${tag}/leaguepingo.exe`);
+    assert.ok(args.includes('--max-time'));
+    assert.ok(args.includes('--connect-timeout'));
+    assert.ok(args.includes('--speed-time'));
+    assert.ok(args.includes('--fail'));
+    assert.ok(args.includes('--http1.1'));
+    assert.equal(args.includes('--location'), false);
+    assert.ok(!args.join(' ').includes(env.COS_SECRET_ID));
+    assert.ok(!args.join(' ').includes(env.COS_SECRET_KEY));
+    assert.match(options.input, /Authorization: q-sign-algorithm=sha1/);
+    assert.match(options.input, /x-cos-forbid-overwrite: true/);
+    assert.match(options.input, /content-md5:/);
+    assert.ok(!options.input.includes(env.COS_SECRET_KEY));
+    return '200';
+  });
+  await upload(`dev/${tag}/leaguepingo.exe`, '/fixture.exe', {size: 7}, 'a'.repeat(32));
+  const conflict = uploader(env, () => {throw {stdout: '409'};});
+  await conflict(`dev/${tag}/leaguepingo.exe`, '/fixture.exe', {size: 7}, 'a'.repeat(32));
+  const denied = uploader(env, () => {throw {stdout: '403', message: env.COS_SECRET_KEY};});
+  await assert.rejects(denied(`dev/${tag}/leaguepingo.exe`, '/fixture.exe', {size: 7}, 'a'.repeat(32)), /HTTP 403/);
 });
