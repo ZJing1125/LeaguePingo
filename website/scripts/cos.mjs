@@ -86,13 +86,14 @@ export function uploader(env, execute = execFileSync) {
         '--proto', '=https', '--connect-timeout', '15', '--max-time', '120', '--retry', '1',
         '--retry-delay', '1', '--speed-time', '30', '--speed-limit', '16384', '--upload-file', file,
         '--output', os.devNull, '--write-out',
-        '{"status":%{http_code},"bytes":%{size_upload},"seconds":%{time_total},"speed":%{speed_upload},"exit":%{exitcode}}', url.href],
+        '{"status":"%{http_code}","bytes":%{size_upload},"seconds":%{time_total},"speed":%{speed_upload},"exit":%{exitcode}}', url.href],
       {input: config, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe']}).trim();
     } catch (error) {
       result = String(error.stdout || '').trim();
     }
     let transfer;
     try { transfer = JSON.parse(result); } catch { transfer = {status: 0, exit: 'unknown', bytes: 0}; }
+    transfer.status = Number(transfer.status);
     console.log('COS transfer:', JSON.stringify(transfer));
     if (transfer.status !== 200 && transfer.status !== 409)
       throw new Error(`COS upload failed for ${key} (HTTP ${transfer.status}, curl ${transfer.exit}, uploaded ${transfer.bytes} bytes)`);

@@ -96,4 +96,6 @@ test('signed uploads keep credentials out of process arguments and use bounded H
   await conflict(`dev/${tag}/leaguepingo.exe`, '/fixture.exe', {size: 7}, 'a'.repeat(32));
   const denied = uploader(env, () => {throw {stdout: '{"status":403,"bytes":0,"seconds":0.1,"speed":0,"exit":22}', message: env.COS_SECRET_KEY};});
   await assert.rejects(denied(`dev/${tag}/leaguepingo.exe`, '/fixture.exe', {size: 7}, 'a'.repeat(32)), /HTTP 403/);
+  const timeout = uploader(env, () => {throw {stdout: '{"status":"000","bytes":5,"seconds":120,"speed":0,"exit":28}'};});
+  await assert.rejects(timeout(`dev/${tag}/leaguepingo.exe`, '/fixture.exe', {size: 7}, 'a'.repeat(32)), /curl 28, uploaded 5 bytes/);
 });
