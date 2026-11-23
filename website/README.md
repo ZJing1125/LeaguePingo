@@ -19,14 +19,12 @@ npm --prefix website run preview
 
 GitHub 仓库 Settings → Pages → Custom domain 填写 `lolpingo.top` 并保存。通过 Actions 发布的站点以此设置绑定域名，构建文件中的 CNAME 不承担绑定作用。
 
-在 DNSPod 为 `lolpingo.top` 添加以下记录，线路选择默认，TTL 使用 600 秒或控制台默认值。
+在 DNSPod 为 `lolpingo.top` 添加以下记录，线路选择默认，TTL 使用 600 秒或控制台默认值。免费版的相同主机记录、记录类型和线路最多允许两条记录，因此使用两个 GitHub Pages 官方 IPv4 地址接入。[DNSPod 套餐说明](https://cloud.tencent.com/document/product/302/104713)
 
 | 类型 | 主机记录 | 记录值 |
 | --- | --- | --- |
 | A | @ | 185.199.108.153 |
 | A | @ | 185.199.109.153 |
-| A | @ | 185.199.110.153 |
-| A | @ | 185.199.111.153 |
 | CNAME | www | zjing1125.github.io |
 
 重跑官网工作流后核验根路径页面、资源、下载链接以及旧地址跳转。待 GitHub Pages 签发证书后开启 Enforce HTTPS，并分别测试 `lolpingo.top` 和 `www.lolpingo.top`。DNS 与证书状态以实际查询和访问结果为准。[GitHub 配置说明](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site)
