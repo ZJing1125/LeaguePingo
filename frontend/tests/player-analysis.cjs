@@ -102,6 +102,12 @@ async function main(){
   const binding=await fs.readFile(path.join(__dirname,'../bindings/leaguepingo/appservice.ts'),'utf8');
   const methods=Object.fromEntries([...binding.matchAll(/export function (\w+)\([^]*?\$Call.ByID\((\d+)/g)].map(m=>[m[2],m[1]]));
   const player=makePlayer();
+  let testQueue = 0;
+  const detailFor = gameId => {
+   const detail = makeDetail(gameId);
+   if (testQueue) for (const p of detail.players) Object.assign(p.summary, {queueId:testQueue,mapId:testQueue===420?11:12,gameVersion:'16.23.1',augmentIds:[999999],runeShards:[5007,5011,5001]});
+   return detail;
+  };
   let failTimeline=false;
   let releaseDetail;
   const delayedDetail = new Promise(resolve=>{releaseDetail=resolve;});
@@ -132,7 +138,7 @@ async function main(){
     else if(name==='HistoryPage'){assert.equal(args[2],20,'analysis fixture must not scan beyond its one bounded warm/page read');result={matches:Array.from({length:20},(_,i)=>({...player.history[i],gameId:70021+i,playedAt:new Date(Date.parse(now)-(20+i)*4*3600000).toISOString()})),meta:{fetchedAt:now,returned:20,parsed:20,excluded:0},offset:args[2],nextOffset:args[2]+20,hasMore:false};}
     else if(name==='MatchDetail'){
      if(args[2]===70006)await delayedDetail;
-     result=makeDetail(args[2]);
+     result=detailFor(args[2]);
      if(args[2]===70003){
       result.players=result.players.filter(p=>![4,5,9,10].includes(p.participantId));
       result.players.forEach(p=>{p.teamId=300-p.teamId;});
@@ -141,7 +147,7 @@ async function main(){
     }
     else if(name==='MatchTimeline'){
      if(failTimeline)return route.fulfill({status:500,json:{message:'本场时间线暂未取得'}});
-     result={...makeTimeline(args[2]),detail:makeDetail(args[2])};
+     result={...makeTimeline(args[2]),detail:detailFor(args[2])};
     }else throw Error(`Unexpected analysis service ${name}`);
     return route.fulfill({json:result});
    }
@@ -283,6 +289,27 @@ async function main(){
   }
   await verifyPlayerHistoryJumps(page,lookups,calls);
   await verifyIncompleteDetails(page,calls,publish,snapshot,releaseDetail,shot);
+  snapshot.connected = true;
+  await publish();
+  for (const [index, queue] of [2400,420,450,2400].entries()) {
+   testQueue = queue;
+   Object.assign(player.history[0], {queueId:queue,mapId:queue===420?11:12,gameVersion:'16.23.1',augmentIds:[999999],runeShards:[5007,5011,5001]});
+   await page.getByLabel('玩家完整 ID',{exact:true}).fill(`模式样例${index}#DEMO`);
+   await page.getByRole('button',{name:'查询战绩',exact:true}).click();
+   const workspace=page.locator('.players-workspace');
+   await workspace.getByRole('heading',{name:`模式样例${index}#DEMO`,exact:true}).waitFor();
+   await workspace.locator('.match-main').first().click();
+   await workspace.locator('tr.target').waitFor();
+   assert.equal(await workspace.getByRole('columnheader',{name:'视野',exact:true}).count(), queue===420?2:0);
+   await workspace.getByRole('tab',{name:queue===2400?'出装与强化':'出装符文',exact:true}).click();
+   assert.equal(await workspace.locator('.rune-tree').count(),queue===2400?0:1);
+   if(queue===2400) await workspace.getByText('强化 #999999',{exact:true}).waitFor();
+   else {
+    await workspace.getByText('固定生命值 +65',{exact:true}).waitFor();
+    await workspace.getByText('成长生命值 +10–180（1–18级）',{exact:true}).waitFor();
+    assert.equal(await workspace.locator('.shard-options .chosen img').count(),3);
+   }
+  }
   assert.deepEqual(external,[]);assert.deepEqual(errors,[]);
   console.log('PASS: professional overview, rich match rows, click-authorized scoreboard, automatic single-game timeline, six team metrics, build/runes, cached tab changes, 1280/1100/880; keyboard-only home/query/history/settings/navigation, dialog focus, theme text/focus contrast and reduced motion in both themes; synthetic bridge.');
  }finally{await browser.close()}

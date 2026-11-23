@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import * as Service from "../../bindings/leaguepingo/appservice";
 import type { AppInfo } from "../../bindings/leaguepingo/models";
 import { errorMessage } from "../presentation";
@@ -71,6 +71,14 @@ function postChanged(target: AutomationDraft, current: AppInfo) {
 function briefChanged(target: AutomationDraft, current: AppInfo) {
   return target.briefEnabled !== (current.autoAnalysisBrief ?? false) || target.briefAudience !== (current.analysisAudience ?? 'team') || target.briefSelf !== (current.analysisIncludeSelf ?? true);
 }
+const briefStatus = computed(() => {
+  if (!info.value) return "";
+  if (!briefChanged(currentDraft(), info.value)) return live.briefText.value;
+  if (info.value.autoAnalysisBrief) return uiText.analysisBrief.afterSave;
+  return briefEnabled.value ? uiText.analysisBrief.enableAfterSave : "";
+});
+let previewRevision = 0;
+watch([briefEnabled, briefSelf, briefAudience], () => { briefPreview.value = ""; previewRevision++; });
 const dirty = computed(() => !!info.value && (
   briefChanged(currentDraft(), info.value) ||
   acceptEnabled.value !== (info.value.autoAcceptEnabled ?? false) ||
@@ -140,8 +148,11 @@ async function disableAll() {
 }
 async function previewBrief() {
   error.value = '';
-  try { briefPreview.value = await Service.PreviewAnalysisBrief() || uiText.analysisBrief.emptyPreview; }
-  catch (reason) { error.value = errorMessage(reason); }
+  const revision = ++previewRevision;
+  try {
+    const text = await Service.PreviewAnalysisBriefWithOptions(briefSelf.value);
+    if (revision === previewRevision) briefPreview.value = text || uiText.analysisBrief.emptyPreview;
+  } catch (reason) { if (revision === previewRevision) error.value = errorMessage(reason); }
 }
 onMounted(() => { void load(); });
 </script>
@@ -199,7 +210,7 @@ onMounted(() => { void load(); });
       <header><h2>{{ uiText.analysisBrief.title }}<ExperimentalBadge :feature="uiText.analysisBrief.title"/></h2><label class="automation-switch"><input v-model="briefEnabled" type="checkbox" :aria-label="uiText.analysisBrief.enabled" :disabled="unavailable"/>{{ uiText.common.enable }}</label></header>
       <p class="muted">{{ uiText.analysisBrief.help }}</p>
       <div class="automation-rows"><label class="automation-field">{{ uiText.analysisBrief.audience }}<select v-model="briefAudience" :aria-label="uiText.analysisBrief.audience" :disabled="unavailable"><option value="team">{{ uiText.analysisBrief.team }}</option><option value="self">{{ uiText.analysisBrief.self }}</option></select></label><label class="automation-switch"><input v-model="briefSelf" type="checkbox" :disabled="unavailable"/>{{ uiText.analysisBrief.includeSelf }}</label></div>
-      <p v-if="briefEnabled" class="automation-live" data-live="brief">{{ live.briefText.value }}</p>
+      <p v-if="briefEnabled || info?.autoAnalysisBrief" class="automation-live" data-live="brief">{{ briefStatus }}</p>
       <button class="secondary" :disabled="unavailable" @click="previewBrief">{{ uiText.analysisBrief.preview }}</button>
       <textarea v-if="briefPreview" class="brief-preview" :aria-label="uiText.analysisBrief.previewLabel" :value="briefPreview" readonly rows="6"/>
     </article>

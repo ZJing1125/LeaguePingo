@@ -206,3 +206,7 @@ func (s *AppService) ConfigureAnalysisBrief(enabled bool, audience string, inclu
 	return s.Info(), nil
 }
 func (s *AppService) PreviewAnalysisBrief() string { return s.engine.PreviewAnalysisBrief() }
+
+func (s *AppService) PreviewAnalysisBriefWithOptions(includeSelf bool) string {
+	return s.engine.PreviewAnalysisBriefWithOptions(includeSelf)
+}

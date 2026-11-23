@@ -75,12 +75,16 @@ func (s *TencentLCU) timelineWithRunes(ctx context.Context, t core.MatchTimeline
 		if !p.Target {
 			continue
 		}
+		augmented := p.Summary.QueueID == 2400 || core.IsArenaQueue(p.Summary.QueueID)
+		if augmented && len(p.Summary.AugmentIDs) > 0 {
+			return t
+		}
 		shards := p.Summary.RuneShards
-		if len(shards) == 3 && shards[0] > 0 && shards[1] > 0 && shards[2] > 0 {
+		if !augmented && len(shards) == 3 && shards[0] > 0 && shards[1] > 0 && shards[2] > 0 {
 			return t
 		}
 		wasPartial := t.Partial
-		t.Partial = true
+		t.Partial = !augmented || wasPartial
 		raw, platform, err := s.sgpGameData(ctx, d.GameID, "SUMMARY", "/sgp-detail")
 		if err != nil {
 			return t
@@ -90,7 +94,15 @@ func (s *TencentLCU) timelineWithRunes(ctx context.Context, t core.MatchTimeline
 			return t
 		}
 		for _, next := range richer.Players {
-			if next.Target && next.ParticipantID == p.ParticipantID && next.TeamID == p.TeamID && next.Summary.ChampionID == p.Summary.ChampionID {
+			if next.Target && next.Summary.QueueID == p.Summary.QueueID && next.ParticipantID == p.ParticipantID && next.TeamID == p.TeamID && next.Summary.ChampionID == p.Summary.ChampionID {
+				if augmented {
+					if len(next.Summary.AugmentIDs) > 0 {
+						d.Players = append([]core.MatchPlayer(nil), d.Players...)
+						d.Players[i].Summary.AugmentIDs = next.Summary.AugmentIDs
+						t.Detail = &d
+					}
+					return t
+				}
 				if len(shards) != 3 {
 					shards = make([]int, 3)
 				} else {

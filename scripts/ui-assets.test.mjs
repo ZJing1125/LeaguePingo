@@ -45,3 +45,15 @@ test('analysis rune trees and minimap are local original official images with a 
  }
  assert(bytes<3*1024*1024,'analysis assets exceed 3MiB');
 });
+
+test('stat shard icons preserve official source bytes', async () => {
+ const root = new URL('../frontend/src/assets/game/shards/', import.meta.url);
+ const manifest = JSON.parse(await readFile(new URL('manifest.json', root)));
+ assert.equal(Object.keys(manifest).length, 9);
+ for (const [id, source] of Object.entries(manifest)) {
+  assert(source.url.startsWith('https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/'));
+  const bytes = await readFile(new URL(`${id}.png`, root));
+  assert.equal(bytes.length, source.bytes);
+  assert.equal(createHash('sha256').update(bytes).digest('hex'), source.sha256);
+ }
+});

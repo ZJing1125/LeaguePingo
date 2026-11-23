@@ -1,20 +1,21 @@
 <script setup lang="ts">
+import { matchMode } from "../matchMode";
 import { computed, ref } from "vue";
-import type { MatchDetail } from "../../bindings/leaguepingo/internal/core/models";
+import type { Match, MatchDetail } from "../../bindings/leaguepingo/internal/core/models";
 import { teamMetrics, teamMetric, type TeamMetricKey } from "../analysisData";
 import { historyTarget } from "../playerHistoryNavigation";
 import { uiText } from "../uiText";
 import PlayerHistoryAction from "./PlayerHistoryAction.vue";
 import GameIcon from "./GameIcon.vue";
 
-const props = defineProps<{ detail: MatchDetail; connectionId?: number }>();
+const props = defineProps<{ detail: MatchDetail; match?: Match; connectionId?: number }>();
 const selected = ref<TeamMetricKey>("damage");
-const metrics = computed(() => teamMetrics.map(metric => ({ ...metric, ...teamMetric(props.detail, metric.key) })));
-const metric = computed(() => metrics.value.find(item => item.key === selected.value)!);
+const metrics = computed(() => teamMetrics.filter(metric => matchMode(props.match ?? props.detail.players?.[0]?.summary).vision || !["visionScore", "cs"].includes(metric.key)).map(metric => ({ ...metric, ...teamMetric(props.detail, metric.key) })));
+const metric = computed(() => metrics.value.find(item => item.key === selected.value) ?? metrics.value.find(item => item.key === "damage")!);
 const teams = computed(() => metric.value.teams.map(team => ({
   ...team,
   players: [...team.players].sort((a, b) =>
-    (b.summary[selected.value] ?? -1) - (a.summary[selected.value] ?? -1)
+    (b.summary[metric.value.key] ?? -1) - (a.summary[metric.value.key] ?? -1)
     || a.participantId - b.participantId),
 })));
 const number = (value: number | null | undefined) => value == null ? "—" : value.toLocaleString();
@@ -25,7 +26,7 @@ const teamName = (id: number) => id === 100 ? uiText.teamAnalysis.blue : uiText.
   <section class="team-analysis" :aria-label="uiText.teamAnalysis.label">
     <div class="team-totals">
       <div class="team-total-head"><span>{{ uiText.teamAnalysis.title }}</span><span>{{ uiText.teamAnalysis.blue }}</span><span>{{ uiText.common.red }}</span></div>
-      <button v-for="item in metrics" :key="item.key" class="team-total-row" :aria-pressed="selected === item.key" @click="selected = item.key">
+      <button v-for="item in metrics" :key="item.key" class="team-total-row" :aria-pressed="metric.key === item.key" @click="selected = item.key">
         <span>{{ item.label }}</span><b v-for="team in item.teams" :key="team.teamId">{{ number(team.total) }}</b>
       </button>
     </div>
@@ -39,8 +40,8 @@ const teamName = (id: number) => id === 100 ? uiText.teamAnalysis.blue : uiText.
             <GameIcon :id="player.summary.championId" :size="24" />
             <span>{{ player.displayName?.split('#')[0] || uiText.matchDetails.missingPlayerName }}</span>
           </PlayerHistoryAction>
-          <span class="metric-track"><i :style="{ width: `${metric.max ? 100 * (player.summary[selected] ?? 0) / metric.max : 0}%` }" /></span>
-          <b>{{ number(player.summary[selected]) }}</b>
+          <span class="metric-track"><i :style="{ width: `${metric.max ? 100 * (player.summary[metric.key] ?? 0) / metric.max : 0}%` }" /></span>
+          <b>{{ number(player.summary[metric.key]) }}</b>
         </div>
       </section>
     </div>

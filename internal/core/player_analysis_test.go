@@ -150,7 +150,7 @@ func TestBriefUsesActualModeAndSameGradeWithoutNames(t *testing.T) {
 	ApplyTeamRatings(s.Participants, s.QueueID)
 	lines, ready, rated := AnalysisBriefLines(s, true)
 	body := AnalysisBriefBody(lines)
-	if !ready || rated != 5 || len(lines) != 6 || !strings.HasPrefix(lines[1], "5楼 大腿暂1/5 3场") || strings.Contains(body, "D级") || strings.Contains(body, "PrivateName") || strings.Contains(body, "private-") {
+	if !ready || rated != 5 || len(lines) != 6 || !strings.HasPrefix(lines[1], "1楼 暂定(3场)") || strings.Contains(body, "D级") || strings.Contains(body, "PrivateName") || strings.Contains(body, "private-") {
 		t.Fatal("brief differed from actual mode or leaked names")
 	}
 	lines, _, _ = AnalysisBriefLines(s, false)
@@ -181,7 +181,7 @@ func TestBriefFitsSingleLineByteBudgetForAllModes(t *testing.T) {
 		lines, ready, rated := AnalysisBriefLines(snapshot, true)
 		body := AnalysisBriefBody(lines)
 		if !ready || rated != 5 || strings.Count(body, "楼 ") != 5 ||
-			strings.Count(body, "100% 999.9KDA") != 5 || len(body) > AnalysisBriefMaxBytes || strings.ContainsAny(body, "\r\n") {
+			strings.Count(body, "999+场") != 5 || strings.Count(body, "(暂)") != 5 || len(body) > AnalysisBriefMaxBytes || strings.ContainsAny(body, "\r\n") {
 			t.Fatalf("queue %d produced %d bytes and %d ratings", mode.QueueID, len(body), rated)
 		}
 	}

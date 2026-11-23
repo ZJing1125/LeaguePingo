@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { matchMode } from "../matchMode";
 import { computed } from "vue";
-import type { MatchDetail, MatchPlayer } from "../../bindings/leaguepingo/internal/core/models";
+import type { Match, MatchDetail, MatchPlayer } from "../../bindings/leaguepingo/internal/core/models";
 import { perMinute, targetPlayer } from "../analysisData";
 import { hasFullScoreboard, historyHeroName, historyPosition, matchDamageLeader, matchNumber, teamComparison } from "../historyMatch";
 import { isRemake } from "../matchStats";
@@ -11,8 +12,9 @@ import PlayerHistoryAction from "./PlayerHistoryAction.vue";
 import GameIcon from "./GameIcon.vue";
 import RuneIcon from "./RuneIcon.vue";
 
-const props = defineProps<{ detail: MatchDetail; self?: boolean; connectionId?: number }>();
+const props = defineProps<{ detail: MatchDetail; match?: Match; self?: boolean; connectionId?: number }>();
 const players = computed(() => props.detail.players ?? []);
+const rules = computed(() => matchMode(props.match ?? targetPlayer(props.detail)?.summary ?? players.value[0]?.summary));
 const full = computed(() => hasFullScoreboard(props.detail));
 const targetTeam = computed(() => targetPlayer(props.detail)?.teamId);
 const teams = computed(() => {
@@ -29,14 +31,14 @@ const groups = computed(() => teams.value.map(id => {
       ? win ? uiText.common.win : uiText.common.loss
       : uiText.matchDetails.pendingOutcome;
   const resources = props.detail.teams?.find(team => team.teamId === id);
-  return { id, players: members, outcome, objectives: [
+  return { id, players: members, outcome, objectives: (rules.value.objectives ? [
     resources?.towers != null ? uiText.matchDetails.towers(matchNumber(resources.towers)) : "",
     resources?.dragons != null ? uiText.matchDetails.dragons(matchNumber(resources.dragons)) : "",
     resources?.barons != null ? uiText.matchDetails.barons(matchNumber(resources.barons)) : "",
     resources?.inhibitors != null ? uiText.matchDetails.inhibitors(matchNumber(resources.inhibitors)) : "",
     resources?.heralds != null ? uiText.matchDetails.heralds(matchNumber(resources.heralds)) : "",
     resources?.hordes != null ? uiText.matchDetails.grubs(matchNumber(resources.hordes)) : "",
-  ].filter(Boolean) };
+  ] : []).filter(Boolean) };
 }));
 const totals = computed(() => teamComparison(props.detail, teams.value));
 const damageMax = computed(() => Math.max(0, ...players.value.map(p => p.summary.damage ?? 0)));
@@ -80,7 +82,7 @@ function participation(player: MatchPlayer) {
                 <th scope="col">{{ uiText.matchDetails.kdaParticipation }}</th>
                 <th scope="col">{{ uiText.matchDetails.damageTaken }}</th>
                 <th scope="col" :title="uiText.matchDetails.csHint">{{ uiText.matchDetails.csGold }}</th>
-                <th scope="col">{{ uiText.common.vision }}</th>
+                <th v-if="rules.vision" scope="col">{{ uiText.common.vision }}</th>
                 <th scope="col">{{ uiText.common.finalItems }}</th>
               </tr></thead>
               <tbody>
@@ -89,13 +91,13 @@ function participation(player: MatchPlayer) {
                     <span class="scoreboard-hero"><GameIcon :id="player.summary.championId" :size="30"/><small v-if="player.summary.championLevel != null">{{ player.summary.championLevel }}</small></span>
                     <span class="scoreboard-systems">
                       <GameIcon kind="spells" :id="player.summary.spell1" :size="14"/>
-                      <RuneIcon v-if="player.summary.runeIds?.[0]" :id="player.summary.runeIds[0]" :size="14"/><span v-else></span>
+                      <RuneIcon v-if="matchMode(player.summary).runes && player.summary.runeIds?.[0]" :id="player.summary.runeIds[0]" :size="14"/><span v-else></span>
                       <GameIcon kind="spells" :id="player.summary.spell2" :size="14"/>
-                      <RuneIcon v-if="player.summary.runeSecondary" :id="player.summary.runeSecondary" :size="14"/>
+                      <RuneIcon v-if="matchMode(player.summary).runes && player.summary.runeSecondary" :id="player.summary.runeSecondary" :size="14"/>
                     </span>
                     <span class="scoreboard-name">
                       <strong :title="playerName(player)">{{ playerName(player) }}</strong>
-                      <small>{{ historyHeroName(player.summary.championId) }}<template v-if="historyPosition(player.summary)"> · {{ positionName(player.summary.position) }}</template></small>
+                      <small>{{ historyHeroName(player.summary.championId) }}<template v-if="rules.roles && historyPosition(player.summary)"> · {{ positionName(player.summary.position) }}</template></small>
                     </span>
                     <span v-if="player.target" class="target-label">{{ self ? uiText.matchDetails.self : uiText.matchDetails.lookedUp }}</span>
                   </PlayerHistoryAction></td>
@@ -106,7 +108,7 @@ function participation(player: MatchPlayer) {
                     <small>{{ uiText.matchDetails.taken(matchNumber(player.summary.damageTaken)) }}</small>
                   </td>
                   <td><b>{{ matchNumber(player.summary.cs) }}</b><small>{{ uiText.matchDetails.economy(csRate(player), matchNumber(player.summary.gold)) }}</small></td>
-                  <td><b>{{ matchNumber(player.summary.visionScore) }}</b><small :title="visionDetails(player)">{{ uiText.matchDetails.wardPair(matchNumber(player.summary.wardsPlaced), matchNumber(player.summary.wardsKilled)) }}</small></td>
+                  <td v-if="rules.vision"><b>{{ matchNumber(player.summary.visionScore) }}</b><small :title="visionDetails(player)">{{ uiText.matchDetails.wardPair(matchNumber(player.summary.wardsPlaced), matchNumber(player.summary.wardsKilled)) }}</small></td>
                   <td><span class="detail-loadout"><GameIcon v-for="slot in 7" :key="slot" kind="items" :id="player.summary.items?.[slot - 1]" :size="19"/></span></td>
                 </tr>
               </tbody>

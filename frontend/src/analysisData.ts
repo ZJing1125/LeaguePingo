@@ -1,4 +1,5 @@
 import type {Match, MatchDetail, MatchPlayer, MatchTimeline, Participant, TimelineFrame} from '../bindings/leaguepingo/internal/core/models';
+import {matchMode} from './matchMode';
 import {isRemake,isArena,sampleStats} from './matchStats';
 
 export const roleOrder=['TOP','JUNGLE','MIDDLE','BOTTOM','UTILITY'];
@@ -8,7 +9,7 @@ export function perMinute(value:number|null|undefined,seconds:number|null|undefi
 export function overviewData(matches:Match[]){
  const valid=matches.filter(m=>!isRemake(m));
  const kda=valid.filter(m=>m.kills!=null && m.deaths!=null && m.assists!=null);
- const positions=roleOrder.map(role=>({role,count:valid.filter(m=>m.position===role && (m.mapId===11 || [400,420,430,440,490].includes(m.queueId))).length}));
+ const positions=roleOrder.map(role=>({role,count:valid.filter(m=>m.position===role && matchMode(m).roles).length}));
  const knownPositions=positions.reduce((s,p)=>s+p.count,0);
  const hours=Array.from({length:24},(_,hour)=>({hour,count:matches.filter(m=>m.playedAt && !Number.isNaN(Date.parse(m.playedAt)) && new Date(m.playedAt).getHours()===hour).length}));
  return {...sampleStats(matches),arenaOnly:matches.length>0 && matches.every(isArena),average:[average(kda.map(m=>m.kills)),average(kda.map(m=>m.deaths)),average(kda.map(m=>m.assists))],participation:average(valid.map(m=>m.participation)),participationGames:valid.filter(m=>m.participation!=null).length,positions,knownPositions,hours,timedGames:hours.reduce((s,p)=>s+p.count,0)};

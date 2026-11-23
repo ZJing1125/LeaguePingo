@@ -2,7 +2,7 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 
 export type ThemePreference = "light" | "dark" | "system";
 const key = "leaguepingo.theme";
-const defaultTheme: ThemePreference = "dark";
+const defaultTheme: ThemePreference = "light";
 function valid(value: unknown): value is ThemePreference {
   return value === "light" || value === "dark" || value === "system";
 }

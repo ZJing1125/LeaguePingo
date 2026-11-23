@@ -14,6 +14,7 @@ type historyEnvelope struct {
 	} `json:"games"`
 }
 type historyGame struct {
+	GameVersion           string            `json:"gameVersion"`
 	GameID                int64             `json:"gameId"`
 	GameCreation          int64             `json:"gameCreation"`
 	GameDate              int64             `json:"gameDate"`
@@ -103,6 +104,12 @@ type historyParticipant struct {
 		TripleKills   *int  `json:"tripleKills"`
 		QuadraKills   *int  `json:"quadraKills"`
 		PentaKills    *int  `json:"pentaKills"`
+		Augment1      *int  `json:"playerAugment1"`
+		Augment2      *int  `json:"playerAugment2"`
+		Augment3      *int  `json:"playerAugment3"`
+		Augment4      *int  `json:"playerAugment4"`
+		Augment5      *int  `json:"playerAugment5"`
+		Augment6      *int  `json:"playerAugment6"`
 		Shard0        *int  `json:"statPerk0"`
 		Shard1        *int  `json:"statPerk1"`
 		Shard2        *int  `json:"statPerk2"`
@@ -208,6 +215,7 @@ func matchSummary(game historyGame, p historyParticipant, now time.Time) Match {
 		}
 	}
 	return Match{
+		GameVersion: game.GameVersion,
 		Performance: matchPerformance(game, p),
 		Arena:       arenaResult(game, p),
 		GameID:      game.GameID, QueueID: game.QueueID, ChampionID: champion, PlayedAt: playedAt,
@@ -220,6 +228,7 @@ func matchSummary(game historyGame, p historyParticipant, now time.Time) Match {
 		ChampionLevel: nonNegative(p.Stats.ChampionLevel), DamageTaken: nonNegative(p.Stats.DamageTaken), VisionScore: nonNegative(p.Stats.VisionScore),
 		WardsPlaced: nonNegative(p.Stats.WardsPlaced), WardsKilled: nonNegative(p.Stats.WardsKilled), ControlWards: nonNegative(p.Stats.ControlWards),
 		TripleKills: nonNegative(p.Stats.TripleKills), QuadraKills: nonNegative(p.Stats.QuadraKills), PentaKills: nonNegative(p.Stats.PentaKills),
+		AugmentIDs: augmentSlots(p.Stats.Augment1, p.Stats.Augment2, p.Stats.Augment3, p.Stats.Augment4, p.Stats.Augment5, p.Stats.Augment6),
 		RuneShards: shardSlots(p.Stats.Shard0, p.Stats.Shard1, p.Stats.Shard2),
 	}
 }

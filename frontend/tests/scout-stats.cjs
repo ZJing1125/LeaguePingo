@@ -9,7 +9,7 @@ function load(file) {
   const filename = path.resolve(__dirname, '../src', file + '.ts');
   if (cache.has(filename)) return cache.get(filename).exports;
   const mod = new Module(filename, module); cache.set(filename, mod); mod.filename = filename;
-  mod.require = id => { if(id.endsWith('.json')) return require(path.resolve(path.dirname(filename),id)); assert.ok(['./matchStats','./scoutStats'].includes(id)); return load(id.slice(2)); };
+  mod.require = id => { if(id.endsWith('.json')) return require(path.resolve(path.dirname(filename),id)); assert.ok(['./matchStats','./scoutStats','./matchMode'].includes(id)); return load(id.slice(2)); };
   mod._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true, target: ts.ScriptTarget.ES2020 } }).outputText, filename);
   return mod.exports;
 }

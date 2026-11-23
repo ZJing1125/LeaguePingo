@@ -5,6 +5,7 @@ import (
 
 	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/core"
+	"leaguepingo/internal/source"
 )
 
 // The home page prepares only the verified local account, once per connection
@@ -46,6 +47,9 @@ func (e *Engine) CurrentPlayer(ctx context.Context, connectionID uint64) (core.P
 	defer cancel()
 	if !cached {
 		player = core.Participant{Key: key, PUUID: key, ConnectionID: version, IdentityState: core.IdentityKnown, PrivacyState: "unknown", HistoryState: core.HistoryPending}
+		if names, ok := client.(source.CachedAccountNameSource); ok {
+			player.DisplayName = names.CachedAccountName(key)
+		}
 		if e.hydrateHistory(&player) {
 			e.mu.Lock()
 			e.cachePlayerLocked(player)

@@ -95,8 +95,8 @@ async function main() {
     assert.equal(calls.filter(c => c === "CurrentPlayer").length, 1);
     assert(await page.locator(".home-account img").evaluate(img => img.complete && img.naturalWidth > 0));
     await page.getByRole("img", { name: "玩家账号头像", exact: true }).waitFor();
-    await resolved("dark");
-    assert.equal(await theme.inputValue(), "dark", "a new player should start in dark mode");
+    await resolved("light");
+    assert.equal(await theme.inputValue(), "light", "a new player should start in light mode");
     const detailsBeforeSingleGame=calls.filter(call=>call==='MatchDetail').length;
     await page.locator('.home-match .match-main').first().click();
     const singleGame=page.getByRole('dialog',{name:'对局详情',exact:true});
@@ -187,7 +187,7 @@ async function main() {
     await peer.evaluate(() => localStorage.setItem("leaguepingo.theme", "light"));
     await resolved("light"); assert.equal(await theme.inputValue(), "light");
     await peer.evaluate(() => localStorage.removeItem("leaguepingo.theme"));
-    await resolved("dark"); assert.equal(await theme.inputValue(), "dark");
+    await resolved("light"); assert.equal(await theme.inputValue(), "light");
     await peer.evaluate(() => localStorage.setItem("leaguepingo.theme", "light"));
     await resolved("light");
     await peer.close();

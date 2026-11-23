@@ -110,6 +110,8 @@ type Match struct {
 	RuneIDs       []int             `json:"runeIds"`
 	RunePrimary   *int              `json:"runePrimary"`
 	RuneSecondary *int              `json:"runeSecondary"`
+	GameVersion   string            `json:"gameVersion,omitempty"`
+	AugmentIDs    []int             `json:"augmentIds,omitempty"`
 	RuneShards    []int             `json:"runeShards,omitempty"`
 	ChampionLevel *int              `json:"championLevel"`
 	DamageTaken   *int              `json:"damageTaken"`

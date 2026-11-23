@@ -45,7 +45,6 @@ watch([() => props.snapshot?.connectionId, () => props.snapshot?.gameId, hasEnem
       <SidebarPlayer v-for="p in players" :key="p.key" :player="p" :queue="snapshot?.scoutQueue ?? 0" :picking="picking" :show-hero="hasEnemies"/>
       <p v-if="!players.length" class="sidebar-empty">{{ picking?uiText.clientSidebar.loadingAllies:uiText.clientSidebar.waitingParty }}</p>
     </section>
-    <footer class="sidebar-footer"><span>{{ picking?uiText.clientSidebar.expandHelp:uiText.clientSidebar.selectionHelp }}</span><small>{{ state?.holdEnabled && state?.holdAvailable ? uiText.clientSidebar.holdHelp(state?.holdKey==='Backquote'?'~':state?.holdKey || '~') : state?.shortcutAvailable ? uiText.clientSidebar.shortcutHelp(state.shortcut) : uiText.clientSidebar.previewHelp }}</small></footer>
   </main>
 </template>
 <style scoped>
@@ -60,10 +59,7 @@ watch([() => props.snapshot?.connectionId, () => props.snapshot?.gameId, hasEnem
 :where(.sidebar-heading):is(.sidebar-heading) :deep(>div) {display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
 :where(.sidebar-heading):is(.sidebar-heading) :deep(h1) {font-size:18px;letter-spacing:-.5px;margin:0;}
 :where(.sidebar-heading):is(.sidebar-heading) :deep(small) {font-size:11px;color:var(--muted);}
-:where(.sidebar-footer):is(.sidebar-footer) {font-size:11px;color:var(--muted);}
 :where(.sidebar-players):is(.sidebar-players) {flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:0 10px 10px;scrollbar-gutter:stable;}
-:where(.sidebar-footer):is(.sidebar-footer) {display:flex;flex-direction:column;border-top:1px solid var(--border);flex:none;padding:6px 10px;gap:2px;}
-:where(.sidebar-footer):is(.sidebar-footer) :deep(small) {font-size:11px;}
 :where(.sidebar-empty):is(.sidebar-empty) {color:var(--muted);font-size:13px;padding:24px 6px;}
 :where(.client-sidebar):is(.client-sidebar) :deep(>.quality-warning) {margin:0 10px 8px;font-size:11px;}
 :where(.sidebar-rail):is(.sidebar-rail) :deep(>button) {display:flex;flex-direction:column;align-items:center;justify-content:center;gap:15px;width:100%;height:100%;padding:3px;background:var(--surface);color:var(--text);border:0;}

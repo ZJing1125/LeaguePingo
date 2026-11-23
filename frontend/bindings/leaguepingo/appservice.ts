@@ -143,6 +143,10 @@ export function PreviewAnalysisBrief(): $CancellablePromise<string> {
     return $Call.ByID(1275302532);
 }
 
+export function PreviewAnalysisBriefWithOptions(includeSelf: boolean): $CancellablePromise<string> {
+    return $Call.ByID(3180397250, includeSelf);
+}
+
 export function PrioritizePlayer(key: string): $CancellablePromise<void> {
     return $Call.ByID(4255655626, key);
 }

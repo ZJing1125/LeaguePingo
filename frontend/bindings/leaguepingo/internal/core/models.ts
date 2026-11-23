@@ -136,6 +136,8 @@ export interface Match {
     "runeIds": number[] | null;
     "runePrimary": number | null;
     "runeSecondary": number | null;
+    "gameVersion"?: string;
+    "augmentIds"?: number[] | null;
     "runeShards"?: number[] | null;
     "championLevel": number | null;
     "damageTaken": number | null;

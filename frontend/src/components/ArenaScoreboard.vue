@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { matchAugmentName } from '../matchMode';
 import { computed } from 'vue';
-import type { MatchDetail } from '../../bindings/leaguepingo/internal/core/models';
+import type { Match, MatchDetail } from '../../bindings/leaguepingo/internal/core/models';
 import { arenaResult } from '../matchStats';
 import { decimal, kda, number, sampleStats } from '../presentation';
 import { uiText } from '../uiText';
@@ -9,6 +10,10 @@ import PlayerHistoryAction from "./PlayerHistoryAction.vue";
 import GameIcon from './GameIcon.vue';
 const props = defineProps<{ detail: MatchDetail; connectionId?: number }>();
 const players = computed(() => [...(props.detail.players ?? [])].sort((a, b) => (arenaResult(a.summary)?.placement ?? 99) - (arenaResult(b.summary)?.placement ?? 99)));
+function augmentNames(match: Match) {
+  return (match.augmentIds ?? []).filter(Boolean)
+    .map(id => matchAugmentName(match, id) ?? uiText.matchMode.augment(id)).join(' · ');
+}
 </script>
 <template>
   <section class="arena-scoreboard">
@@ -16,14 +21,14 @@ const players = computed(() => [...(props.detail.players ?? [])].sort((a, b) => 
     <p>{{ uiText.arena.scoreboardHint }}</p>
     <div class="arena-table-scroll" tabindex="0" :aria-label="uiText.arena.scoreboard">
       <table>
-        <thead><tr><th scope="col">{{ uiText.arena.placement }}</th><th scope="col">{{ uiText.matchDetails.playerChampion }}</th><th scope="col">KDA</th><th scope="col">{{ uiText.common.damage }}</th><th scope="col">{{ uiText.arena.gold }}</th><th scope="col">{{ uiText.common.finalItems }}</th></tr></thead>
+        <thead><tr><th scope="col">{{ uiText.arena.placement }}</th><th scope="col">{{ uiText.matchDetails.playerChampion }}</th><th scope="col">KDA</th><th scope="col">{{ uiText.common.damage }}</th><th scope="col">{{ uiText.arena.gold }}</th><th scope="col">{{ uiText.common.finalItems }}</th><th scope="col">{{ uiText.matchMode.augments }}</th></tr></thead>
         <tbody><tr v-for="p in players" :key="p.participantId" :class="{target:p.target}">
           <td><b>{{ arenaResult(p.summary) ? uiText.arena.place(arenaResult(p.summary)!.placement) : '—' }}</b></td>
           <td><PlayerHistoryAction class="arena-player" :target="historyTarget(p.displayName, connectionId)"><GameIcon :id="p.summary.championId" :size="32"/><strong :title="p.displayName">{{ p.displayName }}</strong></PlayerHistoryAction></td>
           <td><b>{{ kda(p.summary) }}</b><small>{{ decimal(sampleStats([p.summary]).kda) }} KDA</small></td>
           <td>{{ number(p.summary.damage) }}<small>{{ uiText.matchDetails.taken(number(p.summary.damageTaken)) }}</small></td>
           <td>{{ number(p.summary.gold) }}</td>
-          <td><span class="arena-items"><GameIcon v-for="slot in 7" :key="slot" kind="items" :id="p.summary.items?.[slot-1]" :size="20"/></span></td>
+          <td><span class="arena-items"><GameIcon v-for="slot in 7" :key="slot" kind="items" :id="p.summary.items?.[slot-1]" :size="20"/></span></td><td><span v-if="p.summary.augmentIds?.some(Boolean)">{{augmentNames(p.summary)}}</span><span v-else>{{uiText.matchMode.missingAugments}}</span></td>
         </tr></tbody>
       </table>
     </div>

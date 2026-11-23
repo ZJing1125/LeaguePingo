@@ -123,3 +123,10 @@ Taste Skill 本地版本6010f91，应用屏方向 `data-terminal`，seed `859827
 - 工程/合成浏览器/Windows目标编译的结果见BUGFIX_LOG；Windows完整验证与真实国服对照仍按ACCEPTANCE执行。未获取的多赛季完整轨迹、历史LP或专有分数不显示为真实数据。
 
 查询页探针的no-title为已核对误报：app探针只用document.querySelector('h1')，取到v-show隐藏的首页标题后直接判空；真实可见资料头有21px h1，产品浏览器按heading核对姓名，测量页也已识别同一标题。查询页检查仅对此项显式豁免，未移除或替换实际标题。
+
+
+## BUG-0157 按历史对局模式展示
+
+单场展示规则集中在 frontend/src/matchMode.ts，输入为该场 queueId/mapId。海克斯不展示常规符文树、分路或峡谷视野；出装页展示实际强化槽位和已记录购买、加点。普通大乱斗保留实际符文。竞技场记分板按原名次分组并补充实际强化。未知队列保留基础信息。
+
+历史强化字段来自本场摘要，不复用推荐列表。中文名称来自模式隔离的公开 OP.GG 页，仅打包 ID/名称，来源摘要见 match-augments-sources.json；显式运行 python3 scripts/sync-match-augments.py 可刷新。未命中的ID仍可见。碎片图标来自官方 Data Dragon，源地址、字节数和 SHA-256 保存在 assets/game/shards/manifest.json。固定生命与成长生命使用不同ID，成长数值需要本场已核验版本，缺失不猜旧版本数值。

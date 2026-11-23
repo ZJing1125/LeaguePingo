@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { matchMode } from "../matchMode";
 import { computed } from "vue";
 import type { Match } from "../../bindings/leaguepingo/internal/core/models";
 import { date, decimal, duration, kda, outcome, queueName, sampleStats, percent, positionName } from "../presentation";
@@ -18,7 +19,7 @@ defineEmits<{ toggle: [] }>();
 
 const teams = computed(() => historyRoster(props.match, props.connectionId));
 const csRate = computed(() => perMinute(props.match.cs, props.match.duration));
-const role = computed(() => historyPosition(props.match));
+const role = computed(() => matchMode(props.match).roles && historyPosition(props.match));
 const highlight = computed(() => matchHighlight(props.match));
 const remake = computed(() => isRemake(props.match));
 const arena = computed(() => isArena(props.match));
@@ -39,9 +40,9 @@ const arena = computed(() => isArena(props.match));
             <span class="match-hero"><GameIcon :id="match.championId" :size="40"/><small v-if="match.championLevel != null" class="champion-level">{{ match.championLevel }}</small></span>
             <span class="match-systems">
               <GameIcon kind="spells" :id="match.spell1" :size="16"/>
-              <RuneIcon v-if="match.runeIds?.[0]" :id="match.runeIds[0]" :size="16"/><span v-else></span>
+              <RuneIcon v-if="matchMode(match).runes && match.runeIds?.[0]" :id="match.runeIds[0]" :size="16"/><span v-else></span>
               <GameIcon kind="spells" :id="match.spell2" :size="16"/>
-              <RuneIcon v-if="match.runeSecondary" :id="match.runeSecondary" :size="16"/>
+              <RuneIcon v-if="matchMode(match).runes && match.runeSecondary" :id="match.runeSecondary" :size="16"/>
             </span>
             <span class="match-identity">
               <strong>{{ kda(match) }}</strong>

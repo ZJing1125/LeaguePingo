@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { matchMode } from "../matchMode";
 import { computed, getCurrentInstance, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import * as Service from "../../bindings/leaguepingo/appservice";
 import type { Match, MatchDetail, MatchTimeline as Timeline, Participant } from "../../bindings/leaguepingo/internal/core/models";
@@ -36,7 +37,7 @@ const match = computed(() => {
   if (!current || !cached || current.gameId !== cached.gameId || current.championId !== cached.championId) return current ?? cached;
   const shards = current.runeShards?.length === 3 ? [...current.runeShards] : [0, 0, 0];
   if (cached.runeShards?.length === 3) cached.runeShards.forEach((value, i) => { if (!shards[i]) shards[i] = value; });
-  return { ...current, runeShards: shards };
+  return { ...current, queueId: current.queueId || cached.queueId, mapId: current.mapId || cached.mapId, gameVersion: current.gameVersion || cached.gameVersion, runeShards: shards, augmentIds: current.augmentIds ?? cached.augmentIds };
 });
 const arena = computed(() => !!match.value && isArena(match.value));
 const hasScoreboard = computed(() => !!detail.value?.players?.length);
@@ -62,7 +63,7 @@ const tabs = computed(() => [
   { key: "overview", label: uiText.common.matchOverview },
   { key: "team", label: uiText.common.teamAnalysis },
   { key: "timeline", label: uiText.common.timeline },
-  { key: "build", label: uiText.common.buildRunes },
+  { key: "build", label: matchMode(match.value).augments ? uiText.matchMode.buildAugments : matchMode(match.value).runes ? uiText.common.buildRunes : uiText.matchMode.build },
 ].filter(item => !arena.value || item.key === "overview"));
 
 let revision = 0;
@@ -161,8 +162,8 @@ watch([key, tab, canLoad, busy, detail], () => {
     </div>
     <div :id="`${scopeId}-panel-${gameId}`" role="tabpanel" :aria-labelledby="`${scopeId}-${gameId}-${tab}`" class="analysis-tab-content">
       <template v-if="tab === 'overview'">
-        <ArenaScoreboard v-if="detail && arena && hasScoreboard" :detail="detail" :connection-id="player.connectionId"/>
-        <MatchScoreboard v-else-if="detail && hasScoreboard" :detail="detail" :self="self" :connection-id="player.connectionId"/>
+        <ArenaScoreboard v-if="detail && arena && hasScoreboard" :detail="detail" :match="match" :connection-id="player.connectionId"/>
+        <MatchScoreboard v-else-if="detail && hasScoreboard" :detail="detail" :match="match" :self="self" :connection-id="player.connectionId"/>
         <template v-else>
           <div class="analysis-load summary-status">
             <span role="status">{{ fallbackStatus }}</span>
@@ -184,7 +185,7 @@ watch([key, tab, canLoad, busy, detail], () => {
         <div v-if="showRoster" class="saved-roster"><MatchHistoryRoster :groups="roster" :self="self" :connection-id="player.connectionId" detail/></div>
       </template>
       <template v-else-if="tab === 'team'">
-        <TeamAnalysis v-if="detail && hasScoreboard" :detail="detail" :connection-id="player.connectionId"/>
+        <TeamAnalysis v-if="detail && hasScoreboard" :detail="detail" :match="match" :connection-id="player.connectionId"/>
         <div v-else class="analysis-load">
           <span role="status">{{ busy === 'detail' ? uiText.matchDetails.loadingScoreboardShort : detailError && canLoad ? detailError : uiText.matchDetails.teamAnalysisHint }}</span>
           <button v-if="canLoad && !busy" class="secondary" @click="load('detail')">{{ detailError ? uiText.matchDetails.retryScoreboard : uiText.matchDetails.readScoreboard }}</button>

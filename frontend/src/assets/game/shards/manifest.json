@@ -1,0 +1,47 @@
+{
+  "5001": {
+    "url": "https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsHealthScalingIcon.png",
+    "bytes": 632,
+    "sha256": "77bc6f44d75f8d70566bc753bc4f23b391c64ffdec3ca082f45c4c75ff162c8f"
+  },
+  "5002": {
+    "url": "https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsArmorIcon.png",
+    "bytes": 712,
+    "sha256": "e2f4eb688acfe363408b51974987a4e0e64cae8904daa7ae4baaf39577ce8e2f"
+  },
+  "5003": {
+    "url": "https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsMagicResIcon.png",
+    "bytes": 1000,
+    "sha256": "10e2a3803d5ae79b3da58c39b1056a5a15380147dce42fdbed9a2b33d274c6e9"
+  },
+  "5005": {
+    "url": "https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsAttackSpeedIcon.png",
+    "bytes": 485,
+    "sha256": "83f2463bda6a33f53039c6384a26ea14eb9db9c93c84ac0af298ed7b41934c97"
+  },
+  "5007": {
+    "url": "https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsCDRScalingIcon.png",
+    "bytes": 852,
+    "sha256": "4a758393d1672041993edcd8c4a33eb3f1dce1609598b3ac4fdda99301b80538"
+  },
+  "5008": {
+    "url": "https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsAdaptiveForceIcon.png",
+    "bytes": 707,
+    "sha256": "08e3079f1c8cbae3b57b9a692a32078711bc96f93991a2847b8da04d03fa80bc"
+  },
+  "5010": {
+    "url": "https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsMovementSpeedIcon.png",
+    "bytes": 802,
+    "sha256": "f80e8066c7f25a7905458ccaa8f1237209fd1bbd3bfd13847fc32ef03e315bbf"
+  },
+  "5011": {
+    "url": "https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsHealthPlusIcon.png",
+    "bytes": 295,
+    "sha256": "3b7c1ff871f096d275f6d7e1faeba16496e96ab7fe8e642a477f47d4ef8ab4dd"
+  },
+  "5013": {
+    "url": "https://ddragon.leagueoflegends.com/cdn/img/perk-images/StatMods/StatModsTenacityIcon.png",
+    "bytes": 331,
+    "sha256": "8039c4bd7c1287ea123773f24e21bf763784da466338f4cda22562e5d26e2b75"
+  }
+}

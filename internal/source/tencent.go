@@ -178,9 +178,21 @@ func (s *TencentLCU) AccountIdentity(ctx context.Context) (string, error) {
 		return "", errors.New("客户端当前账号身份暂不可核验")
 	}
 	s.selfMu.Lock()
-	s.selfPUUID, s.selfName = p.PUUID, p.Name()
+	if s.selfPUUID != p.PUUID || !core.IsPlaceholderName(p.Name()) {
+		s.selfName = p.Name()
+	}
+	s.selfPUUID = p.PUUID
 	s.selfMu.Unlock()
 	return p.PUUID, nil
+}
+
+func (s *TencentLCU) CachedAccountName(puuid string) string {
+	s.selfMu.Lock()
+	defer s.selfMu.Unlock()
+	if puuid == s.selfPUUID {
+		return s.selfName
+	}
+	return ""
 }
 
 func (s *TencentLCU) CachedAccountIdentity() string {

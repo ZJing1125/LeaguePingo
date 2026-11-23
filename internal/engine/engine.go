@@ -250,6 +250,7 @@ func (e *Engine) poll(ctx context.Context) {
 			}
 		}
 		e.accountIdentity = account
+		e.acceptAccountNameLocked()
 	}
 	e.readiness.Phase(string(phase), phaseObserved)
 	e.observeAutoAcceptLocked(phase, phaseStarted)

@@ -57,3 +57,11 @@ func (e *Engine) PreviewAnalysisBrief() string {
 	lines, _, _ := core.AnalysisBriefLines(e.snapshot, cfg.IncludeSelf)
 	return core.AnalysisBriefBody(lines)
 }
+
+// Preview uses the editable include-self preference without configuring actions.
+func (e *Engine) PreviewAnalysisBriefWithOptions(includeSelf bool) string {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	lines, _, _ := core.AnalysisBriefLines(e.snapshot, includeSelf)
+	return core.AnalysisBriefBody(lines)
+}

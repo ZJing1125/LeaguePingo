@@ -5,7 +5,7 @@ import "testing"
 func TestRelativeRatingsKeepTeamsAndQueuesSeparate(t *testing.T) {
 	row := func(team string, score float64) Participant {
 		return Participant{Team: team, IdentityState: IdentityKnown, Scout: &ScoutReport{
-			Queues: []ScoutQueue{{QueueID: 2400, Analysis: &PlayerAnalysis{Score: &score}}},
+			Queues: []ScoutQueue{{QueueID: 2400, Analysis: &PlayerAnalysis{Score: &score, ScoredGames: 6}}},
 		}}
 	}
 	players := []Participant{row("ally", 4), row("ally", 7), row("ally", 7), row("enemy", 2), {Team: "enemy", IdentityState: IdentityUnavailable}}
@@ -21,7 +21,7 @@ func TestRelativeRatingsKeepTeamsAndQueuesSeparate(t *testing.T) {
 		t.Fatal("team sizes or relative labels differ")
 	}
 	lines, ready, rated := AnalysisBriefLines(Snapshot{QueueID: 2400, Participants: players}, true)
-	if !ready || rated != 3 || len(lines) != 4 || lines[1][:4] != "2楼" {
+	if !ready || rated != 3 || len(lines) != 4 || lines[1][:4] != "1楼" {
 		t.Fatalf("three-person chat lost standings or order: %v, %t, %d", lines, ready, rated)
 	}
 	ApplyTeamRatings(players, 450)

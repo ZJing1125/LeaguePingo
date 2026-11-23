@@ -67,6 +67,11 @@ type LobbySource interface {
 }
 
 // Optional local account check, used only outside active gameplay.
+// CachedAccountNameSource exposes a verified name without another request.
+type CachedAccountNameSource interface {
+	CachedAccountName(string) string
+}
+
 type AccountSource interface {
 	AccountIdentity(context.Context) (string, error)
 }
