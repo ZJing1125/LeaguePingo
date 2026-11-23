@@ -45,6 +45,6 @@ GitHub 仓库 Settings → Pages → Custom domain 填写 `lolpingo.top` 并保�
 
 1. [Google Search Console](https://search.google.com/search-console)：添加“网域”资源 `lolpingo.top`，按平台给出的 DNS TXT 名称和值添加记录，TTL 600，返回平台验证。通过后在“站点地图”提交 `https://lolpingo.top/sitemap.xml`。保留验证记录，以便后续持续核验。[所有权验证说明](https://support.google.com/webmasters/answer/9008080?hl=zh-Hans)
 2. [必应站长工具](https://www.bing.com/webmasters/)：可从已验证的 Google Search Console 导入站点与站点地图；或手动添加 `https://lolpingo.top/`，按平台给出的 DNS 验证记录完成验证，再提交同一份站点地图。[添加与验证说明](https://www.bing.com/webmasters/help/add-and-verify-site-12184f8b)
-3. [百度搜索资源平台](https://ziyuan.baidu.com/site/index)：添加 HTTPS 站点 `lolpingo.top`，按页面提供的 DNS 验证方式完成验证。验证后在平台实际开放的普通收录/站点地图入口提交首页或站点地图；若账号未开放相应入口，如实保留待处理状态，不把 DNSPod 推送开启当作已提交或已收录。[平台工具说明](https://ziyuan.baidu.com/college/articleinfo?id=3159)
+3. [百度搜索资源平台](https://ziyuan.baidu.com/site/index)：添加 HTTPS 站点 `lolpingo.top`。当前账号页面提供文件和 HTML 标签验证，选择 HTML 标签验证，将该账号给出的完整 `baidu-site-verification` 标签加入首页 `<head>` 并重新部署，检查线上标签与平台给出的值一致，再点击“完成验证”。验证通过后持续保留该标签。若选择文件验证，按平台要求保留原文件名与内容，部署到网站根目录。验证后在平台实际开放的普通收录/站点地图入口提交首页或站点地图；若账号未开放相应入口，如实保留待处理状态，不把 DNSPod 推送开启当作已提交或已收录。[平台工具说明](https://ziyuan.baidu.com/college/articleinfo?id=3159)
 
 验证 TXT/CNAME 的主机记录与记录值一律照抄当前账号页面，不使用示例代填。添加后可查询公共 DNS，但平台验证通过、站点地图提交成功和搜索实际收录分别记录，不能相互替代。若选择文件或 HTML 标签验证，将平台提供的公开验证文件或标签加入网站后重新部署，再回平台验证。
