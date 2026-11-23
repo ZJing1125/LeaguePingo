@@ -34,8 +34,12 @@ jobs:
     name: Verify and build website
     runs-on: ubuntu-latest
     timeout-minutes: 240
+    permissions:
+      contents: read
+      pages: read
     outputs:
       source_sha: ${{ steps.source.outputs.sha }}
+      pages_url: ${{ steps.address.outputs.url }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -49,6 +53,19 @@ jobs:
           node-version: '24'
           cache: npm
           cache-dependency-path: website/package-lock.json
+      - name: Read current Pages address
+        id: address
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pages_url=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq .html_url)
+          echo "url=$pages_url" >> "$GITHUB_OUTPUT"
+          WEBSITE_URL="$pages_url" node --input-type=module <<'NODE' >> "$GITHUB_ENV"
+          const address = new URL(process.env.WEBSITE_URL);
+          address.protocol = 'https:';
+          console.log(`WEBSITE_SITE=${address.origin}`);
+          console.log(`WEBSITE_BASE=${address.pathname}`);
+          NODE
       - name: Install website dependencies
         run: npm --prefix website ci
       - name: Test release selection and policy
@@ -93,12 +110,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_SHA: ${{ needs.build.outputs.source_sha }}
+          BUILD_PAGES_URL: ${{ needs.build.outputs.pages_url }}
         run: |
           current_sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/dev" --jq .sha)
-          if [ "$current_sha" = "$SOURCE_SHA" ]; then
+          current_pages_url=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq .html_url)
+          if [ "$current_sha" = "$SOURCE_SHA" ] && [ "$current_pages_url" = "$BUILD_PAGES_URL" ]; then
             echo "deploy=true" >> "$GITHUB_OUTPUT"
           else
-            echo "A newer dev commit exists; its website build takes precedence." >> "$GITHUB_STEP_SUMMARY"
+            echo "Website source or domain settings changed; rerun the latest website workflow." >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Deploy GitHub Pages
         id: deployment

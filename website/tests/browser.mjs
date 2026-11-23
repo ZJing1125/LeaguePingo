@@ -4,9 +4,29 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 const root=path.resolve('dist');
-const server=http.createServer((req,res)=>{const relative=decodeURIComponent(new URL(req.url,'http://local').pathname).replace(/^\/LeaguePingo\//,'/');const file=path.resolve(root,'.'+(relative==='/'?'/index.html':relative));if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}try{const ext=path.extname(file);res.setHeader('Content-Type',({'.html':'text/html','.js':'text/javascript','.css':'text/css','.webp':'image/webp','.png':'image/png','.json':'application/json'})[ext]||'application/octet-stream');res.end(fs.readFileSync(file));}catch{res.writeHead(404).end();}});
+const base=process.env.WEBSITE_BASE||'/LeaguePingo/';
+const server=http.createServer((req,res)=>{
+ try{
+  const pathname=decodeURIComponent(new URL(req.url,'http://local').pathname);
+  if(!pathname.startsWith(base)){
+   res.writeHead(404).end();
+   return;
+  }
+  const relative=pathname.slice(base.length)||'index.html';
+  const file=path.resolve(root,relative);
+  if(!file.startsWith(root+path.sep)){
+   res.writeHead(403).end();
+   return;
+  }
+  const type={'.html':'text/html','.js':'text/javascript','.css':'text/css','.webp':'image/webp','.png':'image/png','.json':'application/json'}[path.extname(file)]||'application/octet-stream';
+  res.setHeader('Content-Type',type);
+  res.end(fs.readFileSync(file));
+ }catch{
+  res.writeHead(404).end();
+ }
+});
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-const url=`http://127.0.0.1:${server.address().port}/LeaguePingo/`;
+const url=`http://127.0.0.1:${server.address().port}${base}`;
 const browser=await chromium.launch({executablePath:process.env.BROWSER_EXECUTABLE,headless:true});
 try{
  const errors=[];
@@ -14,6 +34,7 @@ try{
   const page=await browser.newPage({viewport:{width,height:900},userAgent:'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',reducedMotion:'reduce'});
   page.on('pageerror',e=>errors.push(e.message));
   await page.goto(url);await page.evaluate(()=>Promise.all([...document.images].filter(i=>!i.closest('[hidden]')).map(i=>i.decode())));
+  if(process.env.WEBSITE_SITE)assert.equal(await page.locator('link[rel="canonical"]').getAttribute('href'),new URL(base,process.env.WEBSITE_SITE).href);
   const data=await(await page.request.get(url+'downloads.json')).json(),current=data.stable??data.preview;
   assert.equal(await page.locator('[data-download="installer"]').getAttribute('href'),current.files['leaguepingo-setup.exe'].url);
   assert.equal(await page.locator('[data-download="portable"]').getAttribute('href'),current.files['leaguepingo.exe'].url);
