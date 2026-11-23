@@ -34,3 +34,17 @@ GitHub 仓库 Settings → Pages → Custom domain 填写 `lolpingo.top` 并保�
 官网在发布时验证上海腾讯云 COS 的公开 HTTPS 对象，五个文件全部通过后生成国内下载链接。仓库 Secrets、对象路径与旧 VPS 清理命令见[下载分发](deploy/README.md)。
 
 发布后调用网站工作流时读取最新dev页面源码；部署前核对源码仍为dev当前提交，避免旧软件CI排队完成后把较新的官网内容覆盖。无脚本时不显示无法使用的阶段切换按钮，默认演示与下载始终可用。
+
+## 搜索收录
+
+`robots.txt` 和 `sitemap.xml` 在构建时使用与首页 canonical 相同的站点地址与路径生成，随官网一起部署。前者允许公开页面抓取并指向站点地图；后者目前只列出首页，不包含下载清单、安装包或页面锚点。
+
+正式地址为 `https://lolpingo.top/robots.txt` 和 `https://lolpingo.top/sitemap.xml`。发布后检查两者返回 200，站点地图中的唯一页面为 `https://lolpingo.top/`。更换域名后重跑官网工作流，勿单独维护另一份地址。
+
+站长平台需由网站所有者登录自己的账号完成验证；账号密码、登录凭据和推送 API token 不写入仓库。DNS 验证所需的公开 TXT/CNAME 记录可直接添加在 DNSPod，保留现有 A 与 www CNAME 记录，不替换它们。
+
+1. [Google Search Console](https://search.google.com/search-console)：添加“网域”资源 `lolpingo.top`，按平台给出的 DNS TXT 名称和值添加记录，TTL 600，返回平台验证。通过后在“站点地图”提交 `https://lolpingo.top/sitemap.xml`。保留验证记录，以便后续持续核验。[所有权验证说明](https://support.google.com/webmasters/answer/9008080?hl=zh-Hans)
+2. [必应站长工具](https://www.bing.com/webmasters/)：可从已验证的 Google Search Console 导入站点与站点地图；或手动添加 `https://lolpingo.top/`，按平台给出的 DNS 验证记录完成验证，再提交同一份站点地图。[添加与验证说明](https://www.bing.com/webmasters/help/add-and-verify-site-12184f8b)
+3. [百度搜索资源平台](https://ziyuan.baidu.com/site/index)：添加 HTTPS 站点 `lolpingo.top`，按页面提供的 DNS 验证方式完成验证。验证后在平台实际开放的普通收录/站点地图入口提交首页或站点地图；若账号未开放相应入口，如实保留待处理状态，不把 DNSPod 推送开启当作已提交或已收录。[平台工具说明](https://ziyuan.baidu.com/college/articleinfo?id=3159)
+
+验证 TXT/CNAME 的主机记录与记录值一律照抄当前账号页面，不使用示例代填。添加后可查询公共 DNS，但平台验证通过、站点地图提交成功和搜索实际收录分别记录，不能相互替代。若选择文件或 HTML 标签验证，将平台提供的公开验证文件或标签加入网站后重新部署，再回平台验证。
