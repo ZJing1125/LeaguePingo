@@ -140,6 +140,9 @@ func (e *Engine) saveScout(version uint64, scope string, token uint64, id string
 	if found {
 		now := time.Now()
 		e.snapshot.UpdatedAt = now
+		// Chat observes every committed page. Only Wails publication is paced.
+		core.ApplyTeamRatings(e.snapshot.Participants, e.scoutModeLocked())
+		e.observeAnalysisBriefLocked()
 		if e.scouting.rememberReport(id, &r, firstData, now) {
 			e.publishLocked()
 		}
@@ -434,6 +437,7 @@ func (c *scoutCursor) report(season *core.ScoutSeason, cutoff time.Time) core.Sc
 		}
 	}
 	r := core.BuildScoutReport(c.matches, c.masteries, season, cutoff, c.complete, c.twelve, c.month)
+	c.setQueueFetchStatus(&r)
 	if !c.done {
 		r.State = "loading"
 	} else if !r.Complete || !r.Complete30 {

@@ -13,6 +13,7 @@ import (
 )
 
 const sgpChannelConcurrency = 4
+const sgpHistoryConcurrency = 6
 
 // serviceGate gives one SGP feature its own cooldown and bounded request lane.
 // History, rank and match detail must not share a gate: a slow page used to hold
@@ -29,6 +30,10 @@ type serviceGate struct {
 }
 
 func (g *serviceGate) acquire(ctx context.Context) error {
+	return g.acquireLimit(ctx, sgpChannelConcurrency)
+}
+
+func (g *serviceGate) acquireLimit(ctx context.Context, defaultLimit int) error {
 	if ctx.Err() != nil {
 		return apperrors.Request(ctx, ctx.Err(), apperrors.DataService)
 	}
@@ -38,7 +43,7 @@ func (g *serviceGate) acquire(ctx context.Context) error {
 	g.once.Do(func() {
 		limit := g.limit
 		if limit <= 0 {
-			limit = sgpChannelConcurrency
+			limit = defaultLimit
 		}
 		g.slots = make(chan struct{}, limit)
 	})

@@ -7,7 +7,7 @@ import (
 
 // Scouting is independent of the recent-history list and its browsing filters.
 // Reports are immutable after publication. Partial ranges never imply zero games.
-const ScoutStatsVersion = 4
+const ScoutStatsVersion = 5
 
 type ScoutSeason struct {
 	Name  string    `json:"name"`
@@ -42,13 +42,14 @@ type ScoutCoverage struct {
 }
 
 type ScoutQueue struct {
-	Analysis  *PlayerAnalysis `json:"analysis,omitempty"`
-	Coverage  *ScoutCoverage  `json:"coverage,omitempty"`
-	QueueID   int             `json:"queueId"`
-	Season    Stats           `json:"season"`
-	Twelve    Stats           `json:"twelve"`
-	Month     Stats           `json:"month"`
-	Positions []ScoutPosition `json:"positions"`
+	FetchStatus FetchStatus     `json:"fetchStatus,omitempty"`
+	Analysis    *PlayerAnalysis `json:"analysis,omitempty"`
+	Coverage    *ScoutCoverage  `json:"coverage,omitempty"`
+	QueueID     int             `json:"queueId"`
+	Season      Stats           `json:"season"`
+	Twelve      Stats           `json:"twelve"`
+	Month       Stats           `json:"month"`
+	Positions   []ScoutPosition `json:"positions"`
 }
 type ScoutReport struct {
 	ResponseID   uint64       `json:"responseId,omitempty"`

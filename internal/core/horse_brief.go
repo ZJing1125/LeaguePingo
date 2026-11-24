@@ -3,87 +3,124 @@ package core
 import (
 	"fmt"
 	"math"
-	"sort"
 	"strings"
 )
 
 func HorseBriefLines(snapshot Snapshot, includeSelf bool) ([]string, bool, int) {
 	mode, ok := ScoutModeFor(snapshot.QueueID)
 	if !ok || mode.Arena || !mode.Matches(snapshot.MapID, snapshot.GameMode) {
-		return nil, true, 0
-	}
-	allies := []Participant{}
-	for _, p := range snapshot.Participants {
-		if p.Team == "ally" {
-			allies = append(allies, p)
-		}
-	}
-	if len(allies) > 5 {
 		return nil, false, 0
 	}
-	// cellId is zero-based, within each team. Reordering the array cannot move a seat.
-	sort.SliceStable(allies, func(i, j int) bool {
-		if allies[i].CellID == nil {
-			return false
+	seats, valid := horseBriefSeats(snapshot.Participants)
+	if !valid {
+		return nil, false, 0
+	}
+	lines, tags := []string{}, [][]string{}
+	ready, rated, known := true, 0, 0
+	for index, player := range seats {
+		p := Participant{}
+		if player != nil {
+			p = *player
+		} else {
+			ready = false
 		}
-		return allies[j].CellID == nil || *allies[i].CellID < *allies[j].CellID
-	})
-	lines, compact := []string{}, []string{}
-	ready, rated := len(allies) == 5, 0
-	seen := map[int]bool{}
-	for index, p := range allies {
-		seat := index + 1
-		if p.CellID != nil {
-			if *p.CellID < 0 || *p.CellID > 9 {
-				return nil, false, 0
-			}
-			seat = *p.CellID%5 + 1
-		}
-		if seat < 1 || seat > 5 || seen[seat] {
-			return nil, false, 0
-		}
-		seen[seat] = true
-		if !includeSelf && snapshot.SelfKey != "" && (p.Key == snapshot.SelfKey || p.PUUID == snapshot.SelfKey) {
-			continue
-		}
-		prefix := fmt.Sprintf("%d楼", seat)
+		prefix := fmt.Sprintf("%d楼", index+1)
 		if mode.Roles {
 			prefix += "(" + briefPosition(p.Position) + ")"
 		}
 		q := participantScoutQueue(p, snapshot.QueueID)
-		text := "资料待取"
-		tag := ""
-		if q != nil && q.Analysis != nil && q.Analysis.Version >= 2 && q.Analysis.ScoredGames > 0 {
-			a := q.Analysis
-			if a.State == "ready" && a.ScoredGames >= 5 && a.Score != nil && !math.IsNaN(*a.Score) && !math.IsInf(*a.Score, 0) && *a.Score >= 0 && *a.Score <= 100 {
-				text = fmt.Sprintf("%s%d场", HorseTier(*a.Score), a.ScoredGames)
-				rated++
-			} else {
-				text = fmt.Sprintf("样本少%d场", a.ScoredGames)
-			}
-			if p.TeamRating != nil && len(p.TeamRating.Tags) > 0 {
-				tag = p.TeamRating.Tags[0]
-			}
-		} else if p.Scout != nil && p.Scout.Complete30 && p.Scout.State != "loading" {
-			text = "无公开战绩"
-			if q != nil && q.Month.Games > 0 {
-				text = "字段不足"
+		status := ScoutFetchStatus(p.Scout, q)
+		if p.IdentityState == IdentityKnown {
+			known++
+			if status == StatusPending && (q == nil || q.Analysis == nil || q.Analysis.Version < 3 || q.Analysis.ScoredGames < 15) {
+				ready = false
 			}
 		}
-		if p.IdentityState == IdentityKnown && (p.Scout == nil || p.Scout.State == "loading" || !p.Scout.Complete30 && p.Scout.State == "partial" && (q == nil || q.Analysis == nil || q.Analysis.ScoredGames < 15)) {
-			ready = false
+		if !includeSelf && snapshot.SelfKey != "" && (p.Key == snapshot.SelfKey || p.PUUID == snapshot.SelfKey) {
+			continue
 		}
-		compact = append(compact, prefix+" "+text)
-		if tag != "" && text != "资料待取" {
-			text += "·" + tag
+		text, isRated := horseBriefText(p.Scout, q, status, p.TeamRating)
+		if player != nil && p.IdentityState != IdentityKnown {
+			text = "身份暂不可用"
+		}
+		if isRated {
+			rated++
 		}
 		lines = append(lines, prefix+" "+text)
+		rowTags := []string{}
+		if q != nil && q.Analysis != nil && q.Analysis.ScoredGames > 0 && p.TeamRating != nil {
+			rowTags = p.TeamRating.Tags
+		}
+		tags = append(tags, rowTags)
 	}
-	// Keep every seat. Remove optional tags as a group when UTF-8 exceeds budget.
-	if len(strings.Join(lines, " | ")) > AnalysisBriefMaxBytes {
-		lines = compact
+	lines = formatHorseBrief(lines, tags)
+	return lines, ready && known > 0, rated
+}
+
+func horseBriefSeats(players []Participant) ([5]*Participant, bool) {
+	var seats [5]*Participant
+	allies := []Participant{}
+	for _, p := range players {
+		if p.Team == "ally" {
+			allies = append(allies, p)
+		}
 	}
-	return lines, ready, rated
+	if len(allies) > len(seats) {
+		return seats, false
+	}
+	for i := range allies {
+		p := &allies[i]
+		if p.CellID == nil {
+			continue
+		}
+		if *p.CellID < 0 || *p.CellID > 9 || seats[*p.CellID%5] != nil {
+			return seats, false
+		}
+		seats[*p.CellID%5] = p
+	}
+	// Legacy sources with no cellId retain roster order in the available seats.
+	for i := range allies {
+		if allies[i].CellID != nil {
+			continue
+		}
+		for index := range seats {
+			if seats[index] == nil {
+				seats[index] = &allies[i]
+				break
+			}
+		}
+	}
+	return seats, true
+}
+
+func horseBriefText(report *ScoutReport, q *ScoutQueue, status FetchStatus, rating *TeamRating) (string, bool) {
+	if q != nil && q.Analysis != nil && q.Analysis.Version >= 3 && q.Analysis.ScoredGames > 0 {
+		a := q.Analysis
+		if a.State == "ready" && a.ScoredGames >= 5 && a.Score != nil && !math.IsNaN(*a.Score) && !math.IsInf(*a.Score, 0) && *a.Score >= 0 && *a.Score <= 100 {
+			label := "评分待齐"
+			if rating != nil {
+				label = rating.Label
+			}
+			if label == "评分待齐" {
+				return fmt.Sprintf("评分待齐（%.1f分/%d场）", *a.Score, a.ScoredGames), true
+			}
+			return fmt.Sprintf("%s（%d场）", horseBriefLabel(label), a.ScoredGames), true
+		}
+		return fmt.Sprintf("样本少（%d场）", a.ScoredGames), false
+	}
+	switch status {
+	case StatusNoMatchInQueue:
+		return "无本模式战绩", false
+	case StatusTimeoutOrError:
+		if report != nil && report.Reason == "RequestTimeout" {
+			return "网络超时/资料待取", false
+		}
+		return "资料暂不可用", false
+	case StatusSuccess:
+		return "字段不足", false
+	default:
+		return "资料待取", false
+	}
 }
 
 func briefPosition(position string) string {

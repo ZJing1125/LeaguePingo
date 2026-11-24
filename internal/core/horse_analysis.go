@@ -10,14 +10,16 @@ import (
 // AnalysisGame stores only the target's bounded evidence. It carries no peer
 // identifiers and does not authorize detail requests for history rows.
 type AnalysisGame struct {
-	GameID        int64    `json:"gameId"`
-	ChampionID    int      `json:"championId"`
-	TeamID        int      `json:"teamId,omitempty"`
-	KDA           float64  `json:"kda"`
-	Deaths        int      `json:"deaths"`
-	DeathsPerTen  *float64 `json:"deathsPerTen,omitempty"`
-	Win           *bool    `json:"win,omitempty"`
-	Participation *float64 `json:"participation,omitempty"`
+	GameID          int64    `json:"gameId"`
+	ChampionID      int      `json:"championId"`
+	TeamID          int      `json:"teamId,omitempty"`
+	KDA             float64  `json:"kda"`
+	Deaths          int      `json:"deaths"`
+	DeathsPerTen    *float64 `json:"deathsPerTen,omitempty"`
+	Win             *bool    `json:"win,omitempty"`
+	Participation   *float64 `json:"participation,omitempty"`
+	DamagePerMinute *float64 `json:"damagePerMinute,omitempty"`
+	EfficiencyRatio *float64 `json:"efficiencyRatio,omitempty"`
 }
 
 func HorseTier(score float64) string {
@@ -66,6 +68,10 @@ func analysisEvidence(m Match) AnalysisGame {
 	if m.Duration != nil && *m.Duration > 0 {
 		v := float64(*m.Deaths) * 600 / float64(*m.Duration)
 		evidence.DeathsPerTen = &v
+		if m.Damage != nil && *m.Damage >= 0 {
+			dpm := float64(*m.Damage) * 60 / float64(*m.Duration)
+			evidence.DamagePerMinute = &dpm
+		}
 	}
 	for _, peer := range m.Roster {
 		if peer.Target {
@@ -73,11 +79,14 @@ func analysisEvidence(m Match) AnalysisGame {
 			break
 		}
 	}
+	if m.Performance != nil && m.Performance.Horse != nil {
+		evidence.EfficiencyRatio = m.Performance.Horse.EfficiencyRatio
+	}
 	return evidence
 }
 
 func buildHorseAnalysis(matches []Match, mode ScoutMode, cutoff time.Time, complete bool) *PlayerAnalysis {
-	out := &PlayerAnalysis{Version: 2, State: "insufficient", Basis: "basic", Confidence: "low", Provisional: true, Metrics: []PerformanceMetric{}, Recent: []AnalysisGame{}, Tags: []string{}}
+	out := &PlayerAnalysis{Version: 3, State: "insufficient", Basis: "basic", Confidence: "low", Provisional: true, Metrics: []PerformanceMetric{}, Recent: []AnalysisGame{}, Tags: []string{}}
 	selected := horseMatches(matches, mode, cutoff)
 	totals, weights := map[string]float64{}, map[string]float64{}
 	counts := map[string]int{}
@@ -125,7 +134,6 @@ func buildHorseAnalysis(matches []Match, mode ScoutMode, cutoff time.Time, compl
 	out.State = "sample"
 	if len(selected) >= horseRules.MinimumGames {
 		out.State = "ready"
-		out.Grade = HorseTier(value)
 	}
 	if out.ComparedGames == out.ScoredGames {
 		out.Basis = "comparative"

@@ -53,7 +53,7 @@ const heroRate = computed(() => data.value.arena ? heroArena.value?.firstPlaceRa
       <small v-if="!data.report" class="sidebar-coverage">{{ uiText.sidebarPlayer.pendingStatistics }}</small><small v-else-if="data.report.state==='loading'" class="sidebar-coverage">{{ data.report.read ? uiText.modeScouting.scope(data.queueLabel,data.overall.games) : uiText.sidebarPlayer.preparing }}</small><small v-else-if="!data.report.complete30" class="sidebar-coverage">{{ data.report.read ? uiText.sidebarPlayer.partialRange : coverage }}</small>
     </summary>
     <div class="scout-card sidebar-expanded"><PlayerCardData :player="player" :queue="queue" :party="!picking && !showHero"/></div>
- <PlayerAnalysisPanel v-if="data.analysis && data.analysis.version>=2" :analysis="data.analysis" :rating="data.rating ?? undefined" :mode="data.queueLabel"/>
+ <PlayerAnalysisPanel v-if="data.analysis && data.analysis.version>=2" :analysis="data.analysis" :rating="data.rating?.queueId === queue ? data.rating : undefined" :mode="data.queueLabel"/>
   </details>
 </template>
 <style scoped>

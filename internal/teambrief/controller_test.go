@@ -275,3 +275,34 @@ func TestFiveSecondCoverage(t *testing.T) {
 		}
 	}
 }
+
+func TestQueuedBriefSourceInvalidationCancelsWithoutPanic(t *testing.T) {
+	c := testController(t)
+	f := &fakeChat{room: "source", entered: make(chan struct{}, 1), release: make(chan struct{})}
+	_ = c.Configure(true, "team", true)
+	frame := Frame{Scope: "same", Active: true, Ready: true, Rated: 5, Lines: []string{"frozen"}}
+	c.Observe(context.Background(), f, frame)
+	awaitStatus(t, c, "queued")
+	c.Observe(context.Background(), nil, frame)
+	close(f.release)
+	c.Stop()
+	if f.count() != 0 || c.Snapshot().Status != "unsupported" {
+		t.Fatal("invalidated task sent")
+	}
+}
+
+func TestQueuedBriefKeepsCapturedSender(t *testing.T) {
+	c := testController(t)
+	first := &fakeChat{room: "source", entered: make(chan struct{}, 1), release: make(chan struct{})}
+	second := &fakeChat{room: "new-source"}
+	_ = c.Configure(true, "team", true)
+	frame := Frame{Scope: "same", Active: true, Ready: true, Rated: 5, Lines: []string{"frozen"}}
+	c.Observe(context.Background(), first, frame)
+	awaitStatus(t, c, "queued")
+	c.Observe(context.Background(), second, frame)
+	close(first.release)
+	awaitStatus(t, c, "sent")
+	if first.count() != 1 || second.count() != 0 {
+		t.Fatal("task used mutable external sender")
+	}
+}

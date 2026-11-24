@@ -11,6 +11,7 @@ import (
 type deadlineBriefClient struct {
 	*fakeClient
 	posts         atomic.Int32
+	sent          chan string
 	identityBlock func()
 }
 
@@ -23,7 +24,10 @@ func (f *deadlineBriefClient) AccountIdentity(context.Context) (string, error) {
 func (*deadlineBriefClient) ChampSelectConversation(context.Context) (string, error) {
 	return "selection", nil
 }
-func (f *deadlineBriefClient) SendAnalysisBrief(context.Context, string, string, string) (bool, error) {
+func (f *deadlineBriefClient) SendAnalysisBrief(_ context.Context, _ string, body string, _ string) (bool, error) {
+	if f.sent != nil {
+		f.sent <- body
+	}
 	f.posts.Add(1)
 	return true, nil
 }

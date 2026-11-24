@@ -23,10 +23,10 @@ func horseHistory(n int, queue int, score float64) []Match {
 	return result
 }
 
-func TestHorseAbsoluteTiersSampleWindowAndExactQueue(t *testing.T) {
+func TestHorseScoreBoundsSampleWindowAndExactQueue(t *testing.T) {
 	for _, score := range []float64{0, 39.9, 40, 54.9, 55, 60, 71.9, 72, 84.9, 85, 100} {
 		a := BuildPlayerAnalysis(horseHistory(25, 2400, score), 2400, time.Now(), true)
-		if a.Version != 2 || a.ScoredGames != 15 || a.Grade != HorseTier(score) || math.Abs(*a.Score-score) > .01 {
+		if a.Version != 3 || a.ScoredGames != 15 || a.Grade != "" || math.Abs(*a.Score-score) > .01 {
 			t.Fatalf("score %v: %+v", score, a)
 		}
 	}
@@ -37,7 +37,7 @@ func TestHorseAbsoluteTiersSampleWindowAndExactQueue(t *testing.T) {
 	sample := append(horseHistory(5, 2400, 60), horseHistory(15, 450, 90)...)
 	sample = append(sample, sample[0])
 	a = BuildPlayerAnalysis(sample, 2400, time.Now(), true)
-	if a.ScoredGames != 5 || a.Grade != "中等马" {
+	if a.ScoredGames != 5 || a.Grade != "" {
 		t.Fatal("duplicate or foreign queue changed tier")
 	}
 }
@@ -87,7 +87,7 @@ func TestHorseRecentDropRequiresBothRelativeAndAbsoluteDeathIncrease(t *testing.
 	}
 }
 
-func TestHorseBriefMixedStatesSeatsAndAbsoluteLabels(t *testing.T) {
+func TestHorseBriefMixedStatesAndSeatGrades(t *testing.T) {
 	snapshot := Snapshot{QueueID: 420, MapID: 11, GameMode: "CLASSIC"}
 	for i := 0; i < 5; i++ {
 		cell := 4 - i
@@ -97,16 +97,17 @@ func TestHorseBriefMixedStatesSeatsAndAbsoluteLabels(t *testing.T) {
 	}
 	ApplyTeamRatings(snapshot.Participants, 420)
 	for _, p := range snapshot.Participants {
-		if p.TeamRating.Label != "中等马" {
-			t.Fatal("team rank changed absolute tier")
+		if p.TeamRating.Label != horseTeamLabels[*p.CellID] {
+			t.Fatal("team grade did not follow stable seat tie-break")
 		}
 	}
 	snapshot.Participants[0].Scout = nil
 	snapshot.Participants[1].Scout = &ScoutReport{State: "ready", Complete30: true}
 	snapshot.Participants[2].Scout.Queues[0].Analysis = BuildPlayerAnalysis(horseHistory(3, 420, 99), 420, time.Now(), true)
+	ApplyTeamRatings(snapshot.Participants, 420)
 	lines, _, rated := HorseBriefLines(snapshot, true)
 	body := AnalysisBriefBody(lines)
-	if rated != 2 || !strings.HasPrefix(body, "1楼(中)") || !strings.Contains(body, "3楼(中) 样本少3场") || !strings.Contains(body, "4楼(中) 无公开战绩") || !strings.Contains(body, "5楼(中) 资料待取") || len(body) > 256 {
+	if rated != 2 || !strings.HasPrefix(body, HorseBriefHeader) || !strings.Contains(body, "3楼(中) 样本少（3场）") || !strings.Contains(body, "4楼(中) 无本模式战绩") || !strings.Contains(body, "5楼(中) 资料待取") || !ValidAnalysisBriefBody(body) {
 		t.Fatal("mixed state or stable seat missing", body, rated)
 	}
 }

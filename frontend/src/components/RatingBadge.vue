@@ -13,7 +13,10 @@ watch(() => [props.analysis?.score, props.rating?.place, props.analysis?.scoredG
 </script>
 <template>
   <span class="player-rating" :class="{compact}" :title="analysisTitle(analysis, rating)" :aria-label="analysisTitle(analysis, rating)">
-    <template v-if="analysis && analysis.version >= 2 && analysis.score != null">
+    <template v-if="analysis && analysis.version >= 3 && analysis.score != null">
+      <b>{{ analysis.scoredGames < 5 ? uiText.playerAnalysis.smallSample : rating?.label ?? uiText.playerAnalysis.personalScore(analysis.score) }}</b><small>{{ uiText.common.gamesNative(analysis.scoredGames) }}</small>
+    </template>
+    <template v-else-if="analysis && analysis.version >= 2 && analysis.score != null">
       <b>{{ analysis.scoredGames >= 5 ? analysis.grade : uiText.playerAnalysis.smallSample }}</b><small>{{ uiText.common.gamesNative(analysis.scoredGames) }}</small>
     </template>
     <template v-else-if="rating && analysis?.score != null">

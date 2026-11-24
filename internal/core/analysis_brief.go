@@ -95,7 +95,12 @@ func analysisBriefRating(rating *TeamRating, q *ScoutQueue) (string, string) {
 	return label + "·" + reason + "(" + games + "场)", short
 }
 
-func AnalysisBriefBody(lines []string) string { return strings.Join(lines, " | ") }
+func AnalysisBriefBody(lines []string) string {
+	if len(lines) > 0 && lines[0] == HorseBriefHeader {
+		return strings.Join(lines, "\n")
+	}
+	return strings.Join(lines, " | ")
+}
 
 func AnalysisReason(a *PlayerAnalysis) string {
 	if a == nil || a.Score == nil {

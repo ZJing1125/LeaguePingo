@@ -426,6 +426,14 @@ async function main(){
   assert.match(await evidence.innerText(),/100/);
   assert(await side.locator('.client-sidebar').evaluate(el=>el.scrollWidth<=el.clientWidth+1),'horse sidebar overflow at 280');
   await shot(side,'horse-sidebar');
+  // Reference mode details must not inherit this match's tags or relative rank.
+  const alternate=horsePlayers[0].scout.queues.find(mode=>mode.queueId===440);
+  alternate.analysis={...horsePlayers[0].scout.queues.find(mode=>mode.queueId===420).analysis,tags:[],metrics:[{key:'kda',score:60,games:15}]};
+  await publish();
+  await side.getByRole('combobox',{name:'对局统计模式'}).selectOption('440');
+  await evidence.getByText('灵活组排',{exact:true}).waitFor();
+  assert.doesNotMatch(await evidence.innerText(),/李青10场7胜|近期同队2局|队内第/);
+  await side.getByRole('combobox',{name:'对局统计模式'}).selectOption('0');
   await side.getByRole('button',{name:'本局静音',exact:true}).click();
   await side.getByText('本局已静音',{exact:true}).waitFor();
   assert.equal(calls.filter(call=>call.method==='MuteAnalysisBrief').length,1);
@@ -435,6 +443,25 @@ async function main(){
   assert.equal(await current.locator('.player-rating b').filter({hasText:'中等马'}).count(),4);
   assert.equal(await current.locator('.player-rating b').filter({hasText:'样本少'}).count(),1);
   console.log('PASS: v2 absolute horse tiers and small samples across sidebar/current room, full evidence at 280, hundred-point scale, per-selection mute without preference writes.');
+  const horseLabels=['千里马','上等马','中等马','下等马','纯牛马'];
+  horsePlayers.forEach((player,i)=>{
+   const analysis=player.scout.queues.find(mode=>mode.queueId===420).analysis;
+   Object.assign(analysis,{version:3,state:'ready',grade:'',score:90-i*10,games:15,scoredGames:15});
+   Object.assign(player.teamRating,{label:horseLabels[i],place:i+1,rated:5});
+  });
+  await publish();
+  for (const label of horseLabels) {
+   assert.equal(await side.locator('.sidebar-name-row .player-rating b').filter({hasText:label}).count(),1);
+   assert.equal(await current.locator('.player-rating b').filter({hasText:label}).count(),1);
+  }
+  horsePlayers[4].scout.queues.find(mode=>mode.queueId===420).analysis.scoredGames=3;
+  horsePlayers[4].teamRating.label='样本少';
+  horsePlayers.slice(0,4).forEach(player=>Object.assign(player.teamRating,{label:'评分待齐',place:0,rated:4}));
+  await publish();
+  assert.equal(await side.locator('.sidebar-name-row .player-rating b').filter({hasText:'评分待齐'}).count(),4);
+  assert.equal(await side.locator('.sidebar-name-row .player-rating b').filter({hasText:'样本少'}).count(),1);
+  console.log('PASS: v3 five distinct team horse grades and incomplete-team waiting state across sidebar/current room.');
+
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
   console.log('PASS: independent Arena 1700/1710, first-place/average/top-half metrics, missing fields, 280/320 themes, 236 preview and sixteen-player result without 5v5 grouping; cache-only');
   console.log('PASS: mayhem without season, no lane, rank reference, 280/320 geometry and cache-only mode switches');

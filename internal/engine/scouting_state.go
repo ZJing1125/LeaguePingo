@@ -133,6 +133,11 @@ func (s *scoutPreparation) targets(players []core.Participant, now time.Time, al
 		if p.Scout != nil {
 			r = *p.Scout
 			r.State = "loading"
+			r.Reason, r.RetryAt = "", nil
+			r.Queues = append([]core.ScoutQueue(nil), r.Queues...)
+			for index := range r.Queues {
+				r.Queues[index].FetchStatus = core.StatusPending
+			}
 		}
 		p.Scout = &r
 		changed = true

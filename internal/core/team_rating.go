@@ -43,6 +43,12 @@ func ApplyTeamRatings(players []Participant, queue int) {
 }
 
 func rateTeam(players []Participant, queue int, team string) {
+	for _, p := range players {
+		if q := participantScoutQueue(p, queue); p.Team == team && q != nil && q.Analysis != nil && q.Analysis.Version >= 3 {
+			rateHorseTeam(players, queue, team)
+			return
+		}
+	}
 	type row struct {
 		index    int
 		score    float64

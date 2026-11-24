@@ -30,7 +30,7 @@ func (e *Engine) observeAnalysisBriefLocked() {
 	frame := teambrief.Frame{
 		Scope: e.analysisBriefScopeLocked(), StartedAt: e.readiness.SelectionStarted(),
 		SelectionKey: e.session.SelectionKey, GameID: e.snapshot.GameID, QueueID: e.snapshot.QueueID,
-		Active: active, Lines: lines, Ready: ready, Rated: rated,
+		Active: active, Lines: lines, Ready: ready, Rated: rated, Total: 5,
 	}
 	src, _ := e.client.(source.AnalysisBriefSource)
 	if mode, ok := core.ScoutModeFor(e.snapshot.QueueID); !ok || mode.Arena || e.scoutModeLocked() == 0 {
@@ -93,7 +93,7 @@ func (e *Engine) beginAnalysisBriefLocked(phase Phase) {
 	src, _ := e.client.(source.AnalysisBriefSource)
 	e.brief.Observe(e.initialMatch.parentContext(), src, teambrief.Frame{
 		Scope: e.analysisBriefScopeLocked(), StartedAt: e.readiness.SelectionStarted(),
-		Active: phase == PhaseChampSelect,
+		Active: phase == PhaseChampSelect, Total: 5,
 	})
 }
 

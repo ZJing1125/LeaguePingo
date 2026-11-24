@@ -43,6 +43,7 @@ func TestScoutReplayComplexPagesKeepReferenceResultsAndPublishOnce(t *testing.T)
 			cursor.absorbPage(core.HistoryPage{Matches: records[offset : offset+20], Meta: core.HistoryMeta{Returned: 20}, Offset: offset, NextOffset: offset + 20, HasMore: offset < 980}, season, now, now.Add(-90*24*time.Hour))
 			got := cursor.report(season, now)
 			want := core.BuildScoutReport(records[:offset+20], nil, season, now, got.Complete, got.Complete12, got.Complete30)
+			cursor.setQueueFetchStatus(&want)
 			if !reflect.DeepEqual(got.Queues, want.Queues) || !reflect.DeepEqual(got.Champions, want.Champions) {
 				t.Fatalf("reference differs at player=%d offset=%d", player, offset)
 			}

@@ -58,7 +58,11 @@ func (e *Engine) observePhase(version, sequence uint64, phase string) {
 		e.historyRecovery.stop()
 	}
 	e.phaseHint = observed
+	previousSelection := e.readiness.SelectionStarted()
 	e.readiness.Phase(phase, time.Now())
+	if observed == PhaseChampSelect && !previousSelection.Equal(e.readiness.SelectionStarted()) {
+		e.beginAnalysisBriefLocked(observed)
+	}
 	e.observeAutoAcceptLocked(observed)
 	e.postGame.Hint(version, phase)
 	if !activeMatch(observed) {

@@ -15,6 +15,7 @@ func MergeScoutReports(old *ScoutReport, next ScoutReport) ScoutReport {
 	result.ResponseID = next.ResponseID
 	result.ModelVersion = max(old.ModelVersion, next.ModelVersion)
 	result.State, result.Retained, result.Message = next.State, true, "保留上次统计"
+	result.Reason, result.RetryAt = next.Reason, next.RetryAt
 	result.Queues = append([]ScoutQueue(nil), old.Queues...)
 	result.Champions = append([]ScoutChampion(nil), old.Champions...)
 	for _, q := range next.Queues {
@@ -26,6 +27,8 @@ func MergeScoutReports(old *ScoutReport, next ScoutReport) ScoutReport {
 			replace = scoutQueueImproved(previous, q)
 			if replace {
 				result.Queues[i] = q
+			} else if q.FetchStatus != "" {
+				result.Queues[i].FetchStatus = q.FetchStatus
 			}
 			break
 		}

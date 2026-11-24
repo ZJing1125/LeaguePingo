@@ -970,11 +970,18 @@ func rosterChanged(old, current []core.Participant) bool {
 		return true
 	}
 	for i := range old {
+		if !sameCellID(old[i].CellID, current[i].CellID) {
+			return true
+		}
 		if old[i].ConnectionID != current[i].ConnectionID || old[i].Key != current[i].Key || old[i].ChampionID != current[i].ChampionID || old[i].ChampionState != current[i].ChampionState || old[i].Team != current[i].Team || old[i].GroupToken != current[i].GroupToken || old[i].Position != current[i].Position {
 			return true
 		}
 	}
 	return false
+}
+
+func sameCellID(left, right *int) bool {
+	return left == right || left != nil && right != nil && *left == *right
 }
 
 func clone(in core.Snapshot) core.Snapshot {

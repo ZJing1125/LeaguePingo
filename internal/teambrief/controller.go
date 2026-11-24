@@ -23,13 +23,13 @@ type Frame struct {
 	Lines        []string
 	Ready        bool
 	Rated        int
+	Total        int // physical team seats, independent of include-self preference
 }
 
 type Controller struct {
 	mu        sync.Mutex
 	state     core.AnalysisBriefState
 	frame     Frame
-	source    source.AnalysisBriefSource
 	scope     string
 	sequence  uint64
 	cancel    context.CancelFunc
@@ -109,7 +109,7 @@ func (c *Controller) Configure(enabled bool, audience string, self bool) error {
 func (c *Controller) Observe(parent context.Context, src source.AnalysisBriefSource, frame Frame) core.AnalysisBriefState {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.frame, c.source = frame, src
+	c.frame = frame
 	select {
 	case c.wake <- struct{}{}:
 	default:
@@ -134,11 +134,15 @@ func (c *Controller) Observe(parent context.Context, src source.AnalysisBriefSou
 		}
 		return c.state
 	}
-	if c.attempted || c.cancel != nil {
+	if src == nil {
+		c.stopLocked()
+		if c.attempted {
+			c.result = "unavailable"
+		}
+		c.statusLocked("unsupported")
 		return c.state
 	}
-	if src == nil {
-		c.statusLocked("unsupported")
+	if c.attempted || c.cancel != nil {
 		return c.state
 	}
 	ctx, cancel := context.WithCancel(parent)
@@ -147,14 +151,13 @@ func (c *Controller) Observe(parent context.Context, src source.AnalysisBriefSou
 	token := c.sequence
 	c.statusLocked("waiting")
 	c.workers.Add(1)
-	go func() { defer c.workers.Done(); c.run(ctx, token) }()
+	go func() { defer c.workers.Done(); c.run(ctx, token, src) }()
 	return c.state
 }
 
-func (c *Controller) run(ctx context.Context, token uint64) {
+func (c *Controller) run(ctx context.Context, token uint64, src source.AnalysisBriefSource) {
 	c.mu.Lock()
 	remaining := time.Until(c.started.Add(c.wait))
-	src := c.source
 	c.mu.Unlock()
 	deadline := time.NewTimer(max(0, remaining))
 	defer deadline.Stop()
@@ -191,7 +194,10 @@ func (c *Controller) run(ctx context.Context, token uint64) {
 			c.queued = time.Now()
 			c.state.ReadySeats = frozen.Rated
 			c.state.CachedSeats = frozen.Cached
-			c.state.TotalSeats = len(frozen.Lines)
+			c.state.TotalSeats = frozen.Total
+			if c.state.TotalSeats == 0 {
+				c.state.TotalSeats = len(frozen.Lines)
+			}
 			c.state.FreezeMS = time.Since(c.started).Milliseconds()
 			c.result = "queued"
 			c.statusLocked("queued")
@@ -212,7 +218,7 @@ func (c *Controller) run(ctx context.Context, token uint64) {
 				c.finish(token, "unavailable", true)
 				return
 			}
-			c.sendFrozen(ctx, token, result.room)
+			c.sendFrozen(ctx, token, result.room, src)
 			return
 		}
 	}
@@ -233,9 +239,9 @@ func (c *Controller) skipEmpty(token uint64) bool {
 	return empty
 }
 
-func (c *Controller) sendFrozen(parent context.Context, token uint64, room string) {
+func (c *Controller) sendFrozen(parent context.Context, token uint64, room string, src source.AnalysisBriefSource) {
 	c.mu.Lock()
-	if c.sequence != token || !c.state.Enabled || !c.frame.Active || c.frozen == nil {
+	if c.sequence != token || parent.Err() != nil || src == nil || !c.state.Enabled || !c.frame.Active || c.frozen == nil {
 		c.mu.Unlock()
 		return
 	}
@@ -247,7 +253,7 @@ func (c *Controller) sendFrozen(parent context.Context, token uint64, room strin
 	frame := *c.frozen
 	c.rooms[room] = token
 	c.pruneRoomsLocked()
-	body, audience, src := core.AnalysisBriefBody(frame.Lines), c.state.Audience, c.source
+	body, audience := core.AnalysisBriefBody(frame.Lines), c.state.Audience
 	queuedToPost := time.Since(c.queued)
 	c.state.QueuedToPostMS = queuedToPost.Milliseconds()
 	c.statusLocked("sending")

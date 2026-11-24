@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 
 	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/core"
@@ -106,8 +104,7 @@ func (c *Client) ChampSelectConversation(ctx context.Context) (string, error) {
 // A single fixed mutation for the current champ-select conversation. No generic
 // chat API is exposed to the desktop bridge, and no failed POST is retried here.
 func (c *Client) SendAnalysisBrief(ctx context.Context, id, body, audience string) (bool, error) {
-	if !validConversationID(id) || strings.TrimSpace(body) == "" || !utf8.ValidString(body) ||
-		len(body) > core.AnalysisBriefMaxBytes || strings.ContainsFunc(body, invalidBriefRune) ||
+	if !validConversationID(id) || !core.ValidAnalysisBriefBody(body) ||
 		audience != "team" && audience != "self" {
 		return false, apperrors.New(apperrors.InvalidResponse)
 	}
@@ -125,8 +122,4 @@ func (c *Client) SendAnalysisBrief(ctx context.Context, id, body, audience strin
 	raw, _ := json.Marshal(map[string]string{"body": body, "type": kind})
 	_, err = c.request(ctx, http.MethodPost, conversationsPath+"/"+url.PathEscape(id)+"/messages", raw)
 	return true, err
-}
-
-func invalidBriefRune(r rune) bool {
-	return unicode.IsControl(r) || r == '\u2028' || r == '\u2029'
 }

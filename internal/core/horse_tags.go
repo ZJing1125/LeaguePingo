@@ -4,7 +4,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"strconv"
 )
 
 // Names come from the project's packaged Riot catalog, never a player query.
@@ -25,39 +24,7 @@ func horsePlayerTags(p Participant, queue int, peers []Participant) []string {
 		return nil
 	}
 	a := q.Analysis
-	tags := []string{}
-	extra := []string{}
-	if p.ChampionID > 0 {
-		games, wins, known := 0, 0, 0
-		for _, m := range a.Recent {
-			if m.ChampionID == p.ChampionID {
-				games++
-				if m.Win != nil {
-					known++
-					if *m.Win {
-						wins++
-					}
-				}
-			}
-		}
-		name := championNames[strconv.Itoa(p.ChampionID)]
-		if name == "" {
-			name = "本英雄"
-		}
-		if games >= 8 && known == games {
-			tags = append(tags, fmt.Sprintf("%s%d场%d胜", name, games, wins))
-		}
-		if games == 0 && len(a.Recent) == 15 {
-			tags = append(tags, "近15场未见本英雄")
-		}
-		if p.Scout != nil {
-			for _, champ := range p.Scout.Champions {
-				if champ.ChampionID == p.ChampionID && champ.Mastery != nil {
-					extra = append(extra, fmt.Sprintf("英雄成就%d点", champ.Mastery.Points))
-				}
-			}
-		}
-	}
+	tags, extra := horseChampionTags(p, a)
 	tags = append(tags, a.Tags...)
 	for _, metric := range a.Metrics {
 		if metric.Key == "eff" && metric.Score >= 72 {
@@ -68,7 +35,9 @@ func horsePlayerTags(p Participant, queue int, peers []Participant) []string {
 		}
 	}
 	if len(tags) == 0 {
-		tags = append(tags, AnalysisReason(a))
+		if reason := AnalysisReason(a); reason != "表现较均衡" && reason != "基础摘要评级" {
+			tags = append(tags, reason)
+		}
 	}
 	tags = append(tags, extra...)
 	for _, peer := range peers {
@@ -98,6 +67,9 @@ func horsePlayerTags(p Participant, queue int, peers []Participant) []string {
 		if count >= 2 {
 			tags = append(tags, fmt.Sprintf("近期同队%d局", count))
 		}
+	}
+	if len(tags) == 0 {
+		tags = append(tags, AnalysisReason(a))
 	}
 	return uniqueTags(tags)
 }

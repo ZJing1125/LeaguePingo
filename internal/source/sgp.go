@@ -325,7 +325,11 @@ func (r *sgpHistory) getAuthorized(ctx context.Context, origin, path, token, cat
 
 func (r *sgpHistory) getAuthorizedChecked(ctx context.Context, origin, path, token, category string, gate *serviceGate, check func() error) (raw []byte, status int, resultErr error) {
 	queued := time.Now()
-	if err := gate.acquire(ctx); err != nil {
+	limit := sgpChannelConcurrency
+	if category == "/sgp-history" {
+		limit = sgpHistoryConcurrency
+	}
+	if err := gate.acquireLimit(ctx, limit); err != nil {
 		return nil, apperrors.Status(err), err
 	}
 	diagnostics.ResponseStage(ctx, "queue", time.Since(queued))

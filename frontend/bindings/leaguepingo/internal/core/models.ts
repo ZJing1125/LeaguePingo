@@ -28,6 +28,8 @@ export interface AnalysisGame {
     "deathsPerTen"?: number | null;
     "win"?: boolean | null;
     "participation"?: number | null;
+    "damagePerMinute"?: number | null;
+    "efficiencyRatio"?: number | null;
 }
 
 /**
@@ -53,6 +55,22 @@ export interface ChampionMastery {
     "level": number;
     "points": number;
 }
+
+/**
+ * FetchStatus describes this queue's preparation independently of coverage and
+ * rating. Exhausting the service is a terminal read, not proof of 30-day coverage.
+ */
+export enum FetchStatus {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero = "",
+
+    StatusPending = "pending",
+    StatusSuccess = "success",
+    StatusNoMatchInQueue = "no-match-in-queue",
+    StatusTimeoutOrError = "timeout-or-error",
+};
 
 /**
  * A retained value remains useful but is not verified by the latest request.
@@ -380,6 +398,7 @@ export interface ScoutPosition {
 }
 
 export interface ScoutQueue {
+    "fetchStatus"?: FetchStatus;
     "analysis"?: PlayerAnalysis | null;
     "coverage"?: ScoutCoverage | null;
     "queueId": number;

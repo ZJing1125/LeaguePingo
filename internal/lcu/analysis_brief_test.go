@@ -138,3 +138,31 @@ func TestAnalysisChatDoesNotWriteDuringReconnectOrTreatItAsAnAttempt(t *testing.
 		})
 	}
 }
+
+func TestMultilineHorseBriefIsOneJSONMessage(t *testing.T) {
+	body := "[LeaguePingo] 本局五马分析\n1楼(上) 🦄千里马（15场） | 👑院长级大腿\n2楼(野) 🐎上等马（15场） | 近期同队2局\n3楼(中) 🐎中等马（15场） | 4连胜\n4楼(下) 🐂下等马（15场） | 经济转化低\n5楼(辅) 💩纯牛马（15场） | 场均死亡8.0"
+	posts := 0
+	client := briefClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/lol-gameflow/v1/gameflow-phase":
+			_, _ = w.Write([]byte(`"ChampSelect"`))
+		case chatSessionPath:
+			_, _ = w.Write([]byte(`{"sessionState":"loaded"}`))
+		case conversationsPath:
+			_, _ = w.Write([]byte(`[{"id":"synthetic","type":"championSelect"}]`))
+		case conversationsPath + "/synthetic/messages":
+			var payload map[string]string
+			if json.NewDecoder(r.Body).Decode(&payload) != nil || payload["body"] != body {
+				t.Error("multiline payload altered")
+			}
+			posts++
+			w.WriteHeader(http.StatusOK)
+		default:
+			t.Errorf("unexpected endpoint %s", r.URL.Path)
+		}
+	})
+	dispatched, err := client.SendAnalysisBrief(context.Background(), "synthetic", body, "team")
+	if err != nil || !dispatched || posts != 1 {
+		t.Fatal("rich briefing was rejected or split", err, posts)
+	}
+}

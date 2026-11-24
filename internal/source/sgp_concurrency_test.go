@@ -162,14 +162,14 @@ func TestSGPRemoteConcurrencyIsBoundedPerChannel(t *testing.T) {
 	})}}
 	var history, rank serviceGate
 	var workers sync.WaitGroup
-	for i := 0; i < sgpChannelConcurrency+1; i++ {
+	for i := 0; i < sgpHistoryConcurrency+1; i++ {
 		workers.Add(1)
 		go func() {
 			defer workers.Done()
 			_, _, _ = r.getAuthorized(ctx, "https://synthetic.invalid", "/history", "synthetic", "/sgp-history", &history)
 		}()
 	}
-	for i := 0; i < sgpChannelConcurrency; i++ {
+	for i := 0; i < sgpHistoryConcurrency; i++ {
 		select {
 		case <-started:
 		case <-ctx.Done():
