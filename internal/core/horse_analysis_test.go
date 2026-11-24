@@ -16,7 +16,7 @@ func horseHistory(n int, queue int, score float64) []Match {
 		at := now.Add(-time.Duration(i+1) * time.Hour)
 		won := i%3 != 0
 		result = append(result, Match{GameID: int64(i + 1), QueueID: queue, ChampionID: 64, PlayedAt: &at, Kills: &k, Deaths: &d, Assists: &a, Duration: &seconds, Win: &won,
-			Performance: &MatchPerformance{Horse: &HorsePerformance{Version: 2, Score: score, Metrics: []PerformanceMetric{{Key: "kda", Score: score, Games: 1}, {Key: "dpm", Score: score, Games: 1}, {Key: "participation", Score: score, Games: 1}}}},
+			Performance: &MatchPerformance{Horse: &HorsePerformance{Version: 3, Score: score, Metrics: []PerformanceMetric{{Key: "kda", Score: score, Games: 1}, {Key: "dpm", Score: score, Games: 1}, {Key: "participation", Score: score, Games: 1}}}},
 			Roster:      []MatchPeer{{Target: true, TeamID: 100}},
 		})
 	}
@@ -26,7 +26,7 @@ func horseHistory(n int, queue int, score float64) []Match {
 func TestHorseScoreBoundsSampleWindowAndExactQueue(t *testing.T) {
 	for _, score := range []float64{0, 39.9, 40, 54.9, 55, 60, 71.9, 72, 84.9, 85, 100} {
 		a := BuildPlayerAnalysis(horseHistory(25, 2400, score), 2400, time.Now(), true)
-		if a.Version != 3 || a.ScoredGames != 15 || a.Grade != "" || math.Abs(*a.Score-score) > .01 {
+		if a.Version != 4 || a.ScoredGames != 15 || a.Grade != HorseTier(score) || math.Abs(*a.Score-score) > .01 {
 			t.Fatalf("score %v: %+v", score, a)
 		}
 	}
@@ -37,7 +37,7 @@ func TestHorseScoreBoundsSampleWindowAndExactQueue(t *testing.T) {
 	sample := append(horseHistory(5, 2400, 60), horseHistory(15, 450, 90)...)
 	sample = append(sample, sample[0])
 	a = BuildPlayerAnalysis(sample, 2400, time.Now(), true)
-	if a.ScoredGames != 5 || a.Grade != "" {
+	if a.ScoredGames != 5 || a.Grade != "中等马" {
 		t.Fatal("duplicate or foreign queue changed tier")
 	}
 }
@@ -97,7 +97,7 @@ func TestHorseBriefMixedStatesAndSeatGrades(t *testing.T) {
 	}
 	ApplyTeamRatings(snapshot.Participants, 420)
 	for _, p := range snapshot.Participants {
-		if p.TeamRating.Label != horseTeamLabels[*p.CellID] {
+		if p.TeamRating.Label != "中等马" {
 			t.Fatal("team grade did not follow stable seat tie-break")
 		}
 	}
@@ -135,7 +135,7 @@ func TestHorseEconomicEfficiencyThresholdUsesSameLaneCohort(t *testing.T) {
 	for _, sample := range []struct {
 		damage int
 		ratio  float64
-	}{{37500, 1.2}, {16667, .8}} {
+	}{{30000, 1.2}, {20000, .8}} {
 		game := performanceGame()
 		players := game["participants"].([]any)
 		players[4].(map[string]any)["puuid"] = "other"

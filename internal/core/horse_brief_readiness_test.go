@@ -28,7 +28,7 @@ func TestHorseBriefReadinessAndFivePhysicalSeats(t *testing.T) {
 	if _, ready, _ := HorseBriefLines(s, true); ready {
 		t.Fatal("legacy score consumed new model's preparation window")
 	}
-	s.Participants[0].Scout.Queues[0].Analysis.Version = 3
+	s.Participants[0].Scout.Queues[0].Analysis.Version = 4
 	saved := s.Participants[0].Scout
 	s.Participants[0].Scout = nil
 	if _, ready, _ := HorseBriefLines(s, false); ready {

@@ -36,7 +36,7 @@ desktopApplication ── 主窗 / 托盘 / companion 辅助窗口
 
 Engine的独立锁组件包括：`eventSubscription`管理事件取消/序号/重连与唤醒，`groupingState`持有分组scope/匿名字段/标签与单轮取消，`reviewState`持有候选/冻结复盘/账号与结算令牌，`playerCache`持有五表内存缓存，`preparationState`持有房间/选人准备的取消/令牌/期限/次数/优先玩家，`initialMatchPreparation`持有开局单轮资格/取消/版本/比赛/令牌，`querySession`持有手动查询独占槽与首页子任务取消，`scoutPreparation`持有独立统计范围/令牌/预算/报告/游标与发布节流，`historyRecovery`持有重试episode、合并后台任务与本机更新队列，`rosterDiscovery`持有本地身份发现就绪窗口/次数/完成状态，`clientDiscovery`持有十秒一次的发现节流，`snapshotPublisher`持有32条有序队列和单回调worker。复盘发布后只读，更新替换外层值；固定Engine→组件锁序，来源/磁盘I/O、引擎发布和回调均在组件锁外。Engine保留连接/阶段/身份/比赛守卫，字段由59经51、45、41、37降为30，再由查询会话降为29、名单发现降为28、客户端发现降为27、发布器降为26；开局状态原已为单字段，改为独立锁后字段数未变。独立统计原已为单字段，独立锁迁移未减少字段。手动查询数据编排已移至`playerQueries`，通过显式`queryState`与scheduler依赖调用；S2按职责归属结项：26个字段包含18个显式组件/依赖和8个需要同一把锁核验的核心字段（mu/client/snapshot/clientVersion/accountIdentity/phaseEpoch/phaseHint/champEpoch）。建议不超过20的数量目标未达到；超长编排函数仍按Q2继续拆分。
 
-近期表现分析由core从既有页派生匿名比较指标，再在精确队列近30天内聚合；报告modelVersion=5，五马分析version=3，队内按综合分排序分配五马标签。teambrief.Controller独立持有默认关闭的选人简报配置、瞬态会话、五秒冻结/取消和一次发送许可；T0由选人事件直接启动，在账号/名单I/O前开始；Engine每页写入同步更新简报内存，Wails推送独立节流；任务捕获发送接口，版本失效取消。历史SGP通道6槽，其他4槽，固定五席与队列FetchStatus区分未完成/成功/本模式无记录/错误，变化经有界通知通道回到引擎，无锁内来源I/O。加载与局内复用评级，不对实时对局评分，规则与协议见[PLAYER_RATINGS](PLAYER_RATINGS.md)。上段26字段为S2结项时统计，后续自动化/就绪指标/历史存储/简报组件增加不回写历史结论。
+近期表现分析由core从既有页派生匿名比较指标，再在精确队列近30天内聚合；报告modelVersion=6，五马分析version=4，按个人综合分阈值独立定档；比较基准排除本人，旧v3归档保留原队内排名。teambrief.Controller独立持有默认关闭的选人简报配置、瞬态会话、五秒冻结/取消和一次发送许可；T0由选人事件直接启动，在账号/名单I/O前开始；Engine每页写入同步更新简报内存，Wails推送独立节流；任务捕获发送接口，版本失效取消。历史SGP通道6槽，其他4槽，固定五席与队列FetchStatus区分未完成/成功/本模式无记录/错误，变化经有界通知通道回到引擎，无锁内来源I/O。加载与局内复用评级，不对实时对局评分，规则与协议见[PLAYER_RATINGS](PLAYER_RATINGS.md)。上段26字段为S2结项时统计，后续自动化/就绪指标/历史存储/简报组件增加不回写历史结论。
 
 ## 阶段与并发
 

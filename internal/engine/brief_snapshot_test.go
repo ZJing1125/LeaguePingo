@@ -20,7 +20,7 @@ func briefingReport(games int, score float64) core.ScoutReport {
 	if games >= 5 {
 		state, grade = "ready", core.HorseTier(score)
 	}
-	return core.ScoutReport{ModelVersion: core.ScoutStatsVersion, State: "loading", Read: games, FetchedAt: time.Now(), Queues: []core.ScoutQueue{{QueueID: 420, FetchStatus: core.StatusPending, Analysis: &core.PlayerAnalysis{Version: 3, State: state, Grade: grade, Score: &score, ScoredGames: games}}}}
+	return core.ScoutReport{ModelVersion: core.ScoutStatsVersion, State: "loading", Read: games, FetchedAt: time.Now(), Queues: []core.ScoutQueue{{QueueID: 420, FetchStatus: core.StatusPending, Analysis: &core.PlayerAnalysis{Version: 4, State: state, Grade: grade, Score: &score, ScoredGames: games}}}}
 }
 
 func briefingEngine(t *testing.T, fifthGames int) (*Engine, *deadlineBriefClient, time.Time) {

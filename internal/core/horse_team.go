@@ -8,7 +8,7 @@ import (
 
 var horseTeamLabels = [...]string{"千里马", "上等马", "中等马", "下等马", "纯牛马"}
 
-func rateHorseTeam(players []Participant, queue int, team string) {
+func rateHorseTeam(players []Participant, queue int, team string, version int) {
 	rows := []int{}
 	teamSize, visible := 0, 0
 	complete := true
@@ -22,7 +22,7 @@ func rateHorseTeam(players []Participant, queue int, team string) {
 		}
 		visible++
 		q := participantScoutQueue(p, queue)
-		if q == nil || q.Analysis == nil || q.Analysis.Version < 3 {
+		if q == nil || q.Analysis == nil || q.Analysis.Version < version {
 			complete = false
 			continue
 		}
@@ -65,6 +65,13 @@ func rateHorseTeam(players []Participant, queue int, team string) {
 		if teamSize == 5 && visible > 0 && complete && len(rows) == visible {
 			r.Place = place + 1
 			r.Label = horseTeamLabels[place]
+			if version >= 4 {
+				a := participantScoutQueue(players[index], queue).Analysis
+				r.Label = HorseTier(*a.Score)
+				if place > 0 && *a.Score == *participantScoutQueue(players[rows[place-1]], queue).Analysis.Score {
+					r.Place = players[rows[place-1]].TeamRating.Place
+				}
+			}
 		}
 		r.Tags = mergeTacticalTags(horseTacticalTags(players[index], queue, players, r), r.Tags)
 		if len(r.Tags) > 0 {

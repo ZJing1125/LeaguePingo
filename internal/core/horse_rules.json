@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "baseline": 60,
   "ratioSlope": 60,
   "goldDiffSlope": 0.1,

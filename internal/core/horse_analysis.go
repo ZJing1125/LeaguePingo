@@ -23,17 +23,21 @@ type AnalysisGame struct {
 }
 
 func HorseTier(score float64) string {
+	return horseTeamLabels[horseScoreIndex(score)]
+}
+
+func horseScoreIndex(score float64) int {
 	switch {
 	case score >= 85:
-		return "千里马"
+		return 0
 	case score >= 72:
-		return "上等马"
+		return 1
 	case score >= 55:
-		return "中等马"
+		return 2
 	case score >= 40:
-		return "下等马"
+		return 3
 	default:
-		return "纯牛马"
+		return 4
 	}
 }
 
@@ -86,7 +90,7 @@ func analysisEvidence(m Match) AnalysisGame {
 }
 
 func buildHorseAnalysis(matches []Match, mode ScoutMode, cutoff time.Time, complete bool) *PlayerAnalysis {
-	out := &PlayerAnalysis{Version: 3, State: "insufficient", Basis: "basic", Confidence: "low", Provisional: true, Metrics: []PerformanceMetric{}, Recent: []AnalysisGame{}, Tags: []string{}}
+	out := &PlayerAnalysis{Version: 4, State: "insufficient", Basis: "basic", Confidence: "low", Provisional: true, Metrics: []PerformanceMetric{}, Recent: []AnalysisGame{}, Tags: []string{}}
 	selected := horseMatches(matches, mode, cutoff)
 	totals, weights := map[string]float64{}, map[string]float64{}
 	counts := map[string]int{}
@@ -102,7 +106,7 @@ func buildHorseAnalysis(matches []Match, mode ScoutMode, cutoff time.Time, compl
 		}
 		value := clampScore(evidence.KDA/anchor*horseRules.Baseline, 0, 100)
 		metrics := []PerformanceMetric{{Key: "kda", Score: value, Games: 1}}
-		if m.Performance != nil && m.Performance.Horse != nil && m.Performance.Horse.Version == 2 {
+		if m.Performance != nil && m.Performance.Horse != nil && m.Performance.Horse.Version >= 3 {
 			h := m.Performance.Horse
 			if !math.IsNaN(h.Score) && !math.IsInf(h.Score, 0) && h.Score >= 0 && h.Score <= 100 {
 				value = h.Score
@@ -134,6 +138,7 @@ func buildHorseAnalysis(matches []Match, mode ScoutMode, cutoff time.Time, compl
 	out.State = "sample"
 	if len(selected) >= horseRules.MinimumGames {
 		out.State = "ready"
+		out.Grade = HorseTier(value)
 	}
 	if out.ComparedGames == out.ScoredGames {
 		out.Basis = "comparative"

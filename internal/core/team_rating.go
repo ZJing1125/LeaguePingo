@@ -44,8 +44,14 @@ func ApplyTeamRatings(players []Participant, queue int) {
 
 func rateTeam(players []Participant, queue int, team string) {
 	for _, p := range players {
-		if q := participantScoutQueue(p, queue); p.Team == team && q != nil && q.Analysis != nil && q.Analysis.Version >= 3 {
-			rateHorseTeam(players, queue, team)
+		if q := participantScoutQueue(p, queue); p.Team == team && q != nil && q.Analysis != nil && q.Analysis.Version >= 4 {
+			rateHorseTeam(players, queue, team, 4)
+			return
+		}
+	}
+	for _, p := range players {
+		if q := participantScoutQueue(p, queue); p.Team == team && q != nil && q.Analysis != nil && q.Analysis.Version == 3 {
+			rateHorseTeam(players, queue, team, 3)
 			return
 		}
 	}

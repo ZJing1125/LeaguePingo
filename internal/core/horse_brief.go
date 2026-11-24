@@ -32,7 +32,7 @@ func HorseBriefLines(snapshot Snapshot, includeSelf bool) ([]string, bool, int) 
 		status := ScoutFetchStatus(p.Scout, q)
 		if p.IdentityState == IdentityKnown {
 			known++
-			if status == StatusPending && (q == nil || q.Analysis == nil || q.Analysis.Version < 3 || q.Analysis.ScoredGames < 15) {
+			if status == StatusPending && (q == nil || q.Analysis == nil || q.Analysis.Version < 4 || q.Analysis.ScoredGames < 15) {
 				ready = false
 			}
 		}
@@ -94,7 +94,7 @@ func horseBriefSeats(players []Participant) ([5]*Participant, bool) {
 }
 
 func horseBriefText(report *ScoutReport, q *ScoutQueue, status FetchStatus, rating *TeamRating) (string, bool) {
-	if q != nil && q.Analysis != nil && q.Analysis.Version >= 3 && q.Analysis.ScoredGames > 0 {
+	if q != nil && q.Analysis != nil && q.Analysis.Version >= 4 && q.Analysis.ScoredGames > 0 {
 		a := q.Analysis
 		if a.State == "ready" && a.ScoredGames >= 5 && a.Score != nil && !math.IsNaN(*a.Score) && !math.IsInf(*a.Score, 0) && *a.Score >= 0 && *a.Score <= 100 {
 			label := "评分待齐"

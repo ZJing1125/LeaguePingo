@@ -88,7 +88,7 @@ func horseValue(p historyParticipant, players []historyParticipant, key string, 
 func horsePerformance(game historyGame, target historyParticipant, players, cohort []historyParticipant, role, basis string) *HorsePerformance {
 	mode, _ := ScoutModeFor(game.QueueID)
 	weights := horseWeights(role, mode.Roles)
-	out := &HorsePerformance{Version: 2, Metrics: []PerformanceMetric{}}
+	out := &HorsePerformance{Version: 3, Metrics: []PerformanceMetric{}}
 	values := map[string]float64{}
 	for _, key := range []string{"dpm", "eff", "takenEff", "kda", "participation", "vision", "goldDiff"} {
 		if weights[key] == 0 {
@@ -106,16 +106,27 @@ func horsePerformance(game historyGame, target historyParticipant, players, coho
 			continue
 		}
 		value, ok := horseValue(target, players, key, game.Duration)
-		sum, valid := 0.0, ok
+		sum, comparisons, valid := 0.0, 0, ok
 		for _, peer := range cohort {
+			if peer.ParticipantID == target.ParticipantID {
+				continue
+			}
+			comparisons++
 			v, present := horseValue(peer, players, key, game.Duration)
 			valid = valid && present
 			sum += v
 		}
-		if !valid || sum <= 0 {
+		if !valid || comparisons == 0 {
 			continue
 		}
-		ratio := value / (sum / float64(len(cohort)))
+		if sum == 0 {
+			values[key] = horseRules.Baseline
+			if value > 0 {
+				values[key] = 100
+			}
+			continue
+		}
+		ratio := value / (sum / float64(comparisons))
 		values[key] = clampScore(horseRules.Baseline+(ratio-1)*horseRules.RatioSlope, 0, 100)
 		if key == "eff" {
 			out.EfficiencyRatio = &ratio

@@ -461,6 +461,16 @@ async function main(){
   assert.equal(await side.locator('.sidebar-name-row .player-rating b').filter({hasText:'评分待齐'}).count(),4);
   assert.equal(await side.locator('.sidebar-name-row .player-rating b').filter({hasText:'样本少'}).count(),1);
   console.log('PASS: v3 five distinct team horse grades and incomplete-team waiting state across sidebar/current room.');
+  horsePlayers.forEach(player=>{
+   const analysis=player.scout.queues.find(mode=>mode.queueId===420).analysis;
+   Object.assign(analysis,{version:4,state:'ready',grade:'中等马',score:60,games:15,scoredGames:15});
+   Object.assign(player.teamRating,{label:'中等马',place:1,rated:5});
+  });
+  await publish();
+  assert.equal(await side.locator('.sidebar-name-row .player-rating b').filter({hasText:'中等马'}).count(),5);
+  assert.equal(await current.locator('.player-rating b').filter({hasText:'中等马'}).count(),5);
+  console.log('PASS: v4 calibrated absolute grades permit five identical tiers across sidebar/current room.');
+
 
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
   console.log('PASS: independent Arena 1700/1710, first-place/average/top-half metrics, missing fields, 280/320 themes, 236 preview and sixteen-player result without 5v5 grouping; cache-only');

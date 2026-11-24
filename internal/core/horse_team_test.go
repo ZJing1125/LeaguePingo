@@ -19,10 +19,10 @@ func rankedHorsePlayers() []Participant {
 	return out
 }
 
-func TestFiveHorseLabelsFollowTeamScoresAndKeepPhysicalFloors(t *testing.T) {
+func TestAbsoluteHorseLabelsFollowScoresAndKeepPhysicalFloors(t *testing.T) {
 	players := rankedHorsePlayers()
 	ApplyTeamRatings(players, 420)
-	for i, label := range []string{"中等马", "千里马", "纯牛马", "上等马", "下等马"} {
+	for i, label := range []string{"中等马", "千里马", "下等马", "上等马", "中等马"} {
 		if players[i].TeamRating.Label != label {
 			t.Fatalf("floor %d got %s", i+1, players[i].TeamRating.Label)
 		}
@@ -100,5 +100,16 @@ func TestHorseTacticalLabelsNeedPerformanceAndChampionEvidence(t *testing.T) {
 	ApplyTeamRatings(players, 420)
 	if strings.Contains(strings.Join(players[1].TeamRating.Tags, "|"), "院长级大腿") {
 		t.Fatal("relative place invented dominance")
+	}
+}
+
+func TestHorseScoreBucketBoundaries(t *testing.T) {
+	for _, tc := range []struct {
+		score float64
+		index int
+	}{{100, 0}, {85, 0}, {84.9, 1}, {72, 1}, {71.9, 2}, {55, 2}, {54.9, 3}, {40, 3}, {39.9, 4}, {0, 4}} {
+		if horseScoreIndex(tc.score) != tc.index {
+			t.Fatalf("score %v mapped to wrong bucket", tc.score)
+		}
 	}
 }

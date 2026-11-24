@@ -7,7 +7,7 @@ import (
 
 // Scouting is independent of the recent-history list and its browsing filters.
 // Reports are immutable after publication. Partial ranges never imply zero games.
-const ScoutStatsVersion = 5
+const ScoutStatsVersion = 6
 
 type ScoutSeason struct {
 	Name  string    `json:"name"`
