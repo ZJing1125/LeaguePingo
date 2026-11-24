@@ -32,12 +32,12 @@ const groups = computed(() => teams.value.map(id => {
       : uiText.matchDetails.pendingOutcome;
   const resources = props.detail.teams?.find(team => team.teamId === id);
   return { id, players: members, outcome, objectives: (rules.value.objectives ? [
-    resources?.towers != null ? uiText.matchDetails.towers(matchNumber(resources.towers)) : "",
-    resources?.dragons != null ? uiText.matchDetails.dragons(matchNumber(resources.dragons)) : "",
-    resources?.barons != null ? uiText.matchDetails.barons(matchNumber(resources.barons)) : "",
-    resources?.inhibitors != null ? uiText.matchDetails.inhibitors(matchNumber(resources.inhibitors)) : "",
-    resources?.heralds != null ? uiText.matchDetails.heralds(matchNumber(resources.heralds)) : "",
-    resources?.hordes != null ? uiText.matchDetails.grubs(matchNumber(resources.hordes)) : "",
+    rules.value.structures && resources?.towers != null ? uiText.matchDetails.towers(matchNumber(resources.towers)) : "",
+    rules.value.riftObjectives && resources?.dragons != null ? uiText.matchDetails.dragons(matchNumber(resources.dragons)) : "",
+    rules.value.riftObjectives && resources?.barons != null ? uiText.matchDetails.barons(matchNumber(resources.barons)) : "",
+    rules.value.structures && resources?.inhibitors != null ? uiText.matchDetails.inhibitors(matchNumber(resources.inhibitors)) : "",
+    rules.value.neutralObjectives && resources?.heralds != null ? uiText.matchDetails.heralds(matchNumber(resources.heralds)) : "",
+    rules.value.riftObjectives && resources?.hordes != null ? uiText.matchDetails.grubs(matchNumber(resources.hordes)) : "",
   ] : []).filter(Boolean) };
 }));
 const totals = computed(() => teamComparison(props.detail, teams.value));
@@ -81,7 +81,7 @@ function participation(player: MatchPlayer) {
                 <th scope="col">{{ uiText.matchDetails.playerChampion }}</th>
                 <th scope="col">{{ uiText.matchDetails.kdaParticipation }}</th>
                 <th scope="col">{{ uiText.matchDetails.damageTaken }}</th>
-                <th scope="col" :title="uiText.matchDetails.csHint">{{ uiText.matchDetails.csGold }}</th>
+                <th scope="col" :title="rules.cs ? uiText.matchDetails.csHint : undefined">{{ rules.cs ? uiText.matchDetails.csGold : uiText.matchMode.gold }}</th>
                 <th v-if="rules.vision" scope="col">{{ uiText.common.vision }}</th>
                 <th scope="col">{{ uiText.common.finalItems }}</th>
               </tr></thead>
@@ -107,7 +107,7 @@ function participation(player: MatchPlayer) {
                     <span v-if="player.summary.damage != null && damageMax > 0" class="damage-track" :title="damageComplete ? uiText.matchDetails.damageHint : uiText.matchDetails.visibleDamageHint"><i :style="{width: `${player.summary.damage / damageMax * 100}%`}" /></span>
                     <small>{{ uiText.matchDetails.taken(matchNumber(player.summary.damageTaken)) }}</small>
                   </td>
-                  <td><b>{{ matchNumber(player.summary.cs) }}</b><small>{{ uiText.matchDetails.economy(csRate(player), matchNumber(player.summary.gold)) }}</small></td>
+                  <td><template v-if="rules.cs"><b>{{ matchNumber(player.summary.cs) }}</b><small>{{ uiText.matchDetails.economy(csRate(player), matchNumber(player.summary.gold)) }}</small></template><b v-else>{{matchNumber(player.summary.gold)}}</b></td>
                   <td v-if="rules.vision"><b>{{ matchNumber(player.summary.visionScore) }}</b><small :title="visionDetails(player)">{{ uiText.matchDetails.wardPair(matchNumber(player.summary.wardsPlaced), matchNumber(player.summary.wardsKilled)) }}</small></td>
                   <td><span class="detail-loadout"><GameIcon v-for="slot in 7" :key="slot" kind="items" :id="player.summary.items?.[slot - 1]" :size="19"/></span></td>
                 </tr>

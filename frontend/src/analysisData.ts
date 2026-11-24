@@ -11,10 +11,11 @@ export function overviewData(matches:Match[]){
  const kda=valid.filter(m=>m.kills!=null && m.deaths!=null && m.assists!=null);
  const positions=roleOrder.map(role=>({role,count:valid.filter(m=>m.position===role && matchMode(m).roles).length}));
  const knownPositions=positions.reduce((s,p)=>s+p.count,0);
+ const participation=valid.filter(m=>matchMode(m).known && !isArena(m) && m.participation!=null);
  const hours=Array.from({length:24},(_,hour)=>({hour,count:matches.filter(m=>m.playedAt && !Number.isNaN(Date.parse(m.playedAt)) && new Date(m.playedAt).getHours()===hour).length}));
- return {...sampleStats(matches),arenaOnly:matches.length>0 && matches.every(isArena),average:[average(kda.map(m=>m.kills)),average(kda.map(m=>m.deaths)),average(kda.map(m=>m.assists))],participation:average(valid.map(m=>m.participation)),participationGames:valid.filter(m=>m.participation!=null).length,positions,knownPositions,hours,timedGames:hours.reduce((s,p)=>s+p.count,0)};
+ return {...sampleStats(matches),arenaOnly:matches.length>0 && matches.every(isArena),average:[average(kda.map(m=>m.kills)),average(kda.map(m=>m.deaths)),average(kda.map(m=>m.assists))],participation:average(participation.map(m=>m.participation)),participationGames:participation.length,positions,knownPositions,rolesApplicable:valid.some(m=>matchMode(m).roles),hours,timedGames:hours.reduce((s,p)=>s+p.count,0)};
 }
-export function heroRows(matches:Match[]){return [...new Set(matches.map(m=>m.championId).filter(id=>id>0))].map(id=>{const games=matches.filter(m=>m.championId===id);return {id,...overviewData(games),csRate:average(games.map(m=>perMinute(m.cs,m.duration)))};}).sort((a,b)=>b.games-a.games || a.id-b.id);}
+export function heroRows(matches:Match[]){return [...new Set(matches.map(m=>m.championId).filter(id=>id>0))].map(id=>{const games=matches.filter(m=>m.championId===id);return {id,...overviewData(games),rolesApplicable:games.some(m=>matchMode(m).roles),csRate:average(games.filter(m=>matchMode(m).cs).map(m=>perMinute(m.cs,m.duration))),damageRate:average(games.map(m=>perMinute(m.damage,m.duration)))};}).sort((a,b)=>b.games-a.games || a.id-b.id);}
 export function recentSeven(matches:Match[],fetchedAt:string|null|undefined){const cutoff=fetchedAt?Date.parse(fetchedAt):NaN;return Number.isFinite(cutoff)?matches.filter(m=>m.playedAt && Date.parse(m.playedAt)<=cutoff && Date.parse(m.playedAt)>=cutoff-7*86400000):[];}
 export function masteryData(player:Participant){const values=player.profile?.masteries ?? (player.scout?.champions??[]).flatMap(h=>h.mastery?[h.mastery]:[]);return [...values].sort((a,b)=>b.points-a.points || b.level-a.level || a.championId-b.championId);}
 export function matchHighlight(match: Match) {

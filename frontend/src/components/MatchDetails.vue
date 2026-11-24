@@ -7,7 +7,6 @@ import { errorMessage, kda, percent } from "../presentation";
 import { targetPlayer } from "../analysisData";
 import { analysisCache, acquireTimeline } from "../analysisCache";
 import { hasFullScoreboard, historyHeroName, historyRoster, matchNumber } from "../historyMatch";
-import { isArena } from "../matchStats";
 import { uiText } from "../uiText";
 import ArenaScoreboard from "./ArenaScoreboard.vue";
 import GameIcon from "./GameIcon.vue";
@@ -15,6 +14,7 @@ import MatchHistoryRoster from "./MatchHistoryRoster.vue";
 import MatchScoreboard from "./MatchScoreboard.vue";
 import TeamAnalysis from "./TeamAnalysis.vue";
 import MatchTimeline from "./MatchTimeline.vue";
+import MatchSummary from "./MatchSummary.vue";
 import MatchBuild from "./MatchBuild.vue";
 
 const props = defineProps<{ player: Participant; gameId: number; match?: Match; connected?: boolean; provided?: MatchDetail | null; self?: boolean }>();
@@ -39,7 +39,7 @@ const match = computed(() => {
   if (cached.runeShards?.length === 3) cached.runeShards.forEach((value, i) => { if (!shards[i]) shards[i] = value; });
   return { ...current, queueId: current.queueId || cached.queueId, mapId: current.mapId || cached.mapId, gameVersion: current.gameVersion || cached.gameVersion, runeShards: shards, augmentIds: current.augmentIds ?? cached.augmentIds };
 });
-const arena = computed(() => !!match.value && isArena(match.value));
+const arena = computed(() => matchMode(match.value).arena);
 const hasScoreboard = computed(() => !!detail.value?.players?.length);
 const roster = computed(() => cachedMatch.value ? historyRoster(cachedMatch.value, props.player.connectionId) : []);
 const showRoster = computed(() => {
@@ -64,7 +64,7 @@ const tabs = computed(() => [
   { key: "team", label: uiText.common.teamAnalysis },
   { key: "timeline", label: uiText.common.timeline },
   { key: "build", label: matchMode(match.value).augments ? uiText.matchMode.buildAugments : matchMode(match.value).runes ? uiText.common.buildRunes : uiText.matchMode.build },
-].filter(item => !arena.value || item.key === "overview"));
+].filter(item => item.key === "overview" || matchMode(match.value).known && !arena.value));
 
 let revision = 0;
 let autoRequested = "";
@@ -82,7 +82,7 @@ watch(key, () => {
   tab.value = "overview";
   autoRequested = "";
 }, { immediate: true });
-watch(arena, () => { if (arena.value) tab.value = "overview"; });
+watch(tabs, items => { if (!items.some(item => item.key === tab.value)) tab.value = "overview"; });
 onBeforeUnmount(() => { revision++; releaseTimeline?.(); });
 watch(canLoad, allowed => {
   if (!allowed) {
@@ -147,7 +147,7 @@ watch([key, canLoad, detail], ([requestKey, allowed, current]) => {
   void load("detail", false);
 }, { immediate: true });
 watch([key, tab, canLoad, busy, detail], () => {
-  if (!["timeline", "build"].includes(tab.value) || !canLoad.value || busy.value || timeline.value || !detail.value || arena.value || timelineRequested === key.value) return;
+  if (!["timeline", "build"].includes(tab.value) || !canLoad.value || busy.value || timeline.value || !detail.value || !matchMode(match.value).timeline || timelineRequested === key.value) return;
   timelineRequested = key.value;
   void load("timeline", false);
 });
@@ -162,8 +162,9 @@ watch([key, tab, canLoad, busy, detail], () => {
     </div>
     <div :id="`${scopeId}-panel-${gameId}`" role="tabpanel" :aria-labelledby="`${scopeId}-${gameId}-${tab}`" class="analysis-tab-content">
       <template v-if="tab === 'overview'">
-        <ArenaScoreboard v-if="detail && arena && hasScoreboard" :detail="detail" :match="match" :connection-id="player.connectionId"/>
-        <MatchScoreboard v-else-if="detail && hasScoreboard" :detail="detail" :match="match" :self="self" :connection-id="player.connectionId"/>
+        <ArenaScoreboard v-if="detail && arena && hasScoreboard" :detail="detail" :connection-id="player.connectionId"/>
+        <MatchScoreboard v-else-if="detail && hasScoreboard && matchMode(match).team" :detail="detail" :match="match" :self="self" :connection-id="player.connectionId"/>
+        <MatchSummary v-else-if="match && !matchMode(match).known" :match="match"/>
         <template v-else>
           <div class="analysis-load summary-status">
             <span role="status">{{ fallbackStatus }}</span>
@@ -176,13 +177,13 @@ watch([key, tab, canLoad, busy, detail], () => {
             <div><strong>{{ historyHeroName(match.championId) }}</strong><small>{{ kda(match) }}</small></div>
             <div v-if="match.participation != null"><small>{{ uiText.matchHistoryRow.participation }}</small><strong>{{ percent(match.participation) }}</strong></div>
             <div v-if="match.damage != null"><small>{{ uiText.matchHistoryRow.damage }}</small><strong>{{ matchNumber(match.damage) }}</strong></div>
-            <div v-if="match.cs != null"><small>{{ uiText.matchHistoryRow.cs }}</small><strong>{{ matchNumber(match.cs) }}</strong></div>
+            <div v-if="matchMode(match).cs && match.cs != null"><small>{{ uiText.matchHistoryRow.cs }}</small><strong>{{ matchNumber(match.cs) }}</strong></div>
             <div class="summary-items" :aria-label="uiText.matchHistoryRow.finalItems">
               <GameIcon v-for="slot in 7" :key="slot" kind="items" :id="match.items?.[slot - 1]" :size="20"/>
             </div>
           </div>
         </template>
-        <div v-if="showRoster" class="saved-roster"><MatchHistoryRoster :groups="roster" :self="self" :connection-id="player.connectionId" detail/></div>
+        <div v-if="showRoster && matchMode(match).known" class="saved-roster"><MatchHistoryRoster :groups="roster" :self="self" :connection-id="player.connectionId" detail/></div>
       </template>
       <template v-else-if="tab === 'team'">
         <TeamAnalysis v-if="detail && hasScoreboard" :detail="detail" :match="match" :connection-id="player.connectionId"/>
@@ -195,7 +196,7 @@ watch([key, tab, canLoad, busy, detail], () => {
         <p v-if="timelineError || detailError" class="error-banner" role="alert">{{ timelineError || detailError }}</p>
         <div v-if="!detail && detailError && canLoad" class="analysis-load"><button class="secondary" :disabled="!!busy" @click="load('detail', false)">{{ uiText.matchDetails.retryScoreboard }}</button></div>
         <template v-if="tab === 'timeline'">
-          <MatchTimeline v-if="timeline && detail" :timeline="timeline" :detail="detail"/>
+          <MatchTimeline v-if="timeline && detail" :timeline="timeline" :detail="detail" :match="match"/>
           <div v-else class="analysis-load"><span>{{ provided ? uiText.matchDetails.archivedTimeline : busy ? uiText.matchDetails.loadingTimeline : timelineError ? '' : uiText.matchDetails.timelineHint }}</span>
             <button v-if="!provided && timelineError" class="secondary" :disabled="!!busy || !canLoad" @click="load('timeline')">{{ busy === 'timeline' ? uiText.matchDetails.loadingTimeline : uiText.matchDetails.loadTimeline }}</button>
           </div>

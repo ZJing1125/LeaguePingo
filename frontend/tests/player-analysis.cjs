@@ -102,10 +102,10 @@ async function main(){
   const binding=await fs.readFile(path.join(__dirname,'../bindings/leaguepingo/appservice.ts'),'utf8');
   const methods=Object.fromEntries([...binding.matchAll(/export function (\w+)\([^]*?\$Call.ByID\((\d+)/g)].map(m=>[m[2],m[1]]));
   const player=makePlayer();
-  let testQueue = 0;
+  let testQueue = 0, testMap = 0;
   const detailFor = gameId => {
    const detail = makeDetail(gameId);
-   if (testQueue) for (const p of detail.players) Object.assign(p.summary, {queueId:testQueue,mapId:testQueue===420?11:12,gameVersion:'16.23.1',augmentIds:[999999],runeShards:[5007,5011,5001]});
+   if (testQueue) for (const p of detail.players) Object.assign(p.summary, {queueId:testQueue,mapId:testMap,gameVersion:'16.23.1',augmentIds:[999999],runeShards:[5007,5001,5011]});
    return detail;
   };
   let failTimeline=false;
@@ -291,16 +291,39 @@ async function main(){
   await verifyIncompleteDetails(page,calls,publish,snapshot,releaseDetail,shot);
   snapshot.connected = true;
   await publish();
-  for (const [index, queue] of [2400,420,450,2400].entries()) {
-   testQueue = queue;
-   Object.assign(player.history[0], {queueId:queue,mapId:queue===420?11:12,gameVersion:'16.23.1',augmentIds:[999999],runeShards:[5007,5011,5001]});
+  const cases = [[2400,12],[420,11],[450,12],[900,11],[1900,11],[1300,21],[9999,11],[2400,11],[2400,12]];
+  for (const [index, [queue, map]] of cases.entries()) {
+   testQueue = queue; testMap = map;
+   for (const match of player.history) Object.assign(match, {queueId:queue,mapId:map,gameVersion:'16.23.1',augmentIds:[999999],runeShards:[5007,5001,5011]});
    await page.getByLabel('玩家完整 ID',{exact:true}).fill(`模式样例${index}#DEMO`);
    await page.getByRole('button',{name:'查询战绩',exact:true}).click();
    const workspace=page.locator('.players-workspace');
    await workspace.getByRole('heading',{name:`模式样例${index}#DEMO`,exact:true}).waitFor();
+   const known = queue !== 9999 && !(queue === 2400 && map === 11);
+   const lanes = queue === 420;
+   await workspace.locator('.analysis-overview summary').click();
+   assert.equal(await workspace.locator('.performance-roles').count(), lanes?1:0, 'overview retained inapplicable lane distribution');
+   assert.equal(await workspace.locator('.style-roles').count(), lanes?1:0, 'playstyle retained inapplicable lanes');
+   assert.match(await workspace.locator('.champion-table thead').innerText(), lanes?/补刀/:/每分钟伤害/);
+   if (!lanes) assert.match(await workspace.locator('.champion-table tbody').innerText(), /伤害\/分/);
+   const timelineReads = calls.filter(call=>call==='MatchTimeline').length;
    await workspace.locator('.match-main').first().click();
+   if (!known) {
+    await workspace.locator('.match-personal').waitFor();
+    assert.equal(await workspace.locator('.analysis-tabs [role=tab]').count(),1);
+    assert.equal(calls.filter(call=>call==='MatchTimeline').length,timelineReads,'unsupported mode requested a timeline');
+    assert.equal(await workspace.locator('.match-row-roster').count(),0);
+    assert.equal(await workspace.locator('.scoreboard-content,.rune-tree,.timeline-map,.saved-roster').count(),0);
+    assert.equal(await workspace.locator('.personal-metrics').getByText('补刀',{exact:true}).count(),0);
+    await shot(`mode-${queue}-${map}`);
+    continue;
+   }
    await workspace.locator('tr.target').waitFor();
-   assert.equal(await workspace.getByRole('columnheader',{name:'视野',exact:true}).count(), queue===420?2:0);
+   assert.equal(await workspace.getByRole('columnheader',{name:'视野',exact:true}).count(), lanes?2:0);
+   await workspace.getByRole('tab',{name:'团队分析',exact:true}).click();
+   assert.equal(await workspace.locator('.team-total-row').count(),lanes?6:4);
+   assert.equal(await workspace.locator('.team-total-row').filter({hasText:'视野得分'}).count(),lanes?1:0);
+   if (queue === 450 || queue === 2400) assert.match(await workspace.locator('.team-total-row').first().innerText(),/英雄伤害/);
    await workspace.getByRole('tab',{name:queue===2400?'出装与强化':'出装符文',exact:true}).click();
    assert.equal(await workspace.locator('.rune-tree').count(),queue===2400?0:1);
    if(queue===2400) await workspace.getByText('强化 #999999',{exact:true}).waitFor();
@@ -309,9 +332,14 @@ async function main(){
     await workspace.getByText('成长生命值 +10–180（1–18级）',{exact:true}).waitFor();
     assert.equal(await workspace.locator('.shard-options .chosen img').count(),3);
    }
+   await shot(`mode-${queue}-${map}`);
+   await workspace.getByRole('tab',{name:'时间线',exact:true}).click();
+   await workspace.locator('.match-timeline').waitFor();
+   assert.equal(await workspace.locator('.timeline-map').count(),map===11?1:0);
+   assert.equal(await workspace.locator('option[value=ELITE_MONSTER_KILL]').count(),[11,21].includes(map)?1:0);
   }
   assert.deepEqual(external,[]);assert.deepEqual(errors,[]);
-  console.log('PASS: professional overview, rich match rows, click-authorized scoreboard, automatic single-game timeline, six team metrics, build/runes, cached tab changes, 1280/1100/880; keyboard-only home/query/history/settings/navigation, dialog focus, theme text/focus contrast and reduced motion in both themes; synthetic bridge.');
+  console.log('PASS: professional overview, rich match rows, click-authorized scoreboard, automatic single-game timeline, mode-specific team metrics, nine mode/conflict transitions, shard values/icons, build/runes, cached tab changes, 1280/1100/880; keyboard-only home/query/history/settings/navigation, dialog focus, theme text/focus contrast and reduced motion in both themes; synthetic bridge.');
  }finally{await browser.close()}
 }
 main().catch(e=>{console.error(e);process.exitCode=1});

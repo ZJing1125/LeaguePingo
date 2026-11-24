@@ -4,7 +4,7 @@ import { computed } from "vue";
 import type { Match } from "../../bindings/leaguepingo/internal/core/models";
 import { date, decimal, duration, kda, outcome, queueName, sampleStats, percent, positionName } from "../presentation";
 import { matchHighlight, perMinute } from "../analysisData";
-import { isRemake, isArena, matchTone } from "../matchStats";
+import { isRemake, matchTone } from "../matchStats";
 import { historyRoster, historyPosition, historyHeroName, matchNumber } from "../historyMatch";
 import { uiText } from "../uiText";
 import GameIcon from "./GameIcon.vue";
@@ -17,12 +17,12 @@ import MatchHistoryRoster from "./MatchHistoryRoster.vue";
 const props = defineProps<{ match: Match; expanded: boolean; compact?: boolean; self?: boolean; connectionId?: number }>();
 defineEmits<{ toggle: [] }>();
 
-const teams = computed(() => historyRoster(props.match, props.connectionId));
+const teams = computed(() => matchMode(props.match).known ? historyRoster(props.match, props.connectionId) : []);
 const csRate = computed(() => perMinute(props.match.cs, props.match.duration));
 const role = computed(() => matchMode(props.match).roles && historyPosition(props.match));
 const highlight = computed(() => matchHighlight(props.match));
 const remake = computed(() => isRemake(props.match));
-const arena = computed(() => isArena(props.match));
+const arena = computed(() => matchMode(props.match).arena);
 </script>
 
 <template>
@@ -58,9 +58,9 @@ const arena = computed(() => isArena(props.match));
           <span v-if="remake">{{ uiText.common.earlyEnd }}</span>
           <template v-else>
             <span v-if="arena && match.arena?.teamCount">{{ uiText.arena.teams(match.arena.teamCount) }}</span>
-            <span v-if="!arena">{{ uiText.matchHistoryRow.participation }}<b>{{ percent(match.participation) }}</b></span>
+            <span v-if="!arena && matchMode(match).known">{{ uiText.matchHistoryRow.participation }}<b>{{ percent(match.participation) }}</b></span>
             <span>{{ uiText.matchHistoryRow.damage }}<b>{{ matchNumber(match.damage) }}</b></span>
-            <span v-if="role || !arena && match.mapId === 11" class="match-cs" :title="uiText.matchHistoryRow.csHint">
+            <span v-if="matchMode(match).cs" class="match-cs" :title="uiText.matchHistoryRow.csHint">
               {{ uiText.matchHistoryRow.cs }}<b>{{ matchNumber(match.cs) }}</b><span v-if="csRate != null">{{ uiText.matchHistoryRow.perMinute(csRate.toFixed(1)) }}</span>
             </span>
             <b v-if="highlight" class="match-facts">{{ uiText.matchHistoryRow[highlight] }}</b>
@@ -69,7 +69,7 @@ const arena = computed(() => isArena(props.match));
         <span class="expand-indicator" aria-hidden="true"><AppIcon name="chevron" :size="16"/></span>
       </button>
       <MatchHistoryRoster v-if="teams.length" class="match-row-roster" :groups="teams" :self="self" :connection-id="connectionId"/>
-      <span v-else-if="!arena" class="match-row-roster match-roster-missing">{{ uiText.matchHistoryRow.missingRoster }}</span>
+      <span v-else-if="!arena && matchMode(match).known" class="match-row-roster match-roster-missing">{{ uiText.matchHistoryRow.missingRoster }}</span>
     </div>
     <div v-if="expanded" class="match-expanded"><slot name="details"><MatchSummary :match="match"/></slot></div>
   </article>

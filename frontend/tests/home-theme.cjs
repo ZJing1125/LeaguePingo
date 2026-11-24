@@ -336,8 +336,18 @@ async function main() {
     await nav.getByRole('button', {name: '首页', exact: true}).click();
     await connectionGuide.waitFor();
     assert.equal(calls.filter(call => call === 'CurrentPlayer').length, homeCallsBeforeOfflineLaunch, 'offline first launch requested player data');
+    // Assistant starts before the client; a transient first read recovers on its own.
+    self = player('cold-start', snapshot.connectionId + 1);
+    snapshot = { ...snapshot, connected: true, connectionId: self.connectionId, selfKey: self.key, stage: 'idle', phase: 'None', participants: [] };
+    failHome = true;
+    await emit();
+    await page.locator('.home-error').waitFor();
+    const failedHomeCalls = calls.filter(call => call === 'CurrentPlayer').length;
+    failHome = false;
+    await page.locator('.home-account h2').filter({hasText:self.displayName}).waitFor();
+    assert.equal(calls.filter(call => call === 'CurrentPlayer').length, failedHomeCalls + 1, 'cold startup did not recover without refresh');
     assert.deepEqual(errors, []); assert.deepEqual(external, []);
-    console.log("PASS: home ownership/one-shot preparation/cache/refresh/failure/account switch, light/dark/system/persistence, settings focus and 1280/1100/880 layouts; no external requests (synthetic bridge).");
+    console.log("PASS: home ownership/bounded startup recovery/cache/refresh/failure/account switch, light/dark/system/persistence, settings focus and 1280/1100/880 layouts; no external requests (synthetic bridge).");
   } finally { await browser.close(); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

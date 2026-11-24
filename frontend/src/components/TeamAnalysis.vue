@@ -10,20 +10,23 @@ import GameIcon from "./GameIcon.vue";
 
 const props = defineProps<{ detail: MatchDetail; match?: Match; connectionId?: number }>();
 const selected = ref<TeamMetricKey>("damage");
-const metrics = computed(() => teamMetrics.filter(metric => matchMode(props.match ?? props.detail.players?.[0]?.summary).vision || !["visionScore", "cs"].includes(metric.key)).map(metric => ({ ...metric, ...teamMetric(props.detail, metric.key) })));
-const metric = computed(() => metrics.value.find(item => item.key === selected.value) ?? metrics.value.find(item => item.key === "damage")!);
-const teams = computed(() => metric.value.teams.map(team => ({
-  ...team,
-  players: [...team.players].sort((a, b) =>
-    (b.summary[metric.value.key] ?? -1) - (a.summary[metric.value.key] ?? -1)
-    || a.participantId - b.participantId),
-})));
+const metrics = computed(() => matchMode(props.match ?? props.detail.players?.[0]?.summary).metrics.flatMap(key => {
+  const metric = teamMetrics.find(metric => metric.key === key);
+  return metric ? [{...metric,...teamMetric(props.detail,metric.key)}] : [];
+}));
+const metric = computed(() => metrics.value.find(item => item.key === selected.value) ?? metrics.value.find(item => item.key === 'damage'));
+const teams = computed(() => {
+  const current = metric.value;
+  if (!current) return [];
+  return current.teams.map(team => ({...team,players:[...team.players].sort((a,b) =>
+    (b.summary[current.key] ?? -1) - (a.summary[current.key] ?? -1) || a.participantId-b.participantId)}));
+});
 const number = (value: number | null | undefined) => value == null ? "—" : value.toLocaleString();
 const teamName = (id: number) => id === 100 ? uiText.teamAnalysis.blue : uiText.common.red;
 </script>
 
 <template>
-  <section class="team-analysis" :aria-label="uiText.teamAnalysis.label">
+  <section v-if="metric" class="team-analysis" :aria-label="uiText.teamAnalysis.label">
     <div class="team-totals">
       <div class="team-total-head"><span>{{ uiText.teamAnalysis.title }}</span><span>{{ uiText.teamAnalysis.blue }}</span><span>{{ uiText.common.red }}</span></div>
       <button v-for="item in metrics" :key="item.key" class="team-total-row" :aria-pressed="metric.key === item.key" @click="selected = item.key">

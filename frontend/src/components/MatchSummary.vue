@@ -4,7 +4,6 @@ import { uiText } from "../uiText";
 import { computed } from 'vue';
 import type { Match } from '../../bindings/leaguepingo/internal/core/models';
 import { decimal, number, percent, mapName, positionName, runeName, sampleStats } from '../presentation';
-import { isArena } from '../matchStats';
 import GameIcon from './GameIcon.vue';
 const props=defineProps<{match:Match}>();
 const perMinute=(value:number|null|undefined)=>value!=null && props.match.duration && props.match.duration>0?uiText.matchSummary.perMinute(decimal(value*60/props.match.duration)):'—';
@@ -13,7 +12,7 @@ const stats=computed(()=>[
   ...(matchMode(props.match).roles ? [{label:uiText.common.cs,value:number(props.match.cs),note:perMinute(props.match.cs)}] : []),
   {label:uiText.common.damage,value:number(props.match.damage),note:perMinute(props.match.damage)},
   {label:uiText.matchSummary.gold,value:number(props.match.gold),note:perMinute(props.match.gold)},
-  isArena(props.match) ? {label:uiText.arena.placement,value:props.match.arena ? uiText.arena.place(props.match.arena.placement) : '—',note:props.match.arena?.teamCount ? uiText.arena.teams(props.match.arena.teamCount) : uiText.arena.unknownTeams} : {label:uiText.common.participation,value:percent(props.match.participation),note:uiText.matchSummary.participationHint},
+  ...(matchMode(props.match).known ? [matchMode(props.match).arena ? {label:uiText.arena.placement,value:props.match.arena ? uiText.arena.place(props.match.arena.placement) : '—',note:props.match.arena?.teamCount ? uiText.arena.teams(props.match.arena.teamCount) : uiText.arena.unknownTeams} : {label:uiText.common.participation,value:percent(props.match.participation),note:uiText.matchSummary.participationHint}] : []),
   ...(matchMode(props.match).vision ? [{label:uiText.common.visionScore,value:number(props.match.visionScore),note:uiText.matchSummary.wards(number(props.match.wardsPlaced), number(props.match.wardsKilled))}] : []),
 ]);
 </script>
