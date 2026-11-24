@@ -14,7 +14,7 @@ const text = uiText.playerAnalysis;
     <p v-if="rating?.tags && rating.tags.length>1">{{rating.tags.slice(1).join(' · ')}}</p>
     <p v-if="rating && rating.place > 0">{{text.teamPlaceHint(rating.place,rating.rated)}}</p>
     <dl v-if="analysis?.score != null"><template v-for="metric in analysis.metrics" :key="metric.key"><dt>{{ (text.metrics as Record<string,string>)[metric.key] ?? text.unknownMetric }}</dt><dd>{{ metric.score.toFixed(1) }}<small> / {{ analysis.version >= 2 ? 100 : 10 }} · {{ text.metricGames(metric.games) }}</small></dd></template></dl>
-    <details><summary>{{ text.rules }}</summary><p>{{ analysis?.basis === 'placement' ? text.arenaRules : analysis && analysis.version >= 2 ? text.rulesHint : text.legacyRulesHint }}</p><p>{{ text.basicHint }}</p><p>{{ text.liveScope }}</p></details>
+    <details><summary>{{ text.rules }}</summary><p>{{ analysis?.basis === 'placement' ? text.arenaRules : analysis && analysis.version >= 2 ? text.rulesHint : text.legacyRulesHint }}</p><p>{{ analysis && analysis.version >= 2 ? text.basicHint : text.legacyBasicHint }}</p><p>{{ text.liveScope }}</p></details>
   </section>
 </template>
 <style scoped>
