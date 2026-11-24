@@ -102,8 +102,11 @@ func (e *Engine) syncScoutingLocked() {
 		return
 	}
 	scope := fmt.Sprintf("%d:%s:%d", e.clientVersion, e.snapshot.Stage, e.snapshot.GameID)
+	if snapshotPhase(e.snapshot.Phase) == PhaseChampSelect && e.session.SelectionKey != "" {
+		scope += ":" + e.session.SelectionKey
+	}
 	e.snapshot.ScoutQueue = e.scouting.scopeFor(scope, e.scoutModeLocked(), e.snapshot.Participants)
-	targets, changed := e.scouting.targets(e.snapshot.Participants, time.Now())
+	targets, changed := e.scouting.targets(e.snapshot.Participants, time.Now(), snapshotPhase(e.snapshot.Phase) == PhaseChampSelect)
 	reportChanged = changed
 	if len(targets) == 0 {
 		return
@@ -209,6 +212,10 @@ func (e *Engine) prepareScouting(ctx context.Context, version uint64, scope stri
 	}
 	var pages atomic.Int64
 	pages.Store(int64(e.scouting.pageCount()))
+	if snapshotPhase(e.Snapshot().Phase) == PhaseChampSelect {
+		e.prepareSelectionScouting(ctx, version, scope, token, src, cursors, seasonResult, cutoff, &pages)
+		return
+	}
 	var season *core.ScoutSeason
 	boundary := cutoff.Add(-30 * 24 * time.Hour)
 	// First pages publish without waiting for optional season/mastery reads.

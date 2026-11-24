@@ -33,3 +33,16 @@ describe('recent player analysis presentation', () => {
     expect(analysisSummary(a)).toBe('表现较均衡');
   });
 });
+
+it('v2 uses a hundred-point scale and the supplied observable form', () => {
+ const a=analysis({version:2,grade:'中等马',score:60,scoredGames:15,games:15,tags:['4连胜'],metrics:[{key:'dpm',score:72,games:15}]});
+ expect(analysisTitle(a)).toContain('60.0 / 100');
+ expect(analysisSummary(a)).toBe('4连胜');
+});
+
+it('small v2 samples never present a zero-place team ranking',()=>{
+ const a=analysis({version:2,state:'sample',grade:'',score:60,scoredGames:3});
+ const title=analysisTitle(a,{queueId:420,place:0,rated:0,label:'样本少',reason:''});
+ expect(title).toContain('样本少');
+ expect(title).not.toContain('队内第 0 名');
+});

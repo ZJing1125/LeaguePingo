@@ -53,6 +53,7 @@ async function main(){
     else if (method === 'PostGameStatus') result={revision:0,returnEnabled:false,queueEnabled:false,delaySeconds:10,status:'off',dueAt:'0001-01-01T00:00:00Z'};
     else if(method==='AutoAcceptStatus')result={revision:0,enabled:false,delaySeconds:1,status:'off',dueAt:'0001-01-01T00:00:00Z'};
     else if(method==='Snapshot')result=snapshot;
+    else if(method==='MuteAnalysisBrief'){snapshot={...snapshot,analysisBrief:{...snapshot.analysisBrief,status:'muted'}};result=snapshot.analysisBrief;await publish();}
     else if(method==='OverlayStatus')result=state;
     else if(method==='CurrentPlayer')result=players[0];
     else if(method==='LookupPlayer')result=snapshot.participants.find(p=>p.key===args[0]);
@@ -403,6 +404,37 @@ async function main(){
   assert.equal(await liveTab.getAttribute('aria-selected'),'true');
   assert.deepEqual(calls.filter(c=>c.method==='LookupPlayer').map(c=>c.args),[[livePlayer.key]]);
   assert.equal(await main.locator('.player-drawer').count(),0,'avatar click opened the preparation drawer');
+  // v2 results are identical across live surfaces, with complete sidebar evidence.
+  const horsePlayers=structuredClone(players.slice(0,5)).map((player,i)=>{
+   player.connectionId=snapshot.connectionId;player.cellId=i;player.championId=64;player.scout.champions[0].championId=64;
+   player.teamRating={queueId:420,place:1,rated:4,label:i===4?'样本少':'中等马',reason:'李青10场7胜',tags:['李青10场7胜','4连胜','近期同队2局']};
+   const mode=player.scout.queues.find(mode=>mode.queueId===420);
+   mode.analysis={version:2,state:i===4?'sample':'ready',grade:i===4?'':'中等马',score:60,games:i===4?3:15,scoredGames:i===4?3:15,comparedGames:15,basis:'comparative',provisional:false,confidence:'medium',tags:['4连胜'],metrics:[{key:'dpm',score:60,games:15}]};
+   return player;
+  });
+  snapshot={...snapshot,phase:'ChampSelect',stage:'preparing',queueId:420,scoutQueue:420,actualScoutQueue:420,mapId:11,gameMode:'CLASSIC',participants:horsePlayers,
+   analysisBrief:{enabled:true,audience:'team',includeSelf:true,status:'waiting',updatedAt:time,readySeats:0,totalSeats:0,freezeMs:0,queuedToPostMs:0,postMs:0}};
+  await publish();await overlay('sidebar');
+  await side.setViewportSize({width:280,height:720});
+  await side.locator('.brief-notice').waitFor();
+  assert.equal(await side.locator('.sidebar-name-row .player-rating b').filter({hasText:'中等马'}).count(),4);
+  assert.equal(await side.locator('.sidebar-name-row .player-rating b').filter({hasText:'样本少'}).count(),1);
+  await side.locator('.sidebar-player summary').first().click();
+  const evidence=side.locator('.sidebar-player').first().locator('.player-analysis-panel');
+  await evidence.waitFor();
+  assert.match(await evidence.innerText(),/李青10场7胜.*4连胜.*近期同队2局/s);
+  assert.match(await evidence.innerText(),/100/);
+  assert(await side.locator('.client-sidebar').evaluate(el=>el.scrollWidth<=el.clientWidth+1),'horse sidebar overflow at 280');
+  await shot(side,'horse-sidebar');
+  await side.getByRole('button',{name:'本局静音',exact:true}).click();
+  await side.getByText('本局已静音',{exact:true}).waitFor();
+  assert.equal(calls.filter(call=>call.method==='MuteAnalysisBrief').length,1);
+  assert.equal(snapshot.analysisBrief.enabled,true,'per-selection mute changed global preference');
+  await main.getByRole('navigation',{name:'工作区'}).getByRole('button',{name:'对局室',exact:true}).click();
+  await roomNav.getByRole('button',{name:'当前对局',exact:true}).click();
+  assert.equal(await current.locator('.player-rating b').filter({hasText:'中等马'}).count(),4);
+  assert.equal(await current.locator('.player-rating b').filter({hasText:'样本少'}).count(),1);
+  console.log('PASS: v2 absolute horse tiers and small samples across sidebar/current room, full evidence at 280, hundred-point scale, per-selection mute without preference writes.');
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
   console.log('PASS: independent Arena 1700/1710, first-place/average/top-half metrics, missing fields, 280/320 themes, 236 preview and sixteen-player result without 5v5 grouping; cache-only');
   console.log('PASS: mayhem without season, no lane, rank reference, 280/320 geometry and cache-only mode switches');

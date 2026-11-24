@@ -49,7 +49,7 @@ func (e *Engine) observeRatingReadinessLocked(now time.Time) {
 			continue
 		}
 		known++
-		if p.TeamRating != nil {
+		if p.TeamRating != nil && p.TeamRating.Place > 0 {
 			rated++
 			continue
 		}

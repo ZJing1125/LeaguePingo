@@ -23,7 +23,7 @@ func TestScoutStateRoundBudgetIdentityCapAndResume(t *testing.T) {
 	if s.queueFor(440) != 440 || s.scopeFor("party", 440, players) != 440 {
 		t.Fatal("ranked mode not selected")
 	}
-	targets, changed := s.targets(players, now)
+	targets, changed := s.targets(players, now, false)
 	if !changed || len(targets) != 10 || players[10].Scout != nil {
 		t.Fatal("round exceeded its ten-identity cap")
 	}
@@ -35,7 +35,7 @@ func TestScoutStateRoundBudgetIdentityCapAndResume(t *testing.T) {
 	}
 	s.recordPages(17)
 	s.recordPages(16) // A delayed worker cannot lower the shared page budget.
-	if next, _ := s.targets(players, now); len(next) != 0 {
+	if next, _ := s.targets(players, now, false); len(next) != 0 {
 		t.Fatal("running round started another batch")
 	}
 	s.selectQueue(420)
@@ -59,7 +59,7 @@ func TestScoutStateRoundBudgetIdentityCapAndResume(t *testing.T) {
 	}
 	s.finish("preparing", next)
 	s.recordPages(scoutPageLimit)
-	if targets, _ := s.targets(players, now); len(targets) != 0 {
+	if targets, _ := s.targets(players, now, false); len(targets) != 0 {
 		t.Fatal("exhausted page budget admitted more targets")
 	}
 }

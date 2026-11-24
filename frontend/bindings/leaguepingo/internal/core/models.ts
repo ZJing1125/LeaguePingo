@@ -6,7 +6,28 @@ export interface AnalysisBriefState {
     "audience": string;
     "includeSelf": boolean;
     "status": string;
+    "readySeats": number;
+    "cachedSeats": number;
+    "totalSeats": number;
+    "freezeMs": number;
+    "queuedToPostMs": number;
+    "postMs": number;
     "updatedAt": string;
+}
+
+/**
+ * AnalysisGame stores only the target's bounded evidence. It carries no peer
+ * identifiers and does not authorize detail requests for history rows.
+ */
+export interface AnalysisGame {
+    "gameId": number;
+    "championId": number;
+    "teamId"?: number;
+    "kda": number;
+    "deaths": number;
+    "deathsPerTen"?: number | null;
+    "win"?: boolean | null;
+    "participation"?: number | null;
 }
 
 /**
@@ -101,6 +122,13 @@ export enum HistoryState {
     HistoryFailed = "failed",
 };
 
+export interface HorsePerformance {
+    "version": number;
+    "score": number;
+    "metrics": PerformanceMetric[] | null;
+    "efficiencyRatio"?: number | null;
+}
+
 export enum IdentityState {
     /**
      * The Go zero value for the underlying type of the enum.
@@ -177,6 +205,7 @@ export interface MatchPeer {
  * Derived, non-identifying comparison; never a copy of the other players' stats.
  */
 export interface MatchPerformance {
+    "horse"?: HorsePerformance | null;
     "version": number;
     "score": number;
     "basis": string;
@@ -237,6 +266,7 @@ export interface MatchTimeline {
 }
 
 export interface Participant {
+    "cellId"?: number | null;
     "responseId"?: number;
     "premadeLabel"?: string;
     "premadeGroup"?: string;
@@ -275,6 +305,8 @@ export interface PerformanceMetric {
 }
 
 export interface PlayerAnalysis {
+    "recent"?: AnalysisGame[] | null;
+    "tags"?: string[] | null;
     "version": number;
     "state": string;
     "grade"?: string;
@@ -434,6 +466,7 @@ export interface Stats {
  * roster. The underlying analysis can be reused for a different roster.
  */
 export interface TeamRating {
+    "tags"?: string[] | null;
     "queueId": number;
     "place": number;
     "rated": number;

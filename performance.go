@@ -11,6 +11,7 @@ import (
 )
 
 type performanceDiagnostics struct {
+	Brief        core.AnalysisBriefState         `json:"analysisBrief"`
 	Publications engine.PublicationMetrics       `json:"snapshotPublications"`
 	Responses    diagnostics.ResponseCounts      `json:"responses"`
 	Ratings      diagnostics.TeamReadinessMetric `json:"champSelectRatings"`
@@ -26,6 +27,7 @@ func (s *AppService) performanceDiagnostics() performanceDiagnostics {
 		p.Publications = s.engine.PublicationMetrics()
 		p.Readiness = s.engine.ReadinessMetrics()
 		p.Ratings = s.engine.TeamReadinessMetrics()
+		p.Brief = s.engine.AnalysisBriefStatus()
 	}
 	if s.resources != nil {
 		p.Resources = s.resources.Snapshot()

@@ -17,6 +17,7 @@ type PerformanceMetric struct {
 
 // Derived, non-identifying comparison; never a copy of the other players' stats.
 type MatchPerformance struct {
+	Horse   *HorsePerformance   `json:"horse,omitempty"`
 	Version int                 `json:"version"`
 	Score   float64             `json:"score"`
 	Basis   string              `json:"basis"`
@@ -102,7 +103,7 @@ func matchPerformance(game historyGame, target historyParticipant) *MatchPerform
 		return nil
 	}
 	weights := performanceWeights(role, mode.Roles)
-	out := MatchPerformance{Version: PerformanceVersion, Basis: basis}
+	out := MatchPerformance{Version: PerformanceVersion, Basis: basis, Horse: horsePerformance(game, target, players, cohort, role, basis)}
 	total, used := 0.0, 0.0
 	for _, key := range []string{"damage", "gold", "participation", "survival", "cs", "vision", "taken", "healing", "shielding"} {
 		weight := weights[key]
@@ -118,10 +119,12 @@ func matchPerformance(game historyGame, target historyParticipant) *MatchPerform
 		out.Metrics = append(out.Metrics, PerformanceMetric{Key: key, Score: score, Games: 1})
 		total, used = total+score*weight, used+weight
 	}
-	if len(out.Metrics) < 3 || used < .5 {
+	if (len(out.Metrics) < 3 || used < .5) && out.Horse == nil {
 		return nil
 	}
-	out.Score = total / used
+	if used > 0 {
+		out.Score = total / used
+	}
 	return &out
 }
 

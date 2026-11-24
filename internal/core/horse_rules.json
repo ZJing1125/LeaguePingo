@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "baseline": 60,
+  "ratioSlope": 60,
+  "goldDiffSlope": 0.1,
+  "kdaAnchorRift": 2.5,
+  "kdaAnchorBrawl": 3,
+  "minimumGames": 5,
+  "maximumGames": 15,
+  "recentWeight": 1.5,
+  "weightStep": 0.05
+}

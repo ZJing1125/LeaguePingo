@@ -101,7 +101,7 @@ func (s *scoutPreparation) hasTask() bool {
 
 // targets updates only the caller's Engine-locked roster, never publishes it.
 // Cache-only rows count as attempted, preserving the ten-identity round cap.
-func (s *scoutPreparation) targets(players []core.Participant, now time.Time) ([]core.Participant, bool) {
+func (s *scoutPreparation) targets(players []core.Participant, now time.Time, alliesOnly bool) ([]core.Participant, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.cache == nil {
@@ -114,11 +114,14 @@ func (s *scoutPreparation) targets(players []core.Participant, now time.Time) ([
 	changed := false
 	for i := range players {
 		p := &players[i]
+		if alliesOnly && p.Team == "enemy" {
+			continue
+		}
 		if p.IdentityState != core.IdentityKnown || !core.IsKnownPUUID(p.PUUID) || s.attempted[p.PUUID] || len(s.attempted) >= 10 {
 			continue
 		}
 		s.attempted[p.PUUID] = true
-		if cached := s.cache[p.PUUID]; cached != nil && cached.State != "loading" && cached.Complete30 && now.Sub(cached.FetchedAt) < 5*time.Minute && (cached.Season == nil || now.Before(cached.Season.End)) {
+		if cached := s.cache[p.PUUID]; cached != nil && cached.ModelVersion >= core.ScoutStatsVersion && cached.State != "loading" && cached.Complete30 && now.Sub(cached.FetchedAt) < 5*time.Minute && (cached.Season == nil || now.Before(cached.Season.End)) {
 			changed = changed || p.Scout != cached
 			p.Scout = cached
 			continue

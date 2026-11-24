@@ -198,3 +198,5 @@ PlayerProfileHeader 只呈现头像/等级/两种段位/简短隐私状态，不
 controls.css 统一控件/滚动条并保留键盘行为；首页用 ChampionSplash，档案的纵向 ChampionPortrait 仍保留。RankEmblem 使用原始官方PNG及本地回退，不再自绘段位。资源维护与体积检查见 THIRD_PARTY_NOTICES、ui-assets.test.mjs；不改变运行时依赖和固定Wails版本。
 
 scout-stats.cjs 验证实际纯展示模块只用独立报告，companion-browser.cjs 验证超过20场的英雄经验、排位联动且无额外查询、快览缓存、高清/官方素材、首页筛选/分页与工作区隔离；均接入 test:smoke。原五组产品回归与组件工作台继续验证。Windows交付仍用 build.sh，不能把合成数据当作真实国服结果。
+
+BUG-0159：RatingBadge按分析版本解释五马百分制与旧归档，样本少和已确认空记录分别显示。PlayerAnalysisPanel在主窗、侧栏展开和准备资料抽屉展示同一分项及标签，队内名次作为详情。AnalysisBriefNotice在选人提供本局静音，复用MuteAnalysisBrief且不修改持久开关；终态失败保持静默。完整规则与国服验收见PLAYER_RATINGS.md。

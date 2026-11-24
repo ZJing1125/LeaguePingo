@@ -42,6 +42,8 @@ func Category(path string) string {
 		}
 	}
 	switch path {
+	case "/brief/freeze", "/brief/queue-to-post", "/brief/post":
+		return strings.TrimPrefix(path, "/")
 	case "/room/event-to-snapshot", "/ui/room-render", "/ui/sidebar-render", "/ui/player-history-ready", "/ui/history-feedback", "/ui/history-cache-ready", "/ui/history-first-ready", "/ui/rating-render", "/ui/guide-render", "/compute/scout", "/compute/history-parse":
 		return strings.TrimPrefix(path, "/")
 	}

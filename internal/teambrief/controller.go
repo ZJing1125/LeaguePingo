@@ -8,10 +8,13 @@ import (
 
 	"leaguepingo/internal/apperrors"
 	"leaguepingo/internal/core"
+	"leaguepingo/internal/diagnostics"
 	"leaguepingo/internal/source"
 )
 
 type Frame struct {
+	StartedAt    time.Time
+	Cached       int
 	Scope        string // transient connection/account/selection identity
 	SelectionKey string
 	GameID       int64
@@ -23,25 +26,28 @@ type Frame struct {
 }
 
 type Controller struct {
-	mu          sync.Mutex
-	state       core.AnalysisBriefState
-	frame       Frame
-	source      source.AnalysisBriefSource
-	scope       string
-	sequence    uint64
-	cancel      context.CancelFunc
-	attempted   bool
-	result      string
-	rooms       map[string]uint64
-	changes     chan struct{}
-	wake        chan struct{}
-	wait, delay time.Duration
-	chatPoll    time.Duration
-	workers     sync.WaitGroup
+	mu        sync.Mutex
+	state     core.AnalysisBriefState
+	frame     Frame
+	source    source.AnalysisBriefSource
+	scope     string
+	sequence  uint64
+	cancel    context.CancelFunc
+	attempted bool
+	result    string
+	rooms     map[string]uint64
+	changes   chan struct{}
+	wake      chan struct{}
+	wait      time.Duration
+	started   time.Time
+	frozen    *Frame
+	queued    time.Time
+	chatPoll  time.Duration
+	workers   sync.WaitGroup
 }
 
 func New() *Controller {
-	return &Controller{state: core.AnalysisBriefState{Audience: "team", IncludeSelf: true, Status: "off"}, changes: make(chan struct{}, 1), wake: make(chan struct{}, 1), rooms: map[string]uint64{}, wait: 8 * time.Second, delay: 1500 * time.Millisecond, chatPoll: 750 * time.Millisecond}
+	return &Controller{state: core.AnalysisBriefState{Audience: "team", IncludeSelf: true, Status: "off"}, changes: make(chan struct{}, 1), wake: make(chan struct{}, 1), rooms: map[string]uint64{}, wait: 5 * time.Second, chatPoll: 750 * time.Millisecond}
 }
 func (c *Controller) Snapshot() core.AnalysisBriefState {
 	c.mu.Lock()
@@ -84,6 +90,9 @@ func (c *Controller) Configure(enabled bool, audience string, self bool) error {
 		return nil
 	}
 	c.stopLocked()
+	if c.attempted && c.result == "queued" {
+		c.result = "skipped"
+	}
 	c.state.Enabled, c.state.Audience, c.state.IncludeSelf = enabled, audience, self
 	status := "off"
 	if enabled {
@@ -105,6 +114,17 @@ func (c *Controller) Observe(parent context.Context, src source.AnalysisBriefSou
 	case c.wake <- struct{}{}:
 	default:
 	}
+	if frame.Active && c.scope != frame.Scope {
+		c.stopLocked()
+		c.scope, c.attempted, c.result = frame.Scope, false, ""
+		c.started = frame.StartedAt
+		if c.started.IsZero() {
+			c.started = time.Now()
+		}
+		c.frozen = nil
+		c.state.CachedSeats = 0
+		c.state.ReadySeats, c.state.TotalSeats, c.state.FreezeMS, c.state.QueuedToPostMS, c.state.PostMS = 0, 0, 0, 0, 0
+	}
 	if !frame.Active || parent == nil || parent.Err() != nil || !c.state.Enabled {
 		if c.cancel != nil {
 			c.stopLocked()
@@ -113,10 +133,6 @@ func (c *Controller) Observe(parent context.Context, src source.AnalysisBriefSou
 			c.statusLocked("idle")
 		}
 		return c.state
-	}
-	if c.scope != frame.Scope {
-		c.stopLocked()
-		c.scope, c.attempted, c.result = frame.Scope, false, ""
 	}
 	if c.attempted || c.cancel != nil {
 		return c.state
@@ -136,16 +152,27 @@ func (c *Controller) Observe(parent context.Context, src source.AnalysisBriefSou
 }
 
 func (c *Controller) run(ctx context.Context, token uint64) {
-	delay, deadline := time.NewTimer(c.delay), time.NewTimer(c.wait)
-	defer delay.Stop()
+	c.mu.Lock()
+	remaining := time.Until(c.started.Add(c.wait))
+	src := c.source
+	c.mu.Unlock()
+	deadline := time.NewTimer(max(0, remaining))
 	defer deadline.Stop()
-	due, expired := false, false
+	// Chat discovery runs concurrently with history. It never freezes roster data.
+	chat := make(chan conversationResult, 1)
+	c.workers.Add(1)
+	go func() {
+		defer c.workers.Done()
+		discovery, cancel := context.WithTimeout(ctx, 8*time.Second)
+		defer cancel()
+		room, err := readConversation(discovery, src, c.chatPoll)
+		chat <- conversationResult{room, err}
+	}()
 	for {
+		expired := false
 		select {
 		case <-ctx.Done():
 			return
-		case <-delay.C:
-			due = true
 		case <-deadline.C:
 			expired = true
 		case <-c.wake:
@@ -155,79 +182,88 @@ func (c *Controller) run(ctx context.Context, token uint64) {
 			c.mu.Unlock()
 			return
 		}
-		ready := due && c.frame.Ready && c.frame.Rated > 0
-		if expired && !ready {
-			c.statusLocked("waiting-data")
+		freeze := expired || c.frame.Ready
+		if freeze {
+			frozen := c.frame
+			frozen.Lines = append([]string(nil), c.frame.Lines...)
+			c.frozen = &frozen
+			c.attempted = true
+			c.queued = time.Now()
+			c.state.ReadySeats = frozen.Rated
+			c.state.CachedSeats = frozen.Cached
+			c.state.TotalSeats = len(frozen.Lines)
+			c.state.FreezeMS = time.Since(c.started).Milliseconds()
+			c.result = "queued"
+			c.statusLocked("queued")
+			diagnostics.Default.Record("/brief/freeze", time.Since(c.started), 200, false)
 		}
 		c.mu.Unlock()
-		if ready && c.send(ctx, token) {
+		if !freeze {
+			continue
+		}
+		if c.skipEmpty(token) {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case result := <-chat:
+			if result.err != nil {
+				c.finish(token, "unavailable", true)
+				return
+			}
+			c.sendFrozen(ctx, token, result.room)
 			return
 		}
 	}
 }
 
-func (c *Controller) send(parent context.Context, token uint64) bool {
+type conversationResult struct {
+	room string
+	err  error
+}
+
+func (c *Controller) skipEmpty(token uint64) bool {
 	c.mu.Lock()
-	if c.sequence != token {
-		c.mu.Unlock()
-		return true
-	}
-	if !c.frame.Ready || c.frame.Rated == 0 || len(c.frame.Lines) == 0 {
-		c.mu.Unlock()
-		return false
-	}
-	src, frame := c.source, c.frame
-	c.statusLocked("waiting-chat")
+	empty := c.sequence != token || c.frozen == nil || c.frozen.Rated == 0 || len(c.frozen.Lines) == 0
 	c.mu.Unlock()
-	discovery, stopDiscovery := context.WithTimeout(parent, 8*time.Second)
-	room, err := readConversation(discovery, src, c.chatPoll)
-	stopDiscovery()
-	if err != nil {
-		status := "unavailable"
-		if apperrors.CodeOf(err) == apperrors.Unsupported {
-			status = "unsupported"
-		}
-		c.finish(token, status, true)
-		return true
+	if empty {
+		c.finish(token, "no-data", true)
 	}
-	request, cancel := context.WithTimeout(parent, 4*time.Second)
-	defer cancel()
-	if verifier, ok := src.(source.SelectionVerifier); ok {
-		if err := verifier.VerifySelection(request, frame.SelectionKey, frame.GameID, frame.QueueID); err != nil {
-			c.finish(token, "unavailable", true)
-			return true
-		}
-	}
+	return empty
+}
+
+func (c *Controller) sendFrozen(parent context.Context, token uint64, room string) {
 	c.mu.Lock()
-	if c.sequence != token || !c.state.Enabled || !c.frame.Active {
+	if c.sequence != token || !c.state.Enabled || !c.frame.Active || c.frozen == nil {
 		c.mu.Unlock()
-		return true
-	}
-	if request.Err() != nil {
-		c.mu.Unlock()
-		c.finish(token, "unavailable", true)
-		return true
-	}
-	if c.frame.SelectionKey != frame.SelectionKey || c.frame.GameID != frame.GameID || c.frame.QueueID != frame.QueueID {
-		c.mu.Unlock()
-		return false
-	}
-	if !c.frame.Ready || c.frame.Rated == 0 || len(c.frame.Lines) == 0 {
-		c.mu.Unlock()
-		return false
+		return
 	}
 	if _, used := c.rooms[room]; used {
 		c.mu.Unlock()
 		c.finish(token, "skipped", true)
-		return true
+		return
 	}
-	// Reserve before POST. Even an error or cancellation cannot authorize replay.
-	c.rooms[room], c.attempted = token, true
+	frame := *c.frozen
+	c.rooms[room] = token
 	c.pruneRoomsLocked()
-	body, audience := core.AnalysisBriefBody(c.frame.Lines), c.state.Audience
+	body, audience, src := core.AnalysisBriefBody(frame.Lines), c.state.Audience, c.source
+	queuedToPost := time.Since(c.queued)
+	c.state.QueuedToPostMS = queuedToPost.Milliseconds()
 	c.statusLocked("sending")
 	c.mu.Unlock()
+	request, cancel := context.WithTimeout(parent, 4*time.Second)
+	defer cancel()
+	started := time.Now()
 	dispatched, err := src.SendAnalysisBrief(request, room, body, audience)
+	elapsed := time.Since(started)
+	diagnostics.Default.Record("/brief/queue-to-post", queuedToPost, 200, false)
+	diagnostics.Default.Record("/brief/post", elapsed, 200, err != nil)
+	c.mu.Lock()
+	if c.sequence == token {
+		c.state.PostMS = elapsed.Milliseconds()
+	}
+	c.mu.Unlock()
 	status := "sent"
 	if !dispatched {
 		status = "unavailable"
@@ -235,7 +271,14 @@ func (c *Controller) send(parent context.Context, token uint64) bool {
 		status = "uncertain"
 	}
 	c.finish(token, status, true)
-	return true
+}
+
+func (c *Controller) MuteCurrent() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.stopLocked()
+	c.attempted, c.result = true, "muted"
+	c.statusLocked("muted")
 }
 
 func (c *Controller) finish(token uint64, status string, attempted bool) {
@@ -293,4 +336,12 @@ func readConversation(ctx context.Context, src source.AnalysisBriefSource, inter
 		}
 	}
 	return "", apperrors.New(apperrors.DataUnavailable)
+}
+
+// Empty initial metadata belongs to the same observed selection. A changed
+// verified key identifies a new selection even if no intervening phase arrived.
+func (c *Controller) SelectionChanged(key string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return key != "" && c.frame.SelectionKey != "" && key != c.frame.SelectionKey
 }

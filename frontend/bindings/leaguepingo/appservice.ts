@@ -131,6 +131,13 @@ export function MatchTimeline(key: string, connectionID: number, gameID: number)
     return $Call.ByID(2795946624, key, connectionID, gameID);
 }
 
+/**
+ * Mute only the current selection, without changing the persisted opt-in.
+ */
+export function MuteAnalysisBrief(): $CancellablePromise<core$0.AnalysisBriefState> {
+    return $Call.ByID(1215950439);
+}
+
 export function OverlayStatus(): $CancellablePromise<$models.OverlayState> {
     return $Call.ByID(2104693908);
 }

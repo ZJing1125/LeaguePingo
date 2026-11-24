@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"leaguepingo/internal/apperrors"
+	"leaguepingo/internal/core"
 	"leaguepingo/internal/diagnostics"
 	"leaguepingo/internal/postgame"
 	"leaguepingo/internal/readycheck"
@@ -210,3 +211,6 @@ func (s *AppService) PreviewAnalysisBrief() string { return s.engine.PreviewAnal
 func (s *AppService) PreviewAnalysisBriefWithOptions(includeSelf bool) string {
 	return s.engine.PreviewAnalysisBriefWithOptions(includeSelf)
 }
+
+// Mute only the current selection, without changing the persisted opt-in.
+func (s *AppService) MuteAnalysisBrief() core.AnalysisBriefState { return s.engine.MuteAnalysisBrief() }

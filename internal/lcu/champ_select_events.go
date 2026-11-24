@@ -40,6 +40,8 @@ func champSelectSignature(raw []byte) string {
 	}
 	type member struct {
 		CellID             *int   `json:"cellId"`
+		AssignedPosition   string `json:"assignedPosition"`
+		SelectedPosition   string `json:"selectedPosition"`
 		PUUID              string `json:"puuid"`
 		ChampionID         *int   `json:"championId"`
 		ChampionPickIntent *int   `json:"championPickIntent"`

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AnalysisBriefNotice from "./AnalysisBriefNotice.vue";
 import { uiText } from "../uiText";
 import GuidePanel from "./GuidePanel.vue";
 import { useGuide } from "../useGuide";
@@ -69,6 +70,7 @@ defineEmits<{ hide: []; pin: [] }>();
         </button>
       </div>
     </header>
+ <AnalysisBriefNotice :snapshot="snapshot"/>
     <div class="overlay-content">
       <div class="overlay-status">
         <span

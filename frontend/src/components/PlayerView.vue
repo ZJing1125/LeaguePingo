@@ -106,7 +106,8 @@ function toggle(id: number) {
         <MasteryPanel :player="player"/>
       </aside>
       <div class="history-column">
-        <details v-if="!compact" class="analysis-overview"><summary><strong>{{ uiText.playerView.recentAnalysis }}</strong><span>{{arenaOnly ? uiText.arena.firstRate : stats.outcomeGames?uiText.playerView.outcomes(stats.wins, stats.losses):uiText.playerView.pendingOutcome}} <b class="analysis-sample-win">{{percent(arenaOnly ? stats.arena?.firstPlaceRate : stats.winRate)}}</b></span><span>KDA <b class="analysis-sample-kda">{{decimal(stats.kda)}}</b></span><small class="analysis-scope">{{sampleLabel}}</small><span class="overview-expand">{{ uiText.playerView.expandAnalysis }}</span></summary><OverviewPerformance :matches="analysisMatches" :scope="sampleLabel"/></details>
+        <PlayerAnalysisPanel v-if="compact && scouting.analysis && scouting.analysis.version>=2" :analysis="scouting.analysis" :rating="scouting.rating ?? undefined" :mode="scouting.queueLabel"/>
+ <details v-if="!compact" class="analysis-overview"><summary><strong>{{ uiText.playerView.recentAnalysis }}</strong><span>{{arenaOnly ? uiText.arena.firstRate : stats.outcomeGames?uiText.playerView.outcomes(stats.wins, stats.losses):uiText.playerView.pendingOutcome}} <b class="analysis-sample-win">{{percent(arenaOnly ? stats.arena?.firstPlaceRate : stats.winRate)}}</b></span><span>KDA <b class="analysis-sample-kda">{{decimal(stats.kda)}}</b></span><small class="analysis-scope">{{sampleLabel}}</small><span class="overview-expand">{{ uiText.playerView.expandAnalysis }}</span></summary><OverviewPerformance :matches="analysisMatches" :scope="sampleLabel"/></details>
         <div class="history-toolbar">
           <div class="history-filter">
             <strong class="history-count"

@@ -67,3 +67,5 @@ func (r *Readiness) First(now, preparedAt time.Time) {
 	r.metric.Pending = false
 }
 func (r *Readiness) Snapshot() ReadinessMetric { return r.metric }
+
+func (r *Readiness) SelectionStarted() time.Time { return r.start }

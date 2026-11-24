@@ -6,7 +6,7 @@
 
 | 入口 | 范围 |
 | --- | --- |
-| `bash scripts/verify.sh portable` | 策略/工具脚本、组件样式/文案、Go AST函数长度、前端类型/22 项纯逻辑单测与生产构建、internal Go test/vet、diff |
+| `bash scripts/verify.sh portable` | 策略/工具脚本、组件样式/文案、Go AST函数长度、前端类型/纯逻辑单测与生产构建、internal Go test/vet、diff |
 | `bash scripts/verify.sh windows` | Windows amd64 完整验证，含绑定生成/一致性、原生 Go test/vet及全包竞态、前端浏览器回归 |
 | `go run ./cmd/functioncheck` | 检查Git受管及未忽略的新生产Go声明/闭包不超过100物理行；包含平台专用文件，排除测试 |
 | `node scripts/check-copy.mjs` | 检查含根应用的全部产品组件无中文硬编码（脚本、模板、属性及转义）；沿用uiText，无新依赖 |
@@ -62,3 +62,5 @@ S9严格证书候选使用[LCU_TLS.md](LCU_TLS.md)的显式测试，仅阶段HTT
 每次发版的基础步骤和空白结果表见[R3固定回归](RELEASE_REGRESSION.md)。六项模板均为NOT_RUN；只有同候选的R1及实际步骤完成后才能记录R3通过。
 
 按用户安排，当前优先完成非人工任务；[ACCEPTANCE.md](ACCEPTANCE.md)、[HOLD_INPUT.md](HOLD_INPUT.md)、[INSTALLATION.md](INSTALLATION.md)与[性能记录](PERFORMANCE.md)中的整局、焦点/DPI/反作弊、干净 Win10、发布证书及 FPS/延迟检查保留待验收。CI、单账号只读成功或离线资源采样均不能替代这些结论。
+
+BUG-0159针对性回归包含core/horse_analysis_test.go、engine/brief_deadline_test.go及scouting_parallel_test.go、teambrief/controller_test.go。TestFiveSecondCoverage使用真实五秒合成计时，缓存等效5/5、冷启动等效3/5分别记录；引擎另验证账号/名单阻塞不延后截止。companion-browser验证v2跨窗口、280宽完整画像和本局静音，旧规则归档继续兼容。国服接口/参数校准仍见PLAYER_RATINGS.md。

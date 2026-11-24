@@ -8,11 +8,12 @@ import (
 // TeamRating describes a player's standing among the rated members of this
 // roster. The underlying analysis can be reused for a different roster.
 type TeamRating struct {
-	QueueID int    `json:"queueId"`
-	Place   int    `json:"place"`
-	Rated   int    `json:"rated"`
-	Label   string `json:"label"`
-	Reason  string `json:"reason"`
+	Tags    []string `json:"tags,omitempty"`
+	QueueID int      `json:"queueId"`
+	Place   int      `json:"place"`
+	Rated   int      `json:"rated"`
+	Label   string   `json:"label"`
+	Reason  string   `json:"reason"`
 }
 
 var teamRatingLabels = [...]string{"大腿", "主力", "中坚", "待起势", "需支援"}
@@ -62,7 +63,11 @@ func rateTeam(players []Participant, queue int, team string) {
 			continue
 		}
 		score := *q.Analysis.Score
-		if math.IsNaN(score) || math.IsInf(score, 0) || score < 0 || score > 10 {
+		if math.IsNaN(score) || math.IsInf(score, 0) || score < 0 || score > ratingScale(q.Analysis) {
+			continue
+		}
+		if q.Analysis.Version >= 2 && q.Analysis.ScoredGames < 5 {
+			players[i].TeamRating = &TeamRating{QueueID: queue, Label: "样本少", Tags: horsePlayerTags(player, queue, players)}
 			continue
 		}
 		rows = append(rows, row{i, score, q.Analysis})
@@ -73,6 +78,23 @@ func rateTeam(players []Participant, queue int, team string) {
 		if i == 0 || row.score < rows[i-1].score {
 			place = i + 1
 		}
-		players[row.index].TeamRating = &TeamRating{QueueID: queue, Place: place, Rated: len(rows), Label: teamRatingLabels[place-1], Reason: AnalysisReason(row.analysis)}
+		label := teamRatingLabels[place-1]
+		tags := []string{}
+		if row.analysis.Version >= 2 {
+			label = HorseTier(row.score)
+			tags = horsePlayerTags(players[row.index], queue, players)
+		}
+		reason := AnalysisReason(row.analysis)
+		if len(tags) > 0 {
+			reason = tags[0]
+		}
+		players[row.index].TeamRating = &TeamRating{QueueID: queue, Place: place, Rated: len(rows), Label: label, Reason: reason, Tags: tags}
 	}
+}
+
+func ratingScale(a *PlayerAnalysis) float64 {
+	if a.Version >= 2 {
+		return 100
+	}
+	return 10
 }

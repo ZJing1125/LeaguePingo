@@ -175,7 +175,7 @@ func mergeRoster(allies, enemies []rosterMember) []Participant {
 			out = append(out, Participant{
 				Key: key, PUUID: member.PUUID, DisplayName: name,
 				GroupToken: groupToken(member.TeamParticipantID), Position: rosterPosition(member.SelectedPosition, member.AssignedPosition),
-				Team: team, ChampionID: championID, ChampionState: championState,
+				Team: team, CellID: member.CellID, ChampionID: championID, ChampionState: championState,
 				IdentityState: identity, PrivacyState: "unknown", HistoryState: HistoryPending,
 			})
 		}

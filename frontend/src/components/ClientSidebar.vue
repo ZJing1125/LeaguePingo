@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AnalysisBriefNotice from "./AnalysisBriefNotice.vue";
 import { uiText } from "../uiText";
 import AutoAcceptNotice from "./AutoAcceptNotice.vue";
 import PostGameNotice from "./PostGameNotice.vue";
@@ -36,6 +37,7 @@ watch([() => props.snapshot?.connectionId, () => props.snapshot?.gameId, hasEnem
     <p v-if="error || state?.warning || snapshot?.rosterError" class="quality-warning" role="status">{{ error || state?.warning || snapshot?.rosterError }}</p>
     <AutoAcceptNotice compact />
     <PostGameNotice compact />
+ <AnalysisBriefNotice :snapshot="snapshot"/>
 
     <GuidePanel v-show="tab==='guide'" :snapshot="snapshot" compact/>
     <div v-if="tab === 'players' && hasEnemies" class="sidebar-team-switch" role="group" :aria-label="uiText.matchRoster.title">

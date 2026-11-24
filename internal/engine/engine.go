@@ -223,6 +223,7 @@ func (e *Engine) poll(ctx context.Context) {
 	}
 	phase := Phase(phaseValue)
 	phaseObserved := time.Now()
+	e.observeBriefPhase(generation, version, epoch, phase, phaseObserved)
 	stage := stageForPhase(phase)
 	account := ""
 	if preparationStage(stage) || stage == StageIdle {
@@ -253,6 +254,9 @@ func (e *Engine) poll(ctx context.Context) {
 		e.acceptAccountNameLocked()
 	}
 	e.readiness.Phase(string(phase), phaseObserved)
+	if phase != snapshotPhase(e.snapshot.Phase) {
+		e.beginAnalysisBriefLocked(phase)
+	}
 	e.observeAutoAcceptLocked(phase, phaseStarted)
 	refresh := e.roster.observe(phase, snapshotPhase(e.snapshot.Phase), stage)
 	previous := e.selectionModeLocked(stage)

@@ -4,7 +4,7 @@ package core
 // A newly discovered mayhem sample must not be discarded because an old report
 // contained more solo games. Published slices are never mutated.
 func MergeScoutReports(old *ScoutReport, next ScoutReport) ScoutReport {
-	if old == nil || next.State == "ready" || old.Read <= next.Read || !old.Complete30 && next.Read != 0 {
+	if old == nil || old.ModelVersion < next.ModelVersion || next.State == "ready" || old.Read <= next.Read || !old.Complete30 && next.Read != 0 {
 		return next
 	}
 	sameSeason := old.Season == nil && next.Season == nil || old.Season != nil && next.Season != nil && old.Season.Start.Equal(next.Season.Start) || old.Season != nil && next.Season == nil && !next.FetchedAt.Before(old.Season.Start) && next.FetchedAt.Before(old.Season.End)

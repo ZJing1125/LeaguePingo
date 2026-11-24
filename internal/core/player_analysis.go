@@ -9,6 +9,8 @@ import (
 const PlayerAnalysisVersion = 1
 
 type PlayerAnalysis struct {
+	Recent        []AnalysisGame      `json:"recent,omitempty"`
+	Tags          []string            `json:"tags,omitempty"`
 	Version       int                 `json:"version"`
 	State         string              `json:"state"`
 	Grade         string              `json:"grade,omitempty"`
@@ -43,6 +45,9 @@ func BuildPlayerAnalysis(matches []Match, queue int, cutoff time.Time, complete 
 	mode, ok := ScoutModeFor(queue)
 	if !ok {
 		return nil
+	}
+	if !mode.Arena {
+		return buildHorseAnalysis(matches, mode, cutoff, complete)
 	}
 	out := &PlayerAnalysis{Version: PlayerAnalysisVersion, State: "insufficient", Basis: "basic", Confidence: "low", Provisional: true, Metrics: []PerformanceMetric{}}
 	total, weights, squared := 0.0, 0.0, 0.0

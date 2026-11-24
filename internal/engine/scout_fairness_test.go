@@ -49,7 +49,8 @@ func (f *fairScoutClient) ScoutPage(ctx context.Context, id string, offset int) 
 	}
 	at := f.now.Add(-time.Duration(offset+1) * time.Hour)
 	win := true
-	return core.HistoryPage{Offset: offset, NextOffset: offset + 1, HasMore: offset == 0, Meta: core.HistoryMeta{Returned: 1, Parsed: 1}, Matches: []core.Match{{GameID: int64(offset + 1), PlayedAt: &at, QueueID: 2400, ChampionID: 3, Win: &win}}}, nil
+	k, d, a := 6, 2, 8
+	return core.HistoryPage{Offset: offset, NextOffset: offset + 1, HasMore: offset == 0, Meta: core.HistoryMeta{Returned: 1, Parsed: 1}, Matches: []core.Match{{GameID: int64(offset + 1), PlayedAt: &at, QueueID: 2400, ChampionID: 3, Win: &win, Kills: &k, Deaths: &d, Assists: &a}}}, nil
 }
 
 func TestScoutFiveFirstResultsWithOneSecondSyntheticPages(t *testing.T) {

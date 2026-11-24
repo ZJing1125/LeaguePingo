@@ -13,13 +13,17 @@ watch(() => [props.analysis?.score, props.rating?.place, props.analysis?.scoredG
 </script>
 <template>
   <span class="player-rating" :class="{compact}" :title="analysisTitle(analysis, rating)" :aria-label="analysisTitle(analysis, rating)">
-    <template v-if="rating && analysis?.score != null">
+    <template v-if="analysis && analysis.version >= 2 && analysis.score != null">
+      <b>{{ analysis.scoredGames >= 5 ? analysis.grade : uiText.playerAnalysis.smallSample }}</b><small>{{ uiText.common.gamesNative(analysis.scoredGames) }}</small>
+    </template>
+    <template v-else-if="rating && analysis?.score != null">
       <b>{{ rating.label }}</b><span>{{ uiText.playerAnalysis.teamPlace(rating.place, rating.rated) }}</span><small>{{ uiText.common.gamesNative(analysis.scoredGames) }}</small><small v-if="analysis.provisional">{{ uiText.playerAnalysis.provisional }}</small>
     </template>
     <template v-else-if="!compact && analysis?.score != null">
       <b>{{ analysis.score.toFixed(1) }} / 10</b><small v-if="analysis.provisional">{{ uiText.playerAnalysis.provisional }}</small>
     </template>
-    <small v-else-if="analysis?.score == null">{{ pending ? uiText.playerAnalysis.preparing : uiText.playerAnalysis.insufficient }}</small>
+    <small v-else-if="analysis?.state === 'empty'">—</small>
+ <small v-else-if="analysis?.score == null">{{ pending ? uiText.playerAnalysis.preparing : uiText.playerAnalysis.insufficient }}</small>
   </span>
 </template>
 <style scoped>

@@ -7,6 +7,7 @@ import { applyBriefConfiguration, useAutomation } from "../composables/useAutoma
 import AppIcon from "./AppIcon.vue";
 import ExperimentalBadge from "./ExperimentalBadge.vue";
 import { uiText } from "../uiText";
+import {applyAnalysisBrief} from "../analysisBriefState";
 
 const emit = defineEmits<{ settings: [] }>();
 const info = ref<AppInfo | null>(null);
@@ -20,6 +21,7 @@ const acceptEnabled = ref(false), acceptDelay = ref(1);
 const briefEnabled = ref(false), briefAudience = ref("team"), briefSelf = ref(true), briefPreview = ref("");
 const skipHonor = ref(false), returnEnabled = ref(false), queueEnabled = ref(false), queueDelay = ref(10);
 const live = useAutomation();
+async function muteBrief() {try {applyAnalysisBrief(await Service.MuteAnalysisBrief());} catch(reason) {error.value=errorMessage(reason);} }
 const { acceptText, postText, acceptVisible, postVisible, accept, post, skipAccept, cancelPost, error: liveError, activeCount, warning } = live;
 
 type AutomationDraft = {
@@ -211,7 +213,8 @@ onMounted(() => { void load(); });
       <p class="muted">{{ uiText.analysisBrief.help }}</p>
       <div class="automation-rows"><label class="automation-field">{{ uiText.analysisBrief.audience }}<select v-model="briefAudience" :aria-label="uiText.analysisBrief.audience" :disabled="unavailable"><option value="team">{{ uiText.analysisBrief.team }}</option><option value="self">{{ uiText.analysisBrief.self }}</option></select></label><label class="automation-switch"><input v-model="briefSelf" type="checkbox" :disabled="unavailable"/>{{ uiText.analysisBrief.includeSelf }}</label></div>
       <p v-if="briefEnabled || info?.autoAnalysisBrief" class="automation-live" data-live="brief">{{ briefStatus }}</p>
-      <button class="secondary" :disabled="unavailable" @click="previewBrief">{{ uiText.analysisBrief.preview }}</button>
+      <button v-if="['waiting','queued','waiting-chat'].includes(live.brief.value?.status ?? '')" class="secondary" :disabled="unavailable" @click="muteBrief">{{uiText.analysisBrief.mute}}</button>
+ <button class="secondary" :disabled="unavailable" @click="previewBrief">{{ uiText.analysisBrief.preview }}</button>
       <textarea v-if="briefPreview" class="brief-preview" :aria-label="uiText.analysisBrief.previewLabel" :value="briefPreview" readonly rows="6"/>
     </article>
 

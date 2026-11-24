@@ -20,6 +20,7 @@ const (
 )
 
 type Participant struct {
+	CellID        *int          `json:"cellId,omitempty"`
 	ResponseID    uint64        `json:"responseId,omitempty"`
 	GroupToken    string        `json:"-"` // transient opaque source ID; never persisted
 	PremadeLabel  string        `json:"premadeLabel,omitempty"`

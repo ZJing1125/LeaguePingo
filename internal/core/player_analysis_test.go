@@ -99,11 +99,11 @@ func TestAnalysisIndependentGradesBoundsSmallSamplesAndUnknown(t *testing.T) {
 	for i := 0; i < 30; i++ {
 		m := match
 		m.GameID = int64(i + 1)
-		m.Performance = &MatchPerformance{Version: PerformanceVersion, Score: 9.8, Basis: "class", Metrics: []PerformanceMetric{{Key: "damage", Score: 9.8, Games: 1}, {Key: "gold", Score: 9.8, Games: 1}, {Key: "survival", Score: 9.8, Games: 1}}}
+		m.Performance = &MatchPerformance{Version: PerformanceVersion, Score: 9.8, Basis: "class", Horse:&HorsePerformance{Version:2,Score:98,Metrics:[]PerformanceMetric{{Key:"dpm",Score:98,Games:1},{Key:"kda",Score:98,Games:1},{Key:"participation",Score:98,Games:1}}}, Metrics: []PerformanceMetric{{Key: "damage", Score: 9.8, Games: 1}, {Key: "gold", Score: 9.8, Games: 1}, {Key: "survival", Score: 9.8, Games: 1}}}
 		full = append(full, m)
 	}
 	first, second := BuildPlayerAnalysis(full, 2400, now, true), BuildPlayerAnalysis(full, 2400, now, true)
-	if first.Grade != "S" || second.Grade != "S" || first.Provisional || *first.Score > 10 || first.Confidence != "high" {
+	if first.Grade != "千里马" || second.Grade != "千里马" || first.Provisional || *first.Score > 100 || first.Confidence != "high" {
 		t.Fatalf("independent grade failed: %+v", first)
 	}
 	if analysisGrade(0) != "D" || analysisGrade(8.5) != "S" || analysisGrade(7) != "A" {

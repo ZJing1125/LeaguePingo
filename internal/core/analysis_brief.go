@@ -10,15 +10,31 @@ import (
 const AnalysisBriefMaxBytes = 256
 
 type AnalysisBriefState struct {
-	Enabled     bool      `json:"enabled"`
-	Audience    string    `json:"audience"`
-	IncludeSelf bool      `json:"includeSelf"`
-	Status      string    `json:"status"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	Enabled        bool      `json:"enabled"`
+	Audience       string    `json:"audience"`
+	IncludeSelf    bool      `json:"includeSelf"`
+	Status         string    `json:"status"`
+	ReadySeats     int       `json:"readySeats"`
+	CachedSeats    int       `json:"cachedSeats"`
+	TotalSeats     int       `json:"totalSeats"`
+	FreezeMS       int64     `json:"freezeMs"`
+	QueuedToPostMS int64     `json:"queuedToPostMs"`
+	PostMS         int64     `json:"postMs"`
+	UpdatedAt      time.Time `json:"updatedAt"`
 }
 
 // Chat follows the selection roster order, with the same sample as its rating.
 func AnalysisBriefLines(snapshot Snapshot, includeSelf bool) ([]string, bool, int) {
+	for _, p := range snapshot.Participants {
+		q := participantScoutQueue(p, snapshot.QueueID)
+		if q != nil && q.Analysis != nil && q.Analysis.Version < 2 {
+			return legacyAnalysisBriefLines(snapshot, includeSelf)
+		}
+	}
+	return HorseBriefLines(snapshot, includeSelf)
+}
+
+func legacyAnalysisBriefLines(snapshot Snapshot, includeSelf bool) ([]string, bool, int) {
 	mode, ok := ScoutModeFor(snapshot.QueueID)
 	if !ok || mode.Arena || !mode.Matches(snapshot.MapID, snapshot.GameMode) {
 		return nil, true, 0
@@ -88,7 +104,7 @@ func AnalysisReason(a *PlayerAnalysis) string {
 	if a.Basis == "basic" {
 		return "基础摘要评级"
 	}
-	labels := map[string]string{"damage": "输出", "gold": "经济", "participation": "参团", "survival": "生存", "cs": "补刀", "vision": "视野", "taken": "承伤", "healing": "治疗", "shielding": "护盾", "placement": "名次"}
+	labels := map[string]string{"damage": "输出", "gold": "经济", "participation": "参团", "survival": "生存", "cs": "补刀", "vision": "视野", "taken": "承伤", "healing": "治疗", "shielding": "护盾", "placement": "名次", "dpm": "分均伤害", "eff": "经济转化", "takenEff": "伤害承伤转化", "goldDiff": "对位经济", "kda": "KDA"}
 	var high, low *PerformanceMetric
 	for i := range a.Metrics {
 		m := &a.Metrics[i]
@@ -102,10 +118,10 @@ func AnalysisReason(a *PlayerAnalysis) string {
 			low = m
 		}
 	}
-	if high != nil && high.Score >= 6.5 {
+	if high != nil && high.Score >= ratingScale(a)*.72 {
 		return labels[high.Key] + "较好"
 	}
-	if low != nil && low.Score <= 3.5 {
+	if low != nil && low.Score <= ratingScale(a)*.48 {
 		return labels[low.Key] + "偏弱"
 	}
 	return "表现较均衡"

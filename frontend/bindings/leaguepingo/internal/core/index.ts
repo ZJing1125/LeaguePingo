@@ -8,6 +8,7 @@ export {
 
 export type {
     AnalysisBriefState,
+    AnalysisGame,
     ArenaResult,
     ArenaStats,
     ChampionMastery,
@@ -17,6 +18,7 @@ export type {
     HistoryPageRequest,
     HistoryQueueVerification,
     HistoryServiceState,
+    HorsePerformance,
     Match,
     MatchDetail,
     MatchPeer,

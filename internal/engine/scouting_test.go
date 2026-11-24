@@ -118,7 +118,7 @@ func TestCachedScoutReportPublishesWithoutAnotherRequest(t *testing.T) {
 	e.client = f
 	e.clientVersion = 1
 	e.initialMatch.setParent(context.Background())
-	r := &core.ScoutReport{State: "ready", Complete30: true, FetchedAt: time.Now().UTC()}
+	r := &core.ScoutReport{ModelVersion: core.ScoutStatsVersion, State: "ready", Complete30: true, FetchedAt: time.Now().UTC()}
 	e.scouting.mu.Lock()
 	e.scouting.cache = map[string]*core.ScoutReport{"p": r}
 	e.scouting.mu.Unlock()

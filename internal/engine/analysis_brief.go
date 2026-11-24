@@ -10,30 +10,40 @@ import (
 )
 
 func (e *Engine) observeAnalysisBriefLocked() {
-	state := e.brief.Snapshot()
-	if !state.Enabled {
-		value := e.brief.Observe(e.initialMatch.parentContext(), nil, teambrief.Frame{})
+	if !e.readiness.SelectionStarted().IsZero() && snapshotPhase(e.snapshot.Phase) != PhaseChampSelect && (e.phaseHint == PhaseUnknown || e.phaseHint == PhaseChampSelect) {
+		e.beginAnalysisBriefLocked(PhaseChampSelect)
+		value := e.brief.Snapshot()
 		e.snapshot.AnalysisBrief = &value
 		return
 	}
-	lines, ready, rated := core.AnalysisBriefLines(e.snapshot, state.IncludeSelf)
-	selection := fmt.Sprintf("phase-%d", e.phaseEpoch)
-	if e.session.SelectionKey != "" {
-		selection = e.session.SelectionKey
-	} else if e.snapshot.GameID > 0 {
-		selection = fmt.Sprintf("game-%d", e.snapshot.GameID)
+	if snapshotPhase(e.snapshot.Phase) == PhaseChampSelect && e.brief.SelectionChanged(e.session.SelectionKey) {
+		now := time.Now()
+		e.readiness.Phase("", now)
+		e.readiness.Phase("ChampSelect", now)
 	}
+	state := e.brief.Snapshot()
+
+	lines, ready, rated := core.HorseBriefLines(e.snapshot, state.IncludeSelf)
 	active := e.snapshot.Connected && e.snapshot.SelfKey != "" &&
 		snapshotPhase(e.snapshot.Phase) == PhaseChampSelect &&
 		(e.phaseHint == PhaseUnknown || e.phaseHint == PhaseChampSelect)
 	frame := teambrief.Frame{
-		Scope:        fmt.Sprintf("%d:%s:%s:%d", e.clientVersion, e.snapshot.SelfKey, selection, e.snapshot.QueueID),
+		Scope: e.analysisBriefScopeLocked(), StartedAt: e.readiness.SelectionStarted(),
 		SelectionKey: e.session.SelectionKey, GameID: e.snapshot.GameID, QueueID: e.snapshot.QueueID,
 		Active: active, Lines: lines, Ready: ready, Rated: rated,
 	}
 	src, _ := e.client.(source.AnalysisBriefSource)
 	if mode, ok := core.ScoutModeFor(e.snapshot.QueueID); !ok || mode.Arena || e.scoutModeLocked() == 0 {
 		src = nil
+	}
+	for _, p := range e.snapshot.Participants {
+		if !state.IncludeSelf && (p.Key == e.snapshot.SelfKey || p.PUUID == e.snapshot.SelfKey) {
+			continue
+		}
+		q := findCurrentAnalysis(p, e.snapshot.QueueID)
+		if p.Team == "ally" && q != nil && q.Version >= 2 && q.ScoredGames >= 5 && q.State == "ready" && p.Scout != nil && p.Scout.FetchedAt.Before(frame.StartedAt) {
+			frame.Cached++
+		}
 	}
 	value := e.brief.Observe(e.initialMatch.parentContext(), src, frame)
 	e.snapshot.AnalysisBrief = &value
@@ -54,7 +64,7 @@ func (e *Engine) PreviewAnalysisBrief() string {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	cfg := e.brief.Snapshot()
-	lines, _, _ := core.AnalysisBriefLines(e.snapshot, cfg.IncludeSelf)
+	lines, _, _ := core.HorseBriefLines(e.snapshot, cfg.IncludeSelf)
 	return core.AnalysisBriefBody(lines)
 }
 
@@ -62,6 +72,53 @@ func (e *Engine) PreviewAnalysisBrief() string {
 func (e *Engine) PreviewAnalysisBriefWithOptions(includeSelf bool) string {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	lines, _, _ := core.AnalysisBriefLines(e.snapshot, includeSelf)
+	lines, _, _ := core.HorseBriefLines(e.snapshot, includeSelf)
 	return core.AnalysisBriefBody(lines)
+}
+
+func (e *Engine) MuteAnalysisBrief() core.AnalysisBriefState {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.brief.MuteCurrent()
+	e.publishLocked()
+	return e.brief.Snapshot()
+}
+
+func (e *Engine) analysisBriefScopeLocked() string {
+	return fmt.Sprintf("%d:%d", e.clientVersion, e.readiness.SelectionStarted().UnixNano())
+}
+
+// Start the deadline as soon as phase is known, before roster/source I/O.
+func (e *Engine) beginAnalysisBriefLocked(phase Phase) {
+	src, _ := e.client.(source.AnalysisBriefSource)
+	e.brief.Observe(e.initialMatch.parentContext(), src, teambrief.Frame{
+		Scope: e.analysisBriefScopeLocked(), StartedAt: e.readiness.SelectionStarted(),
+		Active: phase == PhaseChampSelect,
+	})
+}
+
+func (e *Engine) AnalysisBriefStatus() core.AnalysisBriefState { return e.brief.Snapshot() }
+
+func findCurrentAnalysis(p core.Participant, queue int) *core.PlayerAnalysis {
+	if p.Scout == nil {
+		return nil
+	}
+	for _, q := range p.Scout.Queues {
+		if q.QueueID == queue {
+			return q.Analysis
+		}
+	}
+	return nil
+}
+
+func (e *Engine) observeBriefPhase(generation, version, epoch uint64, phase Phase, observed time.Time) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.snapshot.Generation != generation || e.clientVersion != version || e.phaseEpoch != epoch {
+		return
+	}
+	e.readiness.Phase(string(phase), observed)
+	if phase != snapshotPhase(e.snapshot.Phase) {
+		e.beginAnalysisBriefLocked(phase)
+	}
 }
