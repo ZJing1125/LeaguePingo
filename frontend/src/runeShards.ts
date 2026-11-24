@@ -6,6 +6,7 @@ export function shardConfiguration(version?: string) {
   if (!parts) return undefined;
   let major = Number(parts[1]);
   const minor = Number(parts[2]);
+  if (minor < 1 || minor > 24) return undefined;
   if ([25,26].includes(major)) major -= 10;
   const patch = major * 100 + minor;
   return catalog.versions.find(v => patch >= v.min[0]*100+v.min[1] && patch <= v.max[0]*100+v.max[1]);

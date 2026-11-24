@@ -15,7 +15,7 @@ test('patch boundaries select historical values and actual slot choices',()=>{
  expect(shardName(5013,'26.23',2)).toBe('韧性与减速抗性 +15%');
 });
 test('unknown, future or conflicting records retain only actual IDs without invented values',()=>{
- for(const version of [undefined,'broken','16.24.1','99.1']){
+ for(const version of [undefined,'broken','14.99.1','16.0','16.24.1','99.1']){
   expect(shardConfiguration(version)).toBeUndefined();
   expect(shardName(5011,version)).toBe('固定生命值');
   expect(shardRows([5007,0,5001],version)).toEqual([[5007],[],[5001]]);
