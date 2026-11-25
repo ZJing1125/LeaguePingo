@@ -26,7 +26,10 @@ func horseHistory(n int, queue int, score float64) []Match {
 func TestHorseScoreBoundsSampleWindowAndExactQueue(t *testing.T) {
 	for _, score := range []float64{0, 39.9, 40, 54.9, 55, 60, 71.9, 72, 84.9, 85, 100} {
 		a := BuildPlayerAnalysis(horseHistory(25, 2400, score), 2400, time.Now(), true)
-		if a.Version != 4 || a.ScoredGames != 15 || a.Grade != HorseTier(score) || math.Abs(*a.Score-score) > .01 {
+		// The per-game score is constant, so the weighted mean equals it;
+		// the B-factor rescale then maps it around the 60 baseline.
+		want := math.Round(clampScore(60+(score-60)*horseRules.ScoreScale, 0, 100)*10) / 10
+		if a.Version != 4 || a.ScoredGames != 15 || a.Grade != HorseTier(want) || math.Abs(*a.Score-want) > .01 {
 			t.Fatalf("score %v: %+v", score, a)
 		}
 	}

@@ -9,19 +9,23 @@ import (
 //go:embed horse_rules.json
 var horseRulesJSON []byte
 var horseRules = func() struct {
-	Version                                                            int
-	Baseline, RatioSlope, GoldDiffSlope, KDAAnchorRift, KDAAnchorBrawl float64
-	MinimumGames, MaximumGames                                         int
-	RecentWeight, WeightStep                                           float64
+	Version                                                                        int
+	Baseline, RatioSlope, GoldDiffSlope, KDAAnchorRift, KDAAnchorBrawl, ScoreScale float64
+	MinimumGames, MaximumGames                                                     int
+	RecentWeight, WeightStep                                                       float64
 } {
 	var rules struct {
-		Version                                                            int
-		Baseline, RatioSlope, GoldDiffSlope, KDAAnchorRift, KDAAnchorBrawl float64
-		MinimumGames, MaximumGames                                         int
-		RecentWeight, WeightStep                                           float64
+		Version                                                                        int
+		Baseline, RatioSlope, GoldDiffSlope, KDAAnchorRift, KDAAnchorBrawl, ScoreScale float64
+		MinimumGames, MaximumGames                                                     int
+		RecentWeight, WeightStep                                                       float64
 	}
 	if err := json.Unmarshal(horseRulesJSON, &rules); err != nil {
 		panic(err)
+	}
+	// A missing or zero scale must not collapse every score to the baseline.
+	if rules.ScoreScale <= 0 {
+		rules.ScoreScale = 1
 	}
 	return rules
 }()

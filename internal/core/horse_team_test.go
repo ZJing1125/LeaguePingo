@@ -9,7 +9,9 @@ import (
 
 func rankedHorsePlayers() []Participant {
 	out := []Participant{}
-	for cell, score := range []float64{62, 85, 40, 76, 55} {
+	// Raw per-game scores; the B-factor rescale (x3 around 60) maps them to
+	// 66 / 100 / 45 / 78 / 66, i.e. 中等马 / 千里马 / 下等马 / 上等马 / 中等马.
+	for cell, score := range []float64{62, 85, 55, 66, 62} {
 		a := BuildPlayerAnalysis(horseHistory(15, 420, score), 420, time.Now(), true)
 		seat := cell
 		out = append(out, Participant{Key: fmt.Sprint(cell), Team: "ally", CellID: &seat, IdentityState: IdentityKnown,

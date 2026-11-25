@@ -24,12 +24,54 @@ func TestPeerBaselinePreservesNeutralAndSeparatesStablePerformance(t *testing.T)
 				history = append(history, copy)
 			}
 			analysis := BuildPlayerAnalysis(history, mode.queue, time.Now(), true)
-			if analysis.Version != 4 || analysis.Score == nil || math.Abs(*analysis.Score-60*ratio) > .01 || analysis.Grade != HorseTier(60*ratio) {
+			// The per-game score stays 60*ratio; the B-factor rescale maps
+			// the 15-game mean around the 60 baseline before tiering.
+			want := math.Round(clampScore(60+(60*ratio-60)*horseRules.ScoreScale, 0, 100)*10) / 10
+			if analysis.Version != 4 || analysis.Score == nil || math.Abs(*analysis.Score-want) > .01 || analysis.Grade != HorseTier(want) {
 				t.Fatal("weighted history lost the calibrated score", analysis)
 			}
 		}
 	}
-	t.Log("synthetic stable performance at 0.5x / 1.0x / 1.5x of peers scores 30 / 60 / 90")
+	t.Log("synthetic stable performance at 0.5x / 1.0x / 1.5x of peers scores 0 / 60 / 100 after the B-factor rescale")
+}
+
+func TestRescaledScoresSpreadAcrossTiersWhenGamesVary(t *testing.T) {
+	// Regression for the all-middle-tier pile-up: the old suite only built
+	// 15 identical games, so the 15-game mean compression was invisible.
+	// Vary each game's peer ratio around a different mean per player and
+	// require the rescaled grades to actually spread across tiers.
+	for _, mode := range []struct{ queue, mapID int }{{420, 11}, {450, 12}, {2400, 12}} {
+		grades := map[string]bool{}
+		for _, tc := range []struct {
+			name   string
+			ratios [2]float64
+			grade  string
+		}{
+			{"strong", [2]float64{1.3, 1.1}, "千里马"},
+			{"average", [2]float64{1.1, 0.9}, "中等马"},
+			{"weak", [2]float64{0.9, 0.7}, "纯牛马"},
+		} {
+			history := []Match{}
+			for i := range 15 {
+				game := performanceGame()
+				game["queueId"], game["mapId"] = mode.queue, mode.mapID
+				ratio := tc.ratios[i%2]
+				target := game["participants"].([]any)[4].(map[string]any)["stats"].(map[string]any)
+				target["assists"], target["visionScore"], target["totalDamageDealtToChampions"] = int(20*ratio), int(40*ratio), int(3000*ratio)
+				match := parsePerformanceGame(t, game)
+				match.GameID = int64(i + 1)
+				history = append(history, match)
+			}
+			analysis := BuildPlayerAnalysis(history, mode.queue, time.Now(), true)
+			if analysis.Score == nil || analysis.Grade != tc.grade {
+				t.Fatalf("queue=%d %s: got grade %s score %v, want %s", mode.queue, tc.name, analysis.Grade, analysis.Score, tc.grade)
+			}
+			grades[analysis.Grade] = true
+		}
+		if len(grades) != 3 {
+			t.Fatalf("queue=%d: varying histories collapsed to %v", mode.queue, grades)
+		}
+	}
 }
 
 func TestCalibratedAbsoluteGradesAllowSameTier(t *testing.T) {

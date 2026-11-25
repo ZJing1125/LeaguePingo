@@ -133,7 +133,11 @@ func buildHorseAnalysis(matches []Match, mode ScoutMode, cutoff time.Time, compl
 		}
 		return out
 	}
-	value := math.Round(score/totalWeight*10) / 10
+	rawAvg := score / totalWeight
+	// Rescale around the 60 baseline: the 15-game weighted mean compresses
+	// real differences toward 60, so widen the spread before tiering.
+	scaledScore := 60.0 + (rawAvg-60.0)*horseRules.ScoreScale
+	value := math.Round(clampScore(scaledScore, 0, 100)*10) / 10
 	out.Score = &value
 	out.State = "sample"
 	if len(selected) >= horseRules.MinimumGames {
@@ -154,7 +158,12 @@ func buildHorseAnalysis(matches []Match, mode ScoutMode, cutoff time.Time, compl
 	}
 	for _, key := range []string{"dpm", "eff", "takenEff", "kda", "participation", "vision", "goldDiff"} {
 		if weights[key] > 0 {
-			out.Metrics = append(out.Metrics, PerformanceMetric{Key: key, Score: math.Round(totals[key]/weights[key]*10) / 10, Games: counts[key]})
+			// Metric means are 15-game weighted means too, so they compress
+			// the same way; rescale them on the same ruler or the 72/48 tag
+			// thresholds keep reading "表现较均衡" for almost everyone.
+			metricAvg := totals[key] / weights[key]
+			metricScore := math.Round(clampScore(60.0+(metricAvg-60.0)*horseRules.ScoreScale, 0, 100)*10) / 10
+			out.Metrics = append(out.Metrics, PerformanceMetric{Key: key, Score: metricScore, Games: counts[key]})
 		}
 	}
 	out.Tags = horseFormTags(out.Recent)
