@@ -99,10 +99,16 @@ func TestHorseBriefMixedStatesAndSeatGrades(t *testing.T) {
 		snapshot.Participants = append(snapshot.Participants, p)
 	}
 	ApplyTeamRatings(snapshot.Participants, 420)
+	seen := map[string]bool{}
 	for _, p := range snapshot.Participants {
-		if p.TeamRating.Label != "中等马" {
-			t.Fatal("team grade did not follow stable seat tie-break")
+		want := horseTeamLabels[*p.CellID]
+		if p.TeamRating.Label != want || p.TeamRating.Place != *p.CellID+1 {
+			t.Fatal("equal scores did not follow the stable seat tie-break", p.TeamRating)
 		}
+		seen[p.TeamRating.Label] = true
+	}
+	if len(seen) != 5 {
+		t.Fatal("a horse tier was reused inside one team", seen)
 	}
 	snapshot.Participants[0].Scout = nil
 	snapshot.Participants[1].Scout = &ScoutReport{State: "ready", Complete30: true}
@@ -125,6 +131,12 @@ func TestHorseHistoricalCooccurrenceIsSameTeamEvidence(t *testing.T) {
 	tags := strings.Join(horsePlayerTags(p, 2400, []Participant{p, peer}), "|")
 	if !strings.Contains(tags, "近期同队15局") || strings.Contains(tags, "双排") {
 		t.Fatal("cooccurrence overclaimed", tags)
+	}
+	seat := 3
+	peer.CellID = &seat
+	anchored := strings.Join(horsePlayerTags(p, 2400, []Participant{p, peer}), "|")
+	if !strings.Contains(anchored, "🔗近期同队(4楼·15局)") || strings.Contains(anchored, "双排") {
+		t.Fatal("cooccurrence floor anchor missing", anchored)
 	}
 	for i := range b.Recent {
 		b.Recent[i].TeamID = 200

@@ -29,15 +29,16 @@ func horseTacticalTags(p Participant, queue int, peers []Participant, rating *Te
 	if a.Score != nil && *a.Score >= 72 && effGames >= 5 && eff/float64(effGames) >= 1.2 {
 		tags = append(tags, "⚔️靠谱火力点")
 	}
-	if len(a.Recent) >= 5 && deaths/float64(len(a.Recent)) >= 7 {
+	if a.Score != nil && *a.Score < 55 && len(a.Recent) >= 5 && deaths/float64(len(a.Recent)) >= 7 {
 		tags = append(tags, fmt.Sprintf("⚠️场均死亡%.1f", deaths/float64(len(a.Recent))))
 	}
 	if len(a.Recent) < 5 {
 		return tags
 	}
-	wins, losses, kda, kp, kpGames := 0, 0, 0.0, 0.0, 0
+	wins, losses, kda, kp, recentDeaths, kpGames := 0, 0, 0.0, 0.0, 0.0, 0
 	for i, g := range a.Recent[:5] {
 		kda += g.KDA / 5
+		recentDeaths += float64(g.Deaths)
 		if g.Participation != nil {
 			kp += *g.Participation
 			kpGames++
@@ -51,6 +52,9 @@ func horseTacticalTags(p Participant, queue int, peers []Participant, rating *Te
 	}
 	if wins >= 4 && kda > 4 {
 		tags = append(tags, fmt.Sprintf("🔥%d连胜·KDA%.1f", wins, kda))
+	}
+	if losses >= 3 && recentDeaths/5 >= 7 {
+		tags = append(tags, fmt.Sprintf("⚠️%d连败·场均死%.1f", losses, recentDeaths/5))
 	}
 	if losses >= 3 && kpGames == 5 && kp/5 > .65 {
 		tags = append(tags, fmt.Sprintf("🛡️%d连败·参团%.0f%%", losses, kp/5*100))

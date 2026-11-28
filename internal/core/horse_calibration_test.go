@@ -74,7 +74,7 @@ func TestRescaledScoresSpreadAcrossTiersWhenGamesVary(t *testing.T) {
 	}
 }
 
-func TestCalibratedAbsoluteGradesAllowSameTier(t *testing.T) {
+func TestTeamRankUsesEachHorseTierOnce(t *testing.T) {
 	players := rankedHorsePlayers()
 	for i := range players {
 		score := 60.0 + float64(i)
@@ -82,10 +82,15 @@ func TestCalibratedAbsoluteGradesAllowSameTier(t *testing.T) {
 		players[i].Scout.Queues[0].Analysis.Grade = "中等马"
 	}
 	ApplyTeamRatings(players, 420)
-	for _, p := range players {
-		if p.TeamRating.Label != "中等马" {
-			t.Fatal("same score band forced a different horse tier")
+	seen := map[string]bool{}
+	for i, p := range players {
+		if want := horseTeamLabels[4-i]; p.TeamRating.Label != want || p.TeamRating.Place != 5-i {
+			t.Fatalf("seat %d: got %+v want %s", i+1, p.TeamRating, want)
 		}
+		seen[p.TeamRating.Label] = true
+	}
+	if len(seen) != 5 {
+		t.Fatal("tier reused inside one team", seen)
 	}
 	for i := range players {
 		players[i].Scout.Queues[0].Analysis.Version = 3

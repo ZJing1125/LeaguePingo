@@ -21,17 +21,24 @@ func rankedHorsePlayers() []Participant {
 	return out
 }
 
-func TestAbsoluteHorseLabelsFollowScoresAndKeepPhysicalFloors(t *testing.T) {
+func TestTeamRankAssignsFiveDistinctLabelsAndKeepsPhysicalFloors(t *testing.T) {
 	players := rankedHorsePlayers()
 	ApplyTeamRatings(players, 420)
-	for i, label := range []string{"中等马", "千里马", "下等马", "上等马", "中等马"} {
+	// Scaled scores 66 / 100 / 45 / 78 / 66 rank 3rd, 1st, 5th, 2nd, 4th; the
+	// 66 tie keeps the lower seat ahead.
+	seen := map[string]bool{}
+	for i, label := range []string{"中等马", "千里马", "纯牛马", "上等马", "下等马"} {
 		if players[i].TeamRating.Label != label {
 			t.Fatalf("floor %d got %s", i+1, players[i].TeamRating.Label)
 		}
+		seen[label] = true
+	}
+	if len(seen) != 5 {
+		t.Fatal("a horse tier was reused inside one team")
 	}
 	lines, _, rated := HorseBriefLines(Snapshot{QueueID: 420, Participants: players}, true)
 	body := AnalysisBriefBody(lines)
-	if rated != 5 || !strings.Contains(body, "1楼(上) 🐎中等马") || !strings.Contains(body, "2楼(野) 🦄千里马") || strings.Count(body, "\n") != 5 || !ValidAnalysisBriefBody(body) {
+	if rated != 5 || !strings.Contains(body, "1楼(上) 🐎中等马") || !strings.Contains(body, "2楼(野) 🦄千里马") || !strings.Contains(body, "5楼(辅) 🐂下等马") || strings.Count(body, "\n") != 5 || !ValidAnalysisBriefBody(body) {
 		t.Fatal("multiline format changed seats or lost grades", body)
 	}
 	players[0].Scout.Queues[0].FetchStatus = StatusPending
@@ -113,5 +120,52 @@ func TestHorseScoreBucketBoundaries(t *testing.T) {
 		if horseScoreIndex(tc.score) != tc.index {
 			t.Fatalf("score %v mapped to wrong bucket", tc.score)
 		}
+	}
+}
+
+func TestHorseRefinedChampionAndTacticalRiskTags(t *testing.T) {
+	players := rankedHorsePlayers()
+	// Floor 3 (index 2) has scaled score 45 (<55); Floor 2 (index 1) has scaled score 100 (>=55).
+	lost, won := false, true
+	for _, idx := range []int{1, 2} {
+		a := players[idx].Scout.Queues[0].Analysis
+		for g := range a.Recent {
+			a.Recent[g].Deaths = 8
+			switch {
+			case g < 3:
+				a.Recent[g].Win = &lost
+			case g < 6:
+				a.Recent[g].Win = &won
+			case g < 10:
+				a.Recent[g].Win = &lost
+			default:
+				a.Recent[g].ChampionID = 157
+				a.Recent[g].Win = &won
+			}
+		}
+	}
+	// Floor 3: 10 Lee Sin games with 3 wins (30% <= 42%) + score 45 + 3 lose streak with 8 avg deaths.
+	players[2].ChampionID = 64
+	// Floor 4 (index 3): 0 recent games on Garen (86) with mastery < 5000.
+	players[3].ChampionID = 86
+	players[3].Scout.Champions = []ScoutChampion{{ChampionID: 86, Mastery: &ChampionMastery{Points: 3200}}}
+	ApplyTeamRatings(players, 420)
+
+	highTags := strings.Join(players[1].TeamRating.Tags, "|")
+	if strings.Contains(highTags, "⚠️场均死亡") {
+		t.Fatal("high-score player should not receive overall high-death warning", highTags)
+	}
+	if !strings.Contains(highTags, "⚠️3连败·场均死8.0") {
+		t.Fatal("missing recent-5 lose-streak high-death factual tag", highTags)
+	}
+	lowTags := strings.Join(players[2].TeamRating.Tags, "|")
+	for _, want := range []string{"⚠️场均死亡8.0", "⚠️3连败·场均死8.0", "⚠️李青(10场30%胜)"} {
+		if !strings.Contains(lowTags, want) {
+			t.Fatal("missing expected risk tag", want, lowTags)
+		}
+	}
+	newChampTags := strings.Join(players[3].TeamRating.Tags, "|")
+	if !strings.Contains(newChampTags, "⚠️盖伦0场·成就3200") || strings.Contains(newChampTags, "近15场未见本英雄") || strings.Contains(newChampTags, "英雄成就3200点") {
+		t.Fatal("zero-game low-mastery tag not merged cleanly", newChampTags)
 	}
 }

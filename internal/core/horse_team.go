@@ -62,16 +62,10 @@ func rateHorseTeam(players []Participant, queue int, team string, version int) {
 	for place, index := range rows {
 		r := players[index].TeamRating
 		r.Rated = len(rows)
+		// Each of the five labels is used once: rank by score, then assign.
 		if teamSize == 5 && visible > 0 && complete && len(rows) == visible {
 			r.Place = place + 1
 			r.Label = horseTeamLabels[place]
-			if version >= 4 {
-				a := participantScoutQueue(players[index], queue).Analysis
-				r.Label = HorseTier(*a.Score)
-				if place > 0 && *a.Score == *participantScoutQueue(players[rows[place-1]], queue).Analysis.Score {
-					r.Place = players[rows[place-1]].TeamRating.Place
-				}
-			}
 		}
 		r.Tags = mergeTacticalTags(horseTacticalTags(players[index], queue, players, r), r.Tags)
 		if len(r.Tags) > 0 {

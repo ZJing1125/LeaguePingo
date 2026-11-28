@@ -65,7 +65,11 @@ func horsePlayerTags(p Participant, queue int, peers []Participant) []string {
 			}
 		}
 		if count >= 2 {
-			tags = append(tags, fmt.Sprintf("近期同队%d局", count))
+			tag := fmt.Sprintf("近期同队%d局", count)
+			if peer.CellID != nil && *peer.CellID >= 0 && *peer.CellID < 10 {
+				tag = fmt.Sprintf("🔗近期同队(%d楼·%d局)", *peer.CellID%5+1, count)
+			}
+			tags = append(tags, tag)
 		}
 	}
 	if len(tags) == 0 {
